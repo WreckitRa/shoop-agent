@@ -1,0 +1,190 @@
+import type { BudgetInterpretation } from "../budget/budgetAllocation";
+import type { BudgetTension } from "../budget/budgetTension";
+import type { BudgetAssembly } from "../budget/budgetAllocation";
+import type {
+  HydratedCandidate,
+  HydrationDeathCause,
+  OverflowItem,
+} from "../hydration/types";
+import type { FashionSearchPlan, SearchPlanMode } from "../search-planner/types";
+import type { FashionSlotBrandStatus } from "../router/types";
+import type { ProductCard } from "@/lib/ai-chat/types";
+
+export type PickRole =
+  | "safe"
+  | "stretch"
+  | "value"
+  | "reach"
+  | "anchor"
+  | "support";
+
+export type CuratorVetoReason =
+  | "wrong_item_type"
+  | "wrong_department_visual"
+  | "color_mismatch_visual"
+  | "visibly_off_brief"
+  | "quality_visual"
+  | "duplicate_of_pick"
+  | "exclusion_violation";
+
+export type CurationNarration = {
+  opening: string;
+  brand_note?: string;
+  budget_note?: string;
+  thin_note?: string;
+};
+
+export type CurationLook = {
+  name: string;
+  item_refs: string[];
+  total: number;
+  note?: string;
+};
+
+export type CapsuleOutfit = {
+  item_refs: string[];
+  label?: string;
+};
+
+export type DeliverCurationPick = {
+  ref: string;
+  role: PickRole;
+  stylist_line: string;
+  corrected_color?: string;
+};
+
+export type DeliverCurationSlot = {
+  slot_id: string;
+  picks: DeliverCurationPick[];
+};
+
+export type DeliverCurationVeto = {
+  ref: string;
+  reason: CuratorVetoReason;
+  evidence: string;
+};
+
+export type DeliverCurationInput = {
+  slots: DeliverCurationSlot[];
+  looks?: CurationLook[];
+  capsule_outfits?: CapsuleOutfit[];
+  vetoes: DeliverCurationVeto[];
+  narration: CurationNarration;
+};
+
+export type RefEntry = {
+  ref: string;
+  slot_id: string;
+  product_id: string;
+  candidate: HydratedCandidate;
+  score_rank: number;
+  image_shown: boolean;
+};
+
+export type CurationRefRegistry = Map<string, RefEntry>;
+
+export type FashionCuratedPickBadge =
+  | { kind: "converted_size"; from: string; label: string }
+  | { kind: "check_sizing" }
+  | { kind: "suspicion"; rule: string; evidence: string }
+  | { kind: "photo_color"; color: string; listed?: string }
+  | { kind: "brand_unconfirmed" };
+
+export type FashionCuratedPick = ProductCard & {
+  ref: string;
+  slot_id: string;
+  garment: string;
+  role: PickRole;
+  stylist_line: string;
+  badges: FashionCuratedPickBadge[];
+  look_names?: string[];
+  corrected_color?: string;
+  score_rank: number;
+  brand_confirmed?: boolean;
+};
+
+export type FashionVerifiedTierItem = ProductCard & {
+  ref: string;
+  slot_id: string;
+  garment: string;
+  score_rank: number;
+  brand_confirmed?: boolean;
+  size_status?: string;
+};
+
+export type FashionUnverifiedTierItem = OverflowItem & {
+  slot_id: string;
+  garment: string;
+};
+
+export type FashionCurationPresentation = {
+  narration: CurationNarration;
+  tiers: {
+    picks: FashionCuratedPick[];
+    verified: FashionVerifiedTierItem[];
+    unverified: FashionUnverifiedTierItem[];
+  };
+  looks?: CurationLook[];
+  capsule_outfits?: CapsuleOutfit[];
+  meta: {
+    mode: SearchPlanMode;
+    thin_slots: string[];
+    brand_status: Record<string, FashionSlotBrandStatus | undefined>;
+    budget_tension?: BudgetTension["severity"];
+    budget_interpretation?: BudgetInterpretation;
+    fallback: boolean;
+    weights_version?: string;
+  };
+};
+
+export type FashionCurationResult = {
+  presentation: FashionCurationPresentation;
+  curation_ms: number;
+  registry: CurationRefRegistry;
+  debug: import("./fashion-curation-debug").FashionCurationDebugV1;
+};
+
+export type RunFashionCurationParams = {
+  traceId?: string | null;
+  plan: FashionSearchPlan;
+  slots: Array<{
+    slot_id: string;
+    garment: string;
+    verified_pool?: HydratedCandidate[];
+    overflow_items?: OverflowItem[];
+    thin_slot?: boolean;
+    curator_exclusions?: string[];
+    brand_status?: FashionSlotBrandStatus;
+    brand_sanity_note?: string;
+    brand_confirmed_count?: number;
+  }>;
+  pools: Map<
+    string,
+    {
+      reportDeath(
+        productId: string,
+        cause: HydrationDeathCause,
+        stage: string,
+      ): Promise<void>;
+      verified: HydratedCandidate[];
+      getOverflow(n?: number): OverflowItem[];
+    }
+  >;
+  tasteSignals?: Array<{
+    attribute_type: string;
+    attribute_value: string;
+    polarity: number;
+  }>;
+  budget_assembly?: BudgetAssembly;
+  budget_tension?: BudgetTension;
+  budget_interpretation?: BudgetInterpretation;
+  recipientRelation?: string;
+  department?: string;
+  excludedRefs?: string[];
+  signal?: AbortSignal;
+};
+
+export type MessageFashionCurationMetaV1 = FashionCurationPresentation & {
+  version: 1;
+  trace_id?: string;
+};

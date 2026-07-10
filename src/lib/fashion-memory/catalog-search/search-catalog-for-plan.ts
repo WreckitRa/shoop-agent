@@ -1,0 +1,643 @@
+import { logAiChat } from "@/lib/ai-chat/observability";
+import { createAbortScope } from "@/lib/ai-chat/abort-scope";
+import { applyHardDropsForSlots } from "../hard-drops/orchestrator";
+import { hydrateCatalogSlots } from "../hydration/orchestrator";
+import { normalizeCatalogSearchSlots } from "../normalize/orchestrator";
+import { scoreCatalogSlots } from "../scoring/orchestrator";
+import {
+  applyLiftedMax,
+  evaluateBudgetLift,
+  LIFT_READMIT_MIN,
+  readmitBudgetDroppedProducts,
+} from "../budget/budgetLift";
+import { resolveAllocation } from "../budget/budgetAllocation";
+import { computeBudgetTension } from "../budget/budgetTension";
+import { recordPipelineEvent } from "../observability/trace";
+import { resolveBrandForCatalogSlots } from "./resolve-brand-slots";
+import { searchCatalogForSlot } from "./search-catalog-for-slot";
+import type {
+  FashionCatalogSearchResult,
+  FashionSlotCatalogResult,
+  MessageFashionCatalogSearchMetaV1,
+  SearchFashionCatalogPlanParams,
+} from "./types";
+import type { FashionSearchPlan } from "../search-planner/types";
+import type { FashionFactRow } from "../types";
+import { statedBrands } from "../brand/brand-handling";
+import type { HardDropMetrics } from "../hard-drops/types";
+import { runFashionCuration } from "../curation/run-curation";
+import type { SlotPool } from "../hydration/types";
+
+/** Normalize → hard drops → scoring (no catalog I/O). */
+export async function postProcessFashionCatalogSlots(params: {
+  traceId?: string | null;
+  plan: FashionSearchPlan;
+  slots: FashionSlotCatalogResult[];
+  recipientFacts?: FashionFactRow[];
+  signal?: AbortSignal;
+  profileCurrency?: string;
+  liftedMaxBySlot?: Map<string, number>;
+}): Promise<{
+  slots: FashionSlotCatalogResult[];
+  normalize_ms: number;
+  hard_drop_ms: number;
+  scoring_ms: number;
+  hardDropMetrics: HardDropMetrics[];
+}> {
+  const normalized = await normalizeCatalogSearchSlots({
+    traceId: params.traceId,
+    slots: params.slots,
+    signal: params.signal,
+  });
+
+  const hardDropped = await applyHardDropsForSlots({
+    traceId: params.traceId,
+    slots: normalized.slots,
+    recipientFacts: params.recipientFacts ?? [],
+    brief: params.plan.brief,
+    mode: params.plan.mode,
+    allocation: params.plan.budget_allocation,
+    profileCurrency: params.profileCurrency,
+    liftedMaxBySlot: params.liftedMaxBySlot,
+  });
+
+  const scored = scoreCatalogSlots({
+    traceId: params.traceId,
+    planSlots: params.plan.slots,
+    brief: params.plan.brief,
+    recipientFacts: params.recipientFacts ?? [],
+    slots: hardDropped.slots,
+  });
+
+  return {
+    slots: scored.slots,
+    normalize_ms: normalized.metrics.ms,
+    hard_drop_ms: hardDropped.metrics.reduce((n, m) => n + m.ms, 0),
+    scoring_ms: scored.metrics.reduce((n, m) => n + m.ms, 0),
+    hardDropMetrics: hardDropped.metrics,
+  };
+}
+
+/** Normalize → hard drops → scoring → hydration. Hydration skipped when token/profile not passed. */
+export async function postProcessAndHydrateFashionCatalogSlots(params: {
+  traceId?: string | null;
+  plan: FashionSearchPlan;
+  slots: FashionSlotCatalogResult[];
+  recipientFacts?: FashionFactRow[];
+  accessToken?: string | null;
+  profile?: SearchFashionCatalogPlanParams["profile"] | null;
+  signal?: AbortSignal;
+  abortScope?: import("@/lib/ai-chat/abort-scope").AbortScope;
+  liftedMaxBySlot?: Map<string, number>;
+}): Promise<{
+  slots: FashionSlotCatalogResult[];
+  normalize_ms: number;
+  hard_drop_ms: number;
+  scoring_ms: number;
+  hydration_ms: number;
+  hardDropMetrics: HardDropMetrics[];
+}> {
+  const processed = await postProcessFashionCatalogSlots({
+    traceId: params.traceId,
+    plan: params.plan,
+    slots: params.slots,
+    recipientFacts: params.recipientFacts,
+    signal: params.signal,
+    profileCurrency: params.profile?.currency,
+    liftedMaxBySlot: params.liftedMaxBySlot,
+  });
+
+  if (params.accessToken == null || params.profile == null) {
+    logAiChat("warn", "fashion_catalog_hydration_skipped", {
+      traceId: params.traceId,
+      reason:
+        params.accessToken == null
+          ? "missing_access_token"
+          : "missing_profile",
+    });
+    return { ...processed, hydration_ms: 0 };
+  }
+
+  const started = Date.now();
+  const hydrated = await hydrateCatalogSlots({
+    traceId: params.traceId,
+    plan: params.plan,
+    slots: processed.slots,
+    recipientFacts: params.recipientFacts ?? [],
+    accessToken: params.accessToken,
+    profile: params.profile,
+    signal: params.signal,
+    abortScope: params.abortScope,
+  });
+
+  return {
+    slots: hydrated.slots,
+    normalize_ms: processed.normalize_ms,
+    hard_drop_ms: processed.hard_drop_ms,
+    scoring_ms: processed.scoring_ms,
+    hydration_ms: Date.now() - started,
+    hardDropMetrics: processed.hardDropMetrics,
+  };
+}
+
+async function runBudgetLiftRetries(params: {
+  plan: FashionSearchPlan;
+  slots: FashionSlotCatalogResult[];
+  hardDropMetrics: HardDropMetrics[];
+  accessToken: string;
+  profile: SearchFashionCatalogPlanParams["profile"];
+  signal?: AbortSignal;
+  abortScope?: import("@/lib/ai-chat/abort-scope").AbortScope;
+  traceId?: string | null;
+  recipientFacts?: FashionFactRow[];
+}): Promise<{
+  plan: FashionSearchPlan;
+  slots: FashionSlotCatalogResult[];
+  hardDropMetrics: HardDropMetrics[];
+  liftedSlots: Set<string>;
+  preLiftSurvivorCounts: Map<string, number>;
+  preLiftBudgetDrops: Map<string, number>;
+}> {
+  const allocation = params.plan.budget_allocation;
+  if (
+    !allocation?.budget_assembly ||
+    (params.plan.mode !== "outfit" && params.plan.mode !== "capsule")
+  ) {
+    return {
+      plan: params.plan,
+      slots: params.slots,
+      hardDropMetrics: params.hardDropMetrics,
+      liftedSlots: new Set(),
+      preLiftSurvivorCounts: new Map(),
+      preLiftBudgetDrops: new Map(),
+    };
+  }
+
+  const preLiftSurvivorCounts = new Map<string, number>();
+  const preLiftBudgetDrops = new Map<string, number>();
+  const rawCounts = new Map<string, number>();
+
+  for (let i = 0; i < params.slots.length; i++) {
+    const slot = params.slots[i]!;
+    const metrics = params.hardDropMetrics[i];
+    preLiftSurvivorCounts.set(slot.slot_id, slot.products.length);
+    preLiftBudgetDrops.set(
+      slot.slot_id,
+      metrics?.drops_by_rule?.budget ?? 0,
+    );
+    rawCounts.set(
+      slot.slot_id,
+      slot.products.length + (metrics?.drops_by_rule?.budget ?? 0),
+    );
+  }
+
+  const decisions = evaluateBudgetLift({
+    allocation,
+    slots: params.slots.map((s) => ({
+      slot_id: s.slot_id,
+      products: s.products,
+      market_prices: s.market_prices,
+      budget_dropped_pool: s.budget_dropped_pool,
+    })),
+    hardDropMetrics: params.hardDropMetrics,
+    rawCounts,
+    budgetDrops: preLiftBudgetDrops,
+  });
+
+  let plan = params.plan;
+  let slots = params.slots;
+  let hardDropMetrics = params.hardDropMetrics;
+  const liftedSlots = new Set<string>();
+
+  for (const decision of decisions) {
+    if (!decision.should_lift || decision.lifted_max == null) {
+      if (decision.skip_reason === "no_room") {
+        recordPipelineEvent({
+          traceId: params.traceId,
+          stage: "budget_lift",
+          payload: {
+            slot_id: decision.slot_id,
+            skipped: true,
+            reason: "no_room",
+            from: decision.original_padded_max,
+            cheapest_viables: decision.cheapest_viables,
+          },
+        });
+      }
+      continue;
+    }
+
+    const slotIdx = slots.findIndex((s) => s.slot_id === decision.slot_id);
+    if (slotIdx === -1) continue;
+
+    const planSlot = plan.slots.find((s) => s.slot_id === decision.slot_id);
+    if (!planSlot) continue;
+
+    plan = {
+      ...plan,
+      budget_allocation: applyLiftedMax(
+        plan.budget_allocation!,
+        decision.slot_id,
+        decision.lifted_max,
+      ),
+    };
+
+    const existing = slots[slotIdx]!;
+    let mergedProducts = [...existing.products];
+    let queryLogs = existing.query_logs;
+    let queryVariantsUsed = existing.query_variants_used;
+    let readmitted = 0;
+    let requeryRan = false;
+
+    // Zero-latency path: re-admit measured Lane B products under the new ceiling.
+    const readmittedProducts = readmitBudgetDroppedProducts({
+      pool: existing.budget_dropped_pool ?? [],
+      liftedMaxMajor: decision.lifted_max,
+    });
+    if (readmittedProducts.length) {
+      readmitted = readmittedProducts.length;
+      const byId = new Map(mergedProducts.map((p) => [p.id, p]));
+      for (const p of readmittedProducts) {
+        byId.set(p.id, p);
+      }
+      mergedProducts = [...byId.values()];
+    }
+
+    if (mergedProducts.length < LIFT_READMIT_MIN) {
+      // CHANGE 2: under tight/infeasible tension, do not barrel-scrape with
+      // another retrieval — Lane B + guard-band already measured the market.
+      if (decision.skip_requery) {
+        logAiChat("info", "fashion_budget_lift_skip_requery", {
+          traceId: params.traceId,
+          slot_id: decision.slot_id,
+          readmitted,
+          survivors: mergedProducts.length,
+          reason: "tight_or_infeasible_market",
+        });
+      } else {
+        requeryRan = true;
+        const liftResult = await searchCatalogForSlot({
+          slot: planSlot,
+          brief: plan.brief,
+          profile: params.profile,
+          accessToken: params.accessToken,
+          signal: params.signal,
+          abortScope: params.abortScope,
+          traceId: params.traceId,
+          mode: plan.mode,
+          allocation: plan.budget_allocation,
+          liftedMax: decision.lifted_max,
+          liftRetryOnly: true,
+        });
+
+        const readmitIds = new Set(readmittedProducts.map((p) => p.id));
+        const byId = new Map(
+          mergedProducts.map((p) => [
+            p.id,
+            readmitIds.has(p.id) ? { ...p, budget_lift_readmitted: true } : p,
+          ]),
+        );
+        for (const p of liftResult.products) {
+          if (!byId.has(p.id)) byId.set(p.id, p);
+        }
+        mergedProducts = [...byId.values()];
+
+        queryLogs = [...existing.query_logs, ...liftResult.query_logs];
+        queryVariantsUsed = [
+          ...existing.query_variants_used,
+          ...liftResult.query_variants_used,
+        ];
+      }
+    }
+
+    const mergedSlot: FashionSlotCatalogResult = {
+      ...existing,
+      products: mergedProducts,
+      query_logs: queryLogs,
+      query_variants_used: queryVariantsUsed,
+      counts: {
+        ...existing.counts,
+        unique_products: mergedProducts.length,
+      },
+      budget_dropped_pool: [],
+    };
+
+    const reprocessed = await postProcessFashionCatalogSlots({
+      traceId: params.traceId,
+      plan,
+      slots: slots.map((s, i) => (i === slotIdx ? mergedSlot : s)),
+      recipientFacts: params.recipientFacts,
+      signal: params.signal,
+      profileCurrency: params.profile.currency,
+      liftedMaxBySlot: new Map([[decision.slot_id, decision.lifted_max]]),
+    });
+
+    // Preserve market_prices from pre-lift measurement (Lane B scout).
+    const reprocessedSlot = reprocessed.slots[slotIdx]!;
+    if (existing.market_prices && !reprocessedSlot.market_prices) {
+      reprocessedSlot.market_prices = existing.market_prices;
+    }
+
+    slots = reprocessed.slots;
+    hardDropMetrics = hardDropMetrics.map((m, i) =>
+      i === slotIdx ? reprocessed.hardDropMetrics[i]! : m,
+    );
+
+    liftedSlots.add(decision.slot_id);
+
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "budget_lift",
+      payload: {
+        slot_id: decision.slot_id,
+        from: decision.original_padded_max,
+        to: decision.lifted_max,
+        cheapest_viables: decision.cheapest_viables,
+        readmitted,
+        requery_ran: requeryRan,
+        market_p10: existing.market_prices?.p10,
+      },
+    });
+  }
+
+  return {
+    plan,
+    slots,
+    hardDropMetrics,
+    liftedSlots,
+    preLiftSurvivorCounts,
+    preLiftBudgetDrops,
+  };
+}
+
+export async function searchFashionCatalogPlan(
+  params: SearchFashionCatalogPlanParams,
+): Promise<FashionCatalogSearchResult> {
+  const started = Date.now();
+  const abortScope = createAbortScope(params.signal);
+
+  let plan: FashionSearchPlan = {
+    ...params.plan,
+    budget_allocation:
+      resolveAllocation(params.plan, params.profile.currency) ??
+      params.plan.budget_allocation,
+  };
+
+  const settled = await Promise.allSettled(
+    plan.slots.map((slot) =>
+      searchCatalogForSlot({
+        slot,
+        brief: plan.brief,
+        profile: params.profile,
+        accessToken: params.accessToken,
+        signal: params.signal,
+        abortScope,
+        traceId: params.traceId,
+        mode: plan.mode,
+        allocation: plan.budget_allocation,
+      }),
+    ),
+  );
+
+  let slots: FashionSlotCatalogResult[] = settled.map((result, idx) => {
+    if (result.status === "fulfilled") return result.value;
+    const slotId = plan.slots[idx]?.slot_id ?? `slot_${idx}`;
+    const error = String(result.reason).slice(0, 240);
+    logAiChat("warn", "fashion_catalog_slot_failed", {
+      slot_id: slotId,
+      error,
+    });
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "catalog_slot_failed",
+      payload: {
+        slot_id: slotId,
+        garment: plan.slots[idx]?.garment ?? slotId,
+        error,
+      },
+    });
+    return {
+      slot_id: slotId,
+      garment: plan.slots[idx]?.garment ?? slotId,
+      products: [],
+      query_variants_used: (plan.slots[idx]?.query_variants ?? []).map(
+        (query) => ({ query, category_filtered: false }),
+      ),
+      counts: {
+        unique_products: 0,
+        per_variant: [],
+        reformulated: false,
+      },
+      query_logs: [],
+      thin_slot: true,
+    };
+  });
+
+  const timing_ms = Date.now() - started;
+
+  let brandNarration: string | null = null;
+
+  if (statedBrands(plan.brief).length) {
+    const resolved = await resolveBrandForCatalogSlots({
+      plan,
+      slots,
+      profile: params.profile,
+      accessToken: params.accessToken,
+      signal: params.signal,
+      abortScope,
+      traceId: params.traceId,
+    });
+    plan = resolved.plan;
+    slots = resolved.slots;
+    brandNarration = resolved.brandNarration;
+  }
+
+  const initialProcessed = await postProcessFashionCatalogSlots({
+    traceId: params.traceId,
+    plan,
+    slots,
+    recipientFacts: params.recipientFacts,
+    signal: params.signal,
+    profileCurrency: params.profile.currency,
+  });
+
+  const liftResult = await runBudgetLiftRetries({
+    plan,
+    slots: initialProcessed.slots,
+    hardDropMetrics: initialProcessed.hardDropMetrics,
+    accessToken: params.accessToken,
+    profile: params.profile,
+    signal: params.signal,
+    abortScope,
+    traceId: params.traceId,
+    recipientFacts: params.recipientFacts,
+  });
+
+  plan = liftResult.plan;
+  slots = liftResult.slots;
+
+  let budget_tension;
+  if (plan.budget_allocation?.budget_assembly) {
+    budget_tension = computeBudgetTension({
+      allocation: plan.budget_allocation,
+      slots: slots.map((s) => ({
+        slot_id: s.slot_id,
+        products: s.products,
+        market_prices: s.market_prices,
+      })),
+      hardDropMetrics: liftResult.hardDropMetrics,
+      liftedSlots: liftResult.liftedSlots,
+      preLiftSurvivorCounts: liftResult.preLiftSurvivorCounts,
+      preLiftBudgetDrops: liftResult.preLiftBudgetDrops,
+    });
+  }
+
+  let hydration_ms = 0;
+  let curation_ms = 0;
+  let curation;
+  let curation_debug;
+  let pools: Map<string, SlotPool> | undefined;
+
+  if (params.accessToken != null && params.profile != null) {
+    const hydrateStarted = Date.now();
+    const hydrated = await hydrateCatalogSlots({
+      traceId: params.traceId,
+      plan,
+      slots,
+      recipientFacts: params.recipientFacts ?? [],
+      accessToken: params.accessToken,
+      profile: params.profile,
+      signal: params.signal,
+      abortScope,
+    });
+    slots = hydrated.slots;
+    pools = hydrated.pools;
+    hydration_ms = Date.now() - hydrateStarted;
+
+    const tasteSignals =
+      params.tasteSignals ??
+      params.profile.positiveSignals.map((s) => ({
+        attribute_type: "style",
+        attribute_value: s,
+        polarity: 1,
+      }));
+
+    const curationStarted = Date.now();
+    const curationResult = await runFashionCuration({
+      traceId: params.traceId,
+      plan,
+      slots: slots.map((s) => ({
+        slot_id: s.slot_id,
+        garment: s.garment,
+        verified_pool: s.verified_pool,
+        overflow_items: s.overflow_items,
+        thin_slot: s.thin_slot,
+        curator_exclusions: s.curator_exclusions,
+        brand_status: s.brand_status ?? plan.slots.find((p) => p.slot_id === s.slot_id)?.brand_status,
+        brand_sanity_note: s.brand_sanity_note,
+        brand_confirmed_count: s.brand_confirmed_count,
+      })),
+      pools,
+      tasteSignals,
+      budget_assembly: plan.budget_allocation?.budget_assembly,
+      budget_tension,
+      budget_interpretation: plan.budget_allocation?.budget_interpretation,
+      recipientRelation: params.recipientRelation,
+      excludedRefs: params.excludedRefs,
+      signal: params.signal,
+    });
+    curation = curationResult.presentation;
+    curation_ms = Date.now() - curationStarted;
+    curation_debug = curationResult.debug;
+
+    slots = slots.map((slot) => {
+      const pool = pools?.get(slot.slot_id);
+      if (!pool) return slot;
+      return {
+        ...slot,
+        verified_pool: pool.verified,
+        overflow_items: pool.getOverflow(),
+        thin_slot: pool.thin || slot.thin_slot,
+      };
+    });
+  } else {
+    logAiChat("warn", "fashion_catalog_hydration_skipped", {
+      traceId: params.traceId,
+      reason:
+        params.accessToken == null
+          ? "missing_access_token"
+          : "missing_profile",
+    });
+  }
+
+  logAiChat("info", "fashion_catalog_plan_complete", {
+    mode: plan.mode,
+    slot_count: slots.length,
+    total_products: slots.reduce((n, s) => n + s.counts.unique_products, 0),
+    verified_pool: slots.reduce((n, s) => n + (s.verified_pool?.length ?? 0), 0),
+    brand_statuses: plan.slots.map((s) => s.brand_status),
+    timing_ms,
+    normalize_ms: initialProcessed.normalize_ms,
+    hard_drop_ms: initialProcessed.hard_drop_ms,
+    scoring_ms: initialProcessed.scoring_ms,
+    hydration_ms,
+    curation_ms,
+    budget_tension: budget_tension?.severity,
+    curation_fallback: curation?.meta.fallback,
+  });
+
+  return {
+    version: 1,
+    plan,
+    slots,
+    timing_ms,
+    brand_narration: brandNarration ?? undefined,
+    budget_assembly: plan.budget_allocation?.budget_assembly,
+    budget_interpretation: plan.budget_allocation?.budget_interpretation,
+    budget_tension,
+    curation,
+    curation_ms,
+    curation_debug,
+  };
+}
+
+export function fashionCatalogSearchToMetadata(
+  result: FashionCatalogSearchResult,
+  extras?: { trace_id?: string },
+): MessageFashionCatalogSearchMetaV1 {
+  return {
+    version: 1,
+    slots: result.slots.map((slot) => ({
+      slot_id: slot.slot_id,
+      garment: slot.garment,
+      dropped: slot.dropped,
+      curator_exclusions: slot.curator_exclusions,
+      query_variants_used: slot.query_variants_used,
+      counts: slot.counts,
+      verified_pool: slimVerifiedPoolForMetadata(slot.verified_pool),
+      overflow_items: slot.overflow_items,
+      thin_slot: slot.thin_slot,
+      brand_status: slot.brand_status,
+      brand_sanity_note: slot.brand_sanity_note,
+      brand_confirmed_count: slot.brand_confirmed_count,
+    })),
+    timing_ms: result.timing_ms,
+    brand_narration: result.brand_narration,
+    trace_id: extras?.trace_id,
+    budget_assembly: result.budget_assembly,
+    budget_interpretation: result.budget_interpretation,
+    budget_tension: result.budget_tension,
+    curation: result.curation
+      ? { version: 1 as const, ...result.curation, trace_id: extras?.trace_id }
+      : undefined,
+  };
+}
+
+function slimVerifiedPoolForMetadata(
+  pool: FashionSlotCatalogResult["verified_pool"],
+): MessageFashionCatalogSearchMetaV1["slots"][number]["verified_pool"] {
+  if (!pool?.length) return undefined;
+  return pool.map(
+    ({ detail, raw, ...candidate }) => candidate,
+  ) as MessageFashionCatalogSearchMetaV1["slots"][number]["verified_pool"];
+}

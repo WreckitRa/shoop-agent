@@ -1,0 +1,50 @@
+# Excluded from `railway up` uploads. Without a git repo, the CLI does not
+# apply .gitignore automatically — keep this in sync with .gitignore.
+
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# next.js build output (Railway runs npm install && npm run build remotely)
+.next/
+out/
+
+# testing / misc
+coverage/
+build/
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+.venv-prepass/
+scripts/__pycache__/
+**/__pycache__/
+
+# debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — set variables in the Railway dashboard instead
+.env*
+
+# other deploy targets
+.vercel/
+.git/
+
+# local / bulk assets not needed at runtime (cuts CLI upload size)
+new-assets/
+docs/
+canvases/
+supabase/
+*.xlsx
+Shoop-*.xlsx
+agent-transcripts/
+.cursor/

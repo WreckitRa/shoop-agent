@@ -1,0 +1,53 @@
+{
+  "name": "shoop-agent-v2",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "sh -c 'if [ -f .env ]; then export $(grep -E \"^PORT=\" .env | xargs); fi; exec next dev'",
+    "build": "NODE_ENV=production next build && npm run build:standalone-assets",
+    "build:standalone-assets": "cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/",
+    "start": "HOSTNAME=0.0.0.0 node .next/standalone/server.js",
+    "lint": "eslint",
+    "test": "npx --yes tsx --test src/lib/shopify/resolve-display-variant.test.ts src/lib/shopify/catalog-localization.test.ts src/lib/shopify/curated-shop-ids.test.ts src/lib/ai-chat/intent-branch/gate.test.ts src/lib/ai-chat/intent-branch/apply-splits-to-messages.test.ts src/lib/ai-chat/brand-clarification.test.ts src/lib/ai-chat/shopping-memory/llm-json.test.ts src/lib/ai-chat/shopping-memory/observation-scope.test.ts src/lib/ai-chat/shopping-memory/memory-hygiene.test.ts src/lib/ai-chat/topic-guard/classifier.test.ts src/lib/ai-chat/search/budget.test.ts src/lib/ai-chat/search/budget-search-planning.test.ts src/lib/ai-chat/search/archetype.test.ts src/lib/ai-chat/search/gift-direction-gate.test.ts src/lib/ai-chat/search/portfolio.test.ts src/lib/ai-chat/search/pool.test.ts src/lib/ai-chat/search/query-hygiene.test.ts src/lib/ai-chat/search/shipping-text-guard.test.ts src/lib/ai-chat/search/query-planner.test.ts src/lib/ai-chat/search/search-hardening.test.ts src/lib/ai-chat/search/constraint-gate.test.ts src/lib/ai-chat/search/slot-eligibility.test.ts src/lib/ai-chat/search/post-triage-assessment.test.ts src/lib/ai-chat/search/tier-one-self-check.test.ts src/lib/ai-chat/search/narrator-payload.test.ts src/lib/ai-chat/search/narrator-contract.test.ts src/lib/ai-chat/search/brand-anchors.test.ts src/lib/ai-chat/search/listing-hygiene.test.ts src/lib/ai-chat/search/brief-occasion.test.ts src/lib/ai-chat/search/expertise-corpus.test.ts src/lib/ai-chat/search/size-resolution.test.ts src/lib/ai-chat/search/taxonomy-attribute-filters.test.ts src/lib/ai-chat/curation/pick-insight.test.ts src/lib/ai-chat/curation/job-payload.test.ts src/lib/ai-chat/judgment/reason-validation.test.ts src/lib/ai-chat/judgment/prompt-assembler.test.ts src/lib/ai-chat/judgment/rating-confidence.test.ts src/lib/ai-chat/judgment/tier-judge.test.ts src/lib/ai-chat/judgment/finalist-images.test.ts src/lib/ai-chat/merge-option-preview-metadata.test.ts src/lib/ai-chat/merge-product-search-metadata.test.ts src/lib/shared/chatFocus.test.ts src/lib/fashion-memory/fixtures/department-enforcement.test.ts src/lib/fashion-memory/fixtures/shop-departments.test.ts src/lib/fashion-memory/fixtures/relevance-guard.test.ts src/lib/fashion-memory/fixtures/attire-conflict.test.ts src/lib/fashion-memory/intake/account-profile-bridge.test.ts src/lib/fashion-memory/intake/identity-gate.test.ts src/lib/fashion-memory/router/router.test.ts src/lib/fashion-memory/people-from-mentions.test.ts src/lib/fashion-memory/fixtures/pipeline-fixtures.test.ts src/lib/fashion-memory/catalog-search/catalog-search.test.ts src/lib/fashion-memory/budget/budgetAllocation.test.ts src/lib/fashion-memory/budget/budget-reality.test.ts src/lib/fashion-memory/curation/curation.test.ts src/lib/fashion-memory/hard-drops/apply-hard-drops.test.ts src/lib/fashion-memory/scoring/scoring.test.ts src/lib/fashion-memory/search-planner/search-planner.test.ts src/lib/fashion-memory/hydration/hydration.test.ts",
+    "ping:catalog": "npx tsx scripts/ping-catalog-mcp.ts",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:backfill-branches": "npx tsx scripts/backfill-conversation-branches.ts",
+    "db:deploy": "prisma db push --skip-generate",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
+    "@prisma/client": "^5.22.0",
+    "@stripe/react-stripe-js": "^6.6.0",
+    "@stripe/stripe-js": "^9.7.0",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.0",
+    "checkout-intents": "^0.27.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.16.0",
+    "next": "16.2.6",
+    "prisma": "^5.22.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

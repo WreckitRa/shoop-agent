@@ -1,0 +1,1429 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+@layer base {
+  :root {
+    --brand: #e3100f;
+    --brand-dark: #b80d0c;
+    --ink: #0c0c0c;
+    --ink-soft: #3d3b38;
+    --ink-muted: #9a9790;
+    --ink-secondary: #5c5a56;
+    --text-disabled: #c8c5be;
+    --hairline: #e6e3de;
+    --background: #f9f7f5;
+    --foreground: #0c0c0c;
+    --shoop-content-max: 960px;
+    --shoop-content-narrow: 720px;
+    --shoop-content-wide: 1100px;
+  }
+
+  html,
+  body {
+    @apply bg-page text-ink font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply tracking-tight;
+  }
+
+  button:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 border-0 active:scale-[0.98]
+           h-11 px-7 rounded-full bg-ink font-sans text-sm font-semibold text-white transition-colors duration-150 ease-ios
+           hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-1.5 h-11 px-5 active:scale-[0.98]
+           bg-surface text-ink text-body-sm font-semibold border border-hairline rounded-full transition-colors duration-150 ease-ios
+           hover:bg-surface-tint disabled:opacity-60;
+  }
+
+  .card {
+    @apply bg-surface border border-hairline rounded-2xl shadow-soft;
+  }
+
+  .input {
+    @apply h-11 px-3.5 text-[16px] text-ink bg-surface border border-hairline rounded-xl transition-colors duration-150 ease-ios focus:outline-none focus:border-ink/40 md:text-body;
+  }
+}
+
+/* Chat composer — refined luxury input */
+.shoop-buybrief-box {
+  position: relative;
+  width: 100%;
+  border: 1px solid rgba(12, 12, 12, 0.06);
+  border-radius: 28px;
+  background: #ffffff;
+  padding: 16px 18px 12px;
+  box-shadow:
+    0 1px 2px rgba(12, 12, 12, 0.03),
+    0 8px 28px rgba(12, 12, 12, 0.05);
+  transition:
+    box-shadow 200ms ease-out,
+    border-color 200ms ease-out;
+}
+
+.shoop-buybrief-box:focus-within {
+  border-color: rgba(12, 12, 12, 0.14);
+  box-shadow:
+    0 1px 2px rgba(12, 12, 12, 0.04),
+    0 12px 36px rgba(12, 12, 12, 0.07);
+}
+
+/* Quoted pick context above the composer textarea (ChatGPT-style reply). */
+.shoop-composer-reply {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--hairline);
+  background: #ffffff;
+  padding: 8px 8px 8px 10px;
+  box-shadow: 0 1px 2px rgba(12, 12, 12, 0.03);
+}
+
+.shoop-composer-reply__icon {
+  margin-top: 2px;
+  color: var(--ink-secondary);
+}
+
+.shoop-composer-reply__text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.shoop-composer-send {
+  height: 44px;
+  min-width: 44px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 9999px;
+  background: #0c0c0c;
+  color: #ffffff;
+  padding-left: 14px;
+  padding-right: 14px;
+  box-shadow: 0 2px 8px rgba(12, 12, 12, 0.1);
+  transition:
+    box-shadow 200ms ease-out,
+    background-color 200ms ease-out,
+    transform 200ms ease-out,
+    opacity 150ms ease-out;
+}
+
+.shoop-composer-send:hover:not(:disabled) {
+  background: #1a1a1a;
+}
+
+.shoop-composer-send:disabled {
+  background: #c8c5be;
+  box-shadow: none;
+}
+
+/** Icon-only send (follow-up turns) — same 44×44 footprint as the stop button. */
+.shoop-composer-send--icon {
+  width: 44px;
+  min-width: 44px;
+  padding-inline: 0;
+}
+
+.shoop-textarea-placeholder::placeholder {
+  color: #9a9790 !important;
+  font-size: 14px !important;
+}
+
+@media (max-width: 767px) {
+  .shoop-buybrief-box {
+    padding: 12px 14px 10px;
+    border-radius: 22px;
+  }
+
+  .shoop-textarea-placeholder {
+    font-size: 15px !important;
+    min-height: 20px !important;
+  }
+
+  .shoop-textarea-placeholder::placeholder {
+    font-size: 13px !important;
+  }
+
+  .shoop-buybrief-box .shoop-composer-textarea {
+    min-height: 20px !important;
+    line-height: 22px !important;
+  }
+}
+
+@keyframes moodPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.shoop-mood-panel {
+  box-shadow:
+    0 12px 36px rgba(12, 12, 12, 0.08),
+    0 2px 8px rgba(12, 12, 12, 0.04),
+    inset 0 0 0 1px rgba(12, 12, 12, 0.04);
+  transform-origin: right bottom;
+  animation: moodPanelIn 160ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shoop-mood-panel {
+    animation: none;
+  }
+}
+
+.shoop-receipt-notice {
+  transform-origin: left bottom;
+  animation: moodPanelIn 160ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shoop-receipt-notice {
+    animation: none;
+  }
+}
+
+@keyframes tpShoopReplyInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.tp-shoop-reply-enter {
+  animation: tpShoopReplyInLeft 300ms ease-out both;
+}
+
+/**
+ * Inline PDP: grow into the chat column without changing tp-chat-content
+ * padding (messages before/after keep the same inset).
+ */
+.shoop-inline-product-bleed {
+  width: calc(100% + 3rem);
+  max-width: none;
+  margin-inline: -1.5rem;
+}
+
+@media (min-width: 768px) {
+  .shoop-inline-product-bleed {
+    width: calc(100% + 9rem);
+    margin-inline: -4.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .shoop-inline-product-bleed {
+    position: relative;
+    left: 50%;
+    width: calc(100vw - var(--chat-sidebar-width, 240px) - 1.5rem);
+    max-width: none;
+    margin-inline: 0;
+    padding-inline: 0;
+    transform: translateX(-50%);
+    box-sizing: border-box;
+  }
+}
+
+/* 13" laptops (~1280–1440px) keep full bleed; cap only on wider viewports */
+@media (min-width: 1536px) {
+  .shoop-inline-product-bleed {
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: 960px;
+    margin-inline: auto;
+  }
+}
+
+/* Hero home — editorial serif display */
+.shoop-greeting-h1 {
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-size: 2.25rem;
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  .shoop-greeting-h1 {
+    font-size: clamp(2.75rem, 4.2vw, 3.5rem);
+    line-height: 1.04;
+  }
+}
+
+@media (min-width: 1280px) {
+  .shoop-greeting-h1 {
+    font-size: 3.75rem;
+    line-height: 1.02;
+  }
+}
+
+.shoop-hero-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.shoop-hero-copy {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+}
+
+@media (min-width: 768px) {
+  .shoop-hero-copy {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+
+  .shoop-rotating-subhead {
+    font-size: clamp(0.9375rem, 1.2vw, 1.0625rem);
+    line-height: 1.625;
+  }
+}
+
+/* Quick actions — kept for any residual class usage; primary styles are Tailwind in HomeQuickActions */
+.shoop-quick-action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.875rem 1rem;
+  border-radius: 1.125rem;
+  border: 1px solid var(--hairline);
+  background: #ffffff;
+  text-align: left;
+  box-shadow: 0 2px 12px rgba(12, 12, 12, 0.04);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.shoop-quick-action:hover {
+  border-color: rgba(12, 12, 12, 0.15);
+  box-shadow:
+    0 1px 2px rgba(12, 12, 12, 0.03),
+    0 8px 24px rgba(12, 12, 12, 0.04);
+}
+
+.shoop-quick-action:active {
+  transform: scale(0.99);
+}
+
+/* Shared horizontal padding — avoids vw-based gutters that grow on ultrawide */
+.shoop-page-x {
+  padding-inline: 1rem;
+}
+
+@media (min-width: 640px) {
+  .shoop-page-x {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .shoop-page-x {
+    padding-inline: 2rem;
+  }
+}
+
+.shoop-hero-stack-spacer {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: clamp(2.5rem, 18vh, 10rem);
+}
+
+@media (min-width: 768px) {
+  .shoop-hero-stack-spacer {
+    max-height: clamp(3.5rem, 22vh, 11rem);
+  }
+}
+
+@media (min-width: 1536px) {
+  .shoop-hero-stack-spacer {
+    max-height: clamp(3.5rem, 16vh, 9rem);
+  }
+}
+
+@media (min-width: 768px) {
+  .shoop-composer-textarea {
+    font-size: 15px !important;
+    line-height: 24px !important;
+  }
+}
+
+/*
+ * Best value · Shoop's pick · Most popular — always 3 grid columns so each
+ * card fills ~⅓ of the chat row; missing slots stay empty (cards never grow past
+ * their column).
+ */
+.tp-featured-picks-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.14fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+@media (min-width: 1280px) {
+  .tp-featured-picks-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+}
+
+.tp-featured-picks-row .tp-curated-pick-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.tp-featured-picks-row .tp-curated-pick-card--best_value {
+  grid-column: 1;
+}
+
+.tp-featured-picks-row .tp-curated-pick-card--shoop_pick {
+  grid-column: 2;
+}
+
+.tp-featured-picks-row .tp-curated-pick-card--most_popular {
+  grid-column: 3;
+}
+
+.tp-featured-picks-slot--best_value {
+  grid-column: 1;
+}
+
+.tp-featured-picks-slot--shoop_pick {
+  grid-column: 2;
+}
+
+.tp-featured-picks-slot--most_popular {
+  grid-column: 3;
+}
+
+.tp-pick-card:hover {
+  box-shadow: 0 10px 32px rgba(12, 12, 12, 0.08) !important;
+  transform: translateY(-1px);
+}
+
+.tp-alt-card:hover {
+  box-shadow: 0 6px 20px rgba(12, 12, 12, 0.06) !important;
+  border-color: #d4d0c9 !important;
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-shoop-reply-enter {
+    animation: none !important;
+  }
+  .tp-pick-card:hover,
+  .tp-alt-card:hover {
+    transform: none !important;
+  }
+  .chat-message-focus-ring,
+  .chat-product-focus-ring {
+    animation: none !important;
+  }
+}
+
+@keyframes chatFocusPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(227, 16, 15, 0.28);
+  }
+  35% {
+    box-shadow: 0 0 0 4px rgba(227, 16, 15, 0.18);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(227, 16, 15, 0);
+  }
+}
+
+.chat-message-focus-ring {
+  background: rgba(243, 241, 238, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(12, 12, 12, 0.1);
+  animation: chatFocusPulse 2.4s ease-out both;
+}
+
+.chat-product-focus-ring {
+  box-shadow:
+    0 0 0 2px rgba(12, 12, 12, 0.45),
+    0 8px 28px rgba(12, 12, 12, 0.1) !important;
+  animation: chatFocusPulse 2.4s ease-out both;
+}
+
+/*
+ * Inline PDP open — ink "viewing" state (quiet luxury), separate from Shoop's pick brand (red).
+ */
+.chat-product-selected.tp-curated-pick-card,
+.chat-product-selected.tp-pick-card,
+.chat-product-selected.tp-alt-card {
+  position: relative;
+  background: rgba(248, 247, 245, 0.95) !important;
+  box-shadow:
+    0 0 0 2px rgba(12, 12, 12, 0.72),
+    0 0 0 6px rgba(12, 12, 12, 0.08) !important;
+  transform: none !important;
+}
+
+/* Shoop's pick keeps soft card styling; selection adds the ink ring */
+.chat-product-selected.tp-pick-card,
+.chat-product-selected.tp-curated-pick-card.tp-pick-card {
+  border-color: #e6e3de !important;
+}
+
+.chat-product-selected.tp-alt-card,
+.chat-product-selected.tp-curated-pick-card.tp-alt-card {
+  border-color: #e6e3de !important;
+  border-width: 1px !important;
+}
+
+.chat-product-selected.tp-curated-pick-card::after,
+.chat-product-selected.tp-pick-card::after,
+.chat-product-selected.tp-alt-card::after {
+  content: "Viewing";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  border-radius: 9999px;
+  background: #0c0c0c;
+  padding: 4px 8px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.tp-featured-picks-row--has-expanded
+  .tp-curated-pick-card:not(.chat-product-selected) {
+  opacity: 0.52;
+  transition: opacity 150ms ease-out;
+}
+
+.tp-featured-picks-row--has-expanded
+  .tp-curated-pick-card:not(.chat-product-selected):hover {
+  opacity: 0.72;
+}
+
+.chat-product-selected.tp-pick-card:hover,
+.chat-product-selected.tp-alt-card:hover {
+  transform: none !important;
+}
+
+@media (max-width: 767px) {
+  .tp-bubble {
+    max-width: min(85%, 320px) !important;
+  }
+}
+
+.shoop-home-root {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.shoop-scrollbar-hide {
+  scrollbar-width: none;
+}
+.shoop-scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.shoop-recent-scroll {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #e6e3de transparent;
+}
+
+.shoop-sidebar-desktop {
+  box-shadow: none;
+}
+
+@keyframes shoop-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes shoop-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.shoop-category-marquee {
+  position: relative;
+  width: 100vw;
+  margin: 0 calc(50% - 50vw);
+  height: 200px;
+  flex-shrink: 0;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    black 80px,
+    black calc(100% - 80px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    black 80px,
+    black calc(100% - 80px),
+    transparent 100%
+  );
+}
+
+@media (min-width: 1536px) {
+  .shoop-category-marquee {
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
+  }
+}
+
+.shoop-category-marquee--animated {
+  overflow: hidden;
+}
+
+.shoop-category-marquee--fill {
+  overflow: hidden;
+}
+
+.shoop-category-fill-track {
+  display: flex;
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  gap: 4px;
+  padding: 36px 8px 58px;
+  align-items: flex-end;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.shoop-marquee-track {
+  display: flex;
+  gap: 1.5px;
+  width: max-content;
+  animation: shoop-marquee var(--marquee-duration, 96s) linear infinite;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  overflow: visible;
+  padding: 36px 24px 58px;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.shoop-marquee-tile {
+  width: 90px;
+  height: 110px;
+  border-radius: 12px;
+  border: none;
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  transition: none;
+  transform-origin: center center;
+  box-shadow:
+    rgba(26, 26, 46, 0.06) 0 2px 12px,
+    rgba(26, 26, 46, 0.04) 0 1px 3px;
+}
+
+.shoop-marquee-tile--fill {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 132px;
+  width: auto;
+}
+
+.shoop-marquee-tile--fill .shoop-marquee-tile-label {
+  left: 4px;
+  right: 4px;
+  bottom: 6px;
+  font-size: 9px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shoop-marquee-tile--fill .shoop-marquee-tile-check {
+  top: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+}
+
+.shoop-marquee-tile-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  z-index: 0;
+  display: block;
+}
+
+.shoop-marquee-tile-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 0;
+}
+
+.shoop-marquee-tile-gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 60%;
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.55));
+  z-index: 1;
+}
+
+.shoop-marquee-tile-label {
+  position: absolute;
+  left: 9px;
+  bottom: 9px;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  color: #fff;
+  letter-spacing: -0.01em;
+  text-shadow: rgba(0, 0, 0, 0.4) 0 1px 4px;
+  z-index: 2;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.shoop-marquee-tile-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #e3100f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: rgba(227, 16, 15, 0.35) 0 2px 6px;
+  z-index: 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shoop-marquee-track {
+    animation: none;
+  }
+}
+
+.shoop-cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(26, 26, 46, 0.12);
+  border-radius: 999px;
+  padding: 3px 9px 3px 11px;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: rgb(26, 26, 46);
+  cursor: pointer;
+  transition: border-color 100ms ease-out;
+}
+
+.shoop-cat-chip:hover {
+  border-color: rgba(26, 26, 46, 0.22);
+}
+
+.shoop-cat-chip-x {
+  color: #525252;
+  transition: color 100ms ease-out;
+}
+
+.shoop-cat-chip:hover .shoop-cat-chip-x {
+  color: rgb(26, 26, 46);
+}
+
+/* Mid-session quiz — filter-style option chips (ModeToggles-inspired) */
+.shoop-quiz-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shoop-quiz-options {
+  display: contents;
+}
+
+/* Explore ideas — fixed card geometry + horizontal scroll */
+.shoop-explore-section {
+  --explore-card-w: 96px;
+  --explore-gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+@media (min-width: 640px) {
+  .shoop-explore-section {
+    gap: 16px;
+  }
+}
+
+.shoop-explore-section__header {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.shoop-explore-section__title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.shoop-explore-section__nav {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
+@media (min-width: 640px) {
+  .shoop-explore-section__nav {
+    display: flex;
+  }
+}
+
+.shoop-explore-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-subtle, #fafafa);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition:
+    background-color 100ms ease-out,
+    border-color 100ms ease-out,
+    opacity 100ms ease-out;
+}
+
+.shoop-explore-nav-btn:hover:not(:disabled) {
+  background: #f0f0ed;
+  border-color: #e6e3de;
+  color: var(--ink);
+}
+
+.shoop-explore-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.shoop-explore-track-wrap {
+  min-width: 0;
+}
+
+.shoop-explore-track {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--explore-gap);
+  margin-block: -4px;
+  padding-block: 4px;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shoop-explore-track::-webkit-scrollbar {
+  display: none;
+}
+
+.shoop-explore-card {
+  display: block;
+  flex: 0 0 var(--explore-card-w);
+  width: var(--explore-card-w);
+  min-width: var(--explore-card-w);
+  max-width: var(--explore-card-w);
+  scroll-snap-align: start;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  outline-offset: 4px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+@media (min-width: 640px) {
+  .shoop-explore-card {
+    flex: 0 0 min(128px, calc((100% - 48px) / 5));
+    width: min(128px, calc((100% - 48px) / 5));
+    min-width: min(128px, calc((100% - 48px) / 5));
+    max-width: min(128px, calc((100% - 48px) / 5));
+  }
+}
+
+.shoop-explore-card--disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.shoop-explore-card__media {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #ececea;
+  isolation: isolate;
+  transition:
+    filter 75ms ease-out,
+    transform 75ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.shoop-explore-card:hover:not(:disabled):not(.shoop-explore-card--disabled)
+  .shoop-explore-card__media {
+  filter: brightness(1.08);
+}
+
+.shoop-explore-card:active:not(:disabled):not(.shoop-explore-card--disabled)
+  .shoop-explore-card__media {
+  transform: scale(0.98);
+}
+
+.shoop-explore-card--selected .shoop-explore-card__media {
+  box-shadow:
+    inset 0 0 0 2px rgb(57, 56, 139),
+    0 0 0 1px rgba(57, 56, 139, 0.35),
+    0 8px 20px rgba(57, 56, 139, 0.18);
+}
+
+.shoop-explore-card--selected .shoop-explore-card__media::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: rgba(57, 56, 139, 0.12);
+  pointer-events: none;
+}
+
+.shoop-explore-card__image-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.shoop-explore-card__img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  border-radius: inherit;
+  object-fit: cover;
+  object-position: center;
+  transition: opacity 200ms ease-out;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.shoop-explore-card__shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #ececea 0%, #f5f5f2 45%, #e4e4e0 100%);
+  animation: shoop-explore-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shoop-explore-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shoop-explore-card__shimmer {
+    animation: none;
+  }
+
+  .shoop-explore-card__media {
+    transition: none;
+  }
+}
+
+/* ── Curation loader: flipping garment rack ─────────────────────────────── */
+.shoop-rack {
+  position: relative;
+  padding-top: 10px;
+}
+
+/* Hanger rail the cards hang from. */
+.shoop-rack__bar {
+  position: absolute;
+  top: 8px;
+  left: 2px;
+  right: 2px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(154, 151, 144, 0) 0%,
+    rgba(154, 151, 144, 0.5) 12%,
+    rgba(154, 151, 144, 0.5) 88%,
+    rgba(154, 151, 144, 0) 100%
+  );
+}
+
+.shoop-rack__cards {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.shoop-rack__hanger {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: shoop-rack-bob 3.3s ease-in-out infinite;
+  animation-delay: var(--rack-delay, 0s);
+}
+
+/* The little hook that connects each card to the rail. */
+.shoop-rack__hook {
+  width: 8px;
+  height: 8px;
+  margin-top: -1px;
+  border: 1.5px solid rgba(154, 151, 144, 0.7);
+  border-bottom: none;
+  border-radius: 999px 999px 0 0;
+}
+
+.shoop-rack__flip {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  transform-style: preserve-3d;
+  transform: perspective(700px) rotateY(0deg);
+  animation: shoop-rack-flip 3.3s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  animation-delay: var(--rack-delay, 0s);
+}
+
+.shoop-rack__face {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border: 1px solid rgba(230, 227, 222, 0.9);
+}
+
+.shoop-rack__face--front {
+  background: #f3f1ee;
+}
+
+.shoop-rack__face--back {
+  transform: rotateY(180deg);
+  background: linear-gradient(140deg, #faf9f7 0%, #f1efec 100%);
+}
+
+.shoop-rack__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+/* Garment-silhouette shimmer used until a real thumbnail streams in. */
+.shoop-rack__shimmer {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0) 30%,
+      rgba(255, 255, 255, 0.55) 50%,
+      rgba(255, 255, 255, 0) 70%
+    ),
+    linear-gradient(135deg, #ececea 0%, #f5f5f2 45%, #e4e4e0 100%);
+  background-size:
+    220% 100%,
+    100% 100%;
+  background-repeat: no-repeat;
+  animation: shoop-rack-sheen 1.6s ease-in-out infinite;
+}
+
+@keyframes shoop-rack-flip {
+  0% {
+    transform: perspective(700px) rotateY(0deg);
+  }
+  38%,
+  62% {
+    transform: perspective(700px) rotateY(180deg);
+  }
+  100% {
+    transform: perspective(700px) rotateY(360deg);
+  }
+}
+
+@keyframes shoop-rack-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes shoop-rack-sheen {
+  0% {
+    background-position:
+      -60% 0,
+      0 0;
+  }
+  100% {
+    background-position:
+      160% 0,
+      0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shoop-rack__hanger,
+  .shoop-rack__flip {
+    animation: none;
+  }
+  .shoop-rack__flip {
+    transform: none;
+  }
+  .shoop-rack__shimmer {
+    animation: none;
+  }
+}
+
+.shoop-explore-card__selected-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  background: rgb(57, 56, 139);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
+.shoop-explore-card__caption {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  min-height: 56px;
+  max-height: 50%;
+  align-items: flex-end;
+  padding: 32px 10px 10px;
+  overflow: hidden;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.82) 0%,
+    rgba(0, 0, 0, 0.32) 52%,
+    transparent 100%
+  );
+}
+
+.shoop-explore-card__label {
+  display: -webkit-box;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: start;
+  word-break: break-word;
+  color: #fff;
+}
+
+@media (min-width: 640px) {
+  .shoop-explore-card__label {
+    font-size: 12px;
+  }
+}
+
+.shoop-explore-card:focus-visible .shoop-explore-card__media {
+  outline: 2px solid rgb(57, 56, 139);
+  outline-offset: 3px;
+}
+
+.shoop-option-preview-panel {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.shoop-option-preview-panel__lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+}
+
+.shoop-quiz-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.shoop-quiz-chip {
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease-out,
+    border-color 200ms ease-out,
+    color 200ms ease-out,
+    box-shadow 200ms ease-out;
+}
+
+.shoop-quiz-chip:hover:not(:disabled):not(.shoop-quiz-chip--active) {
+  background: #f3f1ee;
+  border-color: #e6e3de;
+  color: var(--ink);
+}
+
+.shoop-quiz-chip--active {
+  background: #0c0c0c;
+  border-color: #0c0c0c;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(12, 12, 12, 0.12);
+}
+
+.shoop-quiz-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.shoop-quiz-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding-inline: 20px;
+  border-radius: 9999px;
+  border: 1px solid #0c0c0c;
+  background: #0c0c0c;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: #ffffff;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease-out,
+    border-color 200ms ease-out,
+    color 200ms ease-out,
+    box-shadow 200ms ease-out,
+    opacity 200ms ease-out;
+}
+
+.shoop-quiz-apply:hover:not(:disabled) {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #ffffff;
+}
+
+.shoop-quiz-apply:active:not(:disabled) {
+  box-shadow: 0 2px 8px rgba(12, 12, 12, 0.14);
+}
+
+.shoop-quiz-apply:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.shoop-quiz-skip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding-inline: 20px;
+  border-radius: 9999px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease-out,
+    border-color 200ms ease-out,
+    color 200ms ease-out;
+}
+
+.shoop-quiz-skip:hover:not(:disabled) {
+  background: #f5f5f2;
+  border-color: #e6e3de;
+  color: var(--ink);
+}
+
+.shoop-quiz-skip:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.shoop-quiz-other-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--ink);
+  outline: none;
+  transition:
+    background-color 200ms ease-out,
+    border-color 200ms ease-out,
+    box-shadow 200ms ease-out;
+}
+
+.shoop-quiz-other-input::placeholder {
+  color: var(--ink-muted);
+}
+
+.shoop-quiz-other-input:focus {
+  background: #f5f5f2;
+  border-color: #e6e3de;
+  box-shadow:
+    inset 0 2px 4px rgba(12, 12, 12, 0.06),
+    inset 0 0 0 1px rgba(12, 12, 12, 0.06);
+}
+
+.shoop-quiz-other-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

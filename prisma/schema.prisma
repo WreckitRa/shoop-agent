@@ -1,0 +1,1283 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // `auth` is required so `db push` can introspect Supabase FKs like
+  // public.fashion_facts → auth.users (P4002 without it). We do not model
+  // auth.users in Prisma — Supabase owns that schema.
+  schemas  = ["public", "auth"]
+}
+
+enum MessageRole {
+  user
+  assistant
+  system
+
+  @@schema("public")
+}
+
+enum MessageStatus {
+  completed
+  streaming
+  failed
+  stopped
+
+  @@schema("public")
+}
+
+enum ResponseStyle {
+  concise
+  balanced
+  detailed
+
+  @@schema("public")
+}
+
+enum BackgroundJobStatus {
+  pending
+  processing
+  completed
+  failed
+
+  @@schema("public")
+}
+
+model Conversation {
+  id              String        @id @default(cuid())
+  title           String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  archived        Boolean       @default(false)
+  /// Soft-delete: hidden from user UI; row + messages kept for memory/audit.
+  deletedAt       DateTime?
+  pinned          Boolean       @default(false)
+  model           String
+  responseStyle   ResponseStyle @default(balanced)
+  systemPrompt    String?
+  temperature     Float         @default(0.7)
+  maxTokens       Int           @default(4096)
+  /// Snapshot of profile shipping country when the chat was created; overridable per chat.
+  shippingCountry String?
+  /// Snapshot of profile currency when the chat was created; overridable per chat.
+  currency        String?
+  /// V1: scope rows without auth (hard-coded app default).
+  userId          String        @default("local-dev-user")
+
+  messages       Message[]
+  branches       ConversationBranch[]
+  contextSummary ConversationContextSummary?
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@schema("public")
+}
+
+/// In-chat intent segment for sidebar navigation (not profile ShoppingIntent).
+model ConversationBranch {
+  id              String       @id @default(cuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  index           Int
+  title           String
+  /// First user message of this segment; null until the first turn is persisted.
+  anchorMessageId String?
+  sourceMessageId String?
+  confidence      Float?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([conversationId, index])
+  @@index([conversationId, createdAt])
+  @@schema("public")
+}
+
+/// Rolling summary of older turns so long chats keep context without sending
+/// every message on every model call.
+model ConversationContextSummary {
+  id                      String       @id @default(cuid())
+  conversationId          String       @unique
+  conversation            Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  summary                 String       @db.Text
+  coveredThroughMessageId String?
+  coveredMessageCount     Int          @default(0)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  @@index([conversationId])
+  @@schema("public")
+}
+
+model Message {
+  id              String        @id @default(cuid())
+  conversationId  String
+  conversation    Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role            MessageRole
+  content         String        @default("")
+  /// Structured UI payloads (e.g. product-search clarification chips).
+  metadata        Json?
+  status          MessageStatus @default(completed)
+  parentMessageId String?
+  branchId        String?
+  model           String?
+  inputTokens     Int?
+  outputTokens    Int?
+  finishReason    String?
+  error           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  versions MessageVersion[]
+
+  @@index([conversationId, createdAt])
+  @@schema("public")
+}
+
+model MessageVersion {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@schema("public")
+}
+
+// --- Shopping / user memory (see docs/chat/user-memory-guide.md) ---
+
+enum MemoryObservationSignalType {
+  profile
+  size
+  fit
+  style_like
+  style_dislike
+  brand_like
+  brand_dislike
+  budget
+  product_owned
+  product_feedback
+  purchase
+  product_return
+  wishlist
+  gift_recipient
+  shipping
+  occasion
+  constraint
+  hard_negative
+
+  @@schema("public")
+}
+
+enum MemoryStability {
+  temporary
+  medium
+  stable
+
+  @@schema("public")
+}
+
+enum MemoryObservationSource {
+  explicit
+  inferred
+  behavioral
+  purchase
+  product_return_source
+
+  @@schema("public")
+}
+
+enum ShoppingMemoryType {
+  profile
+  preference
+  dislike
+  size
+  fit
+  brand
+  budget
+  constraint
+  owned_product
+  recipient
+  intent
+  taste_tag
+
+  @@schema("public")
+}
+
+enum ShoppingMemoryScope {
+  global
+  category
+  brand
+  product_type
+  recipient
+  session
+  temporary
+
+  @@schema("public")
+}
+
+enum ProductInteractionAction {
+  shown
+  clicked
+  saved
+  dismissed
+  compared
+  purchased
+  returned
+  ignored
+  asked_more_about
+
+  @@schema("public")
+}
+
+/// How Shoop labeled a product in a curated search result set.
+enum CurationSlot {
+  best_value
+  most_popular
+  shoop_pick
+  gallery
+  /// High raw rating, modest review count, small seller (Stage 5 gem slot).
+  gem
+  /// Surfaced after a budget/constraint relaxation round (honest framing).
+  loosened
+  /// Surfaced after the search was reframed to a broader/parent category.
+  reframed
+
+  @@schema("public")
+}
+
+/// Buy / wait / skip guidance shown on chat cards and the product page.
+enum CurationVerdict {
+  buy
+  wait
+  dont_recommend
+
+  @@schema("public")
+}
+
+/// Latest Shoop curation insight per user × catalog product (reason + verdict).
+model ProductCuration {
+  id                String          @id @default(cuid())
+  userId            String
+  productExternalId String
+  slot              CurationSlot
+  reason            String          @db.Text
+  verdict           CurationVerdict
+  /// e.g. "Compared 11 options in this Shoop search" (time suffix added in UI from updatedAt).
+  retailerCheckNote String?         @db.VarChar(120)
+  fitReasons        String[]        @default([])
+  checkedItems      String[]        @default([])
+  pickStory         String?         @db.Text
+  changeMindItems   String[]        @default([])
+  conversationId    String?
+  messageId         String?
+  searchQuery       String?         @db.Text
+  productTitle      String?
+  productImageUrl   String?
+  /// Which engine produced this pick ("heuristic" | "fast_haiku" | "deep_opus" | "engine").
+  sourceEngine      String?
+  /// Native (Rye-first) checkout URL captured at verification time.
+  nativeCheckoutUrl String?         @db.Text
+  /// Cross-merchant cluster id (UPID) for de-dupe across searches.
+  upid              String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([userId, productExternalId])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@schema("public")
+}
+
+/// Negative-space + rejection trail feeding the Fit penalty (Stage 6).
+/// Captures why a pick was rejected so future searches can demote it.
+model FeedbackEvent {
+  id                String   @id @default(cuid())
+  userId            String
+  conversationId    String?
+  messageId         String?
+  productExternalId String?
+  upid              String?
+  /// Free-text rejection / feedback reason.
+  reason            String?  @db.Text
+  /// "global" | "category:shoes" | "recipient:wife" — scopes the avoid set.
+  scope             String   @default("global")
+  archetype         String?
+  /// Rejected attribute tokens (brand/material/color/style) for the Fit penalty.
+  attributes        String[] @default([])
+  createdAt         DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, scope])
+  @@schema("public")
+}
+
+/// Per-source-query yield telemetry (Stage 6 learning flywheel). A nightly job
+/// folds these into per-category pattern weights so learned query angles
+/// replace guesses over time.
+model SearchQueryYield {
+  id               String   @id @default(cuid())
+  userId           String
+  conversationId   String?
+  searchKey        String?
+  queryText        String   @db.Text
+  archetype        String?
+  category         String?
+  /// Gift direction lane label — scopes learned angles per themed lane.
+  directionLabel   String?
+  rankingProfile   String?
+  /// Raw catalog hits this query returned.
+  rawCount         Int      @default(0)
+  /// Candidates this query contributed to the de-duped pool.
+  poolContribution Int      @default(0)
+  /// How many of its contributions survived availability verification.
+  verifiedSurvived Int      @default(0)
+  /// Picks shown that originated from this query.
+  picked           Int      @default(0)
+  /// Downstream conversions (patched post-turn).
+  endorsed         Int      @default(0)
+  purchased        Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([userId, category, createdAt(sort: Desc)])
+  @@index([archetype, category])
+  @@index([archetype, directionLabel])
+  @@schema("public")
+}
+
+/// Persisted taste embedding (Voyage) for the buyer or a gift recipient. Stored
+/// as Float[] (cosine computed in app) to avoid a pgvector dependency.
+model TasteVector {
+  id         String   @id @default(cuid())
+  userId     String
+  /// "self" for the buyer; a Recipient label/id for gift models.
+  scopeKey   String   @default("self")
+  model      String
+  dim        Int
+  vector     Float[]
+  /// Hash of the source text used to build the vector (staleness check).
+  sourceHash String?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, scopeKey, model])
+  @@index([userId])
+  @@schema("public")
+}
+
+/// Raw extracted signals (evidence trail).
+model MemoryObservation {
+  id             String                      @id @default(cuid())
+  userId         String
+  conversationId String?
+  messageId      String?
+  signalType     MemoryObservationSignalType
+  rawText        String                      @db.Text
+  normalizedText String                      @db.Text
+  entityType     String?
+  entityId       String?
+  entityName     String?
+  category       String?
+  subcategory    String?
+  brand          String?
+  attributes     Json                        @default("{}")
+  confidence     Float
+  importance     Float
+  stability      MemoryStability
+  source         MemoryObservationSource
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, signalType])
+  @@schema("public")
+}
+
+/// Canonical promoted facts for retrieval + prompts.
+model ShoppingMemory {
+  id                     String              @id @default(cuid())
+  userId                 String
+  memoryKey              String
+  value                  String              @db.Text
+  type                   ShoppingMemoryType
+  scope                  ShoppingMemoryScope
+  category               String?
+  subcategory            String?
+  brand                  String?
+  recipientId            String?
+  confidence             Float
+  importance             Float
+  isHardRule             Boolean             @default(false)
+  isActive               Boolean             @default(true)
+  evidenceCount          Int                 @default(1)
+  evidenceObservationIds String[]            @default([])
+  expiresAt              DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  lastUsedAt             DateTime?
+
+  @@unique([userId, memoryKey])
+  @@index([userId, isActive, importance(sort: Desc)])
+  @@schema("public")
+}
+
+/// Compressed bullet summaries for `<user_shopping_profile>` injection.
+model ShoppingProfileSummary {
+  userId           String   @id
+  summary          String   @default("") @db.Text
+  styleSummary     String?  @db.Text
+  sizingSummary    String?  @db.Text
+  budgetSummary    String?  @db.Text
+  brandSummary     String?  @db.Text
+  dislikesSummary  String?  @db.Text
+  logisticsSummary String?  @db.Text
+  version          Int      @default(1)
+  updatedAt        DateTime @updatedAt
+
+  @@schema("public")
+}
+
+/// Durable post-turn work queue for shopping-memory extraction. The app is
+/// single-user today, but persisting jobs prevents memory updates from being
+/// lost when a serverless invocation ends after the chat stream closes.
+model ShoppingMemoryJob {
+  id             String              @id @default(cuid())
+  userId         String
+  conversationId String
+  messageId      String              @unique
+  text           String              @db.Text
+  status         BackgroundJobStatus @default(pending)
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(3)
+  lockedAt       DateTime?
+  processedAt    DateTime?
+  lastError      String?             @db.Text
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@schema("public")
+}
+
+/// Durable post-turn queue for LLM intent-shift detection within a conversation.
+model ConversationIntentJob {
+  id             String              @id @default(cuid())
+  userId         String
+  conversationId String
+  messageId      String              @unique
+  text           String              @db.Text
+  status         BackgroundJobStatus @default(pending)
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(3)
+  lockedAt       DateTime?
+  processedAt    DateTime?
+  lastError      String?             @db.Text
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@schema("public")
+}
+
+/// Durable post-search queue for the Opus/Sonnet curator. Survives chat SSE
+/// teardown so PDP insight and message metadata still upgrade after the stream.
+model ProductCurationJob {
+  id             String              @id @default(cuid())
+  userId         String
+  conversationId String
+  messageId      String
+  searchKey      String
+  payload        Json
+  status         BackgroundJobStatus @default(pending)
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(3)
+  lockedAt       DateTime?
+  processedAt    DateTime?
+  lastError      String?             @db.Text
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([messageId, searchKey])
+  @@index([status, updatedAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@schema("public")
+}
+
+model ProductInteraction {
+  id                String                   @id @default(cuid())
+  userId            String
+  conversationId    String?
+  searchSessionId   String?
+  productExternalId String?
+  productUrl        String?
+  title             String
+  brand             String?
+  retailer          String?
+  category          String?
+  price             Float?
+  currency          String?
+  action            ProductInteractionAction
+  reason            String?
+  productData       Json                     @default("{}")
+  createdAt         DateTime                 @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, category])
+  @@schema("public")
+}
+
+/// One active Shopify Cart MCP session per app user.
+///
+/// Shopify remains the source of truth. These fields let the app recover the
+/// merchant cart across reloads and keep a latest refreshed snapshot for UI.
+model CartSession {
+  id          String @id @default(cuid())
+  userId      String
+  cartId      String
+  checkoutUrl String @db.Text
+  shopDomain  String
+
+  currency     String?
+  continueUrl  String?   @db.Text
+  lineItems    Json      @default("[]")
+  itemMetadata Json      @default("{}")
+  totals       Json      @default("[]")
+  messages     Json      @default("[]")
+  expiresAt    DateTime?
+  lastSyncedAt DateTime  @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, shopDomain])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([shopDomain])
+  @@index([expiresAt])
+  @@schema("public")
+}
+
+model SavedAddress {
+  id     String @id @default(cuid())
+  userId String
+
+  label           String?
+  buyerEmail      String?
+  firstName       String
+  lastName        String
+  phoneNumber     String
+  streetAddress   String
+  addressLocality String
+  addressRegion   String
+  postalCode      String
+  addressCountry  String
+  isDefault       Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, addressCountry, postalCode, streetAddress])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@schema("public")
+}
+
+// --- Typed shopper-knowledge projections (see docs/chat/user-memory-guide.md §3) ---
+//
+// These tables are the FAST, EDITABLE, DETERMINISTIC face of the user profile.
+// They are projections derived from MemoryObservation + ShoppingMemory by the
+// projector (`src/lib/ai-chat/shopping-memory/projector.ts`). The raw evidence
+// trail stays in MemoryObservation; canonical promoted facts stay in
+// ShoppingMemory; these projections give the agent a typed schema to read at
+// retrieval time and to expose in a profile UI.
+
+enum BrandSentiment {
+  love
+  like
+  neutral
+  avoid
+  hate
+
+  @@schema("public")
+}
+
+enum IntentStatus {
+  active
+  paused
+  completed
+  expired
+
+  @@schema("public")
+}
+
+enum IntentPriority {
+  low
+  medium
+  high
+
+  @@schema("public")
+}
+
+enum HardNegativeScope {
+  brand
+  material
+  color
+  retailer
+  category
+  ingredient
+  style
+  fit
+
+  @@schema("public")
+}
+
+enum HardNegativeReason {
+  allergy
+  ethics
+  religion
+  health
+  taste
+  past_bad_experience
+  other
+
+  @@schema("public")
+}
+
+enum TasteTagScope {
+  global
+  category
+
+  @@schema("public")
+}
+
+enum TasteTagPolarity {
+  positive
+  negative
+
+  @@schema("public")
+}
+
+/// Identity & lifestyle layer. One row per user (Layer 1 & 3, 6 of the guide).
+model UserProfile {
+  userId String @id
+
+  preferredName      String?
+  pronouns           String?
+  ageRange           String?
+  birthDate          DateTime?
+  genderPresentation String?
+
+  country  String?
+  city     String?
+  currency String?
+  language String?
+  timezone String?
+  climate  String?
+
+  unitsLength String?
+  unitsWeight String?
+  unitsShoe   String?
+
+  occupation      String?
+  workEnvironment String?
+  lifestyleTags   String[] @default([])
+
+  valuePhilosophy  String?
+  decisionStyle    String?
+  riskTolerance    String?
+  dealSensitivity  String?
+  qualityThreshold String?
+
+  shippingCountry        String?
+  acceptsInternational   Boolean?
+  preferredDeliverySpeed String?
+
+  /// Primary AI assistant the user relies on (onboarding capture).
+  primaryAiAssistant String?
+
+  onboardingStarted   Boolean @default(false)
+  onboardingCompleted Boolean @default(false)
+
+  evidenceCount Int      @default(0)
+  confidence    Float    @default(0)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@schema("public")
+}
+
+/// Body & sizing layer (Layer 2). One row per user.
+model SizingProfile {
+  userId String @id
+
+  heightCm      Int?
+  weightKg      Int?
+  bodyType      String?
+  shoulderWidth String?
+
+  topUsualSize    String?
+  topPreferredFit String?
+  topNotes        String[] @default([])
+
+  bottomWaist        String?
+  bottomInseam       String?
+  bottomRise         String?
+  bottomPreferredFit String?
+  bottomUsualSize    String?
+  bottomNotes        String[] @default([])
+
+  shoeEU    Float?
+  shoeUS    Float?
+  shoeUK    Float?
+  shoeWidth String?
+  shoeNotes String[] @default([])
+
+  neckSize     String?
+  sleeveLength String?
+  ringSize     String?
+  gloveSize    String?
+
+  /// Free-form sensitivities ("tight collars hurt", "tags itch", "I run hot").
+  sensitivities String[] @default([])
+
+  /// Per-brand sizing quirks: [{ brand, category, usualSize, notes }]
+  brandSizingNotes Json @default("[]")
+
+  evidenceCount Int      @default(0)
+  confidence    Float    @default(0)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@schema("public")
+}
+
+/// Per-category preference projection (Layer 4 + 6 of the guide).
+///
+/// `subcategory` defaults to "" (empty string) when not applicable. We use ""
+/// rather than NULL because Postgres treats NULL as distinct in unique
+/// constraints, which would break idempotent upserts on (userId, category, sub).
+model CategoryPreference {
+  id          String @id @default(cuid())
+  userId      String
+  category    String
+  subcategory String @default("")
+
+  preferredStyles    String[] @default([])
+  dislikedStyles     String[] @default([])
+  preferredColors    String[] @default([])
+  dislikedColors     String[] @default([])
+  preferredMaterials String[] @default([])
+  dislikedMaterials  String[] @default([])
+  preferredFits      String[] @default([])
+  dislikedFits       String[] @default([])
+  preferredPatterns  String[] @default([])
+  dislikedPatterns   String[] @default([])
+
+  budgetMin     Float?
+  budgetMax     Float?
+  budgetTypical Float?
+  currency      String?
+
+  /// Free-form notes; merged from observations & profile summaries.
+  notes String? @db.Text
+
+  evidenceCount Int      @default(1)
+  confidence    Float    @default(0.5)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, category, subcategory])
+  @@index([userId, category])
+  @@schema("public")
+}
+
+/// Brand relationship graph (Layer 5). One row per (user, brand, category).
+///
+/// `category` defaults to "" (any category) so the compound unique works
+/// reliably in Postgres (NULLs are not distinct-comparable in @@unique).
+model BrandPreference {
+  id       String @id @default(cuid())
+  userId   String
+  brand    String
+  category String @default("")
+
+  sentiment    BrandSentiment
+  strength     Float          @default(0.5)
+  reasons      String[]       @default([])
+  ownsProducts Boolean        @default(false)
+  aspirational Boolean        @default(false)
+
+  evidenceCount Int      @default(1)
+  confidence    Float    @default(0.5)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, brand, category])
+  @@index([userId, sentiment])
+  @@schema("public")
+}
+
+/// Gift recipient profile (Layer 11). One row per (user, label).
+model Recipient {
+  id     String @id @default(cuid())
+  userId String
+
+  label        String
+  name         String?
+  relationship String?
+  ageRange     String?
+  birthDate    DateTime?
+
+  knownPreferences String[] @default([])
+  dislikes         String[] @default([])
+  favoriteBrands   String[] @default([])
+  dislikedBrands   String[] @default([])
+
+  /// { clothing?: string, shoes?: string, ring?: string, ... }
+  sizes Json @default("{}")
+
+  /// [{ label: "birthday", date: "ISO" }, ...]
+  importantDates Json @default("[]")
+
+  /// [{ productName, occasion?, reaction?, date? }]
+  giftHistory Json @default("[]")
+
+  privacyLevel String @default("normal")
+
+  evidenceCount Int      @default(1)
+  confidence    Float    @default(0.5)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, label])
+  @@index([userId])
+  @@schema("public")
+}
+
+/// Active shopping mission (Layer 8). Replaces session-scoped ShoppingMemory rows.
+model ShoppingIntent {
+  id     String @id @default(cuid())
+  userId String
+
+  status      IntentStatus @default(active)
+  intentName  String
+  description String?      @db.Text
+
+  category    String?
+  subcategory String?
+  recipientId String?
+
+  /// Structured constraints: { color, size, budgetMin, budgetMax, brands, avoidBrands, shippingCountry, ... }
+  constraints Json @default("{}")
+
+  priority IntentPriority @default(medium)
+  neededBy DateTime?
+
+  /// Originating message id (for audit).
+  sourceMessageId String?
+
+  evidenceCount Int       @default(1)
+  confidence    Float     @default(0.7)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  expiresAt     DateTime?
+
+  @@index([userId, status])
+  @@index([userId, category])
+  @@schema("public")
+}
+
+/// Taste graph (Layer 4 magic). Positive & negative tags per scope.
+///
+/// `category` defaults to "" for global-scope tags so the compound unique works.
+model TasteTag {
+  id     String @id @default(cuid())
+  userId String
+
+  scope    TasteTagScope
+  category String           @default("")
+  tag      String
+  polarity TasteTagPolarity
+
+  score         Float @default(0.5)
+  evidenceCount Int   @default(1)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([userId, scope, category, tag, polarity])
+  @@index([userId, polarity])
+  @@schema("public")
+}
+
+/// Things the user CURRENTLY owns (phones, laptops, headphones, jackets…).
+///
+/// Unlike taste tags or brand sentiment, this is a STATEFUL FACT: the user
+/// has at most a small handful of, say, current phones. New statements
+/// SUPERSEDE old ones on the same (category, subcategory, brand, productName)
+/// slot via upsert, and `isCurrent=false` marks an item the user no longer
+/// owns (after an explicit "I sold my X", "no longer have X", etc.).
+///
+/// `subcategory`, `brand`, and `model` default to "" so the compound unique
+/// behaves correctly in Postgres (NULLs are not distinct-comparable).
+model OwnedProduct {
+  id          String @id @default(cuid())
+  userId      String
+  category    String
+  subcategory String @default("")
+  brand       String @default("")
+  productName String
+  model       String @default("")
+
+  /// Free-form attribute bag: color, storage, generation, condition, etc.
+  attributes Json @default("{}")
+
+  /// When the user said they got it. Free-form ("last year"), or ISO if parsed.
+  acquiredAt   DateTime?
+  acquiredNote String?
+
+  /// `false` once the user explicitly says they no longer own it. We keep the
+  /// row (history is useful for "you used to have a Sony — want to compare?").
+  isCurrent Boolean @default(true)
+
+  /// Optional user-written notes — surfaces in the profile UI editor.
+  notes String? @db.Text
+
+  evidenceCount Int      @default(1)
+  confidence    Float    @default(0.85)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, category, subcategory, brand, productName])
+  @@index([userId, isCurrent, updatedAt(sort: Desc)])
+  @@index([userId, category])
+  @@schema("public")
+}
+
+/// Hard rules: things the agent must NEVER recommend (Layer 13).
+///
+/// `category` defaults to "" for global-scope rules so the compound unique works.
+model HardNegative {
+  id     String @id @default(cuid())
+  userId String
+
+  scope    HardNegativeScope
+  value    String
+  category String              @default("")
+  reason   HardNegativeReason?
+  note     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, scope, value, category])
+  @@index([userId])
+  @@schema("public")
+}
+
+/// Audit trail of LLM / tool invocations for admin observability.
+enum PromptRunKind {
+  main_chat
+  curator
+  topic_guard
+  catalog_search
+  conversation_title
+  conversation_summary
+  memory_classify
+  memory_extract
+  intent_shift
+  suggested_prompt
+  swatch_color
+  /// Haiku portfolio / budget-angle planners that craft catalog search queries.
+  search_query_planner
+  /// Full search pipeline snapshot for the debug panel (verify → judge → slots).
+  search_pipeline
+
+  @@schema("public")
+}
+
+model PromptRun {
+  id                 String        @id @default(cuid())
+  userId             String
+  conversationId     String?
+  userMessageId      String?
+  assistantMessageId String?
+  kind               PromptRunKind
+  model              String?
+  /// Order within a single user turn (0, 1, 2…).
+  sequence           Int           @default(0)
+  /// Tool-loop iteration index for main_chat (0-based).
+  iteration          Int?
+  /// Exact prompt text sent (system + messages, or tool input for catalog_search).
+  promptText         String        @db.Text
+  /// Model output, tool_result body, or serialized tool JSON.
+  resultText         String        @db.Text
+  metadata           Json?
+  createdAt          DateTime      @default(now())
+
+  @@index([userMessageId, sequence])
+  @@index([assistantMessageId, sequence])
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@schema("public")
+}
+
+/// Full Shopify Global Catalog MCP audit (every `search_catalog` HTTP call).
+model CatalogSearchRun {
+  id                 String   @id @default(cuid())
+  userId             String
+  conversationId     String?
+  userMessageId      String?
+  assistantMessageId String?
+  /// Anthropic tool_use block id for this search in the chat turn.
+  searchKey          String?
+  /// W2 broadening retry index (0 = first call). Engine summary row uses attempt 0.
+  attempt            Int      @default(0)
+  /// engine_summary | portfolio | portfolio_broaden | portfolio_loosen | corrective | get_product | legacy_broaden
+  callKind           String?
+  /// Portfolio query id when callKind is a portfolio variant.
+  portfolioQueryId   String?
+  /// Natural-language query sent in catalog.query for this attempt.
+  query              String   @db.Text
+  /// Model `search_shopify_catalog` tool input (original).
+  toolInput          Json
+  /// Input actually used for this MCP attempt (after server broadening).
+  effectiveInput     Json?
+  mcpUrl             String
+  agentProfileUrl    String
+  /// POST url, redacted headers, and JSON-RPC body.
+  mcpRequest         Json
+  /// Full JSON-RPC response from Shopify (before app parsing).
+  mcpResponse        Json
+  /// Parsed `products` array from the MCP structured content.
+  products           Json     @default("[]")
+  productCount       Int      @default(0)
+  /// Shoop curator / heuristic picks (patched when curation completes).
+  curatedPicks       Json?
+  curationFallback   Boolean?
+  /// Engine pipeline trace (brief, yields, scoring, slotting) on summary row only.
+  engineSummary      Json?
+  error              String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userMessageId, createdAt(sort: Desc)])
+  @@index([assistantMessageId, searchKey])
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@schema("public")
+}
+
+/// Fashion memory person (self / gift recipient). Managed via Supabase SQL + client.
+model FashionPerson {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  relation          String
+  name              String?
+  birthday          DateTime? @db.Date
+  notes             String?
+  intakeCompletedAt DateTime? @map("intake_completed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  fashionFacts  FashionFact[]
+  styleSignals  FashionStyleSignal[]
+  requestEvents FashionRequestEvent[]
+
+  @@index([userId], map: "people_user_id")
+  @@map("people")
+  @@schema("public")
+}
+
+model FashionFact {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  personId     String   @map("person_id") @db.Uuid
+  factType     String   @map("fact_type")
+  garmentType  String?  @map("garment_type")
+  value        Json
+  sourceQuote  String?  @map("source_quote")
+  status       String   @default("active")
+  supersededBy String?  @map("superseded_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person FashionPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "fashion_facts_user_id")
+  @@map("fashion_facts")
+  @@schema("public")
+}
+
+model FashionStyleSignal {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  personId      String   @map("person_id") @db.Uuid
+  context       String   @default("general")
+  signalType    String   @map("signal_type")
+  value         String
+  polarity      Int      @default(1) @db.SmallInt
+  source        String
+  confidence    Float    @default(0.5)
+  evidenceCount Int      @default(1) @map("evidence_count")
+  status        String   @default("active")
+  sourceQuote   String?  @map("source_quote")
+  firstSeenAt   DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt    DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  person FashionPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "style_signals_user_id")
+  @@map("style_signals")
+  @@schema("public")
+}
+
+model FashionRequestEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  personId       String   @map("person_id") @db.Uuid
+  conversationId String?  @map("conversation_id")
+  attributes     Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  person FashionPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "request_events_user_id")
+  @@map("request_events")
+  @@schema("public")
+}
+
+model FashionExtractionRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  conversationId String    @map("conversation_id")
+  lastMessageId  String    @map("last_message_id")
+  status         String    @default("running")
+  opsApplied     Json?     @map("ops_applied")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  @@index([userId], map: "extraction_runs_user_id")
+  @@map("extraction_runs")
+  @@schema("public")
+}
+
+/// Fashion pipeline observability — managed via Supabase SQL.
+model FashionTrace {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  conversationId String    @map("conversation_id")
+  kind           String    @default("search_turn")
+  status         String    @default("open")
+  summary        Json?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  closedAt       DateTime? @map("closed_at") @db.Timestamptz(6)
+
+  llmCalls       FashionLlmCall[]
+  pipelineEvents FashionPipelineEvent[]
+
+  @@index([conversationId, createdAt(sort: Desc)], map: "traces_conversation")
+  @@index([userId, createdAt(sort: Desc)], map: "traces_user")
+  @@map("traces")
+  @@schema("public")
+}
+
+model FashionPromptVersion {
+  hash      String   @id
+  stage     String
+  content   String
+  firstSeen DateTime @default(now()) @map("first_seen") @db.Timestamptz(6)
+
+  llmCalls FashionLlmCall[]
+
+  @@map("prompt_versions")
+  @@schema("public")
+}
+
+model FashionLlmCall {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  traceId          String   @map("trace_id") @db.Uuid
+  stage            String
+  model            String
+  systemPromptHash String?  @map("system_prompt_hash")
+  inputMessages    Json     @map("input_messages")
+  toolChoice       Json?    @map("tool_choice")
+  rawOutput        Json     @map("raw_output")
+  latencyMs        Int?     @map("latency_ms")
+  inputTokens      Int?     @map("input_tokens")
+  outputTokens     Int?     @map("output_tokens")
+  error            String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  trace               FashionTrace          @relation(fields: [traceId], references: [id], onDelete: Cascade)
+  systemPromptVersion FashionPromptVersion? @relation(fields: [systemPromptHash], references: [hash])
+
+  @@index([traceId, createdAt], map: "llm_calls_trace")
+  @@map("llm_calls")
+  @@schema("public")
+}
+
+model FashionPipelineEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  traceId   String   @map("trace_id") @db.Uuid
+  stage     String
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  trace FashionTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@index([traceId, createdAt], map: "pipeline_events_trace")
+  @@map("pipeline_events")
+  @@schema("public")
+}
+
+model ColorLabelMap {
+  rawLabel  String   @id @map("raw_label")
+  canonical String[]
+  source    String   @default("llm")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("color_label_map")
+  @@schema("public")
+}
+
+model SizeLabelMap {
+  rawLabel  String   @map("raw_label")
+  category  String
+  canonical Json
+  source    String   @default("llm")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([rawLabel, category])
+  @@index([category], map: "size_label_map_category")
+  @@map("size_label_map")
+  @@schema("public")
+}
+
+model BrandTranslation {
+  brand            String
+  garmentFamily    String   @map("garment_family")
+  styleDescriptors String[] @map("style_descriptors")
+  priceTier        String   @default("unknown") @map("price_tier")
+  sanityNote       String?  @map("sanity_note")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([brand, garmentFamily])
+  @@map("brand_translations")
+  @@schema("public")
+}
+
+model ShopDepartment {
+  shopGid    String   @id @map("shop_gid")
+  department String
+  confidence String
+  sourceNote String?  @map("source_note")
+  shopDomain String?  @map("shop_domain")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("shop_departments")
+  @@schema("public")
+}

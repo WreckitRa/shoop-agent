@@ -1,0 +1,839 @@
+or both workouts and casual wear",
+            "tech_specs": "Material: Stainless steel, PU leather\nLength: 7.87 inches\nBracelet design: Cord\nColor: Black\nPattern: Solid with text\nTarget gender: Male"
+          },
+          "media": [
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0927/8701/5959/files/braided_leather_bracelet_1_655150_Black_2400_640.png",
+              "alt_text": "Funny Fitness Trainer Gifts for Him from Friends, Unique Interlaced Leather Bracelet for Men, Christmas Unique Fashion Jewelry for Fitness Enthusiast - Image 1"
+            },
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0927/8701/5959/files/braided_leather_bracelet_2_655150_Black_2400_640.png",
+              "alt_text": "Funny Fitness Trainer Gifts for Him from Friends, Unique Interlaced Leather Bracelet for Men, Christmas Unique Fashion Jewelry for Fitness Enthusiast - Image 2"
+            },
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0927/8701/5959/files/braided_leather_bracelet_3_655150_Black_2400_640.png",
+              "alt_text": "Funny Fitness Trainer Gifts for Him from Friends, Unique Interlaced Leather Bracelet for Men, Christmas Unique Fashion Jewelry for Fitness Enthusiast - Image 3"
+            }
+          ],
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51428409278743",
+              "title": "Funny Fitness Trainer Gifts for Him from Friends, Unique Interlaced Leather Bracelet for Men, Christmas Unique Fashion Jewelry for Fitness Enthusiast",
+              "description": {
+                "plain": "Get ready to gift the Fitness Trainer in your life something special this Christmas. Are you looking for a unique present that shows you care? Look no further than this Interlaced Leather Bracelet, the perfect accessory for any Fitness Trainer who's a little hotter than the rest. I'm A Tattooed Fitness Trainer. Just Like A Normal Fitness Trainer Except Much Hotter.+ is a quote that sums up the style and personality of this Fitness Trainer, and this bracelet is the ideal way to show off their individuality. This Interlaced Leather Bracelet is a high-quality accessory that's as tough as the Fitness Trainers who wear it. The combination of stainless steel and PU leather creates a versatile style that's perfect for any occasion, whether it's a tough workout or a night out on the town. The engraved stainless steel adds a touch of sophistication and durability that's sure to impress. Whether you're looking for a gift for a Fitness Trainer or just want to treat yourself, this Interlaced Leather Bracelet is the perfect choice. So why settle for a boring gift when you can give the gift of style and individuality? This Interlaced Leather Bracelet is the perfect way to show your love and appreciation for the Fitness Trainer in your life. Whether it's Christmas, a birthday, or just because, this gift is sure to be a hit. Treat your Fitness Trainer to the best - order this Interlaced Leather Bracelet today and watch them shine! Our 'I'm A Tattooed Fitness Trainer. Just Like A Normal Fitness Trainer Except Much Hotter.' Interlaced Leather Bracelet is made with high-quality stainless steel and PU leather in a versatile style, perfect for Fitness Trainer enthusiasts who want to show off their personality. The length is 7.87 inches, and it's crafted with engraved stainless steel for durability. This Fitness Trainer Interlaced Leather Bracelet is a great way to show your appreciation for your friend's dedication to fitness. Whether you're looking for a gift for a friend, family member, or coworker, this unique and stylish accessory is sure to impress. As a gift from friends, this Interlaced Leather Bracelet is a thoughtful and unique present that will show your appreciation for your Fitness Trainer friend's hard work and dedication. It's a great way to show your support and encouragement for their fitness journey. Our Interlaced Leather Bracelet is a stylish and sturdy accessory that's perfect for Fitness Trainer enthusiasts. Made with high-quality materials and crafted with care, it's a thoughtful gift that will last long after the holiday season is over. Don't miss out on this opportunity to give the gift of style and sophistication to your Fitness Trainer friend. Don't miss out and make their Christmas a little brighter with our unique and stylish Interlaced Leather Bracelet."
+              },
+              "url": "https://victorythruvision.com/products/funny-fitness-trainer-gifts-for-him-from-friends-unique-interlaced-leather-bracelet-for-men-christmas-unique-fashion-jewelry-for-fitness-enthusiast?variant=51428409278743",
+              "price": {
+                "amount": 2495,
+                "currency": "USD"
+              },
+              "availability": {
+                "available": true
+              },
+              "options": [
+                {
+                  "name": "Color",
+                  "label": "Black"
+                },
+                {
+                  "name": "Size",
+                  "label": "small"
+                }
+              ],
+              "media": [
+                {
+                  "type": "image",
+                  "url": "https://cdn.shopify.com/s/files/1/0927/8701/5959/files/braided_leather_bracelet_1_655150_Black_2400_640.png",
+                  "alt_text": "Funny Fitness Trainer Gifts for Him from Friends, Unique Interlaced Leather Bracelet for Men, Christmas Unique Fashion Jewelry for Fitness Enthusiast - Image 1"
+                }
+              ],
+              "seller": {
+                "id": "gid://shopify/Shop/92787015959",
+                "name": "Victory Thru Vision ",
+                "url": "https://victorythruvision.com",
+                "domain": "3ig41p-9h.myshopify.com",
+                "links": [
+                  {
+                    "type": "privacy_policy",
+                    "url": "https://checkout.shopify.com/92787015959/policies/44711215383.html"
+                  },
+                  {
+                    "type": "terms_of_service",
+                    "url": "https://checkout.shopify.com/92787015959/policies/44934562071.html"
+                  },
+                  {
+                    "type": "refund_policy",
+                    "url": "https://checkout.shopify.com/92787015959/policies/44934594839.html"
+                  },
+                  {
+                    "type": "shipping_policy",
+                    "url": "https://checkout.shopify.com/92787015959/policies/45017694487.html"
+                  }
+                ]
+              },
+              "checkout_url": "https://victorythruvision.com/cart/51428409278743:1",
+              "condition": [
+                "new"
+              ],
+              "eligible": {
+                "native_checkout": false
+              }
+            }
+          ],
+          "price_range": {
+            "min": {
+              "amount": 2495,
+              "currency": "USD"
+            },
+            "max": {
+              "amount": 2495,
+              "currency": "USD"
+            }
+          },
+          "selected": [
+            {
+              "name": "Color",
+              "label": "Black"
+            },
+            {
+              "name": "Size",
+              "label": "small"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+[catalog][get_product] parsed product {
+  productId: 'gid://shopify/p/2OIM3U5gs7lwUEBX6nV4Lo',
+  id: 'gid://shopify/p/2OIM3U5gs7lwUEBX6nV4Lo',
+  title: 'Funny Fitness Trainer Gifts for Him from Friends, Unique Interlaced Leather Bracelet for Men, Christmas Unique Fashion Jewelry for Fitness Enthusiast',
+  productUrl: null,
+  firstVariantUrl: 'https://victorythruvision.com/products/funny-fitness-trainer-gifts-for-him-from-friends-unique-interlaced-leather-bracelet-for-men-christmas-unique-fashion-jewelry-for-fitness-enthusiast?variant=51428409278743',
+  variantCount: 1
+}
+[catalog][get_product] raw MCP response {
+  "productId": "gid://shopify/p/ie1rpzAJRGsrl449G08oF",
+  "selected": [
+    {
+      "name": "Color",
+      "label": "Pink"
+    }
+  ],
+  "mcpUrl": "https://catalog.shopify.com/api/ucp/mcp",
+  "agentProfileUrl": "https://shopify.dev/ucp/agent-profiles/2026-04-08/valid-with-capabilities.json",
+  "httpStatus": 200,
+  "requestBody": {
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "id": 647295366,
+    "params": {
+      "name": "get_product",
+      "arguments": {
+        "meta": {
+          "ucp-agent": {
+            "profile": "https://shopify.dev/ucp/agent-profiles/2026-04-08/valid-with-capabilities.json"
+          }
+        },
+        "catalog": {
+          "id": "gid://shopify/p/ie1rpzAJRGsrl449G08oF",
+          "selected": [
+            {
+              "name": "Color",
+              "label": "Pink"
+            }
+          ],
+          "preferences": [
+            "Color"
+          ],
+          "filters": {
+            "available": true,
+            "ships_to": {
+              "country": "US"
+            }
+          },
+          "context": {
+            "address_country": "US",
+            "currency": "USD"
+          }
+        }
+      }
+    }
+  },
+  "responseBody": {
+    "jsonrpc": "2.0",
+    "id": 647295366,
+    "result": {
+      "structuredContent": {
+        "ucp": {
+          "version": "2026-04-08",
+          "capabilities": {
+            "dev.ucp.shopping.catalog.search": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://ucp.dev/2026-04-08/specification/catalog",
+                "schema": "https://ucp.dev/2026-04-08/schemas/shopping/catalog_search.json"
+              }
+            ],
+            "dev.ucp.shopping.catalog.lookup": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://ucp.dev/2026-04-08/specification/catalog",
+                "schema": "https://ucp.dev/2026-04-08/schemas/shopping/catalog_lookup.json"
+              }
+            ],
+            "dev.shopify.catalog.global": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://shopify.dev/docs/agents/catalog/global-catalog",
+                "schema": "https://shopify.dev/ucp/schemas/2026-04-08/shopify_catalog_global.json",
+                "extends": [
+                  "dev.ucp.shopping.catalog.search",
+                  "dev.ucp.shopping.catalog.lookup"
+                ],
+                "requires": {
+                  "protocol": {
+                    "min": "2026-04-08"
+                  }
+                }
+              }
+            ]
+          },
+          "status": "success"
+        },
+        "product": {
+          "id": "gid://shopify/p/ie1rpzAJRGsrl449G08oF",
+          "title": "TechGlow Foldable Cellphone Stand with Bluetooth Speaker Power Bank 360° Rotatable Phone Stand Birthday Gifts for Men Women Mother Father Cool Tech Gadgets",
+          "description": {
+            "plain": "A foldable phone stand with Bluetooth speaker and power bank, offering 360° rotation and portability for on-the-go use."
+          },
+          "options": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "label": "Blue",
+                  "available": true,
+                  "exists": true
+                },
+                {
+                  "label": "Pink",
+                  "available": true,
+                  "exists": true
+                }
+              ]
+            }
+          ],
+          "metadata": {
+            "unique_selling_points": [
+              "Combines a foldable phone stand, Bluetooth speaker, and power bank in one portable device."
+            ],
+            "top_features": "360° rotatable stand enables flexible viewing angles for any device\nFoldable design allows for easy portability and storage\nIntegrated Bluetooth speaker provides hands-free music playback\nBuilt-in power bank offers convenient charging on the go\nAdjustable angle ensures optimal viewing comfort",
+            "tech_specs": "Color: Pink\nMount/Stand Features: 360 degree rotation, Foldable, Portable, Adjustable angle\nPattern: Solid\nIntegrated Bluetooth speaker\nBuilt-in power bank"
+          },
+          "media": [
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0714/9541/7901/files/716WdEyL1zL.jpg",
+              "alt_text": "TechGlow Foldable Cellphone Stand with Bluetooth Speaker Power Bank 360° Rotatable Phone Stand Birthday Gifts for Men Women Mother Father Cool Tech Gadgets"
+            },
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0714/9541/7901/files/718f4g4TqHL.jpg",
+              "alt_text": "TechGlow Foldable Cellphone Stand with Bluetooth Speaker Power Bank 360° Rotatable Phone Stand Birthday Gifts for Men Women Mother Father Cool Tech Gadgets"
+            }
+          ],
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/44450380316717",
+              "title": "TechGlow Foldable Cellphone Stand with Bluetooth Speaker Power Bank 360° Rotatable Phone Stand Birthday Gifts for Men Women Mother Father Cool Tech Gadgets",
+              "description": {
+                "plain": ".aplus-v2 .premium-aplus-module-13 .aplus-carousel-container { position: relative; } .aplus-v2 .premium-aplus-module-13 .aplus-carousel-element { position: relative; width:"
+              },
+              "url": "https://cozymarts.shop/products/techglow-foldable-cellphone-stand-with-bluetooth-speaker-power-bank-360-rotatable-phone-stand-birthday-gifts-for-men-women-mother-father-cool-tech-gadgets?variant=44450380316717",
+              "price": {
+                "amount": 5398,
+                "currency": "USD"
+              },
+              "availability": {
+                "available": true
+              },
+              "options": [
+                {
+                  "name": "Color",
+                  "label": "Pink"
+                }
+              ],
+              "media": [
+                {
+                  "type": "image",
+                  "url": "https://cdn.shopify.com/s/files/1/0714/9541/7901/files/716WdEyL1zL.jpg",
+                  "alt_text": "TechGlow Foldable Cellphone Stand with Bluetooth Speaker Power Bank 360° Rotatable Phone Stand Birthday Gifts for Men Women Mother Father Cool Tech Gadgets"
+                }
+              ],
+              "seller": {
+                "id": "gid://shopify/Shop/71495417901",
+                "name": "Cozymarts",
+                "url": "https://cozymarts.shop",
+                "domain": "zczinq-as.myshopify.com",
+                "links": [
+                  {
+                    "type": "privacy_policy",
+                    "url": "https://checkout.shopify.com/71495417901/policies/37093113901.html"
+                  },
+                  {
+                    "type": "terms_of_service",
+                    "url": "https://checkout.shopify.com/71495417901/policies/37093244973.html"
+                  },
+                  {
+                    "type": "refund_policy",
+                    "url": "https://checkout.shopify.com/71495417901/policies/37093212205.html"
+                  },
+                  {
+                    "type": "shipping_policy",
+                    "url": "https://checkout.shopify.com/71495417901/policies/37093310509.html"
+                  }
+                ]
+              },
+              "checkout_url": "https://cozymarts.shop/cart/44450380316717:1",
+              "condition": [
+                "new"
+              ],
+              "eligible": {
+                "native_checkout": false
+              }
+            }
+          ],
+          "price_range": {
+            "min": {
+              "amount": 5398,
+              "currency": "USD"
+            },
+            "max": {
+              "amount": 5398,
+              "currency": "USD"
+            }
+          },
+          "selected": [
+            {
+              "name": "Color",
+              "label": "Pink"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+[catalog][get_product] parsed product {
+  productId: 'gid://shopify/p/ie1rpzAJRGsrl449G08oF',
+  id: 'gid://shopify/p/ie1rpzAJRGsrl449G08oF',
+  title: 'TechGlow Foldable Cellphone Stand with Bluetooth Speaker Power Bank 360° Rotatable Phone Stand Birthday Gifts for Men Women Mother Father Cool Tech Gadgets',
+  productUrl: null,
+  firstVariantUrl: 'https://cozymarts.shop/products/techglow-foldable-cellphone-stand-with-bluetooth-speaker-power-bank-360-rotatable-phone-stand-birthday-gifts-for-men-women-mother-father-cool-tech-gadgets?variant=44450380316717',
+  variantCount: 1
+}
+{"ts":"2026-06-10T21:19:07.578Z","service":"ai-chat","event":"curator_job_enqueued","conversationId":"cmq8kegu200107x3hb564btu6","messageId":"cmq8kmnle000me5k6owqedbkl","searchKey":"toolu_01HpAiPGJJUBfaSKYnguQJLT","cardCount":10,"query":"fitness sports gear accessories gift for young adult male birthday"}
+{"ts":"2026-06-10T21:19:08.737Z","service":"ai-chat","event":"curator_job_enqueued","conversationId":"cmq8kegu200107x3hb564btu6","messageId":"cmq8kmnle000me5k6owqedbkl","searchKey":"toolu_014vyyqUTC7csigrgGrNAAK6","cardCount":10,"query":"tech gadgets accessories gift for young adult male birthday"}
+{"ts":"2026-06-10T21:19:16.512Z","service":"ai-chat","event":"chat_stream_completed","conversationId":"cmq8kegu200107x3hb564btu6","assistantMessageId":"cmq8kmnle000me5k6owqedbkl","mode":"send","model":"claude-sonnet-4-6","inputTokens":9723,"outputTokens":303,"finishReason":"end_turn","productSearchCount":2,"durationMs":30339}
+ POST /api/chat 200 in 30.8s (next.js: 3ms, proxy.ts: 244ms, application-code: 30.5s)
+{"ts":"2026-06-10T21:19:16.823Z","service":"ai-chat","event":"shopping_memory_job_enqueued","conversationId":"cmq8kegu200107x3hb564btu6","messageId":"cmq8kmljn000ke5k6u1qxpsbu"}
+{"ts":"2026-06-10T21:19:16.824Z","service":"ai-chat","event":"intent_branch_job_enqueued","conversationId":"cmq8kegu200107x3hb564btu6","messageId":"cmq8kmljn000ke5k6u1qxpsbu"}
+ GET /api/chat/suggested-prompt?conversationId=cmq8kegu200107x3hb564btu6 200 in 784ms (next.js: 4ms, proxy.ts: 253ms, application-code: 527ms)
+{"ts":"2026-06-10T21:19:19.866Z","service":"ai-chat","event":"shopping_memory_gate passed","preview":"Let's explore these gift directions: 💪 Fitness & Sports, 🎧 Tech & Gadgets. Search each direction s","localGate":false,"forcedByEnv":false,"classifier":{"isShoppingRelevant":true,"containsPreference":false,"containsSize":false,"containsBudget":false,"containsBrand":false,"containsProductFeedback":false,"containsGiftContext":true,"containsIntent":true,"shouldRunDeepExtraction":true}}
+{"ts":"2026-06-10T21:19:20.137Z","service":"ai-chat","event":"curator_job_completed","jobId":"cmq53pbaw000qaufsk11wpsus","conversationId":"cmq53p1og0009aufsfk040eo9","messageId":"cmq53p53p000gaufssnsrt4ra","searchKey":"toolu_01Qrk6r2nFY77AfPhJKSRgH1","attempts":1,"pickCount":5,"fallback":false,"latencyMs":57912}
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 1565ms (next.js: 12ms, proxy.ts: 191ms, application-code: 1363ms)
+ GET /api/conversations 200 in 819ms (next.js: 4ms, proxy.ts: 179ms, application-code: 636ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6/intent-events?since=2026-06-10T21%3A18%3A38.778Z 200 in 971ms (next.js: 5ms, proxy.ts: 310ms, application-code: 656ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 973ms (next.js: 10ms, proxy.ts: 197ms, application-code: 765ms)
+{"ts":"2026-06-10T21:19:25.145Z","service":"ai-chat","event":"shopping_memory_saved","preview":"Let's explore these gift directions: 💪 Fitness & Sports, 🎧 Tech & Gadgets. Search each direction s","observations":1,"promotedApprox":0}
+{"ts":"2026-06-10T21:19:25.292Z","service":"ai-chat","event":"shopping_memory_job_completed","jobId":"cmq8kn8df001he5k6mzyarly3","conversationId":"cmq8kegu200107x3hb564btu6","messageId":"cmq8kmljn000ke5k6u1qxpsbu","attempts":1}
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 971ms (next.js: 9ms, proxy.ts: 185ms, application-code: 777ms)
+{"ts":"2026-06-10T21:19:30.073Z","service":"ai-chat","event":"intent_branch_skipped","conversationId":"cmq8kegu200107x3hb564btu6","messageId":"cmq8kmljn000ke5k6u1qxpsbu","reason":"classifier_null"}
+{"ts":"2026-06-10T21:19:30.380Z","service":"ai-chat","event":"intent_branch_job_completed","jobId":"cmq8kn8df001ge5k61ffj3pac","conversationId":"cmq8kegu200107x3hb564btu6","messageId":"cmq8kmljn000ke5k6u1qxpsbu"}
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 991ms (next.js: 11ms, proxy.ts: 196ms, application-code: 784ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 1973ms (next.js: 10ms, proxy.ts: 195ms, application-code: 1768ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 1226ms (next.js: 9ms, proxy.ts: 209ms, application-code: 1007ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 956ms (next.js: 9ms, proxy.ts: 179ms, application-code: 769ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 1014ms (next.js: 9ms, proxy.ts: 207ms, application-code: 798ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 963ms (next.js: 10ms, proxy.ts: 187ms, application-code: 765ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 991ms (next.js: 9ms, proxy.ts: 192ms, application-code: 790ms)
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 1129ms (next.js: 11ms, proxy.ts: 180ms, application-code: 937ms)
+[catalog][get_product] raw MCP response {
+  "productId": "gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4",
+  "selected": [
+    {
+      "name": "Color",
+      "label": "Black"
+    },
+    {
+      "name": "Size",
+      "label": "small"
+    }
+  ],
+  "mcpUrl": "https://catalog.shopify.com/api/ucp/mcp",
+  "agentProfileUrl": "https://shopify.dev/ucp/agent-profiles/2026-04-08/valid-with-capabilities.json",
+  "httpStatus": 200,
+  "requestBody": {
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "id": 118099010,
+    "params": {
+      "name": "get_product",
+      "arguments": {
+        "meta": {
+          "ucp-agent": {
+            "profile": "https://shopify.dev/ucp/agent-profiles/2026-04-08/valid-with-capabilities.json"
+          }
+        },
+        "catalog": {
+          "id": "gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4",
+          "selected": [
+            {
+              "name": "Color",
+              "label": "Black"
+            },
+            {
+              "name": "Size",
+              "label": "small"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "responseBody": {
+    "jsonrpc": "2.0",
+    "id": 118099010,
+    "result": {
+      "structuredContent": {
+        "ucp": {
+          "version": "2026-04-08",
+          "capabilities": {
+            "dev.ucp.shopping.catalog.search": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://ucp.dev/2026-04-08/specification/catalog",
+                "schema": "https://ucp.dev/2026-04-08/schemas/shopping/catalog_search.json"
+              }
+            ],
+            "dev.ucp.shopping.catalog.lookup": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://ucp.dev/2026-04-08/specification/catalog",
+                "schema": "https://ucp.dev/2026-04-08/schemas/shopping/catalog_lookup.json"
+              }
+            ],
+            "dev.shopify.catalog.global": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://shopify.dev/docs/agents/catalog/global-catalog",
+                "schema": "https://shopify.dev/ucp/schemas/2026-04-08/shopify_catalog_global.json",
+                "extends": [
+                  "dev.ucp.shopping.catalog.search",
+                  "dev.ucp.shopping.catalog.lookup"
+                ],
+                "requires": {
+                  "protocol": {
+                    "min": "2026-04-08"
+                  }
+                }
+              }
+            ]
+          },
+          "status": "success"
+        },
+        "product": {
+          "id": "gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4",
+          "title": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men",
+          "description": {
+            "plain": "A motivational rope bracelet engraved with a fun message, designed to fit any wrist and make your favorite personal trainer feel appreciated."
+          },
+          "options": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "label": "Black",
+                  "available": true,
+                  "exists": true
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": [
+                {
+                  "label": "small",
+                  "available": true,
+                  "exists": true
+                }
+              ]
+            }
+          ],
+          "metadata": {
+            "unique_selling_points": [
+              "Features a humorous 'Coffee gives me my personal trainer power' engraving and an adjustable fit for any wrist size."
+            ],
+            "top_features": "Engraved humorous message inspires and motivates personal trainers\nAdjustable strap fits wrist sizes from 3.34 to 9.84 inches for universal comfort\nBlack stainless steel and nylon construction ensures durability and resistance to rust, corrosion, and tarnishing\nPackaged in an elegant organza bag for a thoughtful gifting experience",
+            "tech_specs": "Material: Black stainless steel, nylon\nBracelet design: Cord with interlaced rope\nAdjustable fit: 3.34 to 9.84 inches (wrist size)\nPattern: Solid with text\nJewelry type: Imitation jewelry\nColor: Black"
+          },
+          "media": [
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0710/2090/4500/files/rope_bracelet_1_954246_Black_2000_640.png",
+              "alt_text": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men - Image 1"
+            },
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0710/2090/4500/files/rope_bracelet_2_954246_Black_2000_640.png",
+              "alt_text": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men - Image 2"
+            },
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0710/2090/4500/files/rope_bracelet_3_954246_Black_2000_640.png",
+              "alt_text": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men - Image 3"
+            }
+          ],
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/47495872315444",
+              "title": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men",
+              "description": {
+                "plain": "Are you looking for a unique gift for your favorite Personal Trainer? Something that shows your appreciation for their hard work and dedication? Look no further than this Funny Personal Trainer Rope Bracelet Birthday Gift. This rope bracelet is a perfect way to show your support and motivation to your favorite Personal Trainer. Made from black stainless steel with a interlaced rope, it's sturdy and long-lasting. The adjustable design means it can fit any wrist size, from 3.34 to 9.84 inches. Plus, it's packaged in a beautiful organza bag, making it a thoughtful and unique gift. This Personal Trainer Rope Bracelet is a great way to celebrate your friend's birthday or any special occasion. It's a thoughtful and inspirational gift that will motivate your favorite Personal Trainer to keep pushing themselves to be their best. Whether you're a coffee lover like us, who says 'Coffee Gives Me My Personal Trainer Power', or just looking for a unique gift idea, this rope bracelet is sure to impress. So why wait? Get your Funny Personal Trainer Rope Bracelet Birthday Gift today and show your favorite Personal Trainer how much you care. Your friend will appreciate the thought and motivation behind this gift, and it will make their birthday even more special. Perfect Birthday Gift for Your Personal Trainer - Give your loved one the ultimate Personal Trainer style with this 'Coffee Gives Me My Personal Trainer Power' engraved rope bracelet, perfect for anyone who loves fitness and staying active. Add a touch of Personal Trainer elegance to your fitness journey with this adjustable rope bracelet, designed to fit any wrist size from 3.34 to 9.84 inches, and packaged in an elegant organza bag. Stay connected to your Personal Trainer goals with this motivational rope bracelet, featuring a black stainless steel engraved part with braided rope, resistant to rust, corrosion, and tarnishing, making it a durable and long-lasting accessory. Whether you're a Personal Trainer or just starting your fitness journey, this rope bracelet is the perfect reminder to stay motivated and reach your goals, with its sleek design and adjustable strap making it suitable for any occasion. Get your Personal Trainer rope bracelet today and experience the ultimate fusion of style and motivation - simply add to cart and have it shipped to your doorstep, ready to inspire your fitness journey."
+              },
+              "url": "https://giftoryhub.com/products/funny-personal-trainer-rope-bracelet-birthday-unique-gifts-from-friends-to-motivate-your-favorite-personal-trainer-men?variant=47495872315444",
+              "price": {
+                "amount": 2495,
+                "currency": "USD"
+              },
+              "availability": {
+                "available": true
+              },
+              "options": [
+                {
+                  "name": "Color",
+                  "label": "Black"
+                },
+                {
+                  "name": "Size",
+                  "label": "small"
+                }
+              ],
+              "media": [
+                {
+                  "type": "image",
+                  "url": "https://cdn.shopify.com/s/files/1/0710/2090/4500/files/rope_bracelet_1_954246_Black_2000_640.png",
+                  "alt_text": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men - Image 1"
+                }
+              ],
+              "seller": {
+                "id": "gid://shopify/Shop/71020904500",
+                "name": "giftoryhub",
+                "url": "https://giftoryhub.com",
+                "domain": "qvr9jb-be.myshopify.com",
+                "links": [
+                  {
+                    "type": "privacy_policy",
+                    "url": "https://checkout.shopify.com/71020904500/policies/35055206452.html"
+                  },
+                  {
+                    "type": "terms_of_service",
+                    "url": "https://checkout.shopify.com/71020904500/policies/35075227700.html"
+                  },
+                  {
+                    "type": "refund_policy",
+                    "url": "https://checkout.shopify.com/71020904500/policies/35075194932.html"
+                  },
+                  {
+                    "type": "shipping_policy",
+                    "url": "https://checkout.shopify.com/71020904500/policies/35075293236.html"
+                  }
+                ]
+              },
+              "checkout_url": "https://giftoryhub.com/cart/47495872315444:1",
+              "condition": [
+                "new"
+              ],
+              "eligible": {
+                "native_checkout": false
+              }
+            }
+          ],
+          "price_range": {
+            "min": {
+              "amount": 2495,
+              "currency": "USD"
+            },
+            "max": {
+              "amount": 2495,
+              "currency": "USD"
+            }
+          },
+          "selected": [
+            {
+              "name": "Color",
+              "label": "Black"
+            },
+            {
+              "name": "Size",
+              "label": "small"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+[catalog][get_product] parsed product {
+  productId: 'gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4',
+  id: 'gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4',
+  title: 'Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men',
+  productUrl: null,
+  firstVariantUrl: 'https://giftoryhub.com/products/funny-personal-trainer-rope-bracelet-birthday-unique-gifts-from-friends-to-motivate-your-favorite-personal-trainer-men?variant=47495872315444',
+  variantCount: 1
+}
+ POST /c/cmq8kegu200107x3hb564btu6 200 in 582ms (next.js: 11ms, proxy.ts: 193ms, application-code: 378ms)
+  └─ ƒ getProductAction("gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4", [{"label":"Black","name":"Color"},{"label":"small","name":"Size"}]) in 328ms src/actions/catalog.ts
+[catalog][get_product] raw MCP response {
+  "productId": "gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4",
+  "selected": [
+    {
+      "name": "Color",
+      "label": "Black"
+    },
+    {
+      "name": "Size",
+      "label": "small"
+    }
+  ],
+  "mcpUrl": "https://catalog.shopify.com/api/ucp/mcp",
+  "agentProfileUrl": "https://shopify.dev/ucp/agent-profiles/2026-04-08/valid-with-capabilities.json",
+  "httpStatus": 200,
+  "requestBody": {
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "id": 296831425,
+    "params": {
+      "name": "get_product",
+      "arguments": {
+        "meta": {
+          "ucp-agent": {
+            "profile": "https://shopify.dev/ucp/agent-profiles/2026-04-08/valid-with-capabilities.json"
+          }
+        },
+        "catalog": {
+          "id": "gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4",
+          "selected": [
+            {
+              "name": "Color",
+              "label": "Black"
+            },
+            {
+              "name": "Size",
+              "label": "small"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "responseBody": {
+    "jsonrpc": "2.0",
+    "id": 296831425,
+    "result": {
+      "structuredContent": {
+        "ucp": {
+          "version": "2026-04-08",
+          "capabilities": {
+            "dev.ucp.shopping.catalog.search": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://ucp.dev/2026-04-08/specification/catalog",
+                "schema": "https://ucp.dev/2026-04-08/schemas/shopping/catalog_search.json"
+              }
+            ],
+            "dev.ucp.shopping.catalog.lookup": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://ucp.dev/2026-04-08/specification/catalog",
+                "schema": "https://ucp.dev/2026-04-08/schemas/shopping/catalog_lookup.json"
+              }
+            ],
+            "dev.shopify.catalog.global": [
+              {
+                "version": "2026-04-08",
+                "spec": "https://shopify.dev/docs/agents/catalog/global-catalog",
+                "schema": "https://shopify.dev/ucp/schemas/2026-04-08/shopify_catalog_global.json",
+                "extends": [
+                  "dev.ucp.shopping.catalog.search",
+                  "dev.ucp.shopping.catalog.lookup"
+                ],
+                "requires": {
+                  "protocol": {
+                    "min": "2026-04-08"
+                  }
+                }
+              }
+            ]
+          },
+          "status": "success"
+        },
+        "product": {
+          "id": "gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4",
+          "title": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men",
+          "description": {
+            "plain": "A motivational rope bracelet engraved with a fun message, designed to fit any wrist and make your favorite personal trainer feel appreciated."
+          },
+          "options": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "label": "Black",
+                  "available": true,
+                  "exists": true
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": [
+                {
+                  "label": "small",
+                  "available": true,
+                  "exists": true
+                }
+              ]
+            }
+          ],
+          "metadata": {
+            "unique_selling_points": [
+              "Features a humorous 'Coffee gives me my personal trainer power' engraving and an adjustable fit for any wrist size."
+            ],
+            "top_features": "Engraved humorous message inspires and motivates personal trainers\nAdjustable strap fits wrist sizes from 3.34 to 9.84 inches for universal comfort\nBlack stainless steel and nylon construction ensures durability and resistance to rust, corrosion, and tarnishing\nPackaged in an elegant organza bag for a thoughtful gifting experience",
+            "tech_specs": "Material: Black stainless steel, nylon\nBracelet design: Cord with interlaced rope\nAdjustable fit: 3.34 to 9.84 inches (wrist size)\nPattern: Solid with text\nJewelry type: Imitation jewelry\nColor: Black"
+          },
+          "media": [
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0710/2090/4500/files/rope_bracelet_1_954246_Black_2000_640.png",
+              "alt_text": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men - Image 1"
+            },
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0710/2090/4500/files/rope_bracelet_2_954246_Black_2000_640.png",
+              "alt_text": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men - Image 2"
+            },
+            {
+              "type": "image",
+              "url": "https://cdn.shopify.com/s/files/1/0710/2090/4500/files/rope_bracelet_3_954246_Black_2000_640.png",
+              "alt_text": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men - Image 3"
+            }
+          ],
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/47495872315444",
+              "title": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men",
+              "description": {
+                "plain": "Are you looking for a unique gift for your favorite Personal Trainer? Something that shows your appreciation for their hard work and dedication? Look no further than this Funny Personal Trainer Rope Bracelet Birthday Gift. This rope bracelet is a perfect way to show your support and motivation to your favorite Personal Trainer. Made from black stainless steel with a interlaced rope, it's sturdy and long-lasting. The adjustable design means it can fit any wrist size, from 3.34 to 9.84 inches. Plus, it's packaged in a beautiful organza bag, making it a thoughtful and unique gift. This Personal Trainer Rope Bracelet is a great way to celebrate your friend's birthday or any special occasion. It's a thoughtful and inspirational gift that will motivate your favorite Personal Trainer to keep pushing themselves to be their best. Whether you're a coffee lover like us, who says 'Coffee Gives Me My Personal Trainer Power', or just looking for a unique gift idea, this rope bracelet is sure to impress. So why wait? Get your Funny Personal Trainer Rope Bracelet Birthday Gift today and show your favorite Personal Trainer how much you care. Your friend will appreciate the thought and motivation behind this gift, and it will make their birthday even more special. Perfect Birthday Gift for Your Personal Trainer - Give your loved one the ultimate Personal Trainer style with this 'Coffee Gives Me My Personal Trainer Power' engraved rope bracelet, perfect for anyone who loves fitness and staying active. Add a touch of Personal Trainer elegance to your fitness journey with this adjustable rope bracelet, designed to fit any wrist size from 3.34 to 9.84 inches, and packaged in an elegant organza bag. Stay connected to your Personal Trainer goals with this motivational rope bracelet, featuring a black stainless steel engraved part with braided rope, resistant to rust, corrosion, and tarnishing, making it a durable and long-lasting accessory. Whether you're a Personal Trainer or just starting your fitness journey, this rope bracelet is the perfect reminder to stay motivated and reach your goals, with its sleek design and adjustable strap making it suitable for any occasion. Get your Personal Trainer rope bracelet today and experience the ultimate fusion of style and motivation - simply add to cart and have it shipped to your doorstep, ready to inspire your fitness journey."
+              },
+              "url": "https://giftoryhub.com/products/funny-personal-trainer-rope-bracelet-birthday-unique-gifts-from-friends-to-motivate-your-favorite-personal-trainer-men?variant=47495872315444",
+              "price": {
+                "amount": 2495,
+                "currency": "USD"
+              },
+              "availability": {
+                "available": true
+              },
+              "options": [
+                {
+                  "name": "Color",
+                  "label": "Black"
+                },
+                {
+                  "name": "Size",
+                  "label": "small"
+                }
+              ],
+              "media": [
+                {
+                  "type": "image",
+                  "url": "https://cdn.shopify.com/s/files/1/0710/2090/4500/files/rope_bracelet_1_954246_Black_2000_640.png",
+                  "alt_text": "Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men - Image 1"
+                }
+              ],
+              "seller": {
+                "id": "gid://shopify/Shop/71020904500",
+                "name": "giftoryhub",
+                "url": "https://giftoryhub.com",
+                "domain": "qvr9jb-be.myshopify.com",
+                "links": [
+                  {
+                    "type": "privacy_policy",
+                    "url": "https://checkout.shopify.com/71020904500/policies/35055206452.html"
+                  },
+                  {
+                    "type": "terms_of_service",
+                    "url": "https://checkout.shopify.com/71020904500/policies/35075227700.html"
+                  },
+                  {
+                    "type": "refund_policy",
+                    "url": "https://checkout.shopify.com/71020904500/policies/35075194932.html"
+                  },
+                  {
+                    "type": "shipping_policy",
+                    "url": "https://checkout.shopify.com/71020904500/policies/35075293236.html"
+                  }
+                ]
+              },
+              "checkout_url": "https://giftoryhub.com/cart/47495872315444:1",
+              "condition": [
+                "new"
+              ],
+              "eligible": {
+                "native_checkout": false
+              }
+            }
+          ],
+          "price_range": {
+            "min": {
+              "amount": 2495,
+              "currency": "USD"
+            },
+            "max": {
+              "amount": 2495,
+              "currency": "USD"
+            }
+          },
+          "selected": [
+            {
+              "name": "Color",
+              "label": "Black"
+            },
+            {
+              "name": "Size",
+              "label": "small"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+[catalog][get_product] parsed product {
+  productId: 'gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4',
+  id: 'gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4',
+  title: 'Funny Personal Trainer Rope Bracelet Birthday Unique Gifts from Friends to Motivate Your Favorite Personal Trainer Men',
+  productUrl: null,
+  firstVariantUrl: 'https://giftoryhub.com/products/funny-personal-trainer-rope-bracelet-birthday-unique-gifts-from-friends-to-motivate-your-favorite-personal-trainer-men?variant=47495872315444',
+  variantCount: 1
+}
+ POST /c/cmq8kegu200107x3hb564btu6 200 in 478ms (next.js: 10ms, proxy.ts: 182ms, application-code: 285ms)
+  └─ ƒ getProductAction("gid://shopify/p/58Fw40oCnj6JZjwflM2lZ4", [{"label":"Black","name":"Color"},{"label":"small","name":"Size"}]) in 276ms src/actions/catalog.ts
+ GET /api/conversations/cmq8kegu200107x3hb564btu6 200 in 948ms (next.js: 4ms, proxy.ts: 164ms, application-code: 779ms)
+ GET /api/shopify/merchant-support?checkoutUrl=https%3A%2F%2Fgiftoryhub.com%2Fcart%2F47495872315444%3A1 200 in 924ms (next.js: 32ms, proxy.ts: 268ms, ap
