@@ -16,7 +16,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:backfill-branches": "npx tsx scripts/backfill-conversation-branches.ts",
-    "db:deploy": "prisma db push --skip-generate",
+    "db:deploy": "prisma db execute --file prisma/sql/drop-fashion-auth-fkeys.sql && prisma db push --skip-generate",
     "postinstall": "prisma generate"
   },
   "dependencies": {

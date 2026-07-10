@@ -6,10 +6,10 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // `auth` is required so `db push` can introspect Supabase FKs like
-  // public.fashion_facts → auth.users (P4002 without it). We do not model
-  // auth.users in Prisma — Supabase owns that schema.
-  schemas  = ["public", "auth"]
+  // Public only — never list `auth` here. Declaring auth makes `db push` try to
+  // drop Supabase-managed auth.* tables. Cross-schema FKs to auth.users are
+  // dropped in pre-deploy (prisma/sql/drop-fashion-auth-fkeys.sql).
+  schemas  = ["public"]
 }
 
 enum MessageRole {
@@ -1119,7 +1119,7 @@ model FashionStyleSignal {
   value         String
   polarity      Int      @default(1) @db.SmallInt
   source        String
-  confidence    Float    @default(0.5)
+  confidence    Float    @default(0.5) @db.Real
   evidenceCount Int      @default(1) @map("evidence_count")
   status        String   @default("active")
   sourceQuote   String?  @map("source_quote")
@@ -1149,14 +1149,15 @@ model FashionRequestEvent {
 }
 
 model FashionExtractionRun {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId         String    @map("user_id") @db.Uuid
-  conversationId String    @map("conversation_id")
-  lastMessageId  String    @map("last_message_id")
-  status         String    @default("running")
-  opsApplied     Json?     @map("ops_applied")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  conversationId     String    @map("conversation_id")
+  lastMessageId      String    @map("last_message_id")
+  status             String    @default("running")
+  opsApplied         Json?     @map("ops_applied")
+  ambiguousSubjects  Json?     @map("ambiguous_subjects")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  finishedAt         DateTime? @map("finished_at") @db.Timestamptz(6)
 
   @@index([userId], map: "extraction_runs_user_id")
   @@map("extraction_runs")
