@@ -39,19 +39,3 @@ CREATE TABLE IF NOT EXISTS public.tryon_feedback (
 ALTER TABLE public.people
   ADD COLUMN IF NOT EXISTS avatar jsonb,
   ADD COLUMN IF NOT EXISTS avatar_source_photo_path text;
-
-CREATE TABLE IF NOT EXISTS public.avatar_drafts (
-  person_id uuid PRIMARY KEY,
-  user_id uuid NOT NULL,
-  step text NOT NULL DEFAULT 'upload',
-  photo_path text,
-  attributes jsonb,
-  preview_url text,
-  preview_path text,
-  preview_variants jsonb,
-  selected_provider_key text,
-  regen_count int NOT NULL DEFAULT 0,
-  minor_refused boolean NOT NULL DEFAULT false,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
