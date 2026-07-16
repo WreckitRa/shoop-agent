@@ -122,8 +122,7 @@ function colorFromMustHaves(mustHaves: string[]): string | null {
 
 /**
  * Deterministic fallback when planner variants fail validation twice.
- * Shape: `<desc1> <desc2> <garment>` + one material-led `<material> <garment>`.
- * Color (if allowed) appears in at most one variant.
+ * Emits 4–5 diverse variants ordered best → worst.
  */
 export function buildDeterministicQueryVariants(params: {
   garment: string;
@@ -144,7 +143,13 @@ export function buildDeterministicQueryVariants(params: {
     .replace(/\s+/g, " ")
     .trim();
 
+  const editorialVariant = `${desc1} ${garment}`.replace(/\s+/g, " ").trim();
+
   let materialVariant = `${material} ${garment}`.replace(/\s+/g, " ").trim();
+
+  const premiumVariant = `premium ${material} ${garment}`.replace(/\s+/g, " ").trim();
+
+  const relaxedVariant = `relaxed ${garment}`.replace(/\s+/g, " ").trim();
 
   if (params.includeColor) {
     const color = colorFromMustHaves(mustHaves);
@@ -153,13 +158,34 @@ export function buildDeterministicQueryVariants(params: {
     }
   }
 
-  return [
-    ...new Set(
-      [styleRegisterVariant, materialVariant].map((q) =>
-        ensureDepartmentQueryPrefix(q, department),
-      ),
-    ),
+  const raw = [
+    styleRegisterVariant,
+    editorialVariant,
+    materialVariant,
+    premiumVariant,
+    relaxedVariant,
   ];
+
+  const prefixed = raw.map((q) => ensureDepartmentQueryPrefix(q, department));
+  const unique: string[] = [];
+  for (const q of prefixed) {
+    const key = q.toLowerCase();
+    if (!unique.some((u) => u.toLowerCase() === key)) unique.push(q);
+  }
+  while (unique.length < 4) {
+    const filler = ensureDepartmentQueryPrefix(
+      `${STYLE_DESCRIPTOR_POOL[unique.length % STYLE_DESCRIPTOR_POOL.length]} ${garment}`,
+      department,
+    );
+    if (!unique.some((u) => u.toLowerCase() === filler.toLowerCase())) {
+      unique.push(filler);
+    } else {
+      unique.push(
+        ensureDepartmentQueryPrefix(`classic ${garment}`, department),
+      );
+    }
+  }
+  return unique.slice(0, 5);
 }
 
 export function allowedColorWordsFromBrief(brief: FashionSearchBrief): string[] {

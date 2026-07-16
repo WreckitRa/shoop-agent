@@ -37,7 +37,7 @@ const RELATION_ALIAS_TO_CANONICAL: Record<string, string> = {
 };
 
 /** Relations that typically have at most one roster entry per user. */
-const UNIQUE_CANONICAL_RELATIONS = new Set([
+export const UNIQUE_CANONICAL_RELATIONS = new Set([
   "mother",
   "father",
   "wife",
@@ -47,6 +47,12 @@ const UNIQUE_CANONICAL_RELATIONS = new Set([
   "grandmother",
   "grandfather",
 ]);
+
+export function isUniqueCanonicalRelation(relation: string): boolean {
+  const canonical =
+    normalizeRelationAlias(relation) ?? relation.trim().toLowerCase();
+  return UNIQUE_CANONICAL_RELATIONS.has(canonical);
+}
 
 export function normalizeRelationAlias(raw: string): string | null {
   const key = raw.trim().toLowerCase();

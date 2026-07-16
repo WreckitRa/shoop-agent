@@ -1,0 +1,30 @@
+{
+  "stages": [
+    "brief_persisted",
+    "ucp_query",
+    "ucp_query",
+    "ucp_query",
+    "ucp_query",
+    "ucp_query",
+    "ucp_query",
+    "ucp_query",
+    "ucp_coverage",
+    "normalize",
+    "hard_drops",
+    "invariant_warning",
+    "scoring",
+    "hydration",
+    "curation"
+  ],
+  "eventCounts": {
+    "brief_persisted": 1,
+    "ucp_query": 7,
+    "ucp_coverage": 1,
+    "normalize": 1,
+    "hard_drops": 1,
+    "invariant_warning": 1,
+    "scoring": 1,
+    "hydration": 1,
+    "curation": 1
+  }
+}

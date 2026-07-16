@@ -216,6 +216,11 @@ describe("hydrateCandidate response handling", () => {
     assert.equal(result.outcome, "verified");
     if (result.outcome === "verified") {
       assert.equal(result.candidate.size_status, "confirmed");
+      assert.deepEqual(result.candidate.resolved_options, [
+        { name: "Size", label: "Medium" },
+      ]);
+      assert.equal(result.candidate.selected_variant_id, "v1");
+      assert.equal(result.candidate.size_selection?.merchant_label, "Medium");
     }
   });
 
@@ -478,6 +483,37 @@ describe("SlotPool", () => {
     assert.equal(pool.verified.length, 1);
   });
 
+  it("keeps hydrating through reserve until target or exhaustion", async () => {
+    const ids = Array.from({ length: 30 }, (_, i) => `p${i}`);
+    let verifiedCount = 0;
+    const pool = createSlotPool({
+      slot: { ...planSlot, options_wanted: 4 },
+      scoredProducts: ids.map((id) => product(id)),
+      brief,
+      recipientFacts: [],
+      accessToken: "tok",
+      hydrateFn: async ({ product: p }) => {
+        verifiedCount += 1;
+        if (Number(p.id.slice(1)) % 3 === 0) {
+          return {
+            outcome: "dead",
+            death: {
+              product_id: p.id,
+              cause: "size_out_of_stock",
+              evidence: "test",
+              stage: "hydrate",
+            },
+          };
+        }
+        return { outcome: "verified", candidate: verified(p.id) };
+      },
+    });
+    await pool.fillToTarget();
+    assert.equal(pool.verified.length, hydrationTargetCount(4));
+    assert.equal(pool.thin, false);
+    assert.ok(verifiedCount >= hydrationTargetCount(4));
+  });
+
   it("getOverflow returns not_verified tail", async () => {
     const ids = Array.from({ length: 15 }, (_, i) => `p${i}`);
     const pool = createSlotPool({
@@ -521,5 +557,53 @@ describe("SlotPool", () => {
       pool.verified.some((v) => v.id === firstOverflow) ||
         !overflowAfter.includes(firstOverflow),
     );
+  });
+});
+
+describe("createConcurrencyGate", () => {
+  it("never runs more than limit at once", async () => {
+    const { createConcurrencyGate } = await import("./concurrency-gate");
+    const gate = createConcurrencyGate(2);
+    let inFlight = 0;
+    let peak = 0;
+    await Promise.all(
+      Array.from({ length: 8 }, () =>
+        gate.run(async () => {
+          inFlight += 1;
+          peak = Math.max(peak, inFlight);
+          await new Promise((r) => setTimeout(r, 15));
+          inFlight -= 1;
+        }),
+      ),
+    );
+    assert.equal(peak, 2);
+  });
+});
+
+describe("hydrateCandidate transient retry", () => {
+  it("retries fetch failed then verifies", async () => {
+    let calls = 0;
+    const result = await hydrateCandidate({
+      slot: planSlot,
+      product: product("retry-me"),
+      brief,
+      recipientFacts: [],
+      accessToken: "token",
+      timeoutMs: null,
+      getProductFn: async () => {
+        calls += 1;
+        if (calls === 1) throw new Error("fetch failed");
+        return {
+          product: {
+            id: "retry-me",
+            title: "Shirt",
+            url: "https://shop.example/p",
+            variants: [{ id: "v1", price: { amount: 5000, currency: "USD" } }],
+          },
+        };
+      },
+    });
+    assert.equal(calls, 2);
+    assert.equal(result.outcome, "verified");
   });
 });

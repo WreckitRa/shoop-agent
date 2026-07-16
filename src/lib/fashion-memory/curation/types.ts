@@ -83,11 +83,16 @@ export type RefEntry = {
 
 export type CurationRefRegistry = Map<string, RefEntry>;
 
+/**
+ * User-facing pick badges — CLOSED enum. Internal flags (attire_conflict,
+ * department_unknown, raw evidence) must never appear here.
+ */
 export type FashionCuratedPickBadge =
   | { kind: "converted_size"; from: string; label: string }
   | { kind: "check_sizing" }
-  | { kind: "suspicion"; rule: string; evidence: string }
+  | { kind: "material_suspected"; material: string }
   | { kind: "photo_color"; color: string; listed?: string }
+  | { kind: "near_budget_lifted" }
   | { kind: "brand_unconfirmed" };
 
 export type FashionCuratedPick = ProductCard & {
@@ -132,6 +137,8 @@ export type FashionCurationPresentation = {
     brand_status: Record<string, FashionSlotBrandStatus | undefined>;
     budget_tension?: BudgetTension["severity"];
     budget_interpretation?: BudgetInterpretation;
+    /** Capsule: sum of all picked pieces (major units). */
+    set_total?: number;
     fallback: boolean;
     weights_version?: string;
   };
@@ -153,6 +160,7 @@ export type RunFashionCurationParams = {
     verified_pool?: HydratedCandidate[];
     overflow_items?: OverflowItem[];
     thin_slot?: boolean;
+    coverage_gap?: boolean;
     curator_exclusions?: string[];
     brand_status?: FashionSlotBrandStatus;
     brand_sanity_note?: string;
@@ -180,8 +188,27 @@ export type RunFashionCurationParams = {
   budget_interpretation?: BudgetInterpretation;
   recipientRelation?: string;
   department?: string;
+  /** Full recipient profile text for the curator (facts + signals). */
+  recipientProfile?: string;
   excludedRefs?: string[];
   signal?: AbortSignal;
+  /** E2E/test — mock curation LLM without patching Anthropic client. */
+  createMessage?: (params: {
+    traceId?: string | null;
+    systemPrompt: string;
+    userMessages: import("@anthropic-ai/sdk/resources/messages/messages").MessageCreateParamsNonStreaming["messages"];
+    signal?: AbortSignal;
+    correctiveHint?: string;
+    timeoutMs?: number;
+  }) => Promise<import("@anthropic-ai/sdk/resources/messages/messages").Message>;
+  /** E2E/test — bypass LLM with registry-aligned deliver_curation payload. */
+  resolveCurationMessage?: (ctx: {
+    registry: CurationRefRegistry;
+    plan: FashionSearchPlan;
+    slots: RunFashionCurationParams["slots"];
+  }) =>
+    | Promise<import("@anthropic-ai/sdk/resources/messages/messages").Message>
+    | import("@anthropic-ai/sdk/resources/messages/messages").Message;
 };
 
 export type MessageFashionCurationMetaV1 = FashionCurationPresentation & {

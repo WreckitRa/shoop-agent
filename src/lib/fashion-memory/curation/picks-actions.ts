@@ -41,6 +41,7 @@ export function promotePick(params: {
         imageUrl: demoted.imageUrl,
         displayPrice: demoted.displayPrice,
         featuredVariant: demoted.featuredVariant,
+        preferredOptions: demoted.preferredOptions,
         ref: demoted.ref,
         slot_id: demoted.slot_id,
         garment: demoted.garment,

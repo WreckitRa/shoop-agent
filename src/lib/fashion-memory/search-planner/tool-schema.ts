@@ -33,14 +33,14 @@ export const searchPlanSlotSchema = z.object({
   options_wanted: z.number().int().min(1).max(8),
   query_variants: z
     .array(z.string().min(2).max(PLAN_QUERY_VARIANT_MAX))
-    .min(1)
-    .max(3),
+    .min(4)
+    .max(5),
   budget_fraction: z.number().min(0).max(1).optional(),
 });
 
 export const planSearchInputSchema = z.object({
   mode: searchPlanModeSchema,
-  slots: z.array(searchPlanSlotSchema).min(1).max(5),
+  slots: z.array(searchPlanSlotSchema).min(1).max(12),
   reasoning: z.string().min(1).max(PLAN_REASONING_MAX),
 });
 

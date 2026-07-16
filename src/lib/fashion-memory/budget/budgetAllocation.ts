@@ -10,9 +10,12 @@ import type {
 export const LEGACY_BUDGET_PAD_MAX = 1.2;
 export const LEGACY_BUDGET_PAD_MIN = 0.8;
 
-/** Allocation padding for outfit/capsule per-slot retrieval bounds. */
+/** Allocation padding for outfit per-slot retrieval bounds. */
 export const ALLOCATION_PAD_MAX = 1.4;
 export const ALLOCATION_PAD_MIN = 0.6;
+
+/** Capsule per-piece padding — intra-set price variance is normal. */
+export const CAPSULE_PIECE_PAD = 1.5;
 
 /**
  * Server-side price filter multiplier on top of padded_max.
@@ -30,7 +33,13 @@ const FRACTION_SUM_MAX = 1.1;
 
 export type FractionSource = "planner" | "clamped" | "fallback";
 export type BudgetValidation = "accepted" | "clamped" | "fallback";
-export type BudgetInterpretation = "per_item_assumed";
+export type BudgetInterpretation =
+  | "per_item_stated"
+  | "per_item_assumed"
+  | "set_total_assumed"
+  | "total_stated";
+
+export type BudgetConstraintType = "per_look" | "set_total";
 
 export type SlotBudgetAllocation = {
   fraction: number;
@@ -39,12 +48,21 @@ export type SlotBudgetAllocation = {
   padded_max: number;
   allocated_min?: number;
   padded_min?: number;
+  /** Capsule: slot share of total budget (before per-piece division). */
+  set_allocation?: number;
+  /** Capsule: per-piece enforcement ceiling (major units). */
+  per_item_enforced?: number;
+  /** Capsule: per-piece relevance guard (major units). */
+  per_item_guard?: number;
+  /** Capsule: piece count for this slot (options_wanted). */
+  pieces?: number;
 };
 
 export type BudgetAssembly = {
   total_max: number;
   currency: string;
   tolerance: typeof BUDGET_ASSEMBLY_TOLERANCE;
+  constraint_type: BudgetConstraintType;
   per_slot_allocated: Record<string, SlotBudgetAllocation>;
 };
 
@@ -302,15 +320,50 @@ function buildSlotAllocations(params: {
   total_max: number;
   total_min?: number;
   currency: string;
+  mode: "outfit" | "capsule";
+  slots: FashionSearchPlanSlot[];
 }): {
   per_slot: Record<string, SlotBudgetAllocation>;
   bounds: Map<string, { min?: number; max?: number }>;
 } {
   const per_slot: Record<string, SlotBudgetAllocation> = {};
   const bounds = new Map<string, { min?: number; max?: number }>();
+  const slotById = new Map(params.slots.map((s) => [s.slot_id, s]));
 
   for (const { slot_id, fraction } of params.fractions) {
     const allocated_max = params.total_max * fraction;
+
+    if (params.mode === "capsule") {
+      const planSlot = slotById.get(slot_id);
+      const pieces = Math.max(1, planSlot?.options_wanted ?? 1);
+      const set_allocation = allocated_max;
+      const per_item_enforced =
+        (params.total_max * fraction * CAPSULE_PIECE_PAD) / pieces;
+      const per_item_guard = per_item_enforced * RELEVANCE_GUARD_MULTIPLIER;
+      const entry: SlotBudgetAllocation = {
+        fraction,
+        fraction_source: params.fraction_source,
+        allocated_max,
+        padded_max: per_item_enforced,
+        set_allocation,
+        per_item_enforced,
+        per_item_guard,
+        pieces,
+      };
+
+      if (params.total_min != null && params.total_min > 0) {
+        entry.allocated_min = params.total_min * fraction;
+        entry.padded_min = (entry.allocated_min * ALLOCATION_PAD_MIN) / pieces;
+      }
+
+      per_slot[slot_id] = entry;
+      bounds.set(slot_id, {
+        max: per_item_enforced,
+        ...(entry.padded_min != null ? { min: entry.padded_min } : {}),
+      });
+      continue;
+    }
+
     const padded_max = allocated_max * ALLOCATION_PAD_MAX;
     const entry: SlotBudgetAllocation = {
       fraction,
@@ -361,6 +414,47 @@ export function resolveAllocation(
 
   if (mode === "single_item") return null;
 
+  // Stated per-item bound applies in ANY mode — no fraction split.
+  if (ctx.scope === "per_item") {
+    const total_max = ctx.max;
+    if (total_max == null || !Number.isFinite(total_max)) return null;
+
+    const paddedMax = total_max * LEGACY_BUDGET_PAD_MAX;
+    const paddedMin =
+      ctx.min != null && ctx.min > 0
+        ? ctx.min * LEGACY_BUDGET_PAD_MIN
+        : undefined;
+
+    const per_slot: Record<string, SlotBudgetAllocation> = {};
+    const bounds = new Map<string, { min?: number; max?: number }>();
+
+    for (const slot of plan.slots) {
+      per_slot[slot.slot_id] = {
+        fraction: 1,
+        fraction_source: "planner",
+        allocated_max: total_max,
+        padded_max: paddedMax,
+        ...(ctx.min != null && ctx.min > 0
+          ? {
+              allocated_min: ctx.min,
+              padded_min: paddedMin,
+            }
+          : {}),
+      };
+      bounds.set(slot.slot_id, {
+        max: paddedMax,
+        ...(paddedMin != null ? { min: paddedMin } : {}),
+      });
+    }
+
+    return {
+      bounds,
+      per_slot,
+      validation: "accepted",
+      budget_interpretation: "per_item_stated",
+    };
+  }
+
   if (mode === "multi_item") {
     const total_max = ctx.max;
     if (total_max == null || !Number.isFinite(total_max)) return null;
@@ -397,7 +491,8 @@ export function resolveAllocation(
       bounds,
       per_slot,
       validation: "accepted",
-      budget_interpretation: "per_item_assumed",
+      budget_interpretation:
+        ctx.scope === "total" ? "total_stated" : "per_item_assumed",
     };
   }
 
@@ -417,16 +512,27 @@ export function resolveAllocation(
     total_max,
     total_min: ctx.min,
     currency: ctx.currency ?? profileCurrency,
+    mode,
+    slots: plan.slots,
   });
+
+  const constraint_type: BudgetConstraintType =
+    mode === "capsule" ? "set_total" : "per_look";
+
+  // Stated scope:"total" → total_stated; otherwise assume set/look total coverage.
+  const budget_interpretation: BudgetInterpretation =
+    ctx.scope === "total" ? "total_stated" : "set_total_assumed";
 
   return {
     bounds,
     per_slot,
     validation,
+    budget_interpretation,
     budget_assembly: {
       total_max,
       currency: ctx.currency ?? profileCurrency,
       tolerance: BUDGET_ASSEMBLY_TOLERANCE,
+      constraint_type,
       per_slot_allocated: per_slot,
     },
   };
@@ -460,10 +566,12 @@ export function enforcedMaxMajor(params: {
   const ctx = params.brief.budget_context;
   if (!ctx.stated) return null;
 
-  const useAllocation =
-    params.allocation &&
-    (params.mode === "outfit" || params.mode === "capsule") &&
-    !params.allocation.budget_interpretation;
+  const useAllocation = Boolean(
+    params.allocation?.per_slot[params.slotId] &&
+      (params.mode === "outfit" ||
+        params.mode === "capsule" ||
+        params.mode === "multi_item"),
+  );
 
   if (useAllocation) {
     const slotAlloc = params.allocation!.per_slot[params.slotId];
@@ -471,7 +579,7 @@ export function enforcedMaxMajor(params: {
     if (params.liftedMax != null && Number.isFinite(params.liftedMax)) {
       return params.liftedMax;
     }
-    return slotAlloc.padded_max;
+    return slotAlloc.per_item_enforced ?? slotAlloc.padded_max;
   }
 
   if (ctx.max != null && Number.isFinite(ctx.max)) {
@@ -504,22 +612,26 @@ export function priceBoundsForSlot(
   }
 
   const purpose = params.purpose ?? "client_enforcement";
-  const useAllocation =
-    params.allocation &&
-    (params.mode === "outfit" || params.mode === "capsule") &&
-    !params.allocation.budget_interpretation;
+  const useAllocation = Boolean(
+    params.allocation?.per_slot[params.slotId] &&
+      (params.mode === "outfit" ||
+        params.mode === "capsule" ||
+        params.mode === "multi_item"),
+  );
 
   if (useAllocation) {
     const slotAlloc = params.allocation!.per_slot[params.slotId];
     if (!slotAlloc) return null;
 
-    const maxMajor =
+    const enforcedMajor =
       params.liftedMax != null && Number.isFinite(params.liftedMax)
         ? params.liftedMax
-        : slotAlloc.padded_max;
+        : (slotAlloc.per_item_enforced ?? slotAlloc.padded_max);
 
     const serverMax =
-      purpose === "server_filter" ? guardMaxMajor(maxMajor) : maxMajor;
+      purpose === "server_filter"
+        ? (slotAlloc.per_item_guard ?? guardMaxMajor(enforcedMajor))
+        : enforcedMajor;
 
     const price: { min?: number; max?: number } = {
       max: toMinorUnits(serverMax),
@@ -545,15 +657,55 @@ export function priceBoundsForSlot(
   return price;
 }
 
+/** Interpretation for stated budgets when full allocation does not apply. */
+export function statedBudgetInterpretation(
+  brief: FashionSearchBrief,
+  mode: SearchPlanMode,
+): BudgetInterpretation | undefined {
+  const ctx = brief.budget_context;
+  if (!ctx.stated) return undefined;
+  if (ctx.scope === "per_item") return "per_item_stated";
+  if (ctx.scope === "total") return "total_stated";
+  if (mode === "outfit" || mode === "capsule") return "set_total_assumed";
+  if (mode === "multi_item") return "per_item_assumed";
+  return "per_item_assumed";
+}
+
 /** Attach allocation to plan after planner + clamps. */
 export function attachBudgetAllocation(
   plan: FashionSearchPlan,
   profileCurrency: string,
 ): FashionSearchPlan {
   const allocation = resolveAllocation(plan, profileCurrency);
-  if (!allocation) return plan;
+  if (allocation) {
+    if (
+      plan.brief.budget_context.stated &&
+      !allocation.budget_interpretation
+    ) {
+      // Invariant: stated budget must always announce interpretation.
+      allocation.budget_interpretation = statedBudgetInterpretation(
+        plan.brief,
+        plan.mode,
+      )!;
+    }
+    return {
+      ...plan,
+      budget_allocation: allocation,
+    };
+  }
+
+  if (!plan.brief.budget_context.stated) return plan;
+
+  // single_item / currency mismatch: still set interpretation (no assembly).
+  const interpretation = statedBudgetInterpretation(plan.brief, plan.mode);
+  if (!interpretation) return plan;
   return {
     ...plan,
-    budget_allocation: allocation,
+    budget_allocation: {
+      bounds: new Map(),
+      per_slot: {},
+      validation: "accepted",
+      budget_interpretation: interpretation,
+    },
   };
 }

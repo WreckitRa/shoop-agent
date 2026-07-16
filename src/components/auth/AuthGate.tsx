@@ -393,7 +393,9 @@ function AuthModal({
         >
           <span className="font-medium">Heads up:</span> signing in opens your
           existing account and erases this device&apos;s guest chats, cart, and
-          preferences. They won&apos;t be merged into your account.
+          preferences — including anything stored locally. Clearing your browser
+          cache or data will also delete your guest session. They won&apos;t be
+          merged into your account.
         </div>
       ) : null}
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-4 px-6 py-5">
@@ -449,7 +451,8 @@ function AuthModal({
             />
             <span>
               I understand my guest chats and preferences on this device will be
-              erased when I sign in.
+              erased when I sign in, and that clearing browser data will delete
+              them too.
             </span>
           </label>
         ) : null}

@@ -31,6 +31,11 @@ export type FashionSearchPlanSlot = {
   brand_sanity_note?: string;
   brand_confirmed_count?: number;
   brand_style_descriptors?: string[];
+  /**
+   * No taxonomy / accessory-family mapping — pass through the user's noun,
+   * omit category filter, skip sizing. Surfaced via unknown_garment_family.
+   */
+  unknown_family?: boolean;
 };
 
 /** Validated retrieval plan generated from a confirmed brief. */

@@ -33,7 +33,12 @@ export function genderFromUserProfile(
   if (!t) return null;
   if (/\b(men|mens|men'?s|masculine|male)\b/.test(t)) return "mens";
   if (/\b(women|womens|women'?s|feminine|female)\b/.test(t)) return "womens";
-  if (/\b(mix|mixed|non.?binary|fluid|both)\b/.test(t)) return "mixed";
+  if (
+    /\b(mix|mixed|non.?binary|fluid|both|androgynous)\b/.test(t) ||
+    t === "prefer not to say"
+  ) {
+    return "mixed";
+  }
   return null;
 }
 

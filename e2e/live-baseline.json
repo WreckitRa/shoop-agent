@@ -1,0 +1,15 @@
+{
+  "minPassRate": 0.8,
+  "scenarios": {
+    "e2e_joe_first_message": 1,
+    "e2e_cyprus_cold_profile": 0.67,
+    "e2e_capsule_300": 1,
+    "e2e_aldo_translated": 1,
+    "e2e_tight_budget_honest": 1,
+    "e2e_womens_leak_blocked": 1,
+    "e2e_interaction_chain": 0.67,
+    "e2e_curation_fallback_recurate": 0.67,
+    "e2e_memory_loop": 0.67,
+    "e2e_full_sse_turn": 0.8
+  }
+}

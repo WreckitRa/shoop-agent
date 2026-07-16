@@ -10,6 +10,7 @@ import type { FashionFactRow } from "../types";
 import type { FashionSlotCatalogResult } from "../catalog-search/types";
 import { applyHardDrops } from "./apply-hard-drops";
 import type { HardDropMetrics, HardDropRule } from "./types";
+import { prefetchFxRates } from "@/lib/money/fx";
 
 const EXCESSIVE_DROP_RATIO = 0.7;
 const JUNK_FILL_RATIO = 0.5;
@@ -57,6 +58,20 @@ export async function applyHardDropsForSlots<T extends FashionSlotCatalogResult>
   profileCurrency?: string;
   liftedMaxBySlot?: Map<string, number>;
 }): Promise<{ slots: T[]; metrics: HardDropMetrics[] }> {
+  const buyerCurrency =
+    params.profileCurrency ??
+    params.brief.budget_context.currency ??
+    "USD";
+  const productCurrencies = params.slots.flatMap((s) =>
+    s.products
+      .map((p) => p.price?.currency)
+      .filter((c): c is string => Boolean(c?.trim())),
+  );
+  await prefetchFxRates({
+    buyerCurrency,
+    productCurrencies,
+  });
+
   const metrics: HardDropMetrics[] = [];
 
   for (const slot of params.slots) {
@@ -91,12 +106,26 @@ export async function applyHardDropsForSlots<T extends FashionSlotCatalogResult>
       }
     }
 
+    const enforced = params.allocation?.per_slot[slot.slot_id]?.padded_max;
+    const guard =
+      enforced != null ? guardMaxMajor(enforced) : undefined;
+
     slot.products = partition.survivors;
-    slot.dropped = partition.dropped;
+    const imageById = new Map(
+      preDropProducts
+        .map((p) => [p.id, p.image_urls[0]] as const)
+        .filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
+    );
+    slot.dropped = partition.dropped.map((drop) => ({
+      ...drop,
+      image_url: drop.image_url ?? imageById.get(drop.product_id),
+    }));
     slot.curator_exclusions = partition.curator_exclusions;
     slot.market_prices = partition.market_prices;
     slot.budget_dropped_pool = partition.budget_dropped_pool;
     slot.guard_band_count = partition.guard_band_count;
+    slot.enforced_max = enforced;
+    slot.guard_max = guard;
     slot.counts = {
       ...slot.counts,
       unique_products: partition.survivors.length,

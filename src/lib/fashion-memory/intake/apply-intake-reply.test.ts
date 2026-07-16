@@ -1,7 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { FashionIntakeQuestion } from "../router/types";
-import { parseIntakeAnswersFromMessage } from "./apply-intake-reply";
+import type {
+  FashionClarificationQuestion,
+  FashionIntakeQuestion,
+} from "../router/types";
+import { parseClarificationAnswersFromMessage, parseIntakeAnswersFromMessage } from "./apply-intake-reply";
+import { normalizeGarmentClarificationAnswer } from "./garment-answer";
 
 const questions: FashionIntakeQuestion[] = [
   {
@@ -40,5 +44,36 @@ describe("parseIntakeAnswersFromMessage", () => {
       },
     ]);
     assert.equal(answers.size_tops, "M");
+  });
+});
+
+describe("garment clarification chip → concrete garments", () => {
+  const garmentQ: FashionClarificationQuestion = {
+    text: "What's Gabriel's size for the accessories you're picturing — like shoes, or are we talking watches, belts, bags?",
+    gap: "garment",
+    quick_options: [
+      "Shoes (and other accessories)",
+      "Watches, belts, bags, bracelets — no shoes",
+      "Mix of both",
+      "Other",
+    ],
+  };
+
+  it("maps a bare bracelets reply through the single-question parser", () => {
+    const answers = parseClarificationAnswersFromMessage("bracelets", [
+      {
+        text: garmentQ.text,
+        gap: garmentQ.gap,
+        quick_options: garmentQ.quick_options,
+      },
+    ]);
+    assert.equal(answers.garment, "bracelets");
+    assert.deepEqual(
+      normalizeGarmentClarificationAnswer(
+        answers.garment!,
+        garmentQ.quick_options,
+      ),
+      ["bracelets"],
+    );
   });
 });

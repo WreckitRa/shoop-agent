@@ -279,7 +279,12 @@ describe("palette ladder expectations", () => {
 
   it("spread validator strips all color words", () => {
     const result = validateSlotQueryVariants({
-      variants: ["navy oxford shirt", "slim cotton shirt"],
+      variants: [
+        "navy oxford shirt",
+        "slim cotton shirt",
+        "minimal formal shirt",
+        "premium poplin shirt",
+      ],
       paletteSource: "spread",
     });
     assert.equal(result.ok, true);

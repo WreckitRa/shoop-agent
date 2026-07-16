@@ -1,4 +1,6 @@
 /** Maps brief garment strings → size fact garment_type buckets. */
+import { garmentSizingMode } from "../catalog-search/garment-taxonomy";
+
 export type SizeGarmentBucket = "tops" | "bottoms" | "shoes" | "dresses";
 
 export type IntakeSizeField =
@@ -21,7 +23,7 @@ const GARMENT_BUCKET_PATTERNS: Array<{ bucket: SizeGarmentBucket; patterns: RegE
     {
       bucket: "bottoms",
       patterns:
-        /\b(pant|pants|trouser|trousers|chino|chinos|jean|jeans|denim|short|shorts|legging|leggings|suit|suits|tux|tuxedo)\b/i,
+        /\b(pant|pants|trouser|trousers|chino|chinos|jean|jeans|denim|short|shorts|legging|leggings|suit|suits|tux|tuxedo|belt|belts)\b/i,
     },
     {
       bucket: "tops",
@@ -37,13 +39,25 @@ const INTAKE_FIELD_BY_BUCKET: Record<SizeGarmentBucket, IntakeSizeField> = {
   dresses: "size_dresses",
 };
 
+/**
+ * Map garment → size bucket. Accessories with sizing:'none' return null
+ * (no check-sizing badge / intake ask). 'simple' families map where real
+ * (belts → bottoms/waist; hats skip unless pattern hits).
+ */
 export function garmentToSizeBucket(garment: string): SizeGarmentBucket | null {
   const key = garment.trim().toLowerCase();
   if (!key) return null;
+  const sizing = garmentSizingMode(key);
+  if (sizing === "none") return null;
   for (const { bucket, patterns } of GARMENT_BUCKET_PATTERNS) {
     if (patterns.test(key)) return bucket;
   }
-  return "tops";
+  if (sizing === "simple") {
+    if (/\b(belt|belts)\b/i.test(key)) return "bottoms";
+    return null;
+  }
+  // Standard apparel with no pattern match — do not invent a tops ask.
+  return null;
 }
 
 export function sizeBucketsForGarments(garments: string[]): SizeGarmentBucket[] {

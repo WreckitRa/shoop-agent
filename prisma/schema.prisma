@@ -699,6 +699,10 @@ model UserProfile {
   onboardingStarted   Boolean @default(false)
   onboardingCompleted Boolean @default(false)
 
+  /// Virtual try-on (enabled by default; avatar approval still required to dress).
+  tryonEnabled        Boolean @default(true) @map("tryon_enabled")
+  tryonOutfitsEnabled Boolean @default(true) @map("tryon_outfits_enabled")
+
   evidenceCount Int      @default(0)
   confidence    Float    @default(0)
   updatedAt     DateTime @updatedAt
@@ -1078,6 +1082,9 @@ model FashionPerson {
   birthday          DateTime? @db.Date
   notes             String?
   intakeCompletedAt DateTime? @map("intake_completed_at") @db.Timestamptz(6)
+  /// Active avatar: { url, attributes, created_at, version }
+  avatar            Json?
+  avatarSourcePhotoPath String? @map("avatar_source_photo_path")
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -1145,6 +1152,34 @@ model FashionRequestEvent {
 
   @@index([userId], map: "request_events_user_id")
   @@map("request_events")
+  @@schema("public")
+}
+
+/// Persisted slot pool state for cross-session fashion interactions (message id = search_id).
+model SearchPool {
+  searchId  String   @map("search_id")
+  slotId    String   @map("slot_id")
+  userId    String   @map("user_id")
+  state     Json
+  version   Int      @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([searchId, slotId])
+  @@index([userId, updatedAt(sort: Desc)], map: "search_pools_user_updated")
+  @@map("search_pools")
+  @@schema("public")
+}
+
+/// One row per (search, interaction, ref) — idempotent style_signal writes.
+model InteractionSignalDedup {
+  searchId    String   @map("search_id")
+  interaction String
+  ref         String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([searchId, interaction, ref])
+  @@index([searchId], map: "interaction_signal_dedup_search")
+  @@map("interaction_signal_dedup")
   @@schema("public")
 }
 
@@ -1280,5 +1315,69 @@ model ShopDepartment {
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("shop_departments")
+  @@schema("public")
+}
+
+enum TryonGenerationKind {
+  avatar
+  single
+  outfit_step
+  outfit
+
+  @@schema("public")
+}
+
+enum TryonGenerationStatus {
+  pending
+  processing
+  completed
+  failed
+
+  @@schema("public")
+}
+
+/// Virtual try-on / avatar generation audit row.
+model TryonGeneration {
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personId      String                @map("person_id") @db.Uuid
+  userId        String                @map("user_id") @db.Uuid
+  kind          TryonGenerationKind
+  provider      String
+  inputRefs     Json                  @default("{}") @map("input_refs")
+  outputUrl     String?               @map("output_url")
+  outputPath    String?               @map("output_path")
+  ms            Int?
+  costEstimate  Float?                @map("cost_estimate") @db.Real
+  status        TryonGenerationStatus @default(pending)
+  error         String?
+  searchId      String?               @map("search_id")
+  productRef    String?               @map("product_ref")
+  avatarVersion String?               @map("avatar_version")
+  lookId        String?               @map("look_id")
+  stepIndex     Int?                  @map("step_index")
+  parentJobId   String?               @map("parent_job_id") @db.Uuid
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  feedback TryonFeedback[]
+
+  @@index([personId], map: "tryon_generations_person_id")
+  @@index([userId, createdAt(sort: Desc)], map: "tryon_generations_user_id_created")
+  @@index([parentJobId], map: "tryon_generations_parent")
+  @@map("tryon_generations")
+  @@schema("public")
+}
+
+model TryonFeedback {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  generationId String          @map("generation_id") @db.Uuid
+  generation   TryonGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  userId       String          @map("user_id") @db.Uuid
+  rating       Int             @db.SmallInt
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([generationId, userId])
+  @@index([generationId], map: "tryon_feedback_generation")
+  @@map("tryon_feedback")
   @@schema("public")
 }

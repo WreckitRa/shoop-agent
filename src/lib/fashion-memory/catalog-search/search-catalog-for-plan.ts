@@ -1,5 +1,6 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { createAbortScope } from "@/lib/ai-chat/abort-scope";
+import { extractCatalogImageUrl } from "@/lib/shopify/catalog";
 import { applyHardDropsForSlots } from "../hard-drops/orchestrator";
 import { hydrateCatalogSlots } from "../hydration/orchestrator";
 import { normalizeCatalogSearchSlots } from "../normalize/orchestrator";
@@ -12,11 +13,16 @@ import {
 } from "../budget/budgetLift";
 import { resolveAllocation } from "../budget/budgetAllocation";
 import { computeBudgetTension } from "../budget/budgetTension";
+import {
+  buildBudgetRaiseAskFromContext,
+  type BudgetRaiseAsk,
+} from "../budget/budget-raise-ask";
 import { recordPipelineEvent } from "../observability/trace";
 import { resolveBrandForCatalogSlots } from "./resolve-brand-slots";
 import { searchCatalogForSlot } from "./search-catalog-for-slot";
 import type {
   FashionCatalogSearchResult,
+  FashionSlotCatalogProduct,
   FashionSlotCatalogResult,
   MessageFashionCatalogSearchMetaV1,
   SearchFashionCatalogPlanParams,
@@ -27,7 +33,66 @@ import { statedBrands } from "../brand/brand-handling";
 import type { HardDropMetrics } from "../hard-drops/types";
 import { runFashionCuration } from "../curation/run-curation";
 import type { SlotPool } from "../hydration/types";
+import { persistAllSlotPools } from "../hydration/pool-persistence";
+import { buildCatalogCallContext } from "@/lib/shopify/catalog";
 
+const LOADER_PREVIEW_LIMIT = 8;
+const LOADER_DROP_LIMIT = 8;
+
+function uniqueImageUrls(
+  urls: Array<string | undefined | null>,
+  limit: number,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of urls) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function previewUrlsFromSlotProducts(
+  products: Array<Pick<FashionSlotCatalogProduct, "image_urls">>,
+  limit = LOADER_PREVIEW_LIMIT,
+): string[] {
+  return uniqueImageUrls(
+    products.map((p) => p.image_urls[0]),
+    limit,
+  );
+}
+
+function previewUrlsFromSlots(
+  slots: FashionSlotCatalogResult[],
+  limit = LOADER_PREVIEW_LIMIT,
+): string[] {
+  return uniqueImageUrls(
+    slots.flatMap((s) => s.products.map((p) => p.image_urls[0])),
+    limit,
+  );
+}
+
+function droppedUrlsFromSlots(
+  slots: FashionSlotCatalogResult[],
+  limit = LOADER_DROP_LIMIT,
+): string[] {
+  return uniqueImageUrls(
+    slots.flatMap((s) => (s.dropped ?? []).map((d) => d.image_url)),
+    limit,
+  );
+}
+
+function verifiedUrlsFromSlots(
+  slots: FashionSlotCatalogResult[],
+  limit = LOADER_PREVIEW_LIMIT,
+): string[] {
+  return uniqueImageUrls(
+    slots.flatMap((s) => (s.verified_pool ?? []).map((c) => c.media_urls?.[0])),
+    limit,
+  );
+}
 /** Normalize → hard drops → scoring (no catalog I/O). */
 export async function postProcessFashionCatalogSlots(params: {
   traceId?: string | null;
@@ -384,8 +449,8 @@ export async function searchFashionCatalogPlan(
   };
 
   const settled = await Promise.allSettled(
-    plan.slots.map((slot) =>
-      searchCatalogForSlot({
+    plan.slots.map(async (slot) => {
+      const result = await searchCatalogForSlot({
         slot,
         brief: plan.brief,
         profile: params.profile,
@@ -395,8 +460,23 @@ export async function searchFashionCatalogPlan(
         traceId: params.traceId,
         mode: plan.mode,
         allocation: plan.budget_allocation,
-      }),
-    ),
+        onVariantHit: ({ products }) => {
+          const previewImages = uniqueImageUrls(
+            products.map((product) => extractCatalogImageUrl(product)),
+            LOADER_PREVIEW_LIMIT,
+          );
+          if (!previewImages.length) return;
+          // Image-only update — don't spam narration lines per query variant.
+          params.onPhase?.({ previewImages });
+        },
+      });
+      const previewImages = previewUrlsFromSlotProducts(result.products);
+      params.onPhase?.({
+        line: `Found ${result.counts.unique_products} options for ${result.garment}`,
+        previewImages,
+      });
+      return result;
+    }),
   );
 
   let slots: FashionSlotCatalogResult[] = settled.map((result, idx) => {
@@ -446,6 +526,7 @@ export async function searchFashionCatalogPlan(
       signal: params.signal,
       abortScope,
       traceId: params.traceId,
+      createMessage: params.createMessage,
     });
     plan = resolved.plan;
     slots = resolved.slots;
@@ -459,6 +540,12 @@ export async function searchFashionCatalogPlan(
     recipientFacts: params.recipientFacts,
     signal: params.signal,
     profileCurrency: params.profile.currency,
+  });
+
+  params.onPhase?.({
+    line: "Filtering out the misses",
+    previewImages: previewUrlsFromSlots(initialProcessed.slots),
+    droppedImages: droppedUrlsFromSlots(initialProcessed.slots),
   });
 
   const liftResult = await runBudgetLiftRetries({
@@ -476,6 +563,14 @@ export async function searchFashionCatalogPlan(
   plan = liftResult.plan;
   slots = liftResult.slots;
 
+  if (liftResult.liftedSlots.size > 0) {
+    params.onPhase?.({
+      line: "Widening the budget a little",
+      previewImages: previewUrlsFromSlots(slots),
+      droppedImages: droppedUrlsFromSlots(slots),
+    });
+  }
+
   let budget_tension;
   if (plan.budget_allocation?.budget_assembly) {
     budget_tension = computeBudgetTension({
@@ -492,6 +587,59 @@ export async function searchFashionCatalogPlan(
     });
   }
 
+  const budgetRaiseAsk: BudgetRaiseAsk | null = params.skipBudgetRaiseAsk
+    ? null
+    : buildBudgetRaiseAskFromContext({
+        plan,
+        tension: budget_tension,
+        slots,
+      });
+
+  if (budgetRaiseAsk) {
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "budget_raise_ask",
+      payload: {
+        reason: budgetRaiseAsk.reason,
+        stated_max: budgetRaiseAsk.stated_max,
+        min_viable_total: budgetRaiseAsk.min_viable_total,
+      },
+    });
+    logAiChat("info", "fashion_budget_raise_ask", {
+      traceId: params.traceId,
+      reason: budgetRaiseAsk.reason,
+      stated_max: budgetRaiseAsk.stated_max,
+      min_viable_total: budgetRaiseAsk.min_viable_total,
+      budget_tension: budget_tension?.severity,
+    });
+    logAiChat("info", "fashion_catalog_plan_complete", {
+      mode: plan.mode,
+      slot_count: slots.length,
+      total_products: slots.reduce((n, s) => n + s.counts.unique_products, 0),
+      verified_pool: 0,
+      brand_statuses: plan.slots.map((s) => s.brand_status),
+      timing_ms,
+      normalize_ms: initialProcessed.normalize_ms,
+      hard_drop_ms: initialProcessed.hard_drop_ms,
+      scoring_ms: initialProcessed.scoring_ms,
+      hydration_ms: 0,
+      curation_ms: 0,
+      budget_tension: budget_tension?.severity,
+      budget_raise_ask: true,
+    });
+    return {
+      version: 1,
+      plan,
+      slots,
+      timing_ms,
+      brand_narration: brandNarration ?? undefined,
+      budget_assembly: plan.budget_allocation?.budget_assembly,
+      budget_interpretation: plan.budget_allocation?.budget_interpretation,
+      budget_tension,
+      budget_raise_ask: budgetRaiseAsk,
+    };
+  }
+
   let hydration_ms = 0;
   let curation_ms = 0;
   let curation;
@@ -499,6 +647,11 @@ export async function searchFashionCatalogPlan(
   let pools: Map<string, SlotPool> | undefined;
 
   if (params.accessToken != null && params.profile != null) {
+    params.onPhase?.({
+      line: "Checking availability and fit",
+      previewImages: previewUrlsFromSlots(slots),
+      droppedImages: droppedUrlsFromSlots(slots),
+    });
     const hydrateStarted = Date.now();
     const hydrated = await hydrateCatalogSlots({
       traceId: params.traceId,
@@ -514,6 +667,26 @@ export async function searchFashionCatalogPlan(
     pools = hydrated.pools;
     hydration_ms = Date.now() - hydrateStarted;
 
+    const { isCoverageGapPool, recordFamilyCoverage } = await import(
+      "./family-coverage"
+    );
+    slots = slots.map((slot) => {
+      const pool = pools?.get(slot.slot_id);
+      const survivors = pool?.verified.length ?? slot.verified_pool?.length ?? 0;
+      recordFamilyCoverage({
+        garment: slot.garment,
+        survivorsAfterDrops: survivors,
+      });
+      const coverage_gap = isCoverageGapPool(survivors);
+      return {
+        ...slot,
+        verified_pool: pool?.verified ?? slot.verified_pool,
+        overflow_items: pool?.getOverflow() ?? slot.overflow_items,
+        thin_slot: Boolean(pool?.thin || slot.thin_slot || coverage_gap),
+        coverage_gap,
+      };
+    });
+
     const tasteSignals =
       params.tasteSignals ??
       params.profile.positiveSignals.map((s) => ({
@@ -522,6 +695,27 @@ export async function searchFashionCatalogPlan(
         polarity: 1,
       }));
 
+    let recipientProfile = params.recipientProfile;
+    if (!recipientProfile?.trim() && params.userId && plan.brief.recipient_person_id) {
+      const { buildRecipientProfileBlockForPlanner } = await import(
+        "../search-planner/recipient-profile"
+      );
+      recipientProfile = await buildRecipientProfileBlockForPlanner({
+        userId: params.userId,
+        recipientPersonId: plan.brief.recipient_person_id,
+        guestSnapshot: params.guestSnapshot,
+      });
+    }
+
+    const survivorThumbs = (() => {
+      const verified = verifiedUrlsFromSlots(slots);
+      return verified.length > 0 ? verified : previewUrlsFromSlots(slots);
+    })();
+    params.onPhase?.({
+      line: "Curating picks from finalists",
+      previewImages: survivorThumbs,
+      droppedImages: droppedUrlsFromSlots(slots),
+    });
     const curationStarted = Date.now();
     const curationResult = await runFashionCuration({
       traceId: params.traceId,
@@ -532,6 +726,7 @@ export async function searchFashionCatalogPlan(
         verified_pool: s.verified_pool,
         overflow_items: s.overflow_items,
         thin_slot: s.thin_slot,
+        coverage_gap: s.coverage_gap,
         curator_exclusions: s.curator_exclusions,
         brand_status: s.brand_status ?? plan.slots.find((p) => p.slot_id === s.slot_id)?.brand_status,
         brand_sanity_note: s.brand_sanity_note,
@@ -543,23 +738,64 @@ export async function searchFashionCatalogPlan(
       budget_tension,
       budget_interpretation: plan.budget_allocation?.budget_interpretation,
       recipientRelation: params.recipientRelation,
+      department:
+        plan.brief.knowledge_state?.department ?? plan.brief.department_scope,
+      recipientProfile,
       excludedRefs: params.excludedRefs,
       signal: params.signal,
+      createMessage: params.createMessage
+        ? async (curationParams) =>
+            params.createMessage!({
+              traceId: curationParams.traceId,
+              stage: "curation",
+              model: "curation-mock",
+              systemPrompt: curationParams.systemPrompt,
+              inputMessages: curationParams.userMessages,
+              signal: curationParams.signal,
+            })
+        : undefined,
+      resolveCurationMessage: params.resolveCurationMessage,
     });
     curation = curationResult.presentation;
     curation_ms = Date.now() - curationStarted;
     curation_debug = curationResult.debug;
 
-    slots = slots.map((slot) => {
-      const pool = pools?.get(slot.slot_id);
-      if (!pool) return slot;
-      return {
-        ...slot,
-        verified_pool: pool.verified,
-        overflow_items: pool.getOverflow(),
-        thin_slot: pool.thin || slot.thin_slot,
-      };
-    });
+    if (params.searchId && params.userId && pools) {
+      const catalogContext = buildCatalogCallContext(
+        { ships_to: { country: params.profile.countryCode } },
+        {
+          currency: params.profile.currency,
+          language: params.profile.language,
+        },
+      );
+      const contexts = new Map(
+        plan.slots.map((planSlot) => [
+          planSlot.slot_id,
+          {
+            slot: planSlot,
+            brief: plan.brief,
+            recipientFacts: params.recipientFacts ?? [],
+            accessToken: params.accessToken,
+            catalogContext,
+            traceId: params.traceId,
+          },
+        ]),
+      );
+      try {
+        await persistAllSlotPools({
+          searchId: params.searchId,
+          userId: params.userId,
+          pools,
+          contexts,
+        });
+      } catch (err) {
+        logAiChat("warn", "fashion_pool_persist_failed", {
+          traceId: params.traceId,
+          searchId: params.searchId,
+          error: String(err).slice(0, 200),
+        });
+      }
+    }
   } else {
     logAiChat("warn", "fashion_catalog_hydration_skipped", {
       traceId: params.traceId,
@@ -620,6 +856,10 @@ export function fashionCatalogSearchToMetadata(
       brand_status: slot.brand_status,
       brand_sanity_note: slot.brand_sanity_note,
       brand_confirmed_count: slot.brand_confirmed_count,
+      market_prices: slot.market_prices,
+      guard_band_count: slot.guard_band_count,
+      enforced_max: slot.enforced_max,
+      guard_max: slot.guard_max,
     })),
     timing_ms: result.timing_ms,
     brand_narration: result.brand_narration,

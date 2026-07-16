@@ -1,0 +1,109 @@
+{
+  "mode": "mocked",
+  "runs": 1,
+  "timestamp": "2026-07-15T20:09:08.231Z",
+  "passRates": {
+    "e2e_joe_first_message": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_cyprus_cold_profile": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_capsule_300": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_aldo_translated": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_tight_budget_honest": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_womens_leak_blocked": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_interaction_chain": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_curation_fallback_recurate": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_memory_loop": {
+      "pass": 1,
+      "total": 1
+    },
+    "e2e_full_sse_turn": {
+      "pass": 1,
+      "total": 1
+    }
+  },
+  "results": [
+    {
+      "scenario": "e2e_joe_first_message",
+      "ok": true,
+      "failures": [],
+      "traceId": "20a91ce7-254b-48d3-bd31-500b1c00bcda"
+    },
+    {
+      "scenario": "e2e_cyprus_cold_profile",
+      "ok": true,
+      "failures": [],
+      "traceId": "3549b073-7f3a-4223-9607-d88e097b3819"
+    },
+    {
+      "scenario": "e2e_capsule_300",
+      "ok": true,
+      "failures": [],
+      "traceId": "1004b037-c69a-4d30-aa2d-6027a8e1c767"
+    },
+    {
+      "scenario": "e2e_aldo_translated",
+      "ok": true,
+      "failures": [],
+      "traceId": "7f34e52d-5f64-4da4-b0a3-fe009e837241"
+    },
+    {
+      "scenario": "e2e_tight_budget_honest",
+      "ok": true,
+      "failures": [],
+      "traceId": "7cc8400c-870c-40af-b422-6f8ecbf22e74"
+    },
+    {
+      "scenario": "e2e_womens_leak_blocked",
+      "ok": true,
+      "failures": [],
+      "traceId": "768e02ca-8a4a-4b7b-a110-4e807362ce0e"
+    },
+    {
+      "scenario": "e2e_interaction_chain",
+      "ok": true,
+      "failures": [],
+      "traceId": "6b5d8ce1-d967-481a-825c-5394b1d5dceb"
+    },
+    {
+      "scenario": "e2e_curation_fallback_recurate",
+      "ok": true,
+      "failures": [],
+      "traceId": "55b65c99-c585-4b94-802b-1e5ecccff587"
+    },
+    {
+      "scenario": "e2e_memory_loop",
+      "ok": true,
+      "failures": [],
+      "traceId": "306a8c5a-dcb9-414f-8c61-f5d9832e8e43"
+    },
+    {
+      "scenario": "e2e_full_sse_turn",
+      "ok": true,
+      "failures": [],
+      "traceId": "4e849b2a-a475-4d4d-abb4-f9157fda9502"
+    }
+  ]
+}

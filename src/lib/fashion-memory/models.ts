@@ -15,6 +15,18 @@ export const FASHION_ROUTER_MODEL =
   envModel("FASHION_MEMORY_EXTRACTOR_MODEL") ??
   AI_CHAT_LIGHTWEIGHT_MODEL;
 
+/**
+ * Opus-class router escalation — paid only when brief invariants trip
+ * (accessories coercion, unknown common family, validation retry).
+ * Env: FASHION_ROUTER_ESCALATION_ENABLED=1 (default off).
+ */
+export const FASHION_ROUTER_ESCALATION_ENABLED =
+  process.env.FASHION_ROUTER_ESCALATION_ENABLED === "1" ||
+  process.env.FASHION_ROUTER_ESCALATION_ENABLED === "true";
+
+export const FASHION_ROUTER_ESCALATION_MODEL =
+  envModel("FASHION_ROUTER_ESCALATION_MODEL") ?? AI_CHAT_DEFAULT_MODEL;
+
 /** Haiku-class search planner (slot fan-out + budget fractions). */
 export const FASHION_SEARCH_PLANNER_MODEL =
   envModel("FASHION_SEARCH_PLANNER_MODEL") ??

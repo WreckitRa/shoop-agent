@@ -32,7 +32,7 @@ export type FashionStatedFacts = {
   /** Roster id, short id, or `"new"` when introducing someone. */
   person_ref: string | "new";
   new_person?: { name?: string; relation?: string };
-  department?: "mens" | "womens" | "boys" | "girls" | "baby" | "mixed";
+  department?: import("../department").PersonDepartment;
   sizes?: {
     tops?: string;
     bottoms?: string;
@@ -56,6 +56,11 @@ export type FashionSearchBrief = {
     min?: number;
     currency?: string;
     stated: boolean;
+    /**
+     * How the stated number applies. `"per_item"` from "each" / "per item" /
+     * "a piece" language — a STATED scope, not an assumption.
+     */
+    scope?: "per_item" | "total";
   };
   style_direction: string;
   /** Set after inline department clarification. */
@@ -91,7 +96,8 @@ export type FashionClarificationGap =
   | "person_name"
   | "department"
   | "size"
-  | "occasion";
+  | "occasion"
+  | "budget";
 
 /** Optional apply-path field for deterministic size/department templates. */
 export type FashionClarificationApplyField =
@@ -101,7 +107,8 @@ export type FashionClarificationApplyField =
   | "size_shoes"
   | "size_dresses"
   | "fit_preference"
-  | "person_name";
+  | "person_name"
+  | "budget_max";
 
 export type FashionClarificationQuestion = {
   text: string;
@@ -154,9 +161,18 @@ export type MessageFashionRouterMetaV1 = {
   questions?: FashionClarificationQuestion[];
   ride_along?: FashionClarificationRideAlong;
   brief?: FashionSearchBrief;
+  /** Conversation-stated essentials — also nested under brief for search turns. */
+  stated_facts?: FashionStatedFacts;
   target_person_id?: string;
   /** Gaps the user declined twice — no longer block search. */
   declined_gaps?: Array<{ gap: FashionClarificationGap; person_id: string; garment_type?: string }>;
+  /**
+   * Quiz lifecycle. `pending` while chips are open; `answered` after the user
+   * submits (or sends any follow-up). Survives page refresh.
+   */
+  status?: "pending" | "answered";
+  /** question.text → selected answer label (chip or free text). */
+  answers?: Record<string, string>;
   /** @deprecated Legacy flat clarification chips — prefer questions[]. */
   missing?: string[];
   /** @deprecated Legacy flat clarification chips — prefer questions[]. */

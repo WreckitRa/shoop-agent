@@ -1,4 +1,5 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
+import { isKnownGarmentFamily } from "../router/garment-family";
 import type { FashionSearchBrief } from "../router/types";
 import type { GuestFashionMemorySnapshot } from "../local/store";
 import { checkPlanInvariants } from "../observability/invariants";
@@ -20,6 +21,16 @@ import type {
   PlanSource,
 } from "./types";
 import { validateSlotQueryVariants } from "./validator";
+
+function annotateUnknownFamilies(plan: FashionSearchPlan): FashionSearchPlan {
+  return {
+    ...plan,
+    slots: plan.slots.map((s) => ({
+      ...s,
+      unknown_family: !isKnownGarmentFamily(s.garment),
+    })),
+  };
+}
 
 function expectedOutfitSlotCount(brief: FashionSearchBrief): number {
   if (brief.request_type !== "outfit" && brief.request_type !== "capsule") {
@@ -52,7 +63,7 @@ function reconcileOutfitCoverage(plan: FashionSearchPlan): FashionSearchPlan {
     ...plan,
     plan_source: "clamped",
     reasoning: `${plan.reasoning} Reconciled missing brief garments into support slots.`,
-    slots: [...plan.slots, ...added].slice(0, 5),
+    slots: [...plan.slots, ...added].slice(0, 12),
   };
 }
 
@@ -138,13 +149,27 @@ async function finalizeResolvedPlan(params: {
     // Structural plan still from planner; variant repairs are tracked via invariants.
   }
 
-  working = { ...working, plan_source: planSource };
+  working = annotateUnknownFamilies({ ...working, plan_source: planSource });
 
   checkPlanInvariants({
     traceId: params.traceId,
     plan: working,
     validatorFallbackSlots: clamped.validatorFallbackSlots,
   });
+
+  for (const slot of working.slots) {
+    if (slot.unknown_family) {
+      recordPipelineEvent({
+        traceId: params.traceId,
+        stage: "invariant_warning",
+        payload: {
+          code: "unknown_garment_family",
+          garment: slot.garment,
+          slot_id: slot.slot_id,
+        },
+      });
+    }
+  }
 
   const profileCurrency =
     working.brief.budget_context.currency?.trim().toUpperCase() ?? "USD";
@@ -159,6 +184,8 @@ async function finalizeResolvedPlan(params: {
         per_slot: withBudget.budget_allocation.per_slot,
         budget_interpretation:
           withBudget.budget_allocation.budget_interpretation,
+        constraint_type:
+          withBudget.budget_allocation.budget_assembly?.constraint_type,
         plan_source: planSource,
       },
     });
@@ -176,7 +203,13 @@ export async function planSearchFromBrief(params: {
   guestSnapshot?: GuestFashionMemorySnapshot;
   signal?: AbortSignal;
   traceId?: string | null;
+  plannerDeps?: import("./llm-planner").RunSearchPlannerDeps;
 }): Promise<FashionSearchPlan> {
+  const brief = {
+    ...params.brief,
+    recipient_person_id: params.recipientPersonId,
+  };
+
   const recipientProfile = await buildRecipientProfileBlockForPlanner({
     userId: params.userId,
     recipientPersonId: params.recipientPersonId,
@@ -184,12 +217,12 @@ export async function planSearchFromBrief(params: {
   });
 
   const llmInput = await runSearchPlanner({
-    brief: params.brief,
+    brief,
     recipientProfile,
     currentDate: params.currentDate,
     signal: params.signal,
     traceId: params.traceId,
-  });
+  }, params.plannerDeps);
 
   let plan: FashionSearchPlan;
   let planSource: PlanSource;
@@ -199,14 +232,14 @@ export async function planSearchFromBrief(params: {
       reason: "invalid_llm_output",
     });
     plan = buildFallbackPlan({
-      brief: params.brief,
+      brief,
       currentDate: params.currentDate,
     });
     planSource = "fallback";
   } else {
     plan = toFashionSearchPlan({
       input: llmInput,
-      brief: params.brief,
+      brief,
       currentDate: params.currentDate,
     });
     planSource = "planner";
@@ -220,7 +253,7 @@ export async function planSearchFromBrief(params: {
   return finalizeResolvedPlan({
     plan,
     planSource,
-    brief: params.brief,
+    brief,
     recipientProfile,
     currentDate: params.currentDate,
     signal: params.signal,

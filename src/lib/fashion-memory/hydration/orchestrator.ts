@@ -9,7 +9,8 @@ import type {
   FashionSearchProfile,
   FashionSlotCatalogResult,
 } from "../catalog-search/types";
-import { HYDRATION_CALL_TIMEOUT_MS } from "./config";
+import { HYDRATION_CALL_TIMEOUT_MS, HYDRATION_MAX_CONCURRENCY } from "./config";
+import { createConcurrencyGate } from "./concurrency-gate";
 import { createSlotPool, type SlotPoolImpl } from "./pool";
 import type { HydrationMetrics, SlotPool } from "./types";
 
@@ -69,6 +70,7 @@ function emitHydrationEvent(
   slot: FashionSlotCatalogResult,
   metrics: HydrationMetrics,
   waveStats: ReturnType<SlotPoolImpl["getWaveStats"]>,
+  pool: SlotPoolImpl,
 ) {
   recordPipelineEvent({
     traceId,
@@ -80,49 +82,70 @@ function emitHydrationEvent(
     },
   });
 
+  const attempted = waveStats.reduce((n, w) => n + w.attempted, 0);
+  const killed = waveStats.reduce((n, w) => n + w.killed, 0);
+  const hydrationFailed = waveStats.reduce((n, w) => n + w.hydration_failed, 0);
+  const recovered =
+    !pool.thin && pool.verified.length >= Math.min(pool.target, pool.options_wanted);
+
   // Kill-count self-justification: trends ~0 → shrink BENCH_MULTIPLIER; 3–4/slot → buffer earns keep.
-  for (const wave of waveStats) {
-    if (wave.attempted > 0 && wave.killed / wave.attempted > 0.5) {
-      recordPipelineEvent({
-        traceId,
-        stage: "invariant_warning",
-        payload: {
-          kind: "hydration_massacre",
-          slot_id: slot.slot_id,
-          attempted: wave.attempted,
-          killed: wave.killed,
-        },
-      });
-      logAiChat("warn", "fashion_hydration_massacre", {
+  // Only warn when the slot did not recover — wave-1 stampede + wave-2 fill is expected under load.
+  if (attempted > 0 && killed / attempted > 0.5) {
+    recordPipelineEvent({
+      traceId,
+      stage: "invariant_warning",
+      payload: {
+        kind: "hydration_massacre",
         slot_id: slot.slot_id,
-        attempted: wave.attempted,
-        killed: wave.killed,
-      });
-    }
-    if (wave.attempted > 0 && wave.hydration_failed / wave.attempted > 0.3) {
-      recordPipelineEvent({
-        traceId,
-        stage: "invariant_warning",
-        payload: {
-          kind: "hydration_api_health",
-          slot_id: slot.slot_id,
-          hydration_failed: wave.hydration_failed,
-          attempted: wave.attempted,
-        },
-      });
-      logAiChat("warn", "fashion_hydration_api_health", {
-        traceId,
+        attempted,
+        killed,
+        recovered,
+        thin: pool.thin,
+      },
+    });
+    logAiChat(recovered ? "info" : "warn", "fashion_hydration_massacre", {
+      slot_id: slot.slot_id,
+      attempted,
+      killed,
+      recovered,
+      thin: pool.thin,
+      verified_final: pool.verified.length,
+      target: pool.target,
+    });
+  }
+  if (attempted > 0 && hydrationFailed / attempted > 0.3) {
+    recordPipelineEvent({
+      traceId,
+      stage: "invariant_warning",
+      payload: {
+        kind: "hydration_api_health",
         slot_id: slot.slot_id,
-        garment: slot.garment,
-        hydration_failed: wave.hydration_failed,
-        attempted: wave.attempted,
-        fail_rate: Number(
-          (wave.hydration_failed / wave.attempted).toFixed(2),
-        ),
-        timeout_ms: HYDRATION_CALL_TIMEOUT_MS,
-        hint: "Many get_product calls hit HYDRATION_CALL_TIMEOUT_MS — usually concurrency stampede, not bad product ids",
-      });
-    }
+        hydration_failed: hydrationFailed,
+        attempted,
+        recovered,
+      },
+    });
+    logAiChat(recovered ? "info" : "warn", "fashion_hydration_api_health", {
+      traceId,
+      slot_id: slot.slot_id,
+      garment: slot.garment,
+      hydration_failed: hydrationFailed,
+      attempted,
+      fail_rate: Number((hydrationFailed / attempted).toFixed(2)),
+      recovered,
+      thin: pool.thin,
+      verified_final: pool.verified.length,
+      target: pool.target,
+      global_concurrency: HYDRATION_MAX_CONCURRENCY,
+      timeout_ms: HYDRATION_CALL_TIMEOUT_MS,
+      timeout_enabled:
+        HYDRATION_CALL_TIMEOUT_MS != null && HYDRATION_CALL_TIMEOUT_MS > 0,
+      hint: recovered
+        ? "Wave-1 failures recovered via reserve — request concurrency gate should keep this rare"
+        : HYDRATION_CALL_TIMEOUT_MS == null
+          ? "Slot stayed thin after hydration failures — check fashion_hydration_failed + get_product elapsed_ms"
+          : "Many get_product calls hit HYDRATION_CALL_TIMEOUT_MS — usually concurrency stampede, not bad product ids",
+    });
   }
 }
 
@@ -150,6 +173,7 @@ export async function hydrateCatalogSlots(
   );
 
   const abortScope = params.abortScope ?? createAbortScope(params.signal);
+  const concurrencyGate = createConcurrencyGate(HYDRATION_MAX_CONCURRENCY);
 
   const pools = new Map<string, SlotPoolImpl>();
   const metrics: HydrationMetrics[] = [];
@@ -171,6 +195,7 @@ export async function hydrateCatalogSlots(
       context,
       traceId: params.traceId,
       abortScope,
+      concurrencyGate,
     });
   }
 
@@ -190,7 +215,7 @@ export async function hydrateCatalogSlots(
       pools.set(slot.slot_id, pool);
       const m = buildMetrics(pool, Date.now() - started);
       metrics.push(m);
-      emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats());
+      emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats(), pool);
     }
 
     recordPipelineEvent({
@@ -212,7 +237,7 @@ export async function hydrateCatalogSlots(
         pools.set(slot.slot_id, pool);
         const m = buildMetrics(pool, Date.now() - started);
         metrics.push(m);
-        emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats());
+        emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats(), pool);
       }),
     );
   } else {
@@ -224,7 +249,7 @@ export async function hydrateCatalogSlots(
         pools.set(slot.slot_id, pool);
         const m = buildMetrics(pool, Date.now() - started);
         metrics.push(m);
-        emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats());
+        emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats(), pool);
       }),
     );
   }

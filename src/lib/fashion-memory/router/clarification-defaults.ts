@@ -1,3 +1,4 @@
+import { PERSON_NAME_SKIP_OPTION } from "../extraction/person-identity";
 import type {
   FashionClarificationGap,
   FashionClarificationQuestion,
@@ -29,11 +30,14 @@ export function defaultQuickOptionsForGap(
     case "recipient":
       return ["For me", "Someone else", OTHER];
     case "person_name":
-      return [OTHER];
+      // Free text + Skip only — never seed roster names.
+      return [PERSON_NAME_SKIP_OPTION];
     case "garment":
       return ["One piece", "Full outfit", "A few options", OTHER];
     case "occasion":
       return ["Work", "Weekend", "Event / night out", OTHER];
+    case "budget":
+      return ["$150", "$250", "$400", OTHER];
     default:
       return [OTHER];
   }
@@ -41,11 +45,18 @@ export function defaultQuickOptionsForGap(
 
 /**
  * Ensure every clarification question has tappable options, always ending
- * with Other so free-form answers are available.
+ * with Other so free-form answers are available — except person_name (Skip only).
  */
 export function ensureClarificationQuickOptions(
   question: FashionClarificationQuestion,
 ): FashionClarificationQuestion {
+  if (question.gap === "person_name") {
+    return {
+      ...question,
+      quick_options: [PERSON_NAME_SKIP_OPTION],
+    };
+  }
+
   const existing = (question.quick_options ?? [])
     .map((o) => o.trim())
     .filter(Boolean);

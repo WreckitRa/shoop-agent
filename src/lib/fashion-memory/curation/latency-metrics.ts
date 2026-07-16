@@ -1,12 +1,23 @@
 /** In-process curation latency samples for /health tripwires. */
 
 const MAX_SAMPLES = 200;
-const samples: number[] = [];
+
+const stageSamples: number[] = [];
+const llmCallSamples: number[] = [];
 
 export function recordCurationLatencyMs(ms: number): void {
+  pushSample(stageSamples, ms);
+}
+
+/** One Anthropic curation model round-trip (per attempt, not full stage). */
+export function recordCurationLlmCallMs(ms: number): void {
+  pushSample(llmCallSamples, ms);
+}
+
+function pushSample(bucket: number[], ms: number): void {
   if (!Number.isFinite(ms) || ms < 0) return;
-  samples.push(ms);
-  if (samples.length > MAX_SAMPLES) samples.shift();
+  bucket.push(ms);
+  if (bucket.length > MAX_SAMPLES) bucket.shift();
 }
 
 function percentile(sorted: number[], p: number): number | null {
@@ -18,9 +29,10 @@ function percentile(sorted: number[], p: number): number | null {
   return sorted[idx]!;
 }
 
-export function curationLatencySnapshot(params?: {
-  tripwireMs?: number;
-}): {
+function latencySnapshot(
+  samples: number[],
+  params?: { tripwireMs?: number },
+): {
   count: number;
   p50_ms: number | null;
   p90_ms: number | null;
@@ -43,7 +55,20 @@ export function curationLatencySnapshot(params?: {
   };
 }
 
+export function curationLatencySnapshot(params?: {
+  tripwireMs?: number;
+}): ReturnType<typeof latencySnapshot> {
+  return latencySnapshot(stageSamples, params);
+}
+
+export function curationLlmCallLatencySnapshot(params?: {
+  tripwireMs?: number;
+}): ReturnType<typeof latencySnapshot> {
+  return latencySnapshot(llmCallSamples, params);
+}
+
 /** Test helper. */
 export function resetCurationLatencyForTests(): void {
-  samples.length = 0;
+  stageSamples.length = 0;
+  llmCallSamples.length = 0;
 }

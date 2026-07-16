@@ -2,6 +2,9 @@
  * Shared department vocabulary — query words, Target gender filters,
  * title-token wrong-department evidence, and gendered taxonomy branches.
  *
+ * Person-side departments never include `unisex` (shop both → `mixed`).
+ * Product-side filter/evidence vocabulary may include merchant Unisex.
+ *
  * Target gender attribute values verified against Shopify taxonomy /
  * existing ai-chat filters: "Male" | "Female" | "Unisex".
  */
@@ -11,20 +14,50 @@ import {
   shopDepartmentVerdict,
 } from "./shop-departments";
 
-export type FashionDepartment =
+/** Person / brief shopping department — source of truth for people + briefs. */
+export type PersonDepartment =
   | "mens"
   | "womens"
   | "boys"
   | "girls"
   | "baby"
-  | "unisex"
   | "mixed";
 
+/**
+ * @deprecated Prefer `PersonDepartment`. Kept as alias for brief/person imports.
+ * Does NOT include `unisex` — migrate legacy storage via `coercePersonDepartment`.
+ */
+export type FashionDepartment = PersonDepartment;
+
+/**
+ * Product-side gender target / evidence — includes merchant `unisex`.
+ * Never use for person facts or brief.department_scope.
+ */
+export type ProductGenderTarget = PersonDepartment | "unisex";
+
 /** Departments that get a mandatory first query token. */
-export type GenderedDepartment = Exclude<
-  FashionDepartment,
-  "unisex" | "mixed"
->;
+export type GenderedDepartment = Exclude<PersonDepartment, "mixed">;
+
+export const PERSON_DEPARTMENTS: readonly PersonDepartment[] = [
+  "mens",
+  "womens",
+  "boys",
+  "girls",
+  "baby",
+  "mixed",
+] as const;
+
+export function coercePersonDepartment(
+  value: string | null | undefined,
+): PersonDepartment | null {
+  if (!value) return null;
+  const v = value.trim().toLowerCase();
+  if (v === "unisex") return "mixed"; // legacy person rows
+  if ((PERSON_DEPARTMENTS as readonly string[]).includes(v)) {
+    return v as PersonDepartment;
+  }
+  return null;
+}
 
 export const DEPARTMENT_QUERY_WORDS: Record<GenderedDepartment, string> = {
   mens: "mens",
@@ -37,9 +70,10 @@ export const DEPARTMENT_QUERY_WORDS: Record<GenderedDepartment, string> = {
 /**
  * Server-side `filters.attributes` Target gender values (OR within entry).
  * Kids/baby: null — not filterable server-side.
+ * Keyed by person department; Unisex products ride with Male/Female filters.
  */
 export const TARGET_GENDER_FILTER_VALUES: Record<
-  FashionDepartment,
+  PersonDepartment,
   string[] | null
 > = {
   mens: ["Male", "Unisex"],
@@ -47,7 +81,6 @@ export const TARGET_GENDER_FILTER_VALUES: Record<
   boys: null,
   girls: null,
   baby: null,
-  unisex: null,
   mixed: null,
 };
 
@@ -152,23 +185,12 @@ export function isGenderedDepartment(
 export function resolveSearchDepartment(params: {
   knowledgeDepartment?: string | null;
   departmentScope?: string | null;
-}): FashionDepartment {
+}): PersonDepartment {
   const raw =
     params.knowledgeDepartment?.trim() ||
     params.departmentScope?.trim() ||
     "mixed";
-  if (
-    raw === "mens" ||
-    raw === "womens" ||
-    raw === "boys" ||
-    raw === "girls" ||
-    raw === "baby" ||
-    raw === "unisex" ||
-    raw === "mixed"
-  ) {
-    return raw;
-  }
-  return "mixed";
+  return coercePersonDepartment(raw) ?? "mixed";
 }
 
 /**

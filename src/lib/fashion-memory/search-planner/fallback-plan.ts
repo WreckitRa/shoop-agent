@@ -10,7 +10,7 @@ import type {
   SearchPlanSlotRole,
 } from "./types";
 
-const MAX_SLOTS = 5;
+const MAX_SLOTS = 12;
 
 const TOP_GARMENT_RE =
   /\b(shirt|blazer|jacket|coat|dress|top|blouse|sweater|hoodie|suit)\b/i;
@@ -63,10 +63,38 @@ export function occasionStandardGarments(brief: FashionSearchBrief): string[] {
   return ["shirt", "trousers", "shoes"];
 }
 
-function optionsWantedForMode(mode: SearchPlanMode): number {
-  if (mode === "single_item") return 4;
-  if (mode === "multi_item") return 3;
-  return 3;
+function parseExplicitOptionsWanted(brief: FashionSearchBrief): number | null {
+  const qty = `${brief.quantity_hint ?? ""}`.toLowerCase();
+  const wordMap: Record<string, number> = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+  };
+  for (const [word, n] of Object.entries(wordMap)) {
+    if (new RegExp(`\\b${word}\\b`).test(qty)) return n;
+  }
+  const digit = qty.match(/\b(\d+)\b/);
+  if (digit) {
+    const n = Number(digit[1]);
+    if (Number.isFinite(n) && n >= 1 && n <= 8) return n;
+  }
+  for (const mh of brief.must_haves) {
+    const m = mh.toLowerCase().match(/\b(\d+)\s+(shirt|shirts|pant|pants|shoe|shoes|dress|dresses)\b/);
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n >= 1 && n <= 8) return n;
+    }
+  }
+  return null;
+}
+
+function optionsWantedForFallback(brief: FashionSearchBrief): number {
+  return parseExplicitOptionsWanted(brief) ?? 4;
 }
 
 function pickAnchorIndex(garments: string[]): number {
@@ -88,7 +116,7 @@ export function buildSlotsFromGarments(params: {
     ? params.garments
     : [params.brief.garments[0] ?? "item"];
   const anchorIdx = pickAnchorIndex(garments);
-  const optionsWanted = optionsWantedForMode(params.mode);
+  const optionsWanted = optionsWantedForFallback(params.brief);
   const budgetStated = Boolean(params.brief.budget_context?.stated);
   const fraction = equalFraction(garments.length);
   const department =

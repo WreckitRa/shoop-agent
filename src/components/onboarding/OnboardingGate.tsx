@@ -12,12 +12,15 @@ import {
   OnboardingProfileStep,
   type OnboardingProfileValues,
 } from "@/components/onboarding/OnboardingProfileStep";
+import { AvatarStepper } from "@/components/tryon/AvatarStepper";
+import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import {
   isPrimaryAiAssistantId,
   type PrimaryAiAssistantId,
 } from "@/lib/onboarding/ai-transfer-prompts";
 import { normalizeAgeRange, normalizeGender } from "@/lib/onboarding/form-options";
 import { tagsFromFreeText, tasteTagsForPatch } from "@/lib/onboarding/taste-tags";
+import { guestFetch } from "@/lib/client/guest-fetch";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 
 type OnboardingPrefill = {
@@ -80,8 +83,11 @@ function joinCsv(values: string[]): string {
 const ONBOARDING_STEPS = [
   { id: "intake", label: "Transfer" },
   { id: "review", label: "Profile" },
+  { id: "avatar", label: "Avatar" },
   { id: "taste", label: "Taste" },
 ] as const;
+
+type OnboardingStepId = (typeof ONBOARDING_STEPS)[number]["id"];
 
 async function fetchStatus(
   signal?: AbortSignal,
@@ -97,10 +103,13 @@ export function OnboardingGate() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<"intake" | "review" | "taste">("intake");
+  const [step, setStep] = useState<OnboardingStepId>("intake");
   const [tasteDeck, setTasteDeck] = useState<TasteDeckCard[]>([]);
   const [tasteDeckLoading, setTasteDeckLoading] = useState(false);
   const [tasteSaving, setTasteSaving] = useState(false);
+  const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState(false);
 
   const [intakeText, setIntakeText] = useState("");
   const [intakePhase, setIntakePhase] = useState<AiTransferPhase>("select");
@@ -353,7 +362,9 @@ export function OnboardingGate() {
 
   function goBack() {
     setError(null);
-    if (step === "taste") setStep("review");
+    if (avatarBusy) return;
+    if (step === "taste") setStep("avatar");
+    else if (step === "avatar") setStep("review");
     else if (step === "review") setStep("intake");
     else if (step === "intake" && intakePhase === "paste") setIntakePhase("select");
   }
@@ -395,6 +406,42 @@ export function OnboardingGate() {
     currency,
     topSize,
   ]);
+
+  const resolveSelfPerson = useCallback(async (): Promise<{
+    id: string;
+    has_avatar: boolean;
+  } | null> => {
+    try {
+      const res = await guestFetch("/api/avatar/people", { cache: "no-store" });
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        people?: Array<{ id: string; relation: string; has_avatar: boolean }>;
+      };
+      const self =
+        json.people?.find((p) => p.relation === "self") ?? json.people?.[0];
+      return self ? { id: self.id, has_avatar: self.has_avatar } : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const goToTaste = useCallback(async () => {
+    await loadTasteDeck();
+    setStep("taste");
+  }, [loadTasteDeck]);
+
+  const continueAfterAvatar = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      useSelfAvatarStore.getState().markReady();
+      void useSelfAvatarStore.getState().refresh();
+      await goToTaste();
+    } finally {
+      setBusy(false);
+      setAvatarBusy(false);
+    }
+  }, [goToTaste]);
 
   async function finishOnboarding() {
     const done = await fetch("/api/onboarding", { method: "POST" });
@@ -516,11 +563,22 @@ export function OnboardingGate() {
         }).catch(() => {});
       }
 
-      await loadTasteDeck();
-      setStep("taste");
+      setAvatarLoading(true);
+      const self = await resolveSelfPerson();
+      if (self?.has_avatar) {
+        setSelfPersonId(self.id);
+        await goToTaste();
+      } else if (self?.id) {
+        setSelfPersonId(self.id);
+        setStep("avatar");
+      } else {
+        // Self person missing — don't block onboarding.
+        await goToTaste();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your profile.");
     } finally {
+      setAvatarLoading(false);
       setBusy(false);
     }
   }
@@ -538,14 +596,18 @@ export function OnboardingGate() {
           : "Copy the message below into your AI, then paste what it writes back here."
         : step === "review"
           ? "Three quick questions to get started. Everything else is optional."
-          : "";
+          : step === "avatar"
+            ? "A clear selfie + a few body picks — so you can preview outfits on you."
+            : "";
 
   const stepTitle =
     tasteSaving && step === "taste"
       ? "You're all set"
       : step === "taste"
         ? "What's your style?"
-        : "Let Shoop get to know you";
+        : step === "avatar"
+          ? "Create your try-on avatar"
+          : "Let Shoop get to know you";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
@@ -559,9 +621,8 @@ export function OnboardingGate() {
           <div className="mb-4 flex items-center justify-center gap-2">
             {ONBOARDING_STEPS.map((s, i) => {
               const active = step === s.id;
-              const done =
-                (s.id === "intake" && (step === "review" || step === "taste")) ||
-                (s.id === "review" && step === "taste");
+              const stepOrder = ONBOARDING_STEPS.map((x) => x.id);
+              const done = stepOrder.indexOf(step) > stepOrder.indexOf(s.id);
               return (
                 <div key={s.id} className="flex items-center gap-2">
                   {i > 0 ? <div className="h-px w-6 bg-hairline sm:w-10" aria-hidden /> : null}
@@ -609,7 +670,7 @@ export function OnboardingGate() {
               : "flex-1 overflow-y-auto px-6 py-5"
           }
         >
-          {loading ? (
+          {loading || avatarLoading ? (
             <div className="py-16 text-center text-sm text-neutral-500">One moment…</div>
           ) : step === "taste" && tasteSaving ? (
             <OnboardingLoadingPanel variant="saving" compact />
@@ -623,6 +684,29 @@ export function OnboardingGate() {
               onComplete={(responses) => void saveTasteSwipes(responses)}
               onSkip={() => void saveTasteSwipes([])}
             />
+          ) : step === "avatar" && selfPersonId ? (
+            <AvatarStepper
+              key={selfPersonId}
+              personId={selfPersonId}
+              personLabel="You"
+              startAtPhoto
+              onBusyChange={setAvatarBusy}
+              onSkip={() => void continueAfterAvatar()}
+              onComplete={() => void continueAfterAvatar()}
+            />
+          ) : step === "avatar" ? (
+            <div className="space-y-4 py-8 text-center">
+              <p className="text-sm text-neutral-600">
+                We couldn&apos;t load your profile person for avatar setup.
+              </p>
+              <button
+                type="button"
+                className="btn-primary rounded-full px-5 py-2"
+                onClick={() => void continueAfterAvatar()}
+              >
+                Continue without avatar
+              </button>
+            </div>
           ) : step === "intake" ? (
             <AiProfileTransferStep
               phase={intakePhase}
@@ -666,6 +750,22 @@ export function OnboardingGate() {
               >
                 Skip for now
               </button>
+            </div>
+          ) : step === "avatar" ? (
+            <div className="flex w-full items-center justify-between gap-4">
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={busy || avatarBusy}
+                className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+              >
+                ← Back
+              </button>
+              <p className="text-xs text-neutral-500">
+                {avatarBusy
+                  ? "Please wait — generation in progress."
+                  : "Optional — skip anytime and add later in Settings."}
+              </p>
             </div>
           ) : step !== "taste" ? (
             <div className="flex w-full flex-wrap items-center justify-between gap-3">

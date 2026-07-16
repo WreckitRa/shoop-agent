@@ -112,6 +112,11 @@ export type FashionSlotCatalogResult = {
   overflow_items?: import("../hydration/types").OverflowItem[];
   /** Reserve exhausted before bench target met. */
   thin_slot?: boolean;
+  /**
+   * Post-drop survivors < 3 — whitelist/catalog has no real inventory for
+   * this family. Never fill with off-family junk; narrate honestly.
+   */
+  coverage_gap?: boolean;
   /** Brand probe outcome for this slot. */
   brand_status?: import("../router/types").FashionSlotBrandStatus;
   brand_sanity_note?: string;
@@ -131,6 +136,10 @@ export type FashionSlotCatalogResult = {
   budget_dropped_pool?: FashionSlotCatalogProduct[];
   /** Products between enforced_max and guard_max (major-unit band). */
   guard_band_count?: number;
+  /** Client hard-drop ceiling (major units). */
+  enforced_max?: number;
+  /** Server relevance-guard ceiling (major units). */
+  guard_max?: number;
 };
 
 export type FashionCatalogSearchResult = {
@@ -146,6 +155,8 @@ export type FashionCatalogSearchResult = {
   curation?: import("../curation/types").FashionCurationPresentation;
   curation_ms?: number;
   curation_debug?: import("../curation/fashion-curation-debug").FashionCurationDebugV1;
+  /** Stop before hydrate/curation — ask user to raise budget. */
+  budget_raise_ask?: import("../budget/budget-raise-ask").BudgetRaiseAsk;
 };
 
 /** Chat/admin metadata — scored catalog + query logs omitted (see agent debug). */
@@ -166,6 +177,10 @@ export type MessageFashionCatalogSearchMetaV1 = {
       | "brand_status"
       | "brand_sanity_note"
       | "brand_confirmed_count"
+      | "market_prices"
+      | "guard_band_count"
+      | "enforced_max"
+      | "guard_max"
     > & {
       /** Legacy runs may still carry full scored survivors — chat UI ignores these. */
       products?: FashionSlotCatalogResult["products"];
@@ -179,6 +194,8 @@ export type MessageFashionCatalogSearchMetaV1 = {
   budget_interpretation?: import("../budget/budgetAllocation").BudgetInterpretation;
   budget_tension?: import("../budget/budgetTension").BudgetTension;
   curation?: import("../curation/types").MessageFashionCurationMetaV1;
+  /** Frozen UI contract with try-on availability — preferred chat render surface. */
+  render?: import("../types/render-contract").RenderContract;
 };
 
 import type { AbortScope } from "@/lib/ai-chat/abort-scope";
@@ -196,6 +213,21 @@ export type SearchCatalogForSlotParams = {
   liftedMax?: number;
   /** When true, skip descriptor reformulation (budget-lift retry). */
   liftRetryOnly?: boolean;
+  /** Fired as each query variant returns — stream thumbnails into the chat loader. */
+  onVariantHit?: (hit: {
+    products: import("@/lib/shopify/catalog").CatalogProductSummary[];
+    slotId: string;
+    garment: string;
+  }) => void;
+};
+
+export type FashionCatalogPlanPhase = {
+  /** When omitted, UI only updates image pools (no new narration line). */
+  line?: string;
+  /** Surviving / found product thumbnails for the loader rack. */
+  previewImages?: string[];
+  /** Hard-dropped product thumbnails for the discard strip. */
+  droppedImages?: string[];
 };
 
 export type SearchFashionCatalogPlanParams = {
@@ -211,5 +243,22 @@ export type SearchFashionCatalogPlanParams = {
     polarity: number;
   }>;
   recipientRelation?: string;
+  /** Prebuilt recipient profile block for curation (facts + signals). */
+  recipientProfile?: string;
   excludedRefs?: string[];
+  /** Guest memory snapshot — used to rebuild recipient profile when not passed. */
+  guestSnapshot?: import("../local/store").GuestFashionMemorySnapshot;
+  /** When set, persist slot pools to search_pools after hydration (messageId as search_id). */
+  searchId?: string;
+  userId?: string;
+  /** Live progress for chat UI — per-slot catalog hits and phase narration. */
+  onPhase?: (phase: FashionCatalogPlanPhase) => void;
+  /** E2E/test — mock LLM stages (brand translate, curation). */
+  createMessage?: typeof import("../observability/traced-llm-call").tracedLLMCall;
+  /** E2E/test — ref-aligned curation without static LLM recording. */
+  resolveCurationMessage?: import("../curation/types").RunFashionCurationParams["resolveCurationMessage"];
+  /** Use ref-aligned curation (E2E default when true). */
+  ref_aligned_curation?: boolean;
+  /** Skip budget-raise gate (user chose continue-anyway / declined budget gap). */
+  skipBudgetRaiseAsk?: boolean;
 };

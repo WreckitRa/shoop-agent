@@ -1,12 +1,15 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { extractCatalogAttributes } from "@/lib/shopify/catalog-attributes";
 import { fromMinorUnits, toMinorUnits } from "@/lib/money";
+import { convertMajorFromCache } from "@/lib/money/fx";
 import {
   isGenderedDepartment,
   resolveDepartmentEvidence,
   resolveSearchDepartment,
 } from "../department";
 import { preNormalize } from "../normalize/pre-normalize";
+import { extractStatedColors } from "../router/brief-fields";
+import { COLOR_WORDS } from "../search-planner/query-rules";
 import { taxonomyCategoriesForGarment } from "../catalog-search/garment-taxonomy";
 import { productCategoryOutsideExpectedGids } from "../catalog-search/category-coverage";
 import { checkItemType } from "./item-type";
@@ -168,14 +171,35 @@ function checkBudget(
 ): HardDroppedProduct | null {
   if (!brief.budget_context.stated) return null;
 
-  const amount = product.price?.amount;
-  if (amount == null || !Number.isFinite(amount)) {
+  const amountMinor = product.price?.amount;
+  if (amountMinor == null || !Number.isFinite(amountMinor)) {
     suspicions.push({
       rule: "no_price",
       evidence: "missing price for budget check",
       source_field: "price",
     });
     return null;
+  }
+
+  const priceCurrency = product.price?.currency?.trim().toUpperCase() ?? "";
+  const buyerCurrency = budgetParams.profileCurrency.trim().toUpperCase();
+
+  let compareMinor = amountMinor;
+  if (priceCurrency && buyerCurrency && priceCurrency !== buyerCurrency) {
+    const converted = convertMajorFromCache({
+      amountMajor: fromMinorUnits(amountMinor),
+      fromCurrency: priceCurrency,
+      toCurrency: buyerCurrency,
+    });
+    if (!converted.ok) {
+      suspicions.push({
+        rule: "currency_unconverted",
+        evidence: `could not convert ${priceCurrency} → ${buyerCurrency}`,
+        source_field: "price",
+      });
+      return null;
+    }
+    compareMinor = toMinorUnits(converted.amountMajor);
   }
 
   const bounds = priceBoundsForSlot({
@@ -189,25 +213,18 @@ function checkBudget(
   });
   if (!bounds) return null;
 
-  const ctx = brief.budget_context;
-  const briefCurrency = ctx.currency?.trim().toUpperCase();
-  const priceCurrency = product.price?.currency?.trim().toUpperCase();
-  if (briefCurrency && priceCurrency && briefCurrency !== priceCurrency) {
-    return null;
-  }
-
-  if (bounds.max != null && amount > bounds.max) {
+  if (bounds.max != null && compareMinor > bounds.max) {
     return {
       product_id: product.id,
       rule: "budget",
-      evidence: `price ${amount} > padded max ${bounds.max}`,
+      evidence: `price ${compareMinor} > padded max ${bounds.max}`,
     };
   }
-  if (bounds.min != null && amount < bounds.min) {
+  if (bounds.min != null && compareMinor < bounds.min) {
     return {
       product_id: product.id,
       rule: "budget",
-      evidence: `price ${amount} < padded min ${bounds.min}`,
+      evidence: `price ${compareMinor} < padded min ${bounds.min}`,
     };
   }
   return null;
@@ -267,6 +284,118 @@ function checkSize(
       resolved.map((r) => ({ raw: r.raw, size: r.size })),
     ),
   };
+}
+
+const MATERIAL_MUST_HAVE_POOL = [
+  "cotton",
+  "linen",
+  "wool",
+  "silk",
+  "leather",
+  "denim",
+  "cashmere",
+  "polyester",
+  "nylon",
+  "elastane",
+  "merino",
+  "modal",
+  "viscose",
+  "rayon",
+] as const;
+
+function requiredColorsFromBrief(brief: FashionSearchBrief): string[] {
+  const fromDirection =
+    brief.color_direction?.source === "stated"
+      ? (brief.color_direction.stated_colors ?? extractStatedColors(brief.must_haves))
+      : [];
+  const fromMustHaves = brief.must_haves
+    .map((m) => preNormalize(m))
+    .filter((m) => COLOR_WORDS.has(m));
+  return [...new Set([...fromDirection, ...fromMustHaves].map((c) => preNormalize(c)))];
+}
+
+function requiredMaterialsFromBrief(brief: FashionSearchBrief): string[] {
+  const found: string[] = [];
+  for (const mh of brief.must_haves) {
+    const t = preNormalize(mh);
+    for (const mat of MATERIAL_MUST_HAVE_POOL) {
+      if (t.includes(mat) || mat.includes(t)) found.push(mat);
+    }
+  }
+  return [...new Set(found)];
+}
+
+function checkColorMustHave(
+  product: FashionSlotCatalogProduct,
+  requiredColors: string[],
+  suspicions: ProductSuspicion[],
+): HardDroppedProduct | null {
+  if (!requiredColors.length) return null;
+  const colors = product.normalized?.colors;
+  if (!colors || colors.status !== "resolved" || !colors.buckets.length) {
+    suspicions.push({
+      rule: "color_unknown",
+      evidence: "required color but product color unresolved",
+      source_field: "normalized.colors",
+    });
+    return null;
+  }
+  const buckets = colors.buckets.map((b) => preNormalize(b));
+  const required = requiredColors.map((c) => preNormalize(c));
+  const hit = required.some((c) => buckets.includes(c));
+  if (hit) return null;
+  return {
+    product_id: product.id,
+    rule: "color_must_have",
+    evidence: `required [${required.join(", ")}] not in buckets [${colors.buckets.join(", ")}]`,
+  };
+}
+
+function checkMaterialMustHave(
+  product: FashionSlotCatalogProduct,
+  requiredMaterials: string[],
+  suspicions: ProductSuspicion[],
+): HardDroppedProduct | null {
+  if (!requiredMaterials.length) return null;
+  const bySource = evidenceTextsBySource(product);
+
+  for (const required of requiredMaterials) {
+    let foundPresent = false;
+    let foundAbsent = false;
+    let absentEvidence = "";
+
+    for (const source of ["attribute", "title", "description"] as const) {
+      for (const text of bySource[source]) {
+        const hits = mentionsBannedMaterial(parseMaterialMentions(text), required);
+        for (const mention of hits) {
+          if (mention.polarity === "present") {
+            if (source === "attribute") {
+              foundPresent = true;
+            } else if (
+              source === "title" &&
+              (mention.percentage == null || mention.percentage >= 30)
+            ) {
+              foundPresent = true;
+            }
+          }
+          if (mention.polarity === "absent") {
+            foundAbsent = true;
+            absentEvidence = `${source}: ${text}`;
+          }
+        }
+      }
+    }
+
+    if (foundPresent) continue;
+    if (foundAbsent) {
+      return {
+        product_id: product.id,
+        rule: "material_must_have",
+        evidence: `required ${required} absent — ${absentEvidence}`,
+      };
+    }
+  }
+  return null;
 }
 
 function checkColorNoGo(
@@ -476,6 +605,8 @@ function evaluateProduct(params: {
   const colorBans = noGos.filter((n) => n.kind === "color").map((n) => n.value);
   const garmentBans = noGos.filter((n) => n.kind === "garment").map((n) => n.value);
   const materialBans = noGos.filter((n) => n.kind === "material").map((n) => n.value);
+  const requiredColors = requiredColorsFromBrief(params.brief);
+  const requiredMaterials = requiredMaterialsFromBrief(params.brief);
 
   const checks: Array<HardDroppedProduct | null> = [
     checkAvailability(params.product),
@@ -491,8 +622,10 @@ function evaluateProduct(params: {
     }),
     checkSize(params.product, params.garment, params.brief, params.recipientFacts, suspicions),
     checkColorNoGo(params.product, colorBans, suspicions),
+    checkColorMustHave(params.product, requiredColors, suspicions),
     checkGarmentNoGo(params.product, garmentBans),
     checkMaterialNoGo(params.product, materialBans, suspicions),
+    checkMaterialMustHave(params.product, requiredMaterials, suspicions),
   ];
 
   for (const drop of checks) {
@@ -521,8 +654,15 @@ function percentile(values: number[], p: number): number | null {
 
 function computeMarketPricesFromLaneB(
   products: FashionSlotCatalogProduct[],
+  buyerCurrency?: string,
 ): HardDropSlotResult["market_prices"] {
-  const laneB = products.filter((p) => p.matched_by_lanes?.includes("B"));
+  const expected = buyerCurrency?.trim().toUpperCase();
+  const laneB = products.filter((p) => {
+    if (!p.matched_by_lanes?.includes("B")) return false;
+    if (!expected) return true;
+    const c = p.price?.currency?.trim().toUpperCase();
+    return !c || c === expected;
+  });
   const prices = laneB
     .map((p) => p.price?.amount)
     .filter((a): a is number => a != null && Number.isFinite(a))
@@ -562,7 +702,7 @@ export function applyHardDrops(params: {
     params.brief.budget_context.currency ??
     "USD";
 
-  // Phase 1: availability + department + category (measure market before budget).
+  // Phase 1: availability + currency + department + category (measure market before budget).
   const afterAttire: FashionSlotCatalogProduct[] = [];
   for (const product of params.products) {
     try {
@@ -594,7 +734,7 @@ export function applyHardDrops(params: {
     }
   }
 
-  const market_prices = computeMarketPricesFromLaneB(afterAttire);
+  const market_prices = computeMarketPricesFromLaneB(afterAttire, profileCurrency);
 
   // Phase 2: budget + remaining checks.
   for (const product of afterAttire) {

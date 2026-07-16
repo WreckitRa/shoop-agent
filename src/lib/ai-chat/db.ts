@@ -27,9 +27,19 @@ const POOL_EXHAUSTION_DELAYS_MS = [250, 500, 1000, 2000, 3000];
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
+  prismaOverride?: PrismaClient;
   prismaWarnedMissingDelegates?: boolean;
   prismaReconnecting?: Promise<void>;
 };
+
+/** E2E/test — swap Prisma client without module mocking. */
+export function setPrismaClientOverride(client: PrismaClient | null): void {
+  globalForPrisma.prismaOverride = client ?? undefined;
+}
+
+export function getPrismaClientOverride(): PrismaClient | undefined {
+  return globalForPrisma.prismaOverride;
+}
 
 function appendQueryParam(url: string, key: string, value: string | number): string {
   if (!url || new RegExp(`[?&]${key}=`).test(url)) return url;
@@ -161,6 +171,9 @@ async function runWithConnectionRetry<T>(
 }
 
 function client(): PrismaClient {
+  if (globalForPrisma.prismaOverride) {
+    return globalForPrisma.prismaOverride;
+  }
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createPrismaClient();
   }

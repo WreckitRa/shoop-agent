@@ -2,6 +2,7 @@ import { hydratedCandidateToProductCard } from "../catalog-search/product-card";
 import type { FashionSearchPlan } from "../search-planner/types";
 import type { BudgetTension } from "../budget/budgetTension";
 import type { BudgetInterpretation } from "../budget/budgetAllocation";
+import { fromMinorUnits } from "@/lib/money";
 import type {
   CurationRefRegistry,
   DeliverCurationInput,
@@ -11,47 +12,29 @@ import type {
   FashionVerifiedTierItem,
   FashionUnverifiedTierItem,
 } from "./types";
-import { CURATION_UNVERIFIED_OVERFLOW } from "./config";
+import {
+  CURATION_UNVERIFIED_OVERFLOW,
+  CURATION_VERIFIED_BENCH,
+} from "./config";
+import { buildUserFacingBadges } from "./badge-copy";
 
 function buildBadges(
   entry: import("./types").RefEntry,
+  garment: string,
   correctedColor?: string,
 ): FashionCuratedPickBadge[] {
-  const badges: FashionCuratedPickBadge[] = [];
-  const c = entry.candidate;
-
-  if (c.size_status === "converted" && c.size_selection) {
-    badges.push({
-      kind: "converted_size",
-      from: c.size_selection.converted_from ?? "?",
-      label: c.size_selection.merchant_label,
-    });
-  } else if (c.size_status === "unknown") {
-    badges.push({ kind: "check_sizing" });
-  }
-
-  for (const s of c.suspicions ?? []) {
-    badges.push({
-      kind: "suspicion",
-      rule: s.rule,
-      evidence: s.evidence,
-    });
-  }
-
-  if (correctedColor) {
-    const listed = c.normalized?.colors?.buckets?.[0];
-    badges.push({
-      kind: "photo_color",
-      color: correctedColor,
-      listed,
-    });
-  }
-
-  if (c.brand_confirmed === false) {
-    badges.push({ kind: "brand_unconfirmed" });
-  }
-
-  return badges;
+  const nearBudgetLifted = Boolean(
+    (entry.candidate as { near_budget_lifted?: boolean }).near_budget_lifted ||
+      entry.candidate.suspicions?.some((s) =>
+        /near.?budget|budget.?lift/i.test(s.rule),
+      ),
+  );
+  return buildUserFacingBadges({
+    candidate: entry.candidate,
+    garment,
+    correctedColor,
+    nearBudgetLifted,
+  });
 }
 
 export function buildPresentationContract(params: {
@@ -81,15 +64,18 @@ export function buildPresentationContract(params: {
       const entry = params.registry.get(pick.ref);
       if (!entry) continue;
 
-      const card = hydratedCandidateToProductCard(entry.candidate);
+      const card = hydratedCandidateToProductCard(entry.candidate, {
+        correctedColor: pick.corrected_color,
+      });
+      const garment = slotMeta?.garment ?? slotOutput.slot_id;
       picks.push({
         ...card,
         ref: pick.ref,
         slot_id: slotOutput.slot_id,
-        garment: slotMeta?.garment ?? slotOutput.slot_id,
+        garment,
         role: pick.role,
         stylist_line: pick.stylist_line,
-        badges: buildBadges(entry, pick.corrected_color),
+        badges: buildBadges(entry, garment, pick.corrected_color),
         look_names: params.lookMembership.get(pick.ref),
         corrected_color: pick.corrected_color,
         score_rank: entry.score_rank,
@@ -98,12 +84,46 @@ export function buildPresentationContract(params: {
     }
   }
 
-  const verified: FashionVerifiedTierItem[] = [];
+  // Looks/capsule rotations may reference registry items that weren't hero picks
+  // (e.g. tie_1 in a look). Promote those so chat + try-on show real product
+  // metadata instead of the raw ref.
+  const lookOnlyRefs = new Set<string>();
+  for (const look of params.output.looks ?? []) {
+    for (const ref of look.item_refs) lookOnlyRefs.add(ref);
+  }
+  for (const outfit of params.output.capsule_outfits ?? []) {
+    for (const ref of outfit.item_refs) lookOnlyRefs.add(ref);
+  }
+  for (const ref of lookOnlyRefs) {
+    if (pickedRefs.has(ref) || params.vetoedRefs.has(ref)) continue;
+    const entry = params.registry.get(ref);
+    if (!entry) continue;
+    const slotMeta = params.slots.find((s) => s.slot_id === entry.slot_id);
+    const card = hydratedCandidateToProductCard(entry.candidate);
+    const garment = slotMeta?.garment ?? entry.slot_id;
+    pickedRefs.add(ref);
+    picks.push({
+      ...card,
+      ref,
+      slot_id: entry.slot_id,
+      garment,
+      role: "support",
+      stylist_line: `Paired into the look as the ${garment}.`,
+      badges: buildBadges(entry, garment),
+      look_names: params.lookMembership.get(ref),
+      score_rank: entry.score_rank,
+      brand_confirmed: entry.candidate.brand_confirmed,
+    });
+  }
+
+  // Per-garment verified bench (ranked, excluding heroes / vetoes), capped.
+  const verifiedBySlot = new Map<string, FashionVerifiedTierItem[]>();
   for (const entry of params.registry.values()) {
     if (pickedRefs.has(entry.ref) || params.vetoedRefs.has(entry.ref)) continue;
     const slotMeta = params.slots.find((s) => s.slot_id === entry.slot_id);
     const card = hydratedCandidateToProductCard(entry.candidate);
-    verified.push({
+    const list = verifiedBySlot.get(entry.slot_id) ?? [];
+    list.push({
       ...card,
       ref: entry.ref,
       slot_id: entry.slot_id,
@@ -112,6 +132,14 @@ export function buildPresentationContract(params: {
       brand_confirmed: entry.candidate.brand_confirmed,
       size_status: entry.candidate.size_status,
     });
+    verifiedBySlot.set(entry.slot_id, list);
+  }
+  const verified: FashionVerifiedTierItem[] = [];
+  for (const slot of params.slots) {
+    const ranked = (verifiedBySlot.get(slot.slot_id) ?? []).sort(
+      (a, b) => a.score_rank - b.score_rank,
+    );
+    verified.push(...ranked.slice(0, CURATION_VERIFIED_BENCH));
   }
 
   const unverified: FashionUnverifiedTierItem[] = [];
@@ -134,6 +162,20 @@ export function buildPresentationContract(params: {
     brand_status[slot.slot_id] = slot.brand_status;
   }
 
+  let set_total: number | undefined;
+  if (params.plan.mode === "capsule") {
+    let total = 0;
+    for (const slotOutput of params.output.slots) {
+      for (const pick of slotOutput.picks) {
+        const entry = params.registry.get(pick.ref);
+        if (!entry) continue;
+        const price = entry.candidate.final_price ?? entry.candidate.price;
+        total += fromMinorUnits(price?.amount ?? 0);
+      }
+    }
+    set_total = Math.round(total * 100) / 100;
+  }
+
   return {
     narration: params.output.narration,
     tiers: { picks, verified, unverified },
@@ -145,6 +187,7 @@ export function buildPresentationContract(params: {
       brand_status,
       budget_tension: params.budget_tension?.severity,
       budget_interpretation: params.budget_interpretation,
+      ...(set_total != null ? { set_total } : {}),
       fallback: params.fallback,
     },
   };

@@ -115,6 +115,8 @@ const blazerSlot: FashionSearchPlanSlot = {
   query_variants: [
     "lightweight linen blazer",
     "tailored elegant blazer",
+    "mens structured blazer refined",
+    "mens classic navy blazer",
   ],
 };
 
@@ -155,7 +157,7 @@ describe("mens_blazer_no_womens_leak", () => {
       department: "mens",
     });
     assert.equal(result.ok, true);
-    assert.ok(result.variants.length >= 2);
+    assert.ok(result.variants.length >= 4);
     for (const v of result.variants) {
       assert.equal(v.split(/\s+/)[0]?.toLowerCase(), "mens");
     }

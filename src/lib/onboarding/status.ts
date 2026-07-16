@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/ai-chat/db";
 import { refreshTypedProfileIntoShoppingView } from "@/lib/onboarding/sync-profile-summary";
+import { seedOnboardingIntoFashionMemory } from "@/lib/onboarding/seed-fashion-memory";
 import { ownedProduct } from "@/lib/ai-chat/owned-product-db";
 import {
   brandPreferencePostSchema,
@@ -315,6 +316,9 @@ export async function applyOnboardingPatch(
 
   await refreshTypedProfileIntoShoppingView(userId).catch(() => {});
 
+  // Keep fashion-memory warm as profile patches land (taste swipes, sizing, etc.).
+  await seedOnboardingIntoFashionMemory(userId).catch(() => {});
+
   return getOnboardingStatus(userId);
 }
 
@@ -340,6 +344,9 @@ export async function completeOnboarding(userId: string) {
   });
 
   await refreshTypedProfileIntoShoppingView(userId).catch(() => {});
+
+  // Project into fashion-memory so search / hard-drops / curation see prefs.
+  await seedOnboardingIntoFashionMemory(userId).catch(() => {});
 
   return { ok: true as const, status: await getOnboardingStatus(userId) };
 }

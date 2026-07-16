@@ -6,6 +6,7 @@ import type { FashionFactRow } from "../types";
 import type { FashionSlotCatalogProduct } from "../catalog-search/types";
 import { taxonomyCategoriesForGarment } from "../catalog-search/garment-taxonomy";
 import { applyHardDrops } from "./apply-hard-drops";
+import { resetFxCacheForTests, seedFxRatesForTests } from "@/lib/money/fx";
 
 function fact<T extends FashionFactRow["fact_type"]>(
   fact_type: T,
@@ -378,6 +379,34 @@ describe("applyHardDrops availability and budget", () => {
       brief,
     });
     assert.equal(result.dropped[0]?.rule, "budget");
+  });
+
+  it("converts foreign currency for budget compare instead of dropping", () => {
+    resetFxCacheForTests();
+    seedFxRatesForTests("INR", { USD: 0.012 });
+    const brief: FashionSearchBrief = {
+      ...briefWithSizes,
+      budget_context: { stated: true, max: 100, currency: "USD" },
+    };
+    const result = applyHardDrops({
+      slot: { slot_id: "s1", garment: "shirt" },
+      products: [
+        product("inr", {
+          title: "Mens Casual Shirt",
+          price: { amount: 94900, currency: "INR" },
+        }),
+        product("usd", {
+          title: "Mens Casual Shirt",
+          price: { amount: 4500, currency: "USD" },
+        }),
+      ],
+      recipientFacts: [],
+      brief,
+      profileCurrency: "USD",
+    });
+    assert.equal(result.dropped.some((d) => d.rule === "currency_mismatch"), false);
+    assert.equal(result.survivors.some((s) => s.id === "usd"), true);
+    assert.equal(result.survivors.some((s) => s.id === "inr"), true);
   });
 
   it("missing price flags no_price", () => {

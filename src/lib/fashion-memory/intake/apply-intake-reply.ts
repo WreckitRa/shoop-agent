@@ -1,3 +1,4 @@
+import { parseBudgetRaiseAnswer } from "../budget/budget-raise-ask";
 import { prisma } from "@/lib/ai-chat/db";
 import { isSupabaseAuthUserId } from "../auth";
 import { upsertFashionFact } from "../facts";
@@ -10,6 +11,7 @@ import type {
   MessageFashionRouterMetaV1,
 } from "../router/types";
 import type { FashionFactRow, PersonRelation } from "../types";
+import { normalizeGarmentClarificationAnswer } from "./garment-answer";
 import { bucketForIntakeField } from "./garment-size-fields";
 import { parseDepartmentAnswer } from "./identity-gate";
 
@@ -42,19 +44,83 @@ function asApplyQuestions(
   });
 }
 
+/**
+ * Normalize question text for echo matching — users often paste a near-copy
+ * ("What's Rima's dress size?" vs "What's Rima's typical dress size?").
+ */
+function normalizeQuestionEcho(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s']/g, " ")
+    .replace(/\b(typical|usual|usually|approx|approximately)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function findEchoSpan(
+  userMessage: string,
+  questionText: string,
+): { start: number; end: number } | null {
+  const exact = userMessage.indexOf(questionText);
+  if (exact >= 0) {
+    return { start: exact, end: exact + questionText.length };
+  }
+
+  // Fuzzy: locate the normalized echo inside the normalized message, then
+  // map back by scanning word-aligned substrings (handles "typical" drops).
+  const normQ = normalizeQuestionEcho(questionText);
+  if (normQ.length < 8) return null;
+  const normMsg = normalizeQuestionEcho(userMessage);
+  const normIdx = normMsg.indexOf(normQ);
+  if (normIdx < 0) return null;
+
+  // Reconstruct approximate span: take from the first distinctive token.
+  const anchor = questionText
+    .replace(/[?？].*$/, "")
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !/^(what|whats|what's|which|the|for|and|does|do|you|your)$/i.test(w))
+    .slice(-3)
+    .join(" ");
+  if (anchor.length >= 4) {
+    const anchorIdx = userMessage.toLowerCase().indexOf(anchor.toLowerCase());
+    if (anchorIdx >= 0) {
+      const qMark = userMessage.indexOf("?", anchorIdx);
+      const end = qMark >= 0 ? qMark + 1 : anchorIdx + anchor.length;
+      return { start: Math.max(0, anchorIdx - 24), end };
+    }
+  }
+
+  // Fallback: treat "?" after a size/department cue as the echo boundary.
+  const cue =
+    /\b(dress size|shoe size|tops?|bottoms?|size|section|department)\b/i.exec(
+      userMessage,
+    );
+  if (cue && cue.index != null) {
+    const qMark = userMessage.indexOf("?", cue.index);
+    if (qMark >= 0) return { start: cue.index, end: qMark + 1 };
+  }
+  return null;
+}
+
 function extractAnswerForQuestion(
   userMessage: string,
   question: ApplyQuestion,
   allQuestions: ApplyQuestion[],
 ): string | null {
-  const idx = userMessage.indexOf(question.text);
-  if (idx < 0) return null;
+  const span = findEchoSpan(userMessage, question.text);
+  if (!span) return null;
 
-  let tail = userMessage.slice(idx + question.text.length).trim();
+  let tail = userMessage.slice(span.end).trim();
   if (tail.startsWith(".")) tail = tail.slice(1).trim();
 
   for (const other of allQuestions) {
     if (other.text === question.text) continue;
+    const otherSpan = findEchoSpan(tail, other.text);
+    if (otherSpan && otherSpan.start > 0) {
+      tail = tail.slice(0, otherSpan.start).trim();
+      break;
+    }
     const otherIdx = tail.indexOf(other.text);
     if (otherIdx > 0) {
       tail = tail.slice(0, otherIdx).trim();
@@ -167,15 +233,26 @@ export async function loadPriorClarificationTurn(conversationId: string): Promis
       };
     }
 
-    // Legacy run_intake metadata
+    // Legacy run_intake metadata — dated feature flag; remove after 2026-10-13.
+    // TODO(remove-by:2026-10-13): delete this branch once logs show zero hits.
     const legacy = router as MessageFashionRouterMetaV1 & {
       move?: string;
       intake?: { target_person_id: string; questions: FashionIntakeQuestion[] };
     };
+    const runIntakeLegacyEnabled =
+      process.env.FASHION_RUN_INTAKE_LEGACY !== "0" &&
+      process.env.FASHION_RUN_INTAKE_LEGACY !== "false";
     if (
+      runIntakeLegacyEnabled &&
       (legacy.move as string) === "run_intake" &&
       legacy.intake?.questions?.length
     ) {
+      const { logAiChat } = await import("@/lib/ai-chat/observability");
+      logAiChat("info", "fashion_run_intake_legacy_hit", {
+        conversationId,
+        target_person_id: legacy.intake.target_person_id,
+        question_count: legacy.intake.questions.length,
+      });
       return {
         targetPersonId: legacy.intake.target_person_id,
         questions: asApplyQuestions(legacy.intake.questions),
@@ -185,30 +262,21 @@ export async function loadPriorClarificationTurn(conversationId: string): Promis
   return null;
 }
 
-/** @deprecated */
-export async function loadPriorIntakeTurn(conversationId: string): Promise<{
-  targetPersonId: string;
-  questions: FashionIntakeQuestion[];
-} | null> {
-  const prior = await loadPriorClarificationTurn(conversationId);
-  if (!prior?.targetPersonId) return null;
-  const questions: FashionIntakeQuestion[] = prior.questions
-    .filter((q) => q.field)
-    .map((q) => ({
-      field: q.field as FashionIntakeQuestion["field"],
-      question: q.text,
-      quick_options: q.quick_options,
-    }));
-  if (!questions.length) return null;
-  return { targetPersonId: prior.targetPersonId, questions };
-}
-
 export async function applyClarificationReplyFromMessage(params: {
   userId: string;
   conversationId: string;
   userMessage: string;
   guestSnapshot?: GuestFashionMemorySnapshot;
-}): Promise<{ facts: FashionFactRow[]; personId: string | null }> {
+}): Promise<{
+  facts: FashionFactRow[];
+  personId: string | null;
+  /** User chose continue-anyway on a budget-raise ask — decline re-prompt. */
+  declineBudgetRaise?: boolean;
+  /** Parsed raised budget max when a dollar chip / free-text amount was answered. */
+  raisedBudgetMax?: number;
+  /** Concrete garments resolved from a prior gap:"garment" clarification. */
+  resolvedGarments?: string[];
+}> {
   const prior = await loadPriorClarificationTurn(params.conversationId);
   if (!prior) return { facts: [], personId: null };
 
@@ -216,38 +284,94 @@ export async function applyClarificationReplyFromMessage(params: {
     params.userMessage,
     prior.questions,
   );
-  if (!Object.keys(answers).length) {
+
+  const garmentQuestion = prior.questions.find((q) => q.gap === "garment");
+  const garmentRaw =
+    answers.garment ??
+    (garmentQuestion
+      ? answers[garmentQuestion.field ?? ""] ?? answers[garmentQuestion.text]
+      : undefined);
+  const resolvedGarments =
+    garmentRaw != null
+      ? normalizeGarmentClarificationAnswer(
+          garmentRaw,
+          garmentQuestion?.quick_options,
+        )
+      : prior.questions.some((q) => q.gap === "garment")
+        ? normalizeGarmentClarificationAnswer(
+            params.userMessage,
+            garmentQuestion?.quick_options,
+          )
+        : [];
+
+  if (!Object.keys(answers).length && !resolvedGarments.length) {
     return { facts: [], personId: prior.targetPersonId };
+  }
+
+  // Garment-only reply (chip / free text) — still return resolved garments even
+  // when no durable size/department facts are written below.
+  if (!Object.keys(answers).length && resolvedGarments.length) {
+    return {
+      facts: [],
+      personId: prior.targetPersonId,
+      resolvedGarments,
+    };
   }
 
   let personId = prior.targetPersonId;
   const written: FashionFactRow[] = [];
+  let declineBudgetRaise = false;
+  let raisedBudgetMax: number | undefined;
 
-  // Register new person when name is provided.
-  const nameAnswer =
+  // Register / name a person. Relation from the ask beats a bare name tap
+  // (son Gabriel ≠ brother Gabriel). Prefer updating the clarification target.
+  const nameAnswerRaw =
     answers.person_name ??
     answers[
       prior.questions.find((q) => q.gap === "person_name")?.text ?? ""
     ];
-  if (nameAnswer?.trim() && !personId) {
-    const relation = inferRelationFromText(
-      `${params.userMessage} ${nameAnswer}`,
-    );
+  const nameAnswer =
+    nameAnswerRaw?.trim() &&
+    nameAnswerRaw.trim().toLowerCase() !== "skip"
+      ? nameAnswerRaw.trim()
+      : null;
+
+  if (nameAnswer && personId) {
     if (isSupabaseAuthUserId(params.userId)) {
-      const person = await resolvePerson({
+      const { updatePersonName } = await import("../people");
+      await updatePersonName({
         userId: params.userId,
-        relation,
-        name: nameAnswer.trim(),
+        personId,
+        name: nameAnswer,
       });
-      personId = person.id;
     } else if (params.guestSnapshot) {
       const store = new FashionLocalStore(params.guestSnapshot);
-      const person = store.resolvePerson({
+      store.updatePersonName({
         userId: params.userId,
-        relation,
-        name: nameAnswer.trim(),
+        personId,
+        name: nameAnswer,
       });
-      personId = person.id;
+    }
+  } else if (nameAnswer && !personId) {
+    const relation = inferRelationFromText(params.userMessage);
+    // Bare name replies ("Gabriel") carry no relation — refuse name-only merge.
+    if (relation !== "friend" || /\b(friend|colleague)\b/i.test(params.userMessage)) {
+      if (isSupabaseAuthUserId(params.userId)) {
+        const person = await resolvePerson({
+          userId: params.userId,
+          relation,
+          name: nameAnswer,
+        });
+        personId = person.id;
+      } else if (params.guestSnapshot) {
+        const store = new FashionLocalStore(params.guestSnapshot);
+        const person = store.resolvePerson({
+          userId: params.userId,
+          relation,
+          name: nameAnswer,
+        });
+        personId = person.id;
+      }
     }
   }
 
@@ -263,7 +387,11 @@ export async function applyClarificationReplyFromMessage(params: {
         relation: "self",
       }).id;
     } else {
-      return { facts: [], personId: null };
+      return {
+        facts: [],
+        personId: null,
+        ...(resolvedGarments.length ? { resolvedGarments } : {}),
+      };
     }
   }
 
@@ -357,6 +485,40 @@ export async function applyClarificationReplyFromMessage(params: {
       }
       return null;
     }
+    if (field === "budget_max" || field === "budget") {
+      const parsed = parseBudgetRaiseAnswer(raw);
+      if (parsed.kind === "continue") {
+        declineBudgetRaise = true;
+        return null;
+      }
+      if (parsed.kind !== "raise") return null;
+      raisedBudgetMax = parsed.max;
+      const band = {
+        min: null as number | null,
+        max: parsed.max,
+        currency: "USD",
+      };
+      if (isSupabaseAuthUserId(params.userId)) {
+        return upsertFashionFact({
+          userId: params.userId,
+          personId: personId!,
+          factType: "budget_band",
+          value: band,
+          sourceQuote: params.userMessage.slice(0, 500),
+        });
+      }
+      if (params.guestSnapshot) {
+        const store = new FashionLocalStore(params.guestSnapshot);
+        return store.upsertFashionFact({
+          userId: params.userId,
+          personId: personId!,
+          factType: "budget_band",
+          value: band,
+          sourceQuote: params.userMessage.slice(0, 500),
+        });
+      }
+      return null;
+    }
     return null;
   };
 
@@ -370,11 +532,14 @@ export async function applyClarificationReplyFromMessage(params: {
 
   // Also map by question field when answers keyed by question text
   for (const q of prior.questions) {
-    if (!q.field) continue;
-    const raw = answers[q.field] ?? answers[q.text];
+    if (!q.field && q.gap !== "budget") continue;
+    const field = q.field ?? (q.gap === "budget" ? "budget_max" : undefined);
+    if (!field) continue;
+    const raw = answers[field] ?? answers[q.gap ?? ""] ?? answers[q.text];
     if (!raw) continue;
     if (written.some((f) => {
       if (q.field === "gender_presentation") return f.fact_type === "gender_presentation";
+      if (field === "budget_max" || q.gap === "budget") return f.fact_type === "budget_band";
       if (q.field?.startsWith("size_")) {
         return (
           f.fact_type === "size" &&
@@ -388,19 +553,15 @@ export async function applyClarificationReplyFromMessage(params: {
     })) {
       continue;
     }
-    const fact = await writeFact(q.field, raw);
+    const fact = await writeFact(field, raw);
     if (fact) written.push(fact);
   }
 
-  return { facts: written, personId };
-}
-
-/** @deprecated */
-export async function applyIntakeReplyFromMessage(params: {
-  userId: string;
-  conversationId: string;
-  userMessage: string;
-  guestSnapshot?: GuestFashionMemorySnapshot;
-}): Promise<{ facts: FashionFactRow[]; personId: string | null }> {
-  return applyClarificationReplyFromMessage(params);
+  return {
+    facts: written,
+    personId,
+    ...(declineBudgetRaise ? { declineBudgetRaise: true } : {}),
+    ...(raisedBudgetMax != null ? { raisedBudgetMax } : {}),
+    ...(resolvedGarments.length ? { resolvedGarments } : {}),
+  };
 }

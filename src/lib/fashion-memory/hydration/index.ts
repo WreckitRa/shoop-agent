@@ -5,9 +5,24 @@ export {
   HYDRATION_MAX_CONCURRENCY,
   HYDRATION_MAX_INITIAL_WAVE,
   HYDRATION_TIMEOUT_RETRIES,
+  HYDRATION_TRANSIENT_RETRIES,
   hydrationInitialWaveSize,
   hydrationTargetCount,
 } from "./config";
+export { createConcurrencyGate } from "./concurrency-gate";
+export type { ConcurrencyGate } from "./concurrency-gate";
+export {
+  VERIFY_TTL_HOURS,
+  POOL_WORKING_LIFECYCLE_DAYS,
+} from "./pool-lifecycle-config";
+export {
+  loadSlotPool,
+  saveSlotPool,
+  persistAllSlotPools,
+  type SearchPoolState,
+  type RehydratedSlotPool,
+} from "./pool-persistence";
+export { isHydrationStale, reverifyCandidate } from "./verify-staleness";
 export {
   buildSizeSelection,
   hasPartiallyUnknownSizes,

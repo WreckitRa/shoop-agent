@@ -45,6 +45,22 @@ const GARMENT_CUE_PATTERNS: Array<{ garment: string; re: RegExp }> = [
     garment: "shirt",
     re: /\b(shirt|shirts|blouse|tee|t-shirt|tshirt|top|tops|sweater|polo)\b/i,
   },
+  {
+    garment: "bracelet",
+    re: /\b(bracelet|bracelets)\b/i,
+  },
+  {
+    garment: "watch",
+    re: /\b(watch|watches)\b/i,
+  },
+  {
+    garment: "belt",
+    re: /\b(belt|belts)\b/i,
+  },
+  {
+    garment: "bag",
+    re: /\b(bag|bags|handbag|handbags|tote|totes)\b/i,
+  },
 ];
 
 function lastUserMessage(

@@ -684,6 +684,7 @@ export function createChatSseStream(params: {
   body: ChatBody;
   signal: AbortSignal;
   userId?: string;
+  qaFaultsHeader?: string | null;
 }): ReadableStream<Uint8Array> {
   const mode = resolveMode(params.body);
   if (mode === "findSimilarSubmit") {
@@ -704,6 +705,7 @@ export function createChatSseStream(params: {
       },
       signal: params.signal,
       userId: params.userId ?? AI_CHAT_DEFAULT_USER_ID,
+      qaFaultsHeader: params.qaFaultsHeader,
     });
   }
 

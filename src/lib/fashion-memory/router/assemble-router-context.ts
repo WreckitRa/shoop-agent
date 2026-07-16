@@ -171,6 +171,23 @@ export async function assembleRouterContext(params: {
   // are empty and the model invents recipient clarifications.
   if (isAuth) {
     await ensureSelfPerson(params.userId);
+    // Backfill fashion facts/signals from completed onboarding (idempotent).
+    // Await so the first search turn already has sizes/gender/taste in memory.
+    try {
+      const { prisma } = await import("@/lib/ai-chat/db");
+      const profile = await prisma.userProfile.findUnique({
+        where: { userId: params.userId },
+        select: { onboardingCompleted: true },
+      });
+      if (profile?.onboardingCompleted) {
+        const { seedOnboardingIntoFashionMemory } = await import(
+          "@/lib/onboarding/seed-fashion-memory"
+        );
+        await seedOnboardingIntoFashionMemory(params.userId);
+      }
+    } catch {
+      /* non-blocking — router must still run */
+    }
   }
 
   const [recentMessages, stickyRaw, accountHints] = await Promise.all([
@@ -296,6 +313,15 @@ export async function writeRequestEventFromBrief(params: {
     });
   }
 
-  void params.guestSnapshot;
+  if (params.guestSnapshot) {
+    const store = new FashionLocalStore(params.guestSnapshot);
+    return store.logRequestEvent({
+      userId: params.userId,
+      personId: params.personId,
+      conversationId: params.conversationId,
+      attributes: params.attributes,
+    });
+  }
+
   return null;
 }

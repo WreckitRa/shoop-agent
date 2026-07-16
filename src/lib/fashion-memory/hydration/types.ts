@@ -11,6 +11,7 @@ export type HydrationDeathCause =
   | "gone"
   | "department_mismatch"
   | "hydration_failed"
+  | "user_reject"
   | `curator_veto:${string}`;
 
 export type HydrationDeathRecord = {
@@ -23,12 +24,25 @@ export type HydrationDeathRecord = {
 export type SizeStatus = "confirmed" | "converted" | "unknown";
 
 export type HydratedCandidate = FashionSlotCatalogProduct & {
+  /** ISO timestamp when get_product verification completed. */
+  hydrated_at?: string;
   size_status: SizeStatus;
   size_selection?: {
     merchant_label: string;
     option_name: string;
     converted_from?: string;
   };
+  color_selection?: {
+    merchant_label: string;
+    option_name: string;
+  };
+  /**
+   * Options actually resolved by get_product (`detail.selected`).
+   * Survives metadata slim (detail is stripped) so PDP can preselect.
+   */
+  resolved_options?: SelectedOption[];
+  /** Variant GID matching resolved_options — never the product GID. */
+  selected_variant_id?: string;
   /** API timeout/error — candidate was NOT verified (legacy flag on rare shells). */
   hydration_failed?: boolean;
   /** Checkout flag only — false does NOT kill the candidate. */

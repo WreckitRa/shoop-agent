@@ -7,6 +7,8 @@ import { reconcilePlanPalettes } from "./palette-ladder";
 const TOP_GARMENT_RE =
   /\b(shirt|blazer|jacket|coat|dress|top|blouse|sweater|hoodie|suit)\b/i;
 
+const MAX_PLAN_SLOTS = 12;
+
 function clampOptionsWanted(n: number): number {
   if (!Number.isFinite(n)) return 3;
   return Math.min(8, Math.max(1, Math.round(n)));
@@ -67,7 +69,7 @@ export function clampFashionSearchPlan(
   opts?: { traceId?: string | null },
 ): ClampFashionSearchPlanResult {
   let mode: SearchPlanMode = plan.mode;
-  let slots = plan.slots.slice(0, 5).map((s) => ({
+  let slots = plan.slots.slice(0, MAX_PLAN_SLOTS).map((s) => ({
     ...s,
     options_wanted: clampOptionsWanted(s.options_wanted),
   }));
@@ -82,13 +84,7 @@ export function clampFashionSearchPlan(
   }
 
   if (mode === "single_item" && slots[0]) {
-    slots[0] = {
-      ...slots[0],
-      role: "anchor",
-      options_wanted: clampOptionsWanted(
-        slots[0].options_wanted >= 4 ? slots[0].options_wanted : 4,
-      ),
-    };
+    slots[0] = { ...slots[0], role: "anchor" };
   }
 
   const clamped: FashionSearchPlan = {

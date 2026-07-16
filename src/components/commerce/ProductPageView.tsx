@@ -805,6 +805,7 @@ export function ProductPageView({
                       optionGroups={optionGroups}
                       selectedOptions={selectedOptions}
                       optionsBusy={optionsBusy}
+                      resolveSwatchColors={embedded}
                       onPick={onPickOption}
                     />
                   ) : null}
@@ -1292,6 +1293,7 @@ function ProductVariantOptionsPanel({
   optionGroups,
   selectedOptions,
   optionsBusy,
+  resolveSwatchColors = false,
   onPick,
 }: {
   productId: string;
@@ -1303,6 +1305,7 @@ function ProductVariantOptionsPanel({
   };
   selectedOptions: Record<string, string>;
   optionsBusy: boolean;
+  resolveSwatchColors?: boolean;
   onPick: (name: string, label: string) => void;
 }) {
   const allOptions = [
@@ -1321,7 +1324,11 @@ function ProductVariantOptionsPanel({
     }
     return [...labels];
   }, [optionGroups.color]);
-  const swatchColors = useSwatchColors(colorLabels, { productId });
+  const { colors: swatchColors, isResolving: swatchColorsResolving } =
+    useSwatchColors(colorLabels, {
+      productId,
+      enabled: resolveSwatchColors,
+    });
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
@@ -1332,6 +1339,7 @@ function ProductVariantOptionsPanel({
           selectedLabel={selectedOptions[opt.name]}
           values={opt.values}
           swatchColors={swatchColors}
+          swatchColorsResolving={swatchColorsResolving}
           optionsBusy={optionsBusy}
           onPick={onPick}
         />
@@ -1365,6 +1373,7 @@ function ColorOptionGroup({
   selectedLabel,
   values,
   swatchColors,
+  swatchColorsResolving = false,
   optionsBusy,
   onPick,
 }: {
@@ -1372,6 +1381,7 @@ function ColorOptionGroup({
   selectedLabel?: string;
   values: Array<{ label: string; available?: boolean; exists?: boolean }>;
   swatchColors: Record<string, string>;
+  swatchColorsResolving?: boolean;
   optionsBusy: boolean;
   onPick: (name: string, label: string) => void;
 }) {
@@ -1386,6 +1396,15 @@ function ColorOptionGroup({
             {selectedLabel}
           </span>
         ) : null}
+        {swatchColorsResolving ? (
+          <span
+            className="text-[10px] font-medium uppercase tracking-[0.06em] text-ink-muted"
+            role="status"
+            aria-live="polite"
+          >
+            Matching colors…
+          </span>
+        ) : null}
       </div>
       <div className="mt-2 flex flex-wrap gap-3">
         {values.map((v) => {
@@ -1397,15 +1416,25 @@ function ColorOptionGroup({
               type="button"
               disabled={optionsBusy || notExists}
               aria-label={v.label}
+              aria-busy={swatchColorsResolving}
               aria-pressed={on}
               onClick={() => onPick(name, v.label)}
               className={cn(
-                "size-8 rounded-full border border-hairline transition disabled:cursor-not-allowed disabled:opacity-30",
+                "relative size-8 rounded-full border border-hairline transition disabled:cursor-not-allowed disabled:opacity-30",
                 on && "ring-2 ring-white ring-offset-2 ring-offset-brand",
                 notExists && "opacity-30",
+                swatchColorsResolving &&
+                  "animate-pulse motion-reduce:animate-none",
               )}
               style={{ background: swatchColors[v.label] }}
-            />
+            >
+              {swatchColorsResolving ? (
+                <span
+                  className="absolute inset-0 rounded-full bg-white/25"
+                  aria-hidden
+                />
+              ) : null}
+            </button>
           );
         })}
       </div>

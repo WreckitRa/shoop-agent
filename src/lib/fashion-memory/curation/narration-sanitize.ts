@@ -5,7 +5,7 @@ import { logAiChat } from "@/lib/ai-chat/observability";
  * field matches, substitute the plain-voice fallback and log.
  */
 export const NARRATION_MACHINERY_RE =
-  /\b(funnel|fit score|verified options|pipeline|curation|fallback|slot)\b/i;
+  /\b(funnel|fit score|verified options|pipeline|curation|fallback|fits the brief|verified\s+\w+\s+option)\b/i;
 
 export function sanitizeNarrationField(params: {
   field: string;

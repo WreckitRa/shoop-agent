@@ -24,18 +24,23 @@ async function fetchSuggestedPrompt(
   }
   suggestedPromptCacheKey = cacheKey;
   suggestedPromptInflight = (async () => {
-    const params = new URLSearchParams();
-    if (conversationId) {
-      params.set("conversationId", conversationId);
+    try {
+      const params = new URLSearchParams();
+      if (conversationId) {
+        params.set("conversationId", conversationId);
+      }
+      const qs = params.toString();
+      const res = await guestFetch(
+        `/api/chat/suggested-prompt${qs ? `?${qs}` : ""}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) return null;
+      const json = (await res.json()) as { prompt?: string };
+      return json.prompt?.trim() || null;
+    } catch {
+      // Server restart / HMR / offline — keep the previous placeholder.
+      return null;
     }
-    const qs = params.toString();
-    const res = await guestFetch(
-      `/api/chat/suggested-prompt${qs ? `?${qs}` : ""}`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) return null;
-    const json = (await res.json()) as { prompt?: string };
-    return json.prompt?.trim() || null;
   })().finally(() => {
     suggestedPromptInflight = null;
   });

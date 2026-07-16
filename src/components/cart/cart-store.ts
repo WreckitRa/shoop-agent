@@ -82,6 +82,14 @@ function syncSidebarForCartDrawer(open: boolean) {
   const chat = useChatStore.getState();
   chat.setSidebarOpen(false);
   chat.setSidebarCollapsed(true);
+  // Lazy import to avoid circular init with tryon drawer
+  void import("@/components/tryon/tryon-drawer-store").then(
+    ({ useTryOnDrawerStore }) => {
+      if (useTryOnDrawerStore.getState().open) {
+        useTryOnDrawerStore.getState().close();
+      }
+    },
+  );
 }
 
 function normalizeShop(domain: string | null | undefined): string {

@@ -15,7 +15,10 @@ import {
 } from "./intent-branch/bootstrap";
 import { isSupabaseAuthUserId } from "@/lib/fashion-memory/auth";
 import { isGuestUserId } from "@/lib/auth/guest-session";
-import type { GuestFashionMemorySnapshot } from "@/lib/fashion-memory/local/store";
+import {
+  emptyGuestFashionMemorySnapshot,
+  type GuestFashionMemorySnapshot,
+} from "@/lib/fashion-memory/local/store";
 import {
   assembleRouterContext,
   writeRequestEventFromBrief,
@@ -29,6 +32,8 @@ import {
   planSearchFromBrief,
 } from "@/lib/fashion-memory/search-planner/plan-from-brief";
 import { resolveFashionRouterTurn } from "@/lib/fashion-memory/intake/post-router";
+import { isGapDeclined } from "@/lib/fashion-memory/intake/dodge-counter";
+import { ensureQuestionsHaveQuickOptions } from "@/lib/fashion-memory/router/clarification-defaults";
 import {
   fashionCatalogSearchToMetadata,
   loadFashionSearchProfile,
@@ -37,6 +42,7 @@ import {
 import { accessTokenForCatalogMcp } from "@/lib/shopify/catalog-auth";
 import { safeTrim } from "@/lib/fashion-memory/safe-trim";
 import { buildFashionCatalogDebug } from "@/lib/fashion-memory/catalog-search/fashion-catalog-debug";
+import { buildRenderContractWithTryon } from "@/lib/tryon/attach-render";
 import { isAgentDebugEnabled } from "./agent-debug";
 import { logAiChat } from "./observability";
 import {
@@ -45,8 +51,16 @@ import {
   isConsecutiveDuplicateUserTurn,
   markFashionTraceError,
   openFashionTrace,
+  beginTurnPipelineBuffer,
+  drainTurnPipelineBuffer,
   recordPipelineEvent,
 } from "@/lib/fashion-memory/observability";
+import {
+  clearQaFaultsForConversation,
+  enterQaConversation,
+  mergeQaFaultsForConversation,
+  parseQaFaultHeader,
+} from "@/lib/qa/faults";
 import { createTextDeltaCoalescer, formatSse, SSE_HEARTBEAT } from "./sse";
 import type { MessageMetadata, ShoppingModeMetaV1 } from "./types";
 import type {
@@ -58,6 +72,8 @@ export type FashionChatPostBody = {
   conversationId?: string;
   message: string;
   guestFashionMemory?: GuestFashionMemorySnapshot;
+  fashionClarificationMessageId?: string;
+  fashionClarificationAnswers?: Record<string, string>;
 };
 
 function pushAgentDebug(
@@ -107,8 +123,10 @@ function routerMetadata(
       reply: result.reply,
       questions: result.questions,
       ride_along: result.ride_along,
+      stated_facts: result.stated_facts,
       target_person_id: result.target_person_id,
       declined_gaps: extras?.declinedGaps,
+      status: "pending",
       // Legacy flat fields for older clients
       missing: result.questions.map((q) => q.gap),
       quick_options: result.questions[0]?.quick_options,
@@ -119,6 +137,7 @@ function routerMetadata(
     version: 1,
     move: "ready_to_search",
     brief: result.brief,
+    stated_facts: result.brief.stated_facts,
     declined_gaps: extras?.declinedGaps,
     trace_id: extras?.traceId,
   };
@@ -144,10 +163,24 @@ export function createFashionChatSseStream(params: {
   body: FashionChatPostBody;
   signal?: AbortSignal;
   userId: string;
+  qaFaultsHeader?: string | null;
+  /** E2E/test hooks — inject LLM + curation without env patching. */
+  testHooks?: {
+    routerDeps?: import("@/lib/fashion-memory/router/llm-router").RunFashionRouterDeps;
+    plannerDeps?: import("@/lib/fashion-memory/search-planner/llm-planner").RunSearchPlannerDeps;
+    createMessage?: import("@/lib/fashion-memory/catalog-search/types").SearchFashionCatalogPlanParams["createMessage"];
+    resolveCurationMessage?: import("@/lib/fashion-memory/catalog-search/types").SearchFashionCatalogPlanParams["resolveCurationMessage"];
+  };
 }): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   const userId = params.userId;
   const query = params.body.message?.trim() ?? "";
+  const guestFashionSnapshot: GuestFashionMemorySnapshot | undefined =
+    isGuestUserId(userId)
+      ? params.body.guestFashionMemory
+        ? structuredClone(params.body.guestFashionMemory)
+        : emptyGuestFashionMemorySnapshot()
+      : undefined;
 
   return new ReadableStream({
     async start(controller) {
@@ -163,6 +196,26 @@ export function createFashionChatSseStream(params: {
 
       const heartbeat = setInterval(() => push(SSE_HEARTBEAT), 15_000);
       const coalescer = createTextDeltaCoalescer(push);
+      const narrateFashion = (
+        line: string | null,
+        previewImages?: string[],
+        droppedImages?: string[],
+      ) => {
+        if (
+          !line &&
+          !previewImages?.length &&
+          !droppedImages?.length
+        ) {
+          return;
+        }
+        push(
+          formatSse("narration_line", {
+            ...(line ? { line } : {}),
+            ...(previewImages?.length ? { previewImages } : {}),
+            ...(droppedImages?.length ? { droppedImages } : {}),
+          }),
+        );
+      };
       let extractionSpawn: {
         conversationId: string;
         userMessageId: string;
@@ -170,6 +223,7 @@ export function createFashionChatSseStream(params: {
       } | null = null;
       let traceId: string | null = null;
       const turnStarted = Date.now();
+      let activeConversationId: string | null = null;
 
       try {
         if (!query) {
@@ -183,6 +237,12 @@ export function createFashionChatSseStream(params: {
           userId,
         });
         const conv = ensured;
+        activeConversationId = conv.id;
+        mergeQaFaultsForConversation(
+          conv.id,
+          parseQaFaultHeader(params.qaFaultsHeader ?? null),
+        );
+        enterQaConversation(conv.id);
         push(
           formatSse("conversation", {
             conversationId: conv.id,
@@ -191,7 +251,11 @@ export function createFashionChatSseStream(params: {
           }),
         );
 
-        await skipPendingClarificationsForConversation(conv.id);
+        await skipPendingClarificationsForConversation(conv.id, {
+          fashionClarificationMessageId:
+            params.body.fashionClarificationMessageId,
+          fashionClarificationAnswers: params.body.fashionClarificationAnswers,
+        });
         const activeBranchId = await getOrCreateActiveBranchId(
           conv.id,
           conv.title,
@@ -201,6 +265,7 @@ export function createFashionChatSseStream(params: {
           userId,
           conversationId: conv.id,
         });
+        beginTurnPipelineBuffer(traceId);
 
         const priorMessage = await prisma.message.findFirst({
           where: { conversationId: conv.id },
@@ -220,6 +285,7 @@ export function createFashionChatSseStream(params: {
             stage: "dedupe",
             payload: { message: query, reason: "consecutive_duplicate_user_turn" },
           });
+          drainTurnPipelineBuffer(traceId);
           closeFashionTrace({
             traceId,
             status: "complete",
@@ -255,7 +321,7 @@ export function createFashionChatSseStream(params: {
         const routerContext = await assembleRouterContext({
           conversationId: conv.id,
           userId,
-          guestSnapshot: params.body.guestFashionMemory,
+          guestSnapshot: guestFashionSnapshot,
         });
 
         recordPipelineEvent({
@@ -294,17 +360,28 @@ export function createFashionChatSseStream(params: {
           conversationId: conv.id,
           userId,
           routerContext,
-          guestSnapshot: params.body.guestFashionMemory,
+          guestSnapshot: guestFashionSnapshot,
           signal: params.signal,
           traceId,
           lastUserMessage: query,
+          deps: params.testHooks?.routerDeps,
         });
 
         let routerResult = resolved.routerResult;
 
         let content = assistantContent(routerResult);
-        coalescer.enqueue(content);
-        coalescer.flush();
+        if (routerResult.move === "ready_to_search") {
+          push(
+            formatSse("fashion_pipeline", {
+              phase: "started",
+              conversationId: conv.id,
+            }),
+          );
+          narrateFashion("Planning your search");
+        } else {
+          coalescer.enqueue(content);
+          coalescer.flush();
+        }
 
         const fashionRouter = routerMetadata(routerResult, {
           traceId: traceId ?? undefined,
@@ -341,7 +418,7 @@ export function createFashionChatSseStream(params: {
                 conversationId: conv.id,
                 personId: resolvedRecipientId,
                 attributes,
-                guestSnapshot: params.body.guestFashionMemory,
+                guestSnapshot: guestFashionSnapshot,
               }).catch((err) => {
                 logAiChat("warn", "fashion_brief_request_event_failed", {
                   error: String(err),
@@ -367,9 +444,10 @@ export function createFashionChatSseStream(params: {
               userId,
               recipientPersonId: resolvedRecipientId,
               currentDate: routerContext.currentDate,
-              guestSnapshot: params.body.guestFashionMemory,
+              guestSnapshot: guestFashionSnapshot,
               signal: params.signal,
               traceId,
+              plannerDeps: params.testHooks?.plannerDeps,
             });
 
             metadata.fashionSearchPlan = fashionSearchPlanToMetadata(searchPlan, {
@@ -384,13 +462,28 @@ export function createFashionChatSseStream(params: {
               }),
             );
 
+            const slotCount = searchPlan.slots.length;
+            const queryLabel =
+              searchPlan.brief.garments[0]?.trim() ||
+              searchPlan.brief.style_direction?.trim() ||
+              routerResult.brief.garments[0]?.trim() ||
+              "your look";
+            narrateFashion(
+              `Exploring ${slotCount} angle${slotCount === 1 ? "" : "s"} for “${queryLabel}”`,
+            );
+            narrateFashion("Searching stores");
+
             const catalogProfile = await loadFashionSearchProfile({
               userId,
               recipientPersonId: resolvedRecipientId,
               conversationId: conv.id,
-              guestSnapshot: params.body.guestFashionMemory,
+              guestSnapshot: guestFashionSnapshot,
             });
             const catalogToken = await accessTokenForCatalogMcp();
+            const skipBudgetRaiseAsk = isGapDeclined(resolved.declinedGaps, {
+              gap: "budget",
+              person_id: resolvedRecipientId,
+            });
             const catalogSearch = await searchFashionCatalogPlan({
               plan: searchPlan,
               profile: catalogProfile,
@@ -398,54 +491,109 @@ export function createFashionChatSseStream(params: {
               recipientFacts: resolved.recipientFacts,
               signal: params.signal,
               traceId,
+              searchId: assistantRow.id,
+              userId,
+              guestSnapshot: guestFashionSnapshot,
+              skipBudgetRaiseAsk,
+              onPhase: (phase) =>
+                narrateFashion(
+                  phase.line ?? null,
+                  phase.previewImages,
+                  phase.droppedImages,
+                ),
+              createMessage: params.testHooks?.createMessage,
+              resolveCurationMessage: params.testHooks?.resolveCurationMessage,
             });
-            metadata.fashionCatalogSearch =
-              fashionCatalogSearchToMetadata(catalogSearch, {
-                trace_id: traceId ?? undefined,
-              });
-
-            // HARD RULE: stated brand outcome must appear in the reply.
-            if (catalogSearch.brand_narration?.trim()) {
-              const brandLine = catalogSearch.brand_narration.trim();
-              content = `${content}\n\n${brandLine}`;
-              coalescer.enqueue(`\n\n${brandLine}`);
-              coalescer.flush();
-            }
-
-            if (catalogSearch.curation?.narration.opening?.trim()) {
-              const curation = catalogSearch.curation;
-              const degraded =
-                curation.meta.fallback ||
-                (curation.meta.thin_slots?.length ?? 0) > 0;
-              const opening = curation.narration.opening.trim();
-              const thinNote = curation.narration.thin_note?.trim();
-              // Prefer honest thin/fallback copy over a success opening.
-              const line =
-                degraded && thinNote
-                  ? thinNote
-                  : degraded && /fitting room|strongest verified/i.test(opening)
-                    ? thinNote ||
-                      "Partial verified shortlist — not a finished fitting room."
-                    : opening;
-              content = `${content}\n\n${line}`;
-              coalescer.enqueue(`\n\n${line}`);
-              coalescer.flush();
-              push(
-                formatSse("fashion_curation", {
-                  version: 1,
-                  conversationId: conv.id,
-                  curation: catalogSearch.curation,
+            let catalogMeta = fashionCatalogSearchToMetadata(catalogSearch, {
+              trace_id: traceId ?? undefined,
+            });
+            if (catalogSearch.curation) {
+              catalogMeta = {
+                ...catalogMeta,
+                render: await buildRenderContractWithTryon({
+                  presentation: catalogSearch.curation,
+                  plan: searchPlan,
+                  userId,
                 }),
-              );
+              };
             }
+            metadata.fashionCatalogSearch = catalogMeta;
 
             push(
               formatSse("fashion_catalog_search", {
                 version: 1,
                 conversationId: conv.id,
-                result: catalogSearch,
+                catalogSearch: metadata.fashionCatalogSearch,
               }),
             );
+            push(
+              formatSse("fashion_pipeline", {
+                phase: "complete",
+                conversationId: conv.id,
+              }),
+            );
+
+            if (catalogSearch.budget_raise_ask) {
+              const ask = catalogSearch.budget_raise_ask;
+              routerResult = {
+                move: "ask_clarification",
+                reply: ask.reply,
+                questions: ensureQuestionsHaveQuickOptions(ask.questions),
+                target_person_id: resolvedRecipientId,
+              };
+              metadata.fashionRouter = routerMetadata(routerResult, {
+                traceId: traceId ?? undefined,
+                declinedGaps: resolved.declinedGaps,
+              });
+              content = assistantContent(routerResult);
+              coalescer.enqueue(content);
+              coalescer.flush();
+              logAiChat("info", "fashion_budget_raise_ask_streamed", {
+                conversationId: conv.id,
+                traceId,
+                reason: ask.reason,
+                stated_max: ask.stated_max,
+                min_viable_total: ask.min_viable_total,
+              });
+            } else {
+              coalescer.enqueue(content);
+              coalescer.flush();
+
+              // HARD RULE: stated brand outcome must appear in the reply.
+              if (catalogSearch.brand_narration?.trim()) {
+                const brandLine = catalogSearch.brand_narration.trim();
+                content = `${content}\n\n${brandLine}`;
+                coalescer.enqueue(`\n\n${brandLine}`);
+                coalescer.flush();
+              }
+
+              if (catalogSearch.curation?.narration.opening?.trim()) {
+                const curation = catalogSearch.curation;
+                const degraded =
+                  curation.meta.fallback ||
+                  (curation.meta.thin_slots?.length ?? 0) > 0;
+                const opening = curation.narration.opening.trim();
+                const thinNote = curation.narration.thin_note?.trim();
+                // Prefer honest thin/fallback copy over a success opening.
+                const line =
+                  degraded && thinNote
+                    ? thinNote
+                    : degraded && /fitting room|strongest verified/i.test(opening)
+                      ? thinNote ||
+                        "Partial verified shortlist — not a finished fitting room."
+                      : opening;
+                content = `${content}\n\n${line}`;
+                coalescer.enqueue(`\n\n${line}`);
+                coalescer.flush();
+                push(
+                  formatSse("fashion_curation", {
+                    version: 1,
+                    conversationId: conv.id,
+                    curation: catalogSearch.curation,
+                  }),
+                );
+              }
+            }
 
             pushAgentDebug(push, {
               stage: "fashion_catalog",
@@ -453,10 +601,11 @@ export function createFashionChatSseStream(params: {
               conversationId: conv.id,
               userMessageId: userRow.id,
               assistantMessageId: assistantRow.id,
-              data: buildFashionCatalogDebug(catalogSearch) as unknown as Record<
-                string,
-                unknown
-              >,
+              data: buildFashionCatalogDebug(
+                catalogSearch,
+                Date.now(),
+                traceId,
+              ) as unknown as Record<string, unknown>,
             });
 
             if (catalogSearch.curation_debug) {
@@ -509,19 +658,25 @@ export function createFashionChatSseStream(params: {
           }
         }
 
+        const fashionRouterOut = metadata.fashionRouter!;
         push(
           formatSse("fashion_router", {
             conversationId: conv.id,
-            move: fashionRouter.move,
-            reply: fashionRouter.reply,
-            questions: fashionRouter.questions,
-            ride_along: fashionRouter.ride_along,
-            missing: fashionRouter.missing,
-            quick_options: fashionRouter.quick_options,
-            brief: fashionRouter.brief,
-            target_person_id: fashionRouter.target_person_id,
+            move: fashionRouterOut.move,
+            reply: fashionRouterOut.reply,
+            questions: fashionRouterOut.questions,
+            ride_along: fashionRouterOut.ride_along,
+            missing: fashionRouterOut.missing,
+            quick_options: fashionRouterOut.quick_options,
+            brief: fashionRouterOut.brief,
+            target_person_id: fashionRouterOut.target_person_id,
           }),
         );
+
+        const pipelineEvents = drainTurnPipelineBuffer(traceId);
+        if (pipelineEvents.length) {
+          metadata.fashionPipelineEvents = pipelineEvents;
+        }
 
         await persistAssistantFinal({
           messageId: assistantRow.id,
@@ -571,6 +726,15 @@ export function createFashionChatSseStream(params: {
           },
         });
 
+        if (guestFashionSnapshot) {
+          push(
+            formatSse("fashion_memory_snapshot", {
+              version: 1,
+              snapshot: guestFashionSnapshot,
+            }),
+          );
+        }
+
         push(
           formatSse("done", {
             messageId: assistantRow.id,
@@ -583,6 +747,7 @@ export function createFashionChatSseStream(params: {
           }),
         );
       } catch (error) {
+        drainTurnPipelineBuffer(traceId);
         const err = error instanceof Error ? error : new Error(String(error));
         markFashionTraceError(traceId);
         logAiChat("error", "fashion_chat_router_failed", {
@@ -592,6 +757,9 @@ export function createFashionChatSseStream(params: {
         push(formatSse("error", { message: "Fashion chat failed." }));
         push(formatSse("done", { status: "failed" }));
       } finally {
+        if (activeConversationId) {
+          clearQaFaultsForConversation(activeConversationId);
+        }
         clearInterval(heartbeat);
         closed = true;
         try {

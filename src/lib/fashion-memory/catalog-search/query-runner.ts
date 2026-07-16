@@ -2,16 +2,17 @@ import {
   buildCatalogCallContext,
   buildSearchCatalogRequest,
   CATALOG_SEARCH_PAGE_LIMIT,
-  searchCatalog,
   type CatalogProductSummary,
   type CatalogSearchContext,
   type CatalogSearchFilters,
 } from "@/lib/shopify/catalog";
+import { resolveSearchCatalog } from "@/lib/shopify/catalog-client-override";
 import {
   abortSignalWithTimeout,
   type AbortScope,
 } from "@/lib/ai-chat/abort-scope";
 import { logAiChat } from "@/lib/ai-chat/observability";
+import { consumeQaFault } from "@/lib/qa/faults";
 import { recordPipelineEvent } from "../observability/trace";
 import { catalogSummaryToProductCard } from "./product-card";
 import { pipelineProductFromSummary, serializeCatalogForDebug } from "@/lib/ai-chat/search/pipeline-debug";
@@ -56,6 +57,28 @@ export async function runCatalogQueryWithTimeout(
   params: RunCatalogQueryParams,
 ): Promise<RunCatalogQueryResult> {
   const started = Date.now();
+
+  if (
+    params.variantIndex === 0 &&
+    consumeQaFault(null, "fail_one_lane", params.traceId, {
+      slot_id: params.slotId,
+      variant_index: params.variantIndex,
+      query: params.query.slice(0, 120),
+    })
+  ) {
+    const log: FashionCatalogQueryLog = {
+      slot_id: params.slotId,
+      variant_index: params.variantIndex,
+      query: params.query,
+      reformulation: params.reformulation ?? false,
+      status: "failed",
+      raw_count: 0,
+      duration_ms: Date.now() - started,
+      error: "qa_fault:fail_one_lane",
+    };
+    return { products: [], log, catalogById: {} };
+  }
+
   const opSignal = params.abortScope?.fork();
   const deadline = abortSignalWithTimeout(
     opSignal,
@@ -228,7 +251,7 @@ async function fetchCatalogQueryProducts(
         },
       );
 
-      const res = await searchCatalog(
+      const res = await resolveSearchCatalog()(
         params.accessToken,
         params.query,
         params.filters,

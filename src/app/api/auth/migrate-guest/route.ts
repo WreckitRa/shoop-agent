@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
-import { isValidGuestId } from "@/lib/auth/guest-session";
+import { isValidGuestSessionToken } from "@/lib/auth/guest-session";
 import { migrateGuestDataToUser } from "@/lib/auth/migrate-guest-data";
 import type { GuestLocalData } from "@/lib/client/guest-storage";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const migrateGuestBodySchema = z
   .object({
-    guestId: z.string().refine(isValidGuestId, "Invalid guest session id."),
+    guestId: z.string().refine(isValidGuestSessionToken, "Invalid guest session id."),
     data: z
       .object({
         version: z.literal(1),

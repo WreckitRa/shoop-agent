@@ -259,6 +259,12 @@ export async function persistAssistantFinal(params: {
 /** When the user sends a new chat message, unanswered clarification chips are dismissed. */
 export async function skipPendingClarificationsForConversation(
   conversationId: string,
+  opts?: {
+    /** Fashion quiz message that was just answered via chips. */
+    fashionClarificationMessageId?: string;
+    /** question.text → answer label. */
+    fashionClarificationAnswers?: Record<string, string>;
+  },
 ) {
   const rows: { id: string; metadata: unknown }[] = await prisma.message.findMany({
     where: {
@@ -273,15 +279,45 @@ export async function skipPendingClarificationsForConversation(
 
   const updates = rows.flatMap((row) => {
     const meta = row.metadata as MessageMetadata | null;
-    if (meta?.clarification?.status !== "pending") return [];
+    if (!meta) return [];
+
+    let nextMeta: MessageMetadata | null = null;
+
+    if (meta.clarification?.status === "pending") {
+      nextMeta = {
+        ...meta,
+        clarification: { ...meta.clarification, status: "skipped" },
+      };
+    }
+
+    const fashion = meta.fashionRouter;
+    if (
+      fashion?.move === "ask_clarification" &&
+      fashion.status !== "answered"
+    ) {
+      const isSource =
+        opts?.fashionClarificationMessageId != null &&
+        opts.fashionClarificationMessageId === row.id;
+      nextMeta = {
+        ...(nextMeta ?? meta),
+        fashionRouter: {
+          ...fashion,
+          status: "answered",
+          ...(isSource && opts.fashionClarificationAnswers
+            ? { answers: opts.fashionClarificationAnswers }
+            : fashion.answers
+              ? { answers: fashion.answers }
+              : {}),
+        },
+      };
+    }
+
+    if (!nextMeta) return [];
     return [
       prisma.message.update({
         where: { id: row.id },
         data: {
-          metadata: {
-            ...meta,
-            clarification: { ...meta.clarification, status: "skipped" },
-          } as InputJsonValue,
+          metadata: nextMeta as InputJsonValue,
         },
       }),
     ];

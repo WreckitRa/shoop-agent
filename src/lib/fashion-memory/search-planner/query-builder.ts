@@ -5,6 +5,10 @@ import {
   buildDeterministicQueryVariants,
 } from "./deterministic-builder";
 import { allowedColorWordsForSlot } from "./palette-ladder";
+import {
+  MAX_QUERY_VARIANTS,
+  MIN_QUERY_VARIANTS,
+} from "./query-rules";
 import { validateSlotQueryVariants } from "./validator";
 
 export type RepairSlotResult = {
@@ -106,15 +110,16 @@ export function repairSlotQueryVariants(
   }
 
   let variants = validation.variants;
-  if (variants.length === 1) {
-    const extra = buildDeterministicQueryVariants({
+  if (variants.length < MIN_QUERY_VARIANTS) {
+    const extras = buildDeterministicQueryVariants({
       garment: slot.garment,
       styleDirection,
       mustHaves: plan.brief.must_haves,
       includeColor: false,
       department,
-    }).find((v) => v !== variants[0]);
-    if (extra) {
+    });
+    for (const extra of extras) {
+      if (variants.length >= MIN_QUERY_VARIANTS) break;
       const merged = validateSlotQueryVariants({
         variants: [...variants, extra],
         garment: slot.garment,
@@ -122,14 +127,16 @@ export function repairSlotQueryVariants(
         allowedColorWords: allowedColors,
         department,
       });
-      variants = merged.variants.length >= 2 ? merged.variants : variants;
+      if (merged.variants.length > variants.length) {
+        variants = merged.variants;
+      }
     }
   }
 
   return {
     slot: {
       ...slot,
-      query_variants: variants.slice(0, 3),
+      query_variants: variants.slice(0, MAX_QUERY_VARIANTS),
     },
     usedDeterministicFallback,
     validationReasons: allReasons,

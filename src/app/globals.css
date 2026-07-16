@@ -1050,6 +1050,8 @@
 .shoop-rack {
   position: relative;
   padding-top: 10px;
+  padding-bottom: 28px;
+  overflow: visible;
 }
 
 /* Hanger rail the cards hang from. */
@@ -1076,6 +1078,19 @@
   gap: 8px;
 }
 
+.shoop-rack__divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  margin: 10px 2px 0;
+  background: linear-gradient(
+    180deg,
+    rgba(227, 16, 15, 0) 0%,
+    rgba(227, 16, 15, 0.35) 30%,
+    rgba(227, 16, 15, 0.35) 70%,
+    rgba(227, 16, 15, 0) 100%
+  );
+}
+
 .shoop-rack__hanger {
   position: relative;
   flex: 1 1 0;
@@ -1086,6 +1101,18 @@
   animation-delay: var(--rack-delay, 0s);
 }
 
+.shoop-rack__hanger--drop {
+  flex: 1 1 0;
+  min-width: 0;
+  /* No bob while hanging — stillness then fall reads as a reject. */
+  animation: none;
+}
+
+.shoop-rack__hanger--falling {
+  animation: shoop-drop-fall 0.7s cubic-bezier(0.4, 0.05, 0.9, 0.4) forwards;
+  z-index: 2;
+}
+
 /* The little hook that connects each card to the rail. */
 .shoop-rack__hook {
   width: 8px;
@@ -1094,6 +1121,10 @@
   border: 1.5px solid rgba(154, 151, 144, 0.7);
   border-bottom: none;
   border-radius: 999px 999px 0 0;
+}
+
+.shoop-rack__hook--drop {
+  border-color: rgba(227, 16, 15, 0.75);
 }
 
 .shoop-rack__flip {
@@ -1114,6 +1145,25 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   border: 1px solid rgba(230, 227, 222, 0.9);
+}
+
+/* Drop hangers don't flip — single face, sized like survivor cards. */
+.shoop-rack__hanger--drop .shoop-rack__face--drop {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1.5px solid rgba(227, 16, 15, 0.9);
+  box-shadow:
+    0 0 0 2px rgba(227, 16, 15, 0.14),
+    0 3px 8px rgba(227, 16, 15, 0.12);
+  background: #f3f1ee;
+}
+
+.shoop-rack__hanger--drop .shoop-rack__img {
+  filter: grayscale(0.25) brightness(0.94);
 }
 
 .shoop-rack__face--front {
@@ -1188,6 +1238,21 @@
   }
 }
 
+@keyframes shoop-drop-fall {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  35% {
+    opacity: 0.95;
+    transform: translateY(6px) rotate(-4deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(52px) rotate(12deg) scale(0.92);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shoop-rack__hanger,
   .shoop-rack__flip {
@@ -1198,6 +1263,10 @@
   }
   .shoop-rack__shimmer {
     animation: none;
+  }
+  .shoop-rack__hanger--falling {
+    animation: none;
+    opacity: 0.45;
   }
 }
 

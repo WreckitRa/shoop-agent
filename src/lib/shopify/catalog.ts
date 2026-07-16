@@ -704,9 +704,72 @@ async function callCatalogTool<T>(
 }
 
 /**
+ * Max `filters.shop_ids` per `search_catalog` call.
+ * Shopify has historically hung / returned -32000 when sent ~460 at once;
+ * chunking keeps every request under this size. Set env to `0` to send the
+ * full list in one call.
+ */
+export const CATALOG_SHOP_IDS_CHUNK_SIZE_DEFAULT = 100;
+
+export function getCatalogShopIdsChunkSize(): number {
+  const raw = process.env.CATALOG_SHOP_IDS_CHUNK_SIZE?.trim();
+  if (raw === undefined || raw === "") return CATALOG_SHOP_IDS_CHUNK_SIZE_DEFAULT;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return CATALOG_SHOP_IDS_CHUNK_SIZE_DEFAULT;
+  if (n === 0) return Number.POSITIVE_INFINITY;
+  return Math.max(1, Math.floor(n));
+}
+
+/** Split shop GIDs into request-sized cohorts. */
+export function chunkShopIds(
+  shopIds: readonly string[],
+  chunkSize: number = getCatalogShopIdsChunkSize(),
+): string[][] {
+  if (shopIds.length === 0) return [];
+  if (!Number.isFinite(chunkSize) || shopIds.length <= chunkSize) {
+    return [[...shopIds]];
+  }
+  const size = Math.max(1, Math.floor(chunkSize));
+  const out: string[][] = [];
+  for (let i = 0; i < shopIds.length; i += size) {
+    out.push(shopIds.slice(i, i + size));
+  }
+  return out;
+}
+
+/**
+ * Round-robin merge so early shops in the allowlist don't dominate rankings.
+ * Dedupes by product id (first win).
+ */
+export function mergeCatalogProductPages(
+  pages: readonly (readonly CatalogProductSummary[])[],
+): CatalogProductSummary[] {
+  const seen = new Set<string>();
+  const out: CatalogProductSummary[] = [];
+  let i = 0;
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const page of pages) {
+      if (i >= page.length) continue;
+      progress = true;
+      const product = page[i]!;
+      if (!product.id || seen.has(product.id)) continue;
+      seen.add(product.id);
+      out.push(product);
+    }
+    i += 1;
+  }
+  return out;
+}
+
+/**
  * Merge caller filters with the curated shop allowlist.
  * When the allowlist is on, every `search_catalog` is scoped to those shops
  * (intersected with any caller-supplied `shop_ids`).
+ *
+ * Empty intersection yields `shop_ids: []` (never drops the filter — callers
+ * must treat that as zero results, not global search).
  */
 export function applyCuratedShopAllowlist(
   filters: CatalogSearchFilters,
@@ -719,6 +782,16 @@ export function applyCuratedShopAllowlist(
       ? caller.filter((id) => allow.includes(id))
       : [...allow];
   return { ...filters, shop_ids };
+}
+
+function resolvedSearchLimit(options: SearchCatalogOptions): number {
+  if (typeof options.limit === "number" && Number.isFinite(options.limit)) {
+    return Math.min(
+      CATALOG_SEARCH_PAGE_LIMIT,
+      Math.max(1, Math.round(options.limit)),
+    );
+  }
+  return CATALOG_SEARCH_PAGE_LIMIT;
 }
 
 /** Canonical `search_catalog` tool args (one page). */
@@ -742,10 +815,7 @@ export function buildSearchCatalogRequest(
   if (options.view) catalog.view = options.view;
   const pagination: Record<string, unknown> = {};
   if (typeof options.limit === "number" && Number.isFinite(options.limit)) {
-    pagination.limit = Math.min(
-      CATALOG_SEARCH_PAGE_LIMIT,
-      Math.max(1, Math.round(options.limit)),
-    );
+    pagination.limit = resolvedSearchLimit(options);
   }
   if (options.cursor?.trim()) {
     pagination.cursor = options.cursor.trim();
@@ -756,23 +826,86 @@ export function buildSearchCatalogRequest(
   return catalog;
 }
 
+/**
+ * One `search_catalog` page. When the curated allowlist (or caller `shop_ids`)
+ * exceeds {@link getCatalogShopIdsChunkSize}, fans out parallel chunked
+ * requests and merges — so every network call stays shop-scoped.
+ */
 export async function searchCatalog(
   accessToken: string,
   query: string,
   filters: CatalogSearchFilters = {},
   options: SearchCatalogOptions = {},
 ): Promise<CatalogSearchResult> {
-  const catalog = buildSearchCatalogRequest(query, filters, options);
+  const scoped = applyCuratedShopAllowlist(filters);
 
-  return callCatalogTool<CatalogSearchResult>(
-    accessToken,
-    "search_catalog",
-    catalog,
-    {
-      signal: options.signal,
-      onMcpExchange: options.onMcpExchange,
-    },
+  // Allowlist intersected to nothing → do not fall through to global search.
+  if (Array.isArray(scoped.shop_ids) && scoped.shop_ids.length === 0) {
+    return { products: [], pagination: { has_next_page: false, total_count: 0 } };
+  }
+
+  const shopIds = scoped.shop_ids;
+  const chunks =
+    shopIds && shopIds.length > 0
+      ? chunkShopIds(shopIds, getCatalogShopIdsChunkSize())
+      : [undefined];
+
+  // Single cohort (no shop filter, or one chunk) — preserve cursor pagination.
+  if (chunks.length <= 1) {
+    const catalog = buildSearchCatalogRequest(
+      query,
+      chunks[0] ? { ...scoped, shop_ids: chunks[0] } : scoped,
+      options,
+    );
+    return callCatalogTool<CatalogSearchResult>(
+      accessToken,
+      "search_catalog",
+      catalog,
+      {
+        signal: options.signal,
+        onMcpExchange: options.onMcpExchange,
+      },
+    );
+  }
+
+  // Cross-chunk cursors aren't meaningful — the first merged page already
+  // searches every shop cohort. Further pages would only deepen within cohorts.
+  if (options.cursor?.trim()) {
+    return { products: [], pagination: { has_next_page: false } };
+  }
+
+  const limit = resolvedSearchLimit(options);
+  const pages = await Promise.all(
+    chunks.map((chunk) => {
+      const catalog = buildSearchCatalogRequest(
+        query,
+        { ...scoped, shop_ids: chunk },
+        { ...options, cursor: undefined, limit },
+      );
+      return callCatalogTool<CatalogSearchResult>(
+        accessToken,
+        "search_catalog",
+        catalog,
+        {
+          signal: options.signal,
+          onMcpExchange: options.onMcpExchange,
+        },
+      );
+    }),
   );
+
+  const merged = mergeCatalogProductPages(pages.map((p) => p.products ?? []));
+  const totalCount = pages.reduce(
+    (sum, p) => sum + (p.pagination?.total_count ?? 0),
+    0,
+  );
+  return {
+    products: merged.slice(0, limit),
+    pagination: {
+      has_next_page: false,
+      total_count: totalCount || merged.length,
+    },
+  };
 }
 
 /** Resolve up to 50 IDs (Global Catalog) — see about.md / global-catalog-mcp.md */

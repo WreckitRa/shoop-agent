@@ -4,6 +4,7 @@ import { logAiChat } from "@/lib/ai-chat/observability";
 import { kickProductCurationJobWorker } from "@/lib/ai-chat/curation/jobs";
 import { kickShoppingMemoryJobWorker } from "@/lib/ai-chat/shopping-memory/jobs";
 import { getAuthContext } from "@/lib/auth/session";
+import { isQaDevEnvironment } from "@/lib/qa/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,9 @@ export async function POST(req: Request) {
       body: parsed.data,
       signal: req.signal,
       userId: auth.userId,
+      qaFaultsHeader: isQaDevEnvironment()
+        ? req.headers.get("x-qa-faults")
+        : null,
     });
 
     return new Response(stream, {

@@ -23,6 +23,10 @@ export {
   FASHION_CURATION_MODEL,
   CURATION_TOOL_NAME,
   CURATION_IMAGE_BUDGET,
+  CURATION_HERO_PICKS,
+  CURATION_LOOKS_TARGET,
+  CURATION_VERIFIED_BENCH,
+  CURATION_UNVERIFIED_OVERFLOW,
   CURATION_LLM_TIMEOUT_MS,
   CURATION_LATENCY_TRIPWIRE_MS,
 } from "./config";
@@ -52,7 +56,9 @@ export {
 } from "./narration-sanitize";
 export {
   recordCurationLatencyMs,
+  recordCurationLlmCallMs,
   curationLatencySnapshot,
+  curationLlmCallLatencySnapshot,
 } from "./latency-metrics";
 export {
   promotePick,

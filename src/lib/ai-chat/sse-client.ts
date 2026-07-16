@@ -26,8 +26,14 @@ export type ChatSseHandlers = {
   onGiftDirections?: (payload: Record<string, unknown>) => void;
   /** Guest fashion memory delta — client persists to localStorage. */
   onFashionMemoryDelta?: (payload: Record<string, unknown>) => void;
+  /** Guest fashion memory full snapshot — client replaces localStorage. */
+  onFashionMemorySnapshot?: (payload: Record<string, unknown>) => void;
   /** Guest fashion request event — direct write to localStorage (no LLM). */
   onFashionRequestEvent?: (payload: Record<string, unknown>) => void;
+  /** Fashion catalog fan-out finished — attach rack metadata before `done`. */
+  onFashionCatalogSearch?: (payload: Record<string, unknown>) => void;
+  /** Fashion search pipeline lifecycle (started / complete). */
+  onFashionPipeline?: (payload: Record<string, unknown>) => void;
   onDone?: (data: Record<string, unknown>) => void;
   onError?: (message: string) => void;
 };
@@ -133,8 +139,17 @@ export async function consumeChatSseStream(
           case "fashion_memory_delta":
             handlers.onFashionMemoryDelta?.(payload);
             break;
+          case "fashion_memory_snapshot":
+            handlers.onFashionMemorySnapshot?.(payload);
+            break;
           case "fashion_request_event":
             handlers.onFashionRequestEvent?.(payload);
+            break;
+          case "fashion_catalog_search":
+            handlers.onFashionCatalogSearch?.(payload);
+            break;
+          case "fashion_pipeline":
+            handlers.onFashionPipeline?.(payload);
             break;
           case "done":
             handlers.onDone?.(payload);

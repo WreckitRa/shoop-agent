@@ -84,7 +84,7 @@ function fiveSlotPlan(brief: FashionSearchBrief = fiveSlotBrief()): FashionSearc
       palette_constraint: null,
       palette_source: "occasion_default" as const,
       options_wanted: 3,
-      query_variants: [`mens ${garment}`, `mens formal ${garment}`, `mens business ${garment}`],
+      query_variants: [`mens ${garment}`, `mens formal ${garment}`, `mens business ${garment}`, `mens premium ${garment}`],
       budget_fraction: 1 / garments.length,
     })),
   };

@@ -6,6 +6,9 @@
  *   - `catalog.context.address_country` — buyer relevance / pricing context
  *
  * `catalog.context.currency` is always set (profile → country hint → USD).
+ * It is a soft presentment hint for Shopify — merchants may still return
+ * prices in another currency; those are hard-dropped client-side as
+ * `currency_mismatch`.
  *
  * Source (in priority order):
  *   profile.shippingCountry → profile.country → default saved address country.

@@ -1,0 +1,183 @@
+import { getSupabaseAdminClient } from "@/lib/auth/supabase-admin";
+import { TRYON_PRIVATE_BUCKET } from "./config";
+
+export type TryonStorageMode = "memory" | "supabase";
+
+const memoryStore = new Map<string, Uint8Array>();
+
+let storageMode: TryonStorageMode =
+  process.env.NODE_ENV === "test" ? "memory" : "supabase";
+
+export function setTryonStorageMode(mode: TryonStorageMode): void {
+  storageMode = mode;
+  memoryStore.clear();
+}
+
+export function clearTryonMemoryStorage(): void {
+  memoryStore.clear();
+}
+
+function storagePath(userId: string, personId: string, kind: string, name: string) {
+  return `${userId}/${personId}/${kind}/${name}`;
+}
+
+let bucketEnsured = false;
+
+/** Create private try-on bucket on first use (idempotent). */
+export async function ensureTryonBucket(): Promise<void> {
+  if (storageMode === "memory" || bucketEnsured) return;
+
+  const client = getSupabaseAdminClient();
+  const { data: buckets, error: listError } = await client.storage.listBuckets();
+  if (listError) {
+    throw new Error(`tryon bucket list failed: ${listError.message}`);
+  }
+  if (buckets?.some((b) => b.name === TRYON_PRIVATE_BUCKET)) {
+    bucketEnsured = true;
+    return;
+  }
+
+  const { error: createError } = await client.storage.createBucket(
+    TRYON_PRIVATE_BUCKET,
+    {
+      public: false,
+      fileSizeLimit: 15 * 1024 * 1024,
+    },
+  );
+  if (
+    createError &&
+    !/already exists|duplicate/i.test(createError.message)
+  ) {
+    throw new Error(`tryon bucket setup failed: ${createError.message}`);
+  }
+  bucketEnsured = true;
+}
+
+export function resetTryonBucketEnsuredForTests(): void {
+  bucketEnsured = false;
+}
+
+export async function uploadPrivateObject(params: {
+  userId: string;
+  personId: string;
+  kind: "source-photo" | "avatar" | "tryon";
+  filename: string;
+  bytes: Uint8Array;
+  contentType: string;
+}): Promise<{ path: string }> {
+  const path = storagePath(
+    params.userId,
+    params.personId,
+    params.kind,
+    params.filename,
+  );
+  if (storageMode === "memory") {
+    memoryStore.set(path, params.bytes);
+    return { path };
+  }
+  await ensureTryonBucket();
+  const client = getSupabaseAdminClient();
+  const { error } = await client.storage
+    .from(TRYON_PRIVATE_BUCKET)
+    .upload(path, params.bytes, {
+      contentType: params.contentType,
+      upsert: true,
+    });
+  if (error) throw new Error(`tryon upload failed: ${error.message}`);
+  return { path };
+}
+
+export async function createSignedUrl(
+  path: string,
+  expiresInSeconds = 3600,
+): Promise<string> {
+  if (storageMode === "memory") {
+    const bytes = memoryStore.get(path);
+    if (!bytes) throw new Error(`memory object missing: ${path}`);
+    const b64 = Buffer.from(bytes).toString("base64");
+    return `data:image/jpeg;base64,${b64}`;
+  }
+  await ensureTryonBucket();
+  const client = getSupabaseAdminClient();
+  const { data, error } = await client.storage
+    .from(TRYON_PRIVATE_BUCKET)
+    .createSignedUrl(path, expiresInSeconds);
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message ?? "signed url failed");
+  }
+  return data.signedUrl;
+}
+
+export async function deletePrivateObjects(paths: string[]): Promise<void> {
+  if (!paths.length) return;
+  if (storageMode === "memory") {
+    for (const p of paths) memoryStore.delete(p);
+    return;
+  }
+  const client = getSupabaseAdminClient();
+  const { error } = await client.storage
+    .from(TRYON_PRIVATE_BUCKET)
+    .remove(paths);
+  if (error) throw new Error(`tryon delete failed: ${error.message}`);
+}
+
+export async function listPersonStoragePaths(
+  userId: string,
+  personId: string,
+): Promise<string[]> {
+  if (storageMode === "memory") {
+    const prefix = `${userId}/${personId}/`;
+    return [...memoryStore.keys()].filter((k) => k.startsWith(prefix));
+  }
+  const client = getSupabaseAdminClient();
+  const prefixes = ["source-photo", "avatar", "tryon"] as const;
+  const out: string[] = [];
+  for (const kind of prefixes) {
+    const folder = `${userId}/${personId}/${kind}`;
+    const { data, error } = await client.storage
+      .from(TRYON_PRIVATE_BUCKET)
+      .list(folder, { limit: 500 });
+    if (error) continue;
+    for (const item of data ?? []) {
+      if (item.name) out.push(`${folder}/${item.name}`);
+    }
+  }
+  return out;
+}
+
+export async function persistProviderImage(params: {
+  userId: string;
+  personId: string;
+  kind: "avatar" | "tryon";
+  filename: string;
+  imageUrl: string;
+  imageBytes?: Uint8Array;
+  contentType?: string;
+}): Promise<{ path: string; signedUrl: string; contentType: string }> {
+  let bytes = params.imageBytes;
+  let contentType = params.contentType ?? "image/jpeg";
+  if (!bytes) {
+    if (params.imageUrl.startsWith("data:")) {
+      const match = params.imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match) throw new Error("invalid data url");
+      contentType = match[1];
+      bytes = Uint8Array.from(Buffer.from(match[2], "base64"));
+    } else {
+      const res = await fetch(params.imageUrl);
+      if (!res.ok) throw new Error(`fetch provider image ${res.status}`);
+      const buf = await res.arrayBuffer();
+      bytes = new Uint8Array(buf);
+      contentType = res.headers.get("content-type") ?? contentType;
+    }
+  }
+  const { path } = await uploadPrivateObject({
+    userId: params.userId,
+    personId: params.personId,
+    kind: params.kind,
+    filename: params.filename,
+    bytes,
+    contentType,
+  });
+  const signedUrl = await createSignedUrl(path);
+  return { path, signedUrl, contentType };
+}

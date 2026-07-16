@@ -134,6 +134,20 @@ export class FashionLocalStore {
     );
   }
 
+  updatePersonName(params: {
+    userId: string;
+    personId: string;
+    name: string;
+  }): PersonRow | null {
+    const person = this.getPersonById(params.userId, params.personId);
+    if (!person) return null;
+    const trimmed = params.name.trim();
+    if (!trimmed) return person;
+    person.name = trimmed;
+    person.updated_at = nowIso();
+    return person;
+  }
+
   findPersonByRelation(params: {
     userId: string;
     relation: PersonRelation;
@@ -166,17 +180,36 @@ export class FashionLocalStore {
     const relation = params.relation ?? "self";
     if (relation === "self") return this.ensureSelfPerson(params.userId);
 
-    const match = this.findPersonByRelation({
-      userId: params.userId,
-      relation,
-      name: params.name,
-    });
-    if (match) return match;
+    const name = params.name?.trim() || null;
+
+    if (name) {
+      const byName = this.findPersonByRelation({
+        userId: params.userId,
+        relation,
+        name,
+      });
+      if (byName) return byName;
+    }
+
+    const sameRelation = this.snapshot.people.filter(
+      (p) => p.user_id === params.userId && p.relation === relation,
+    );
+
+    if (name && sameRelation.length === 1 && !sameRelation[0]!.name?.trim()) {
+      const updated = this.updatePersonName({
+        userId: params.userId,
+        personId: sameRelation[0]!.id,
+        name,
+      });
+      if (updated) return updated;
+    }
+
+    if (!name && sameRelation[0]) return sameRelation[0]!;
 
     return this.createPerson({
       userId: params.userId,
       relation,
-      name: params.name,
+      name,
     });
   }
 

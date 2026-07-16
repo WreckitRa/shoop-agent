@@ -59,5 +59,8 @@ export const BANNED_QUERY_PATTERNS: RegExp[] = [
 ];
 
 export const MAX_VARIANT_TOKEN_OVERLAP = 0.6;
-export const MIN_QUERY_VARIANTS = 2;
-export const MAX_QUERY_VARIANTS = 3;
+/** Planner emits 4–5; catalog runs top 3 first, spares 4–5 on thin/empty. */
+export const MIN_QUERY_VARIANTS = 4;
+export const MAX_QUERY_VARIANTS = 5;
+/** Primary catalog fan-out per slot. */
+export const CATALOG_PRIMARY_QUERY_COUNT = 3;

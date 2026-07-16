@@ -49,7 +49,7 @@ describe("resolveGarmentFamily head-noun heuristic", () => {
     ["Suiting Blazer Vest", "outerwear"],
     ["CLASSIC FIT SUITING BLAZER", "outerwear"],
     ["Round Waxed Cotton Laces | Brown", "footwear_accessory"],
-    ["Men's Classic No Show Sock | Black", "footwear_accessory"],
+    ["Men's Classic No Show Sock | Black", "socks"],
     ["Franchise Slide Mens Sandals (Cool Grey/White)", "footwear"],
     ["Black Slippers", "footwear"],
     ["Mens Max Tie in Amber Satin", "neckwear"],

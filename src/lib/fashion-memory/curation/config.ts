@@ -10,10 +10,12 @@ export const FASHION_CURATION_MAX_TOKENS = 32_000;
 export const FASHION_CURATION_EFFORT = "medium" as const;
 
 /**
- * Hard wall-clock cap for a single curation LLM call. On timeout → failed
- * attempt (harvest partial vetoes if parseable) → fallback. Never unbounded.
+ * Hard wall-clock cap for a single curation LLM call. 0 = disabled (collect
+ * samples via fashion_curation_llm_timing logs / health before setting a limit).
  */
-export const CURATION_LLM_TIMEOUT_MS = 60_000;
+export const CURATION_LLM_TIMEOUT_MS = Number(
+  process.env.CURATION_LLM_TIMEOUT_MS ?? "0",
+);
 
 /** /health tripwire when p90 curation_ms exceeds this. */
 export const CURATION_LATENCY_TRIPWIRE_MS = 90_000;
@@ -24,14 +26,15 @@ export const CURATION_LATENCY_TRIPWIRE_MS = 90_000;
  */
 export const CURATION_IMAGE_MAX_PX = 768;
 
-/** Image budget per mode (top-scored candidates get image blocks). */
-export const CURATION_IMAGE_BUDGET = {
-  single_item: 12,
-  anchor_slot: 10,
-  support_slot: 6,
-} as const;
-
-export const CURATION_UNVERIFIED_OVERFLOW = 10;
+export {
+  CURATION_IMAGE_BUDGET,
+  CURATION_HERO_PICKS,
+  CURATION_LOOKS_TARGET,
+  CURATION_VERIFIED_BENCH,
+  CURATION_UNVERIFIED_OVERFLOW,
+  imageBudgetForSlot,
+  curationPickCap,
+} from "./deliverables";
 
 export const CURATION_VETO_TRIPWIRE_RATIO = 0.2;
 

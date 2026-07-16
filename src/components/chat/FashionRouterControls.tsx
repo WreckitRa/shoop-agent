@@ -32,6 +32,40 @@ function formatBundledAnswers(
   return parts.join(". ");
 }
 
+function FashionQuizAnsweredBanner({
+  questions,
+  answers,
+}: {
+  questions: FashionClarificationQuestion[];
+  answers?: Record<string, string>;
+}) {
+  const bits = questions
+    .map((q) => {
+      const a = answers?.[q.text]?.trim();
+      return a ? `${q.text} → ${a}` : null;
+    })
+    .filter(Boolean) as string[];
+
+  if (!bits.length) {
+    return (
+      <div className="mt-3 rounded-2xl border border-hairline bg-surface-tint px-4 py-3 text-xs text-ink-soft">
+        You already answered this quiz.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-hairline bg-surface-tint px-4 py-3 text-xs text-ink-soft">
+      <p className="font-medium text-ink">Your selections</p>
+      <ul className="mt-1.5 list-inside list-disc space-y-0.5">
+        {bits.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function QuestionOptions({
   question,
   value,
@@ -100,10 +134,13 @@ export const FashionRouterControls = memo(function FashionRouterControls({
   messageId: string;
   fashionRouter: MessageFashionRouterMetaV1;
 }) {
-  void messageId;
   const sendMessage = useChatStore((s) => s.sendMessage);
   const setInput = useChatStore((s) => s.setInput);
+  const answerFashionClarification = useChatStore(
+    (s) => s.answerFashionClarification,
+  );
   const isStreaming = useChatStore((s) => s.isStreaming);
+  const messages = useChatStore((s) => s.messages);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [freeTexts, setFreeTexts] = useState<Record<string, string>>({});
   const [rideAlongAnswer, setRideAlongAnswer] = useState("");
@@ -117,6 +154,16 @@ export const FashionRouterControls = memo(function FashionRouterControls({
   const isClarification =
     fashionRouter.move === "ask_clarification" && questions.length > 0;
   const rideAlong = fashionRouter.ride_along;
+
+  const answeredByMeta = fashionRouter.status === "answered";
+  const answeredByFollowUp = useMemo(() => {
+    if (answeredByMeta || !isClarification) return false;
+    const idx = messages.findIndex((m) => m.id === messageId);
+    if (idx < 0) return false;
+    return messages.slice(idx + 1).some((m) => m.role === "user");
+  }, [answeredByMeta, isClarification, messageId, messages]);
+
+  const isAnswered = answeredByMeta || answeredByFollowUp || submitted;
 
   const legacyOptions =
     fashionRouter.move === "ask_clarification" && !questions.length
@@ -143,8 +190,30 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     return questions.every((q) => resolvedAnswers[q.text]?.trim());
   }, [isClarification, questions, resolvedAnswers]);
 
-  if (submitted) return null;
+  const submitAnswers = (finalAnswers: Record<string, string>) => {
+    answerFashionClarification(messageId, finalAnswers);
+    setSubmitted(true);
+    setInput(
+      formatBundledAnswers(
+        questions,
+        finalAnswers,
+        rideAlong,
+        finalAnswers[rideAlong?.text ?? ""],
+      ),
+    );
+    void sendMessage();
+  };
+
   if (!isClarification && !legacyOptions.length) return null;
+
+  if (isAnswered && isClarification) {
+    return (
+      <FashionQuizAnsweredBanner
+        questions={questions}
+        answers={fashionRouter.answers}
+      />
+    );
+  }
 
   if (legacyOptions.length) {
     return (
@@ -155,6 +224,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
             type="button"
             disabled={isStreaming}
             onClick={() => {
+              answerFashionClarification(messageId, { [option]: option });
               setSubmitted(true);
               setInput(option);
               void sendMessage();
@@ -186,9 +256,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
               setAnswers({ [q.text]: option });
               return;
             }
-            setSubmitted(true);
-            setInput(option);
-            void sendMessage();
+            submitAnswers({ [q.text]: option });
           }}
           onFreeText={(text) => {
             setAnswers({ [q.text]: CLARIFICATION_OTHER_OPTION });
@@ -204,9 +272,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
             onClick={() => {
               const typed = freeTexts[q.text]?.trim();
               if (!typed) return;
-              setSubmitted(true);
-              setInput(typed);
-              void sendMessage();
+              submitAnswers({ [q.text]: typed });
             }}
             className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
           >
@@ -288,16 +354,12 @@ export const FashionRouterControls = memo(function FashionRouterControls({
             rideAlongAnswer === CLARIFICATION_OTHER_OPTION
               ? rideAlongFree.trim()
               : rideAlongAnswer.trim();
-          const text = formatBundledAnswers(
-            questions,
-            resolvedAnswers,
-            rideAlong,
-            rideResolved || undefined,
-          );
-          if (!text.trim()) return;
-          setSubmitted(true);
-          setInput(text);
-          void sendMessage();
+          const finalAnswers = { ...resolvedAnswers };
+          if (rideAlong && rideResolved) {
+            finalAnswers[rideAlong.text] = rideResolved;
+          }
+          if (!Object.keys(finalAnswers).length) return;
+          submitAnswers(finalAnswers);
         }}
         className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
       >

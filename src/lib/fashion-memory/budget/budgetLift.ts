@@ -3,9 +3,21 @@ import type { FashionSlotCatalogProduct } from "../catalog-search/types";
 import type { HardDropMetrics } from "../hard-drops/types";
 import {
   BUDGET_ASSEMBLY_TOLERANCE,
+  RELEVANCE_GUARD_MULTIPLIER,
   type ResolvedBudgetAllocation,
   type SlotBudgetAllocation,
 } from "./budgetAllocation";
+
+function slotPieces(
+  slotAlloc: SlotBudgetAllocation | undefined,
+  fallback = 1,
+): number {
+  return Math.max(1, slotAlloc?.pieces ?? fallback);
+}
+
+function enforcedCeiling(slotAlloc: SlotBudgetAllocation): number {
+  return slotAlloc.per_item_enforced ?? slotAlloc.padded_max;
+}
 
 export const THIN_SLOT_THRESHOLD = 15;
 export const LIFT_READMIT_MIN = 10;
@@ -60,6 +72,7 @@ export function evaluateBudgetLift(
   if (!assembly) return [];
 
   const totalMax = assembly.total_max;
+  const isCapsule = assembly.constraint_type === "set_total";
   const decisions: BudgetLiftDecision[] = [];
 
   for (let i = 0; i < params.slots.length; i++) {
@@ -67,10 +80,12 @@ export function evaluateBudgetLift(
     const slotAlloc = params.allocation.per_slot[slot.slot_id];
     if (!slotAlloc) continue;
 
+    const perItemCeiling = enforcedCeiling(slotAlloc);
+    const pieceCount = slotPieces(slotAlloc);
+
     const market = slot.market_prices;
     const p10 = market?.p10;
-    const budgetStarved =
-      p10 != null && p10 > slotAlloc.padded_max;
+    const budgetStarved = p10 != null && p10 > perItemCeiling;
 
     // Secondary: thin survivors with budget drops (legacy junk-fill-blind path).
     const survivorCount = slot.products.length;
@@ -85,7 +100,7 @@ export function evaluateBudgetLift(
       decisions.push({
         slot_id: slot.slot_id,
         should_lift: false,
-        original_padded_max: slotAlloc.padded_max,
+        original_padded_max: perItemCeiling,
         cheapest_viables: {},
         skip_reason: "not_starved",
       });
@@ -98,6 +113,8 @@ export function evaluateBudgetLift(
 
     for (const other of params.slots) {
       if (other.slot_id === slot.slot_id) continue;
+      const otherAlloc = params.allocation.per_slot[other.slot_id];
+      const otherPieces = isCapsule ? slotPieces(otherAlloc) : 1;
       const cv =
         other.market_prices?.min_viable ??
         cheapestViable(other.products);
@@ -106,28 +123,28 @@ export function evaluateBudgetLift(
         break;
       }
       cheapest_viables[other.slot_id] = cv;
-      otherMinSum += cv;
+      otherMinSum += cv * otherPieces;
     }
 
     if (!allOthersHavePrice) {
       decisions.push({
         slot_id: slot.slot_id,
         should_lift: false,
-        original_padded_max: slotAlloc.padded_max,
+        original_padded_max: perItemCeiling,
         cheapest_viables,
         skip_reason: "not_budget_cause",
       });
       continue;
     }
 
-    const lifted_max =
-      totalMax * (1 + BUDGET_ASSEMBLY_TOLERANCE) - otherMinSum;
+    const room = totalMax * (1 + BUDGET_ASSEMBLY_TOLERANCE) - otherMinSum;
+    const lifted_max = isCapsule ? room / pieceCount : room;
 
-    if (lifted_max <= slotAlloc.padded_max) {
+    if (lifted_max <= perItemCeiling) {
       decisions.push({
         slot_id: slot.slot_id,
         should_lift: false,
-        original_padded_max: slotAlloc.padded_max,
+        original_padded_max: perItemCeiling,
         cheapest_viables,
         skip_reason: "no_room",
       });
@@ -138,7 +155,7 @@ export function evaluateBudgetLift(
       slot_id: slot.slot_id,
       should_lift: true,
       lifted_max,
-      original_padded_max: slotAlloc.padded_max,
+      original_padded_max: perItemCeiling,
       cheapest_viables,
       prefer_readmission: Boolean(slot.budget_dropped_pool?.length),
       // Tight/infeasible market: honest picture already in Lane B + guard band.
@@ -189,6 +206,12 @@ export function applyLiftedMax(
   const updatedSlot: SlotBudgetAllocation = {
     ...slotAlloc,
     padded_max: liftedMax,
+    ...(slotAlloc.per_item_enforced != null
+      ? {
+          per_item_enforced: liftedMax,
+          per_item_guard: liftedMax * RELEVANCE_GUARD_MULTIPLIER,
+        }
+      : {}),
   };
 
   const per_slot = {

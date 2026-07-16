@@ -5,15 +5,36 @@ import { ensureSelfPerson } from "../people";
 import type { GuestFashionMemorySnapshot } from "../local/store";
 import { applyClarificationReplyFromMessage } from "./apply-intake-reply";
 import { applyStatedFacts } from "./apply-stated-facts";
+import {
+  answeredGapsFromFacts,
+  answeredGapsFromStatedFacts,
+  checkReaskAfterAnswer,
+  filterQuestionsSatisfiedByConversation,
+  isGapAnswered,
+  mergeAnsweredLedgers,
+  suppressDeclinedForAnsweredGaps,
+  type AnsweredGapEntry,
+} from "./clarification-dedup";
 import { sanitizeClarificationQuestions } from "./clarification-sanitize";
+import {
+  mergeResolvedGarmentsIntoBriefGarments,
+} from "./garment-answer";
+import { applyInferredBudgetScope } from "../budget/budget-scope";
 import { buildKnowledgeState } from "./knowledge-state";
+import {
+  ambiguousNameMatches,
+  formatPersonChoiceLabel,
+  isNameOptionalForRelation,
+  rosterDisplayNames,
+  singleRelationMatch,
+} from "../extraction/person-identity";
+import { extractMentionedRelations } from "../people-from-mentions";
 import {
   buildBlockingClarification,
   computeSizesUnconfirmed,
   garmentTypesForUnconfirmedBuckets,
   garmentsForIntakeGate,
   getGenderPresentation,
-  hasSizeForBucket,
   missingSizeBucketsForGarments,
   needsDepartmentClarification,
   parseDepartmentFromMessage,
@@ -59,40 +80,222 @@ import {
 function withClarificationDefaults(
   result: Extract<FashionRouterResult, { move: "ask_clarification" }>,
   traceId?: string | null,
+  opts?: {
+    rosterNames?: string[];
+    stripPersonNameQuestions?: boolean;
+  },
 ): FashionRouterResult {
+  // Sanitize first so roster-name chips are logged/stripped, then default Skip.
   return {
     ...result,
-    questions: sanitizeClarificationQuestions({
-      questions: ensureQuestionsHaveQuickOptions(result.questions),
-      traceId,
-    }),
+    questions: ensureQuestionsHaveQuickOptions(
+      sanitizeClarificationQuestions({
+        questions: result.questions,
+        traceId,
+        rosterNames: opts?.rosterNames,
+        stripPersonNameQuestions: opts?.stripPersonNameQuestions,
+      }),
+    ),
   };
+}
+
+function buildAmbiguousNameClarification(params: {
+  people: import("../types").PersonRow[];
+  reply?: string;
+}): Extract<FashionRouterResult, { move: "ask_clarification" }> {
+  const options = params.people.map((p) => formatPersonChoiceLabel(p));
+  const sharedName = params.people[0]?.name?.trim() || "person";
+  return {
+    move: "ask_clarification",
+    reply:
+      params.reply ??
+      `Which ${sharedName} did you mean — I have more than one on your roster.`,
+    questions: [
+      {
+        text: "Which person should I shop for?",
+        gap: "recipient",
+        quick_options: [...options, "Other"],
+      },
+    ],
+  };
+}
+
+function clarificationSanitizeOpts(params: {
+  people: PersonRow[];
+  lastUser?: string;
+  stated?: FashionStatedFacts | null;
+}): {
+  rosterNames: string[];
+  stripPersonNameQuestions: boolean;
+} {
+  const rosterNames = rosterDisplayNames(params.people);
+  const mentioned = params.lastUser
+    ? extractMentionedRelations(params.lastUser)
+    : [];
+  const relationRaw =
+    params.stated?.new_person?.relation?.trim() || mentioned[0] || "";
+  const stripPersonNameQuestions = relationRaw
+    ? isNameOptionalForRelation(params.people, relationRaw)
+    : false;
+  return { rosterNames, stripPersonNameQuestions };
 }
 
 function filterQuestionsSatisfiedByFacts(params: {
   questions: FashionClarificationQuestion[];
   facts: FashionFactRow[];
-  brief: Pick<FashionSearchBrief, "department_scope">;
+  brief: Pick<
+    FashionSearchBrief,
+    "department_scope" | "garments" | "stated_facts"
+  > & { stated_facts?: FashionStatedFacts };
   profileHints?: IntakeProfileHints | null;
+  /** Garments just answered on the prior clarification turn. */
+  resolvedGarments?: string[];
+  answeredLedger?: AnsweredGapEntry[];
+  stated?: FashionStatedFacts | null;
+  traceId?: string | null;
+  personId?: string | null;
 }): FashionClarificationQuestion[] {
-  const hasDept =
-    Boolean(params.brief.department_scope) ||
-    getGenderPresentation(params.facts) != null ||
-    Boolean(params.profileHints?.genderPresentation);
-
-  return params.questions.filter((q) => {
-    if (q.gap === "department") return !hasDept;
-    if (q.gap === "size") {
-      const bucket = q.garment_type;
-      if (!bucket) return true;
-      return !hasSizeForBucket(
-        params.facts,
-        bucket as "tops" | "bottoms" | "shoes" | "dresses",
-        params.profileHints,
-      );
-    }
-    return true;
+  const stated = params.stated ?? params.brief.stated_facts;
+  // Tripwire first: proposed reasks of known facts self-announce.
+  checkReaskAfterAnswer({
+    questions: params.questions,
+    stated,
+    answeredLedger: params.answeredLedger,
+    facts: params.facts,
+    profileHints: params.profileHints,
+    personId: params.personId,
+    traceId: params.traceId,
   });
+  const filtered = filterQuestionsSatisfiedByConversation({
+    questions: params.questions,
+    facts: params.facts,
+    brief: {
+      department_scope: params.brief.department_scope,
+      garments: params.brief.garments,
+      stated_facts: stated ?? undefined,
+    },
+    profileHints: params.profileHints,
+    resolvedGarments: params.resolvedGarments,
+    answeredLedger: params.answeredLedger,
+    traceId: params.traceId,
+  });
+  // Defense-in-depth: after builders consume stated_facts this should be a
+  // no-op. Logging here means a builder still proposed a known gap.
+  if (
+    filtered.length < params.questions.length &&
+    (process.env.NODE_ENV === "development" ||
+      process.env.FASHION_GATE_FILTER_ASSERT === "1")
+  ) {
+    const dropped = params.questions
+      .filter((q) => !filtered.some((f) => f.gap === q.gap && f.text === q.text))
+      .map((q) => ({ gap: q.gap, garment_type: q.garment_type }));
+    logAiChat("warn", "fashion_gate_filter_activated", {
+      traceId: params.traceId,
+      dropped,
+      before: params.questions.length,
+      after: filtered.length,
+    });
+  }
+  return filtered;
+}
+
+/**
+ * WHO gap: when exactly one roster person matches the stated relation,
+ * auto-resolve and strip confirmation questions.
+ */
+function autoresolveSingleRelationMatch(params: {
+  questions: FashionClarificationQuestion[];
+  people: PersonRow[];
+  lastUser: string;
+  traceId?: string | null;
+}): {
+  questions: FashionClarificationQuestion[];
+  resolvedPerson: PersonRow | null;
+} {
+  const match = singleRelationMatch({
+    userText: params.lastUser,
+    people: params.people,
+  });
+  if (!match) {
+    return { questions: params.questions, resolvedPerson: null };
+  }
+
+  const kept = params.questions.filter((q) => {
+    if (q.gap !== "recipient" && q.gap !== "person_name") return true;
+    // "which mother" / "confirm which" style confirmation when only one match.
+    const confirmish =
+      /which|confirm|did you mean|who (is|should)/i.test(q.text) ||
+      q.gap === "recipient";
+    if (!confirmish) return true;
+    logAiChat("info", "single_match_autoresolved", {
+      traceId: params.traceId,
+      person_id: match.id,
+      relation: match.relation,
+      name: match.name,
+      stripped_gap: q.gap,
+      stripped_text: q.text.slice(0, 120),
+    });
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "gate",
+      payload: {
+        decision: "single_match_autoresolved",
+        person_id: match.id,
+        relation: match.relation,
+        stripped_gap: q.gap,
+      },
+    });
+    return false;
+  });
+
+  return { questions: kept, resolvedPerson: match };
+}
+
+function answeredLedgerFromClarificationApply(params: {
+  clarificationApply: {
+    facts: FashionFactRow[];
+    resolvedGarments?: string[];
+  } | null;
+  stated?: FashionStatedFacts | null;
+  facts: FashionFactRow[];
+  profileHints?: IntakeProfileHints | null;
+}): AnsweredGapEntry[] {
+  const fromApply: AnsweredGapEntry[] = [];
+  for (const f of params.clarificationApply?.facts ?? []) {
+    if (f.fact_type === "gender_presentation") {
+      fromApply.push({ gap: "department", source: "clarification_apply" });
+    } else if (f.fact_type === "size" && f.garment_type) {
+      fromApply.push({
+        gap: "size",
+        garment_type: f.garment_type,
+        source: "clarification_apply",
+      });
+    } else if (f.fact_type === "budget_band") {
+      fromApply.push({ gap: "budget", source: "clarification_apply" });
+    }
+  }
+  if (params.clarificationApply?.resolvedGarments?.length) {
+    fromApply.push({ gap: "garment", source: "clarification_apply" });
+  }
+  return mergeAnsweredLedgers(
+    answeredGapsFromFacts(params.facts, params.profileHints),
+    answeredGapsFromStatedFacts(params.stated),
+    fromApply,
+  );
+}
+
+function applyResolvedGarmentsToBrief(
+  brief: FashionSearchBrief,
+  resolvedGarments?: string[],
+): FashionSearchBrief {
+  if (!resolvedGarments?.length) return brief;
+  return {
+    ...brief,
+    garments: mergeResolvedGarmentsIntoBriefGarments(
+      brief.garments,
+      resolvedGarments,
+    ),
+  };
 }
 
 function statedFactsFromRouterResult(
@@ -241,6 +444,7 @@ function finalizeBriefForSearch(params: {
   signals: StyleSignalRow[];
   sizesUnconfirmed: string[];
   lastUserMessage?: string;
+  profileHints?: IntakeProfileHints | null;
 }): FashionSearchBrief {
   const color_direction = reconcileColorDirection({
     brief: params.brief,
@@ -261,6 +465,7 @@ function finalizeBriefForSearch(params: {
     facts: params.facts,
     person: params.person,
     sizesUnconfirmed: params.sizesUnconfirmed,
+    profileHints: params.profileHints,
   });
   return {
     ...params.brief,
@@ -304,11 +509,20 @@ function explainBlockingGaps(params: {
   person?: Pick<PersonRow, "relation"> | null;
   declined: DeclinedGapKey[];
   personId: string;
+  /** Conversation-derived answers the gate must consume. */
+  answeredLedger?: AnsweredGapEntry[];
+  stated?: FashionStatedFacts | null;
 }): {
   needs_clarification: boolean;
   missing_department: boolean;
   missing_size_buckets: string[];
 } {
+  const ledger = mergeAnsweredLedgers(
+    answeredGapsFromFacts(params.facts, params.profileHints),
+    answeredGapsFromStatedFacts(params.stated ?? params.brief.stated_facts),
+    params.answeredLedger ?? [],
+  );
+
   const garments = garmentsForIntakeGate(params.brief);
   const deptDeclined = isGapDeclined(params.declined, {
     gap: "department",
@@ -319,13 +533,15 @@ function explainBlockingGaps(params: {
     !params.brief.department_scope &&
     getGenderPresentation(params.facts) == null &&
     !params.profileHints?.genderPresentation &&
-    !departmentFromRelation(params.person?.relation);
+    !departmentFromRelation(params.person?.relation) &&
+    !isGapAnswered(ledger, "department");
 
   const department =
     params.brief.department_scope ??
     getGenderPresentation(params.facts) ??
     params.profileHints?.genderPresentation ??
-    departmentFromRelation(params.person?.relation);
+    departmentFromRelation(params.person?.relation) ??
+    (params.stated ?? params.brief.stated_facts)?.department;
 
   const missingBuckets = missingSizeBucketsForGarments(
     params.facts,
@@ -338,7 +554,7 @@ function explainBlockingGaps(params: {
         gap: "size",
         person_id: params.personId,
         garment_type: bucket,
-      }),
+      }) && !isGapAnswered(ledger, "size", bucket),
   );
 
   return {
@@ -420,8 +636,11 @@ async function resolveFashionRouterTurnInner(
       ?.content?.trim() ||
     "";
 
+  let clarificationApply: Awaited<
+    ReturnType<typeof applyClarificationReplyFromMessage>
+  > | null = null;
   if (lastUser) {
-    await applyClarificationReplyFromMessage({
+    clarificationApply = await applyClarificationReplyFromMessage({
       userId: params.userId,
       conversationId: params.conversationId,
       userMessage: lastUser,
@@ -492,35 +711,113 @@ async function resolveFashionRouterTurnInner(
     signalsByPersonIdNow = reloaded.signalsByPersonId;
   }
 
+  const resolvedGarments = clarificationApply?.resolvedGarments ?? [];
+
   if (routerResult.move !== "ready_to_search") {
     if (routerResult.move === "ask_clarification") {
-      const targetId =
+      // Single roster match for stated relation → resolve silently.
+      const single = autoresolveSingleRelationMatch({
+        questions: routerResult.questions,
+        people: peopleNow,
+        lastUser,
+        traceId: params.traceId,
+      });
+      let targetId =
         statedPersonId ??
+        single.resolvedPerson?.id ??
         routerResult.target_person_id ??
+        clarificationApply?.personId ??
         peopleNow.find((p) => p.relation === "self")?.id ??
         null;
+      if (single.resolvedPerson && !statedPersonId) {
+        statedPersonId = single.resolvedPerson.id;
+        targetId = single.resolvedPerson.id;
+      }
       const facts = targetId
         ? (factsByPersonIdNow.get(targetId) ?? [])
         : [];
-      const deptBrief = {
-        department_scope: stated?.department,
-      } as Pick<FashionSearchBrief, "department_scope">;
-      let questions = sanitizeClarificationQuestions({
-        questions: ensureQuestionsHaveQuickOptions(routerResult.questions),
-        traceId: params.traceId,
+      const recipientHintsAsk = intakeHintsForRecipient(
+        peopleNow.find((p) => p.id === targetId),
+        profileHints,
+      );
+      const answeredLedger = answeredLedgerFromClarificationApply({
+        clarificationApply,
+        stated,
+        facts,
+        profileHints: recipientHintsAsk,
       });
+      const garmentBrief = {
+        department_scope: stated?.department ?? pendingBrief?.brief.department_scope,
+        garments: mergeResolvedGarmentsIntoBriefGarments(
+          pendingBrief?.brief.garments ?? [],
+          resolvedGarments,
+        ),
+        stated_facts: stated,
+      } as Pick<
+        FashionSearchBrief,
+        "department_scope" | "garments" | "stated_facts"
+      >;
+      const sanitizeOpts = clarificationSanitizeOpts({
+        people: peopleNow,
+        lastUser,
+        stated,
+      });
+      let questions = ensureQuestionsHaveQuickOptions(
+        sanitizeClarificationQuestions({
+          questions: single.questions,
+          traceId: params.traceId,
+          ...sanitizeOpts,
+        }),
+      );
       questions = filterQuestionsSatisfiedByFacts({
         questions,
         facts,
-        brief: deptBrief,
-        profileHints: intakeHintsForRecipient(
-          peopleNow.find((p) => p.id === targetId),
-          profileHints,
-        ),
+        brief: garmentBrief,
+        resolvedGarments,
+        profileHints: recipientHintsAsk,
+        answeredLedger,
+        stated,
+        personId: targetId,
+        traceId: params.traceId,
       });
 
-      if (!questions.length && pendingBrief) {
-        routerResult = { move: "ready_to_search", brief: pendingBrief.brief };
+      const pendingWithGarments =
+        resolvedGarments.length && targetId
+          ? pendingBriefMeta(
+              applyResolvedGarmentsToBrief(
+                pendingBrief?.brief ??
+                  ({
+                    recipient_person_id: targetId,
+                    request_type: "multi_item",
+                    garments: resolvedGarments,
+                    occasion_context: "general",
+                    quantity_hint: "a few",
+                    must_haves: [],
+                    nice_to_haves: [],
+                    budget_context: { stated: false },
+                    style_direction: lastUser.slice(0, 200) || "accessories",
+                  } satisfies FashionSearchBrief),
+                resolvedGarments,
+              ),
+              targetId,
+            )
+          : pendingBrief
+            ? resolvedGarments.length
+              ? pendingBriefMeta(
+                  applyResolvedGarmentsToBrief(pendingBrief.brief, resolvedGarments),
+                  pendingBrief.recipientPersonId,
+                )
+              : pendingBrief
+            : null;
+
+      if (!questions.length && pendingWithGarments) {
+        routerResult = {
+          move: "ready_to_search",
+          brief: {
+            ...pendingWithGarments.brief,
+            stated_facts: stated ?? pendingWithGarments.brief.stated_facts,
+          },
+        };
       } else if (!questions.length) {
         // Questions satisfied by in-conversation facts — keep shopping intent.
         try {
@@ -530,12 +827,19 @@ async function resolveFashionRouterTurnInner(
           const fallback = buildFallbackBriefFromContext({
             context: params.routerContext,
             reason: "clarification_questions_satisfied",
-            pendingBrief,
+            pendingBrief: pendingWithGarments ?? pendingBrief,
           });
-          if (fallback.brief.garments.length > 0) {
+          const brief = {
+            ...applyResolvedGarmentsToBrief(
+              fallback.brief,
+              resolvedGarments,
+            ),
+            stated_facts: stated ?? fallback.brief.stated_facts,
+          };
+          if (brief.garments.length > 0) {
             routerResult = {
               move: "ready_to_search",
-              brief: fallback.brief,
+              brief,
             };
           } else {
             return {
@@ -605,8 +909,9 @@ async function resolveFashionRouterTurnInner(
               stated_facts: stated,
             },
             params.traceId,
+            sanitizeOpts,
           ),
-          pendingBrief,
+          pendingBrief: pendingWithGarments ?? pendingBrief,
           clearPendingBrief: false,
           recipientPersonId: targetId,
           recipientFacts: facts,
@@ -617,7 +922,14 @@ async function resolveFashionRouterTurnInner(
     } else {
       return {
         routerResult,
-        pendingBrief,
+        pendingBrief: resolvedGarments.length
+          ? pendingBrief
+            ? pendingBriefMeta(
+                applyResolvedGarmentsToBrief(pendingBrief.brief, resolvedGarments),
+                pendingBrief.recipientPersonId,
+              )
+            : pendingBrief
+          : pendingBrief,
         clearPendingBrief: false,
         recipientPersonId: null,
         recipientFacts: [],
@@ -640,7 +952,41 @@ async function resolveFashionRouterTurnInner(
     };
   }
 
-  let brief = applyDepartmentFromUserMessage(routerResult.brief, lastUser);
+  // Name collision across incompatible relations → ask which person.
+  const ambiguous = lastUser
+    ? ambiguousNameMatches({ userText: lastUser, people: peopleNow })
+    : null;
+  if (ambiguous && ambiguous.length >= 2) {
+    const clarification = buildAmbiguousNameClarification({
+      people: ambiguous,
+      reply: `I have more than one ${ambiguous[0]!.name?.trim() ?? "person"} — which one?`,
+    });
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "gate",
+      payload: {
+        decision: "ambiguous_roster_name",
+        names: ambiguous.map((p) => formatPersonChoiceLabel(p)),
+      },
+    });
+    return {
+      routerResult: withClarificationDefaults(clarification, params.traceId, {
+        rosterNames: rosterDisplayNames(peopleNow),
+      }),
+      pendingBrief,
+      clearPendingBrief: false,
+      recipientPersonId: null,
+      recipientFacts: [],
+      sizesUnconfirmed: [],
+      declinedGaps,
+    };
+  }
+
+  let brief = applyResolvedGarmentsToBrief(
+    applyDepartmentFromUserMessage(routerResult.brief, lastUser),
+    resolvedGarments,
+  );
+  brief = applyInferredBudgetScope(brief, lastUser);
   brief = mergeDepartmentFromStatedFacts(brief, stated ?? brief.stated_facts);
   brief = mergeBudgetFromStatedFacts(brief, stated ?? brief.stated_facts);
   if (statedPersonId) {
@@ -686,8 +1032,20 @@ async function resolveFashionRouterTurnInner(
   const facts = factsByPersonIdNow.get(recipientId) ?? [];
   const recipientHints = intakeHintsForRecipient(person, profileHints);
   brief = applyDepartmentFromRelation(brief, person);
+  // Ensure conversation-derived facts stay on the brief for template/ledger.
+  if ((stated ?? brief.stated_facts) && !brief.stated_facts) {
+    brief = { ...brief, stated_facts: stated ?? brief.stated_facts };
+  }
+
+  const answeredLedger = answeredLedgerFromClarificationApply({
+    clarificationApply,
+    stated: stated ?? brief.stated_facts,
+    facts,
+    profileHints: recipientHints,
+  });
 
   // Promote twice-asked unanswered gaps to declined before evaluating the gate.
+  // Gaps answered via stated_facts / clarification apply do not count as dodges.
   const provisionalBlocking = buildBlockingClarification({
     brief,
     facts,
@@ -695,16 +1053,31 @@ async function resolveFashionRouterTurnInner(
     personLabel: personLabel(person),
     person,
     profileHints: recipientHints,
+    stated: stated ?? brief.stated_facts,
   });
-  let activeDeclined = await enrichDeclinedFromAskCounts({
-    conversationId: params.conversationId,
-    personId: recipientId,
-    questions: provisionalBlocking.questions.map((q) => ({
+  const dodgeCandidateQuestions = suppressDeclinedForAnsweredGaps(
+    provisionalBlocking.questions.map((q) => ({
       gap: q.gap,
       garment_type: q.garment_type,
     })),
+    answeredLedger,
+  );
+  let activeDeclined = await enrichDeclinedFromAskCounts({
+    conversationId: params.conversationId,
+    personId: recipientId,
+    questions: dodgeCandidateQuestions,
     declined: declinedGaps,
   });
+
+  if (
+    clarificationApply?.declineBudgetRaise &&
+    !isGapDeclined(activeDeclined, { gap: "budget", person_id: recipientId })
+  ) {
+    activeDeclined = [
+      ...activeDeclined,
+      { gap: "budget", person_id: recipientId },
+    ];
+  }
 
   const gapExplain = explainBlockingGaps({
     facts,
@@ -713,6 +1086,8 @@ async function resolveFashionRouterTurnInner(
     person,
     declined: activeDeclined,
     personId: recipientId,
+    answeredLedger,
+    stated: stated ?? brief.stated_facts,
   });
 
   logAiChat("info", "fashion_blocking_gate", {
@@ -721,6 +1096,7 @@ async function resolveFashionRouterTurnInner(
     recipient_relation: person?.relation ?? null,
     ...gapExplain,
     declined_gaps: activeDeclined,
+    answered_ledger: answeredLedger,
   });
 
   if (gapExplain.needs_clarification) {
@@ -734,13 +1110,15 @@ async function resolveFashionRouterTurnInner(
       .join("\n");
 
     const basePrompt = buildFashionRouterPrompt(params.routerContext);
+    // Opus rejects assistant-prefill: conversation must end with a user turn.
+    // Keep the note in systemOverride and mirror it as a trailing user message.
     const retried = await runFashionRouter(
       {
         context: {
           ...params.routerContext,
           conversationMessages: [
             ...params.routerContext.conversationMessages,
-            { role: "assistant", content: `[SYSTEM] ${gateNote}` },
+            { role: "user", content: `[SYSTEM] ${gateNote}` },
           ],
         },
         signal: params.signal,
@@ -751,19 +1129,37 @@ async function resolveFashionRouterTurnInner(
       params.deps,
     );
 
+    const gateSanitizeOpts = clarificationSanitizeOpts({
+      people: peopleNow,
+      lastUser,
+      stated: stated ?? brief.stated_facts,
+    });
+
     if (retried.move === "ask_clarification") {
+      const singleRetry = autoresolveSingleRelationMatch({
+        questions: retried.questions,
+        people: peopleNow,
+        lastUser,
+        traceId: params.traceId,
+      });
       const filtered = filterQuestionsSatisfiedByFacts({
         questions: filterQuestionsByDeclined(
           sanitizeClarificationQuestions({
-            questions: retried.questions,
+            questions: singleRetry.questions,
             traceId: params.traceId,
+            ...gateSanitizeOpts,
           }),
           recipientId,
           activeDeclined,
         ),
         facts,
         brief,
+        resolvedGarments,
         profileHints: recipientHints,
+        answeredLedger,
+        stated: stated ?? brief.stated_facts,
+        personId: recipientId,
+        traceId: params.traceId,
       });
       if (filtered.length) {
         recordPipelineEvent({
@@ -781,8 +1177,10 @@ async function resolveFashionRouterTurnInner(
               ...retried,
               questions: filtered,
               target_person_id: recipientId,
+              stated_facts: stated ?? brief.stated_facts,
             },
             params.traceId,
+            gateSanitizeOpts,
           ),
           pendingBrief: pendingBrief ?? pendingBriefMeta(brief, recipientId),
           clearPendingBrief: false,
@@ -794,7 +1192,8 @@ async function resolveFashionRouterTurnInner(
       }
     }
 
-    // Deterministic templates — gate guarantee.
+    // Deterministic templates — gate guarantee. Dedup against conversation
+    // facts / ledger BEFORE emitting; zero remaining → search.
     const filtered = filterQuestionsSatisfiedByFacts({
       questions: filterQuestionsByDeclined(
         provisionalBlocking.questions,
@@ -803,7 +1202,12 @@ async function resolveFashionRouterTurnInner(
       ),
       facts,
       brief,
+      resolvedGarments,
       profileHints: recipientHints,
+      answeredLedger,
+      stated: stated ?? brief.stated_facts,
+      personId: recipientId,
+      traceId: params.traceId,
     });
 
     if (filtered.length) {
@@ -823,8 +1227,10 @@ async function resolveFashionRouterTurnInner(
             reply: provisionalBlocking.reply,
             questions: filtered,
             target_person_id: recipientId,
+            stated_facts: stated ?? brief.stated_facts,
           },
           params.traceId,
+          gateSanitizeOpts,
         ),
         pendingBrief: pendingBrief ?? pendingBriefMeta(brief, recipientId),
         clearPendingBrief: false,
@@ -865,6 +1271,11 @@ async function resolveFashionRouterTurnInner(
             target_person_id: recipientId,
           },
           params.traceId,
+          clarificationSanitizeOpts({
+            people: peopleNow,
+            lastUser,
+            stated: stated ?? brief.stated_facts,
+          }),
         ),
         pendingBrief: pendingBrief ?? pendingBriefMeta(brief, recipientId),
         clearPendingBrief: false,
@@ -900,6 +1311,7 @@ async function resolveFashionRouterTurnInner(
     signals: signalsByPersonIdNow.get(recipientId) ?? [],
     sizesUnconfirmed,
     lastUserMessage: lastUser,
+    profileHints: recipientHints,
   });
 
   if (recipientHints?.genderPresentation && !brief.department_scope) {
@@ -917,6 +1329,17 @@ async function resolveFashionRouterTurnInner(
       knowledge_state: {
         ...brief.knowledge_state,
         department: brief.department_scope,
+      },
+    };
+  }
+
+  if (clarificationApply?.raisedBudgetMax != null) {
+    brief = {
+      ...brief,
+      budget_context: {
+        stated: true,
+        max: clarificationApply.raisedBudgetMax,
+        currency: brief.budget_context.currency ?? "USD",
       },
     };
   }

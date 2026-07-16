@@ -91,9 +91,14 @@ export function computeBudgetTension(
   let hasInfeasible = false;
   let hasTight = false;
 
+  const assembly = params.allocation.budget_assembly;
+  const isCapsule = assembly?.constraint_type === "set_total";
+
   for (let i = 0; i < params.slots.length; i++) {
     const slot = params.slots[i]!;
     const slotAlloc = params.allocation.per_slot[slot.slot_id];
+    const enforcementCeiling =
+      slotAlloc?.per_item_enforced ?? slotAlloc?.padded_max;
     const dropMetrics = params.hardDropMetrics[i];
     const budgetDrops = dropMetrics?.drops_by_rule?.budget ?? 0;
     const dominant = dominantDropRule(dropMetrics?.drops_by_rule ?? {});
@@ -109,7 +114,7 @@ export function computeBudgetTension(
         slot_id: slot.slot_id,
         signal: "lifted",
         evidence: {
-          padded_max: slotAlloc?.padded_max,
+          padded_max: enforcementCeiling,
           survivors: survivorCount,
           market_prices: market,
         },
@@ -118,8 +123,9 @@ export function computeBudgetTension(
 
     if (
       slotAlloc &&
+      enforcementCeiling != null &&
       market &&
-      slotAlloc.padded_max < market.min_viable &&
+      enforcementCeiling < market.min_viable &&
       !params.liftedSlots.has(slot.slot_id)
     ) {
       hasInfeasible = true;
@@ -127,7 +133,7 @@ export function computeBudgetTension(
         slot_id: slot.slot_id,
         signal: "infeasible_market",
         evidence: {
-          padded_max: slotAlloc.padded_max,
+          padded_max: enforcementCeiling,
           min_viable: market.min_viable,
           p10: market.p10,
           sample_size: market.sample_size,
@@ -150,8 +156,9 @@ export function computeBudgetTension(
 
     if (
       slotAlloc &&
+      enforcementCeiling != null &&
       p10 != null &&
-      slotAlloc.padded_max < p10 &&
+      enforcementCeiling < p10 &&
       !params.liftedSlots.has(slot.slot_id)
     ) {
       hasTight = true;
@@ -159,7 +166,7 @@ export function computeBudgetTension(
         slot_id: slot.slot_id,
         signal: "below_p10",
         evidence: {
-          padded_max: slotAlloc.padded_max,
+          padded_max: enforcementCeiling,
           p10,
           source: market ? "market_prices" : "survivors",
           survivors: survivorCount,
@@ -204,14 +211,19 @@ export function computeBudgetTension(
     }
   }
 
-  const assembly = params.allocation.budget_assembly;
   let hasOversized = false;
 
   if (assembly && params.slots.length > 0) {
     const p90BySlot = params.slots.map((s) => {
-      if (s.market_prices?.p90 != null) return s.market_prices.p90;
-      const prices = survivorPrices(s.products);
-      return percentile(prices, 0.9) ?? 0;
+      const slotAlloc = params.allocation.per_slot[s.slot_id];
+      const pieceCount = isCapsule
+        ? Math.max(1, slotAlloc?.pieces ?? 1)
+        : 1;
+      const p90 =
+        s.market_prices?.p90 ??
+        percentile(survivorPrices(s.products), 0.9) ??
+        0;
+      return p90 * pieceCount;
     });
     const composedP90 = p90BySlot.reduce((n, p) => n + p, 0);
     const allHavePrices = p90BySlot.every((p) => p > 0);

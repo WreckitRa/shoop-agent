@@ -22,20 +22,7 @@ import type {
 } from "../types";
 import type { SizeGarmentBucket } from "./garment-size-fields";
 import { parseDepartmentAnswer } from "./identity-gate";
-
-function parseSizeValue(raw: string): FashionFactSizeValue {
-  const t = raw.trim().toUpperCase();
-  if (/^(XXS|XS|S|M|L|XL|XXL|XXXL)$/.test(t)) {
-    return { system: "alpha", value: t };
-  }
-  const numeric = Number(raw.trim());
-  if (Number.isFinite(numeric)) {
-    if (numeric >= 35 && numeric <= 50) return { system: "eu", value: numeric };
-    if (numeric >= 5 && numeric <= 15) return { system: "us", value: numeric };
-    return { system: "us", value: numeric };
-  }
-  return { system: "alpha", value: raw.trim() };
-}
+import { parseSizeValue } from "./parse-size-value";
 
 function inferRelation(raw: string | undefined): PersonRelation {
   const t = (raw ?? "").toLowerCase();
@@ -178,14 +165,10 @@ export async function applyStatedFacts(params: {
     }
   } else {
     const mapped = shortIds[ref] ?? ref;
+    // Resolve by id / short id only — never by name alone (relation beats name;
+    // brother Gabriel ≠ son Gabriel).
     person =
-      people.find((p) => p.id === mapped || p.id === ref) ??
-      people.find(
-        (p) =>
-          p.name?.trim().toLowerCase() ===
-          params.stated.new_person?.name?.trim().toLowerCase(),
-      ) ??
-      null;
+      people.find((p) => p.id === mapped || p.id === ref) ?? null;
 
     if (!person && isSupabaseAuthUserId(params.userId)) {
       const { getPersonById } = await import("../people");

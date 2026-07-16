@@ -4,6 +4,10 @@ import { useMemo } from "react";
 import { useChatMessageProductLink } from "@/components/chat/ChatMessageProductLinkContext";
 import { useChatStore } from "@/components/chat/chat-store";
 import type { CuratedPick } from "@/lib/ai-chat/types";
+import {
+  fashionPickToCuratedPick,
+  fashionVerifiedToCuratedPick,
+} from "@/lib/fashion-memory/curation/from-fashion-pick";
 
 export type ChatProductPickResult = {
   pick: CuratedPick | null;
@@ -23,6 +27,8 @@ export function useChatProductPick(productId: string): ChatProductPickResult {
   return useMemo(() => {
     if (!messageId) return { pick: null, curationPending: false };
     const message = messages.find((m) => m.id === messageId);
+
+    // Classic product-search curator picks
     const searches = message?.metadata?.productSearch?.searches ?? [];
     for (const inv of searches) {
       const pick = inv.curatedPicks?.find((p) => p.id === productId);
@@ -30,6 +36,29 @@ export function useChatProductPick(productId: string): ChatProductPickResult {
         return { pick, curationPending: inv.curationPending === true };
       }
     }
+
+    // Fashion curation — hero picks carry stylist voice into the PDP
+    const fashion = message?.metadata?.fashionCatalogSearch;
+    const curated = fashion?.curation?.tiers.picks.find((p) => p.id === productId);
+    if (curated) {
+      return { pick: fashionPickToCuratedPick(curated), curationPending: false };
+    }
+
+    const renderPick = fashion?.render?.tiers.picks.find((p) => p.id === productId);
+    if (renderPick) {
+      return { pick: fashionPickToCuratedPick(renderPick), curationPending: false };
+    }
+
+    const verified = fashion?.curation?.tiers.verified.find(
+      (p) => p.id === productId,
+    );
+    if (verified) {
+      return {
+        pick: fashionVerifiedToCuratedPick(verified),
+        curationPending: false,
+      };
+    }
+
     return { pick: null, curationPending: false };
   }, [messageId, messages, productId]);
 }

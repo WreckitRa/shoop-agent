@@ -244,7 +244,7 @@ const FashionProductCards = memo(function FashionProductCards({
 function slotSurvivorCards(
   slot: MessageFashionCatalogSearchMetaV1["slots"][number],
 ): ProductCard[] {
-  return (slot.verified_pool ?? []).map(hydratedCandidateToProductCard);
+  return (slot.verified_pool ?? []).map((p) => hydratedCandidateToProductCard(p));
 }
 
 export const FashionCatalogResults = memo(function FashionCatalogResults({

@@ -5,7 +5,7 @@
 import { preNormalize } from "../normalize/pre-normalize";
 import type { ProductSuspicion } from "../hard-drops/types";
 
-/** Conflict nouns keyed loosely off garmentToTaxonomy / item-type families. */
+/** Conflict nouns keyed loosely off garment taxonomy / item-type families. */
 const CONFLICT_NOUNS: readonly string[] = [
   "tee",
   "t-shirt",
@@ -33,6 +33,43 @@ const CONFLICT_NOUNS: readonly string[] = [
   "bra",
   "panties",
   "lingerie",
+  // Apparel nouns that conflict with accessory slots (watch ← tee).
+  "shirt",
+  "shirts",
+  "blouse",
+  "blazer",
+  "jacket",
+  "pant",
+  "pants",
+  "trouser",
+  "trousers",
+  // Accessory cross-family: a belt title in a watch slot, etc.
+  "belt",
+  "belts",
+  "watch",
+  "watches",
+  "bracelet",
+  "bracelets",
+  "tie",
+  "ties",
+  "necktie",
+  "bag",
+  "bags",
+  "wallet",
+  "wallets",
+  "hat",
+  "hats",
+  "scarf",
+  "scarves",
+  "sunglasses",
+  "glove",
+  "gloves",
+  "jewelry",
+  "jewellery",
+  "necklace",
+  "necklaces",
+  "cufflink",
+  "cufflinks",
 ];
 
 /** Own-noun tokens derived from the slot garment string. */
@@ -87,6 +124,46 @@ export function slotOwnGarmentNouns(garment: string): Set<string> {
     out.add("tie");
     out.add("ties");
     out.add("necktie");
+  }
+  if (out.has("watch") || out.has("watches")) {
+    out.add("watch");
+    out.add("watches");
+  }
+  if (out.has("bracelet") || out.has("bracelets")) {
+    out.add("bracelet");
+    out.add("bracelets");
+  }
+  if (out.has("belt") || out.has("belts")) {
+    out.add("belt");
+    out.add("belts");
+  }
+  if (out.has("bag") || out.has("handbag") || out.has("briefcase")) {
+    out.add("bag");
+    out.add("bags");
+    out.add("handbag");
+    out.add("briefcase");
+  }
+  if (out.has("scarf") || out.has("scarves")) {
+    out.add("scarf");
+    out.add("scarves");
+  }
+  if (out.has("sunglasses") || out.has("eyewear")) {
+    out.add("sunglasses");
+    out.add("eyewear");
+  }
+  if (out.has("glove") || out.has("gloves")) {
+    out.add("glove");
+    out.add("gloves");
+  }
+  if (out.has("jewelry") || out.has("jewellery") || out.has("necklace")) {
+    out.add("jewelry");
+    out.add("jewellery");
+    out.add("necklace");
+    out.add("necklaces");
+  }
+  if (out.has("cufflink") || out.has("cufflinks")) {
+    out.add("cufflink");
+    out.add("cufflinks");
   }
 
   return out;

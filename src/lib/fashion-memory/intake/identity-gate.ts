@@ -1,9 +1,14 @@
-import { departmentFromRelation } from "../department";
+import {
+  coercePersonDepartment,
+  departmentFromRelation,
+  type PersonDepartment,
+} from "../department";
 import { safeTrim } from "../safe-trim";
 import type {
   FashionClarificationQuestion,
   FashionIntakeQuestion,
   FashionSearchBrief,
+  FashionStatedFacts,
 } from "../router/types";
 import type { FashionFactRow, PersonRow } from "../types";
 import {
@@ -16,13 +21,8 @@ import {
 } from "./garment-size-fields";
 import type { IntakeProfileHints } from "./account-profile-bridge";
 
-export type GenderPresentation =
-  | "mens"
-  | "womens"
-  | "boys"
-  | "girls"
-  | "baby"
-  | "mixed";
+/** @deprecated Prefer PersonDepartment — same value set. */
+export type GenderPresentation = PersonDepartment;
 
 export type FashionIntakePayload = {
   reply: string;
@@ -42,23 +42,27 @@ export type FashionIntakeQuestionField = FashionIntakeQuestion["field"];
 
 export function getGenderPresentation(
   facts: FashionFactRow[],
-): GenderPresentation | null {
+): PersonDepartment | null {
   const row = facts.find(
     (f) => f.fact_type === "gender_presentation" && f.status === "active",
   );
   if (!row) return null;
   const presentation = (row.value as { presentation?: string }).presentation;
-  if (
-    presentation === "mens" ||
-    presentation === "womens" ||
-    presentation === "boys" ||
-    presentation === "girls" ||
-    presentation === "baby" ||
-    presentation === "mixed"
-  ) {
-    return presentation;
-  }
-  return null;
+  return coercePersonDepartment(presentation);
+}
+
+/** Sizes present in conversation stated_facts (not yet necessarily in DB). */
+function statedSizeBuckets(
+  stated?: FashionStatedFacts | null,
+): Set<SizeGarmentBucket> {
+  const out = new Set<SizeGarmentBucket>();
+  const sizes = stated?.sizes;
+  if (!sizes) return out;
+  if (sizes.tops?.trim()) out.add("tops");
+  if (sizes.bottoms?.trim()) out.add("bottoms");
+  if (sizes.shoes?.trim()) out.add("shoes");
+  if (sizes.dresses?.trim()) out.add("dresses");
+  return out;
 }
 
 export function hasSizeForBucket(
@@ -80,14 +84,19 @@ export function missingSizeBucketsForGarments(
   facts: FashionFactRow[],
   garments: string[],
   hints?: IntakeProfileHints | null,
-  department?: GenderPresentation | string | null,
+  department?: PersonDepartment | string | null,
+  stated?: FashionStatedFacts | null,
 ): ReturnType<typeof sizeBucketsForGarments> {
   const buckets = sizeBucketsForGarments(garments);
   const filtered =
     department === "mens" || department === "boys"
       ? buckets.filter((bucket) => bucket !== "dresses")
       : buckets;
-  return filtered.filter((bucket) => !hasSizeForBucket(facts, bucket, hints));
+  const statedBuckets = statedSizeBuckets(stated);
+  return filtered.filter(
+    (bucket) =>
+      !hasSizeForBucket(facts, bucket, hints) && !statedBuckets.has(bucket),
+  );
 }
 
 export function intakeAlreadyDone(person: PersonRow): boolean {
@@ -108,8 +117,10 @@ export function missingGenderForIntake(params: {
   profileHints?: IntakeProfileHints | null;
   /** Strong relations (mother → womens) skip the department question. */
   person?: Pick<PersonRow, "relation"> | null;
+  stated?: FashionStatedFacts | null;
 }): boolean {
   if (params.brief.department_scope) return false;
+  if (coercePersonDepartment(params.stated?.department)) return false;
   if (getGenderPresentation(params.facts) != null) return false;
   if (params.profileHints?.genderPresentation) return false;
   if (departmentFromRelation(params.person?.relation)) return false;
@@ -309,9 +320,12 @@ export function buildBlockingClarification(params: {
   personLabel?: string;
   person?: PersonRow | Pick<PersonRow, "relation"> | null;
   profileHints?: IntakeProfileHints | null;
+  /** Conversation stated_facts — merged with DB for asymmetry-safe builders. */
+  stated?: FashionStatedFacts | null;
 }): FashionBlockingClarification {
   const questions: FashionClarificationQuestion[] = [];
   const who = params.personLabel?.trim() || "you";
+  const stated = params.stated ?? params.brief.stated_facts ?? null;
 
   if (
     missingGenderForIntake({
@@ -319,6 +333,7 @@ export function buildBlockingClarification(params: {
       brief: params.brief,
       profileHints: params.profileHints,
       person: params.person,
+      stated,
     })
   ) {
     questions.push({
@@ -335,6 +350,7 @@ export function buildBlockingClarification(params: {
   const garments = garmentsForIntakeGate(params.brief);
   const department =
     params.brief.department_scope ??
+    coercePersonDepartment(stated?.department) ??
     getGenderPresentation(params.facts) ??
     departmentFromRelation(params.person?.relation);
   const missingBuckets = missingSizeBucketsForGarments(
@@ -342,6 +358,7 @@ export function buildBlockingClarification(params: {
     garments,
     params.profileHints,
     department,
+    stated,
   );
   for (const bucket of missingBuckets) {
     if (questions.length >= MAX_INTAKE_QUESTIONS) break;
@@ -412,10 +429,32 @@ export function parseDepartmentAnswer(text: string): GenderPresentation | null {
   return null;
 }
 
+/**
+ * Kids department from age language + relation ("8 year old son" → boys).
+ * Adult relation defaults stay in departmentFromRelation.
+ */
+export function inferKidsDepartmentFromMessage(
+  text: string,
+): GenderPresentation | null {
+  const ageMatch =
+    text.match(/\b(\d{1,2})\s*(?:year|yr|y\.?o\.?)s?\s*old\b/i) ??
+    text.match(/\b(\d{1,2})\s*yo\b/i);
+  if (!ageMatch) return null;
+  const age = Number(ageMatch[1]);
+  if (!Number.isFinite(age) || age < 0 || age > 17) return null;
+  if (age < 2) return "baby";
+  if (/\b(daughter|girl)\b/i.test(text)) return "girls";
+  if (/\b(son|boy)\b/i.test(text)) return "boys";
+  return null;
+}
+
 /** Parses department from quick-option taps or batched intake replies. */
 export function parseDepartmentFromMessage(text: string): GenderPresentation | null {
   const standalone = parseDepartmentAnswer(text);
   if (standalone) return standalone;
+
+  const kids = inferKidsDepartmentFromMessage(text);
+  if (kids) return kids;
 
   const segments = text.split(/\.\s+/);
   for (const segment of segments) {

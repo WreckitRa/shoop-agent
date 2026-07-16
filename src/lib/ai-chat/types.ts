@@ -291,6 +291,11 @@ export type MessageMetadata = {
   fashionSearchPlan?: import("@/lib/fashion-memory/search-planner/types").MessageFashionSearchPlanMetaV1;
   /** Raw UCP catalog fan-out per slot (no normalization/scoring). */
   fashionCatalogSearch?: import("@/lib/fashion-memory/catalog-search/types").MessageFashionCatalogSearchMetaV1;
+  /**
+   * Compact turn pipeline events for the debug panel (capped/truncated).
+   * Full history lives in admin via pipeline_events table.
+   */
+  fashionPipelineEvents?: import("@/lib/fashion-memory/observability/pipeline-event-payloads").CompactPipelineEvent[];
 };
 
 export type ChatMessage = {

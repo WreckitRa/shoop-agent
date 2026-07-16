@@ -48,17 +48,21 @@ describe("buildSearchPlannerPrompt", () => {
     assert.match(prompt, /You are the search planner for Shoop/);
     assert.match(prompt, /Call plan_search exactly once/);
     assert.match(prompt, /BANNED from every query string/);
-    assert.match(prompt, /department word MUST be the FIRST token/i);
-    assert.match(prompt, /NOT department retail words/i);
-    assert.match(prompt, /palette_source:"spread"/);
-    assert.match(prompt, /Color words in query variants follow palette_source/);
+    assert.match(prompt, /department word MUST be[\s\S]*FIRST token/i);
+    assert.match(prompt, /OPTIONS_WANTED \(mandatory per slot\)/);
+    assert.match(prompt, /4–5 variants ordered BEST/);
   });
 });
 
 describe("query variant validator", () => {
   it("strips banned size and occasion tokens", () => {
     const result = validateSlotQueryVariants({
-      variants: ["medium oxford shirt for work", "slim cotton shirt"],
+      variants: [
+        "medium oxford shirt for work",
+        "slim cotton shirt",
+        "minimal formal shirt",
+        "premium poplin shirt",
+      ],
       allowedColorWords: [],
     });
     assert.equal(result.ok, true);
@@ -87,9 +91,14 @@ describe("query variant validator", () => {
 
   it("allows color in at most one variant", () => {
     const result = validateSlotQueryVariants({
-      variants: ["black linen shirt", "slim cotton shirt", "navy linen shirt"],
+      variants: [
+        "black linen shirt",
+        "slim cotton shirt",
+        "minimal formal shirt",
+        "premium poplin shirt",
+      ],
       paletteSource: "stated",
-      allowedColorWords: ["black", "navy"],
+      allowedColorWords: ["black"],
     });
     assert.equal(result.ok, true);
     assert.equal(
@@ -100,7 +109,12 @@ describe("query variant validator", () => {
 
   it("strips color from all variants when every variant is color-heavy", () => {
     const result = validateSlotQueryVariants({
-      variants: ["black linen shirt", "navy cotton shirt"],
+      variants: [
+        "black linen shirt",
+        "navy cotton shirt",
+        "slim formal shirt",
+        "premium poplin shirt",
+      ],
       paletteSource: "stated",
       allowedColorWords: ["black", "navy"],
     });
@@ -121,7 +135,7 @@ function colorWords(query: string): string[] {
 }
 
 describe("deterministic fallback builder", () => {
-  it("uses first two style_direction descriptors plus material-led variant", () => {
+  it("emits four or five diverse fallback variants", () => {
     const descriptors = extractStyleDescriptors(
       "slim minimalist oxford shirts, plain texture",
       2,
@@ -135,10 +149,10 @@ describe("deterministic fallback builder", () => {
       includeColor: false,
     });
 
-    assert.equal(variants.length, 2);
+    assert.ok(variants.length >= 4);
     assert.match(variants[0]!, /shirt$/);
     assert.match(variants[0]!, /slim/);
-    assert.match(variants[1]!, /linen shirt/);
+    assert.ok(variants.some((v) => /linen shirt/.test(v)));
   });
 
   it("puts color in at most one fallback variant", () => {
@@ -185,7 +199,7 @@ describe("repairSlotQueryVariants", () => {
       },
       plan,
     );
-    assert.ok(repaired.query_variants.length >= 2);
+    assert.ok(repaired.query_variants.length >= 4);
     assert.ok(
       repaired.query_variants.every((v) => !containsBannedToken(v)),
     );
@@ -193,7 +207,7 @@ describe("repairSlotQueryVariants", () => {
 });
 
 describe("plan clamps", () => {
-  it("enforces slot cap, options range, and second variant", () => {
+  it("enforces slot cap, options range, and variant count", () => {
     const raw: FashionSearchPlan = {
       version: 1,
       mode: "outfit",
@@ -209,7 +223,12 @@ describe("plan clamps", () => {
           palette_constraint: "neutrals",
           palette_source: "stated" as const,
           options_wanted: 12,
-          query_variants: ["slim oxford shirt"],
+          query_variants: [
+            "slim oxford shirt",
+            "minimal cotton shirt",
+            "formal poplin shirt",
+            "classic dress shirt",
+          ],
         },
         {
           slot_id: "trousers",
@@ -219,19 +238,24 @@ describe("plan clamps", () => {
           palette_constraint: "neutrals",
           palette_source: "stated" as const,
           options_wanted: 3,
-          query_variants: ["tailored wool trousers", "classic dress trousers"],
+          query_variants: [
+            "tailored wool trousers",
+            "classic dress trousers",
+            "formal flat front pants",
+            "premium business trousers",
+          ],
         },
       ],
     };
 
     const clamped = clampFashionSearchPlan(raw).plan;
-    assert.ok(clamped.slots.length <= 5);
+    assert.ok(clamped.slots.length <= 12);
     assert.ok(clamped.slots.every((s) => s.options_wanted <= 8));
     assert.equal(
       clamped.slots.filter((s) => s.role === "anchor").length,
       1,
     );
-    assert.ok(clamped.slots.every((s) => s.query_variants.length >= 2));
+    assert.ok(clamped.slots.every((s) => s.query_variants.length >= 4));
   });
 });
 
@@ -249,7 +273,12 @@ describe("plan_search tool schema", () => {
           palette_constraint: "neutrals",
           palette_source: "stated" as const,
           options_wanted: 4,
-          query_variants: ["slim oxford shirt", "minimal cotton shirt"],
+          query_variants: [
+            "slim oxford shirt",
+            "minimal cotton shirt",
+            "formal poplin shirt",
+            "classic dress shirt",
+          ],
         },
       ],
     });

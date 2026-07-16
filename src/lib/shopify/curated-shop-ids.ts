@@ -472,12 +472,14 @@ export const CURATED_SHOP_IDS: readonly string[] = [
 /**
  * True when catalog search should restrict to {@link CURATED_SHOP_IDS}.
  *
- * Opt-in: set `CATALOG_SHOP_ALLOWLIST=1` (or true/on). Sending the full
- * 460-shop list in one `search_catalog` call currently causes Shopify to hang
- * or return JSON-RPC -32000 "Service error" — so this stays off by default
- * until we chunk shop_ids across requests.
+ * On by default so every `search_catalog` is scoped to curated merchants.
+ * Disable with `CATALOG_SHOP_ALLOWLIST=0` (or false/off) to search the full
+ * Shopify ecosystem. Large allowlists are chunked in `searchCatalog` (see
+ * `CATALOG_SHOP_IDS_CHUNK_SIZE`) so a single oversized `shop_ids` payload
+ * cannot hang the Global Catalog MCP.
  */
 export function isCuratedShopAllowlistEnabled(): boolean {
   const raw = process.env.CATALOG_SHOP_ALLOWLIST?.trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "on";
+  if (raw === "0" || raw === "false" || raw === "off") return false;
+  return CURATED_SHOP_IDS.length > 0;
 }

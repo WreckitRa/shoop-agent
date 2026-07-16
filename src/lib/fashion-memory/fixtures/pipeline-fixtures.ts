@@ -197,10 +197,25 @@ export function plannerOutputForBrief(
         options_wanted: 4,
         query_variants:
           brief.color_direction?.source === "stated"
-            ? ["black linen shirt", "slim cotton shirt"]
+            ? [
+                "black linen shirt",
+                "slim cotton shirt",
+                "minimal formal shirt",
+                "premium poplin shirt",
+              ]
             : brief.occasion_context.includes("wedding")
-              ? ["linen wedding shirt", "beige summer shirt"]
-              : ["slim oxford shirt", "classic cotton shirt"],
+              ? [
+                  "linen wedding shirt",
+                  "beige summer shirt",
+                  "lightweight formal shirt",
+                  "classic cotton shirt",
+                ]
+              : [
+                  "slim oxford shirt",
+                  "classic cotton shirt",
+                  "minimal formal shirt",
+                  "premium poplin shirt",
+                ],
       },
     ],
     ...overrides,

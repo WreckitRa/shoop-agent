@@ -1,8 +1,15 @@
 import type { Message } from "@anthropic-ai/sdk/resources/messages/messages";
 import { logAiChat } from "@/lib/ai-chat/observability";
+import { recordPipelineEvent } from "../observability/trace";
 import { tracedLLMCall } from "../observability/traced-llm-call";
 import { extractMentionedRelations } from "../people-from-mentions";
 import { safeTrim } from "../safe-trim";
+import { recordRouterEscalation } from "./escalation-metrics";
+import {
+  assessRouterEscalation,
+  latestUserText,
+  userMentionsAccessories,
+} from "./garment-family";
 import { buildFashionRouterPrompt } from "./prompt";
 import {
   FASHION_ROUTER_TOOLS,
@@ -10,7 +17,11 @@ import {
   formatFashionRouterParseError,
   parseFashionRouterToolInput,
 } from "./tool-schema";
-import { FASHION_ROUTER_MODEL } from "../models";
+import {
+  FASHION_ROUTER_ESCALATION_ENABLED,
+  FASHION_ROUTER_ESCALATION_MODEL,
+  FASHION_ROUTER_MODEL,
+} from "../models";
 import type { FashionRouterContext, FashionRouterResult } from "./types";
 
 const FASHION_ROUTER_TEMPERATURE = Number(
@@ -100,6 +111,8 @@ export async function runFashionRouter(
     systemOverride?: string;
     traceId?: string | null;
     stage?: string;
+    /** Force Opus-class model for this call (escalation already decided). */
+    modelOverride?: string;
   },
   deps: RunFashionRouterDeps = {},
 ): Promise<FashionRouterResult> {
@@ -107,114 +120,184 @@ export async function runFashionRouter(
   const system = params.systemOverride ?? buildFashionRouterPrompt(params.context);
   const messages = buildAnthropicMessages(params.context);
   const stage = params.stage ?? "router";
+  const temperature = Number.isFinite(FASHION_ROUTER_TEMPERATURE)
+    ? FASHION_ROUTER_TEMPERATURE
+    : 0.2;
 
-  logAiChat("info", "fashion_router_prompt", {
-    traceId: params.traceId,
-    stage,
-    model: FASHION_ROUTER_MODEL,
-    temperature: Number.isFinite(FASHION_ROUTER_TEMPERATURE)
-      ? FASHION_ROUTER_TEMPERATURE
-      : 0.2,
-    system_prompt: system,
-    input_messages: messages,
-    tool_names: FASHION_ROUTER_TOOL_NAMES,
-    tool_choice: { type: "any" },
-  });
+  const isValidationRetry =
+    stage.includes("retry") || stage === "gate_retry";
 
-  const call = (callStage: string) =>
-    createMessage({
+  const runOnce = async (opts: {
+    callStage: string;
+    model: string;
+  }): Promise<FashionRouterResult> => {
+    logAiChat("info", "fashion_router_prompt", {
       traceId: params.traceId,
-      stage: callStage,
-      model: FASHION_ROUTER_MODEL,
-      maxTokens: 2048,
-      temperature: Number.isFinite(FASHION_ROUTER_TEMPERATURE)
-        ? FASHION_ROUTER_TEMPERATURE
-        : 0.2,
-      systemPrompt: system,
-      inputMessages: messages,
-      tools: FASHION_ROUTER_TOOLS,
-      toolChoice: { type: "any" },
-      signal: params.signal,
+      stage: opts.callStage,
+      model: opts.model,
+      temperature,
+      system_prompt: system,
+      input_messages: messages,
+      tool_names: FASHION_ROUTER_TOOL_NAMES,
+      tool_choice: { type: "any" },
     });
 
-  let response = await call(stage);
-  if (messageHasTextWithoutTool(response)) {
-    logAiChat("warn", "fashion_router_text_without_tool_retry", {
-      stopReason: response.stop_reason,
-      raw_content: summarizeRouterContent(response),
-    });
-    response = await call(stage === "router" ? "router_retry" : `${stage}_retry`);
+    const call = (callStage: string) =>
+      createMessage({
+        traceId: params.traceId,
+        stage: callStage,
+        model: opts.model,
+        maxTokens: 2048,
+        temperature,
+        systemPrompt: system,
+        inputMessages: messages,
+        tools: FASHION_ROUTER_TOOLS,
+        toolChoice: { type: "any" },
+        signal: params.signal,
+      });
+
+    let response = await call(opts.callStage);
     if (messageHasTextWithoutTool(response)) {
-      logAiChat("warn", "fashion_router_text_without_tool_fallback", {
+      logAiChat("warn", "fashion_router_text_without_tool_retry", {
         stopReason: response.stop_reason,
         raw_content: summarizeRouterContent(response),
-        fallback: FALLBACK_CLARIFICATION,
       });
-      return FALLBACK_CLARIFICATION;
+      response = await call(
+        opts.callStage === "router"
+          ? "router_retry"
+          : `${opts.callStage}_retry`,
+      );
+      if (messageHasTextWithoutTool(response)) {
+        logAiChat("warn", "fashion_router_text_without_tool_fallback", {
+          stopReason: response.stop_reason,
+          raw_content: summarizeRouterContent(response),
+          fallback: FALLBACK_CLARIFICATION,
+        });
+        return FALLBACK_CLARIFICATION;
+      }
     }
-  }
 
-  const toolBlock = response.content.find(
-    (block) =>
-      block.type === "tool_use" &&
-      FASHION_ROUTER_TOOL_NAMES.includes(
-        block.name as (typeof FASHION_ROUTER_TOOL_NAMES)[number],
-      ),
-  );
-  const parsed = toolBlock && toolBlock.type === "tool_use"
-    ? parseFashionRouterToolInput(toolBlock.name, toolBlock.input)
-    : null;
-
-  logAiChat("info", "fashion_router_output", {
-    traceId: params.traceId,
-    stage,
-    stop_reason: response.stop_reason,
-    raw_content: summarizeRouterContent(response),
-    parsed_result: parsed,
-    parse_error:
-      !parsed && toolBlock && toolBlock.type === "tool_use"
-        ? formatFashionRouterParseError(toolBlock.name, toolBlock.input)
-        : parsed
-          ? null
-          : "no router tool block",
-  });
-
-  if (parsed) return parsed;
-
-  logAiChat("warn", "fashion_router_invalid_tool_output", {
-    stopReason: response.stop_reason,
-    toolName: toolBlock?.type === "tool_use" ? toolBlock.name : null,
-    parseError:
-      toolBlock?.type === "tool_use"
-        ? formatFashionRouterParseError(toolBlock.name, toolBlock.input)
-        : "no router tool block",
-  });
-
-  // If the thread already has shoppable signal, prefer a deterministic brief
-  // over a generic clarification that drops the ask.
-  try {
-    const { buildFallbackBriefFromContext } = await import(
-      "../observability/fallback-brief"
+    const toolBlock = response.content.find(
+      (block) =>
+        block.type === "tool_use" &&
+        FASHION_ROUTER_TOOL_NAMES.includes(
+          block.name as (typeof FASHION_ROUTER_TOOL_NAMES)[number],
+        ),
     );
-    const fallback = buildFallbackBriefFromContext({
-      context: params.context,
-      reason: "router_parse_failed",
+    const parsed =
+      toolBlock && toolBlock.type === "tool_use"
+        ? parseFashionRouterToolInput(toolBlock.name, toolBlock.input)
+        : null;
+
+    logAiChat("info", "fashion_router_output", {
+      traceId: params.traceId,
+      stage: opts.callStage,
+      model: opts.model,
+      stop_reason: response.stop_reason,
+      raw_content: summarizeRouterContent(response),
+      parsed_result: parsed,
+      parse_error:
+        !parsed && toolBlock && toolBlock.type === "tool_use"
+          ? formatFashionRouterParseError(toolBlock.name, toolBlock.input)
+          : parsed
+            ? null
+            : "no router tool block",
     });
-    if (fallback.brief.garments.length > 0) {
-      logAiChat("info", "fashion_router_fallback_brief", {
-        traceId: params.traceId,
-        garments: fallback.brief.garments,
-        request_type: fallback.brief.request_type,
+
+    if (parsed) return parsed;
+
+    logAiChat("warn", "fashion_router_invalid_tool_output", {
+      stopReason: response.stop_reason,
+      toolName: toolBlock?.type === "tool_use" ? toolBlock.name : null,
+      parseError:
+        toolBlock?.type === "tool_use"
+          ? formatFashionRouterParseError(toolBlock.name, toolBlock.input)
+          : "no router tool block",
+    });
+
+    try {
+      const { buildFallbackBriefFromContext } = await import(
+        "../observability/fallback-brief"
+      );
+      const fallback = buildFallbackBriefFromContext({
+        context: params.context,
+        reason: "router_parse_failed",
       });
-      return { move: "ready_to_search", brief: fallback.brief };
+      if (fallback.brief.garments.length > 0) {
+        logAiChat("info", "fashion_router_fallback_brief", {
+          traceId: params.traceId,
+          garments: fallback.brief.garments,
+          request_type: fallback.brief.request_type,
+        });
+        return { move: "ready_to_search", brief: fallback.brief };
+      }
+    } catch (error) {
+      logAiChat("warn", "fashion_router_fallback_brief_failed", {
+        error: String(error).slice(0, 160),
+      });
     }
-  } catch (error) {
-    logAiChat("warn", "fashion_router_fallback_brief_failed", {
-      error: String(error).slice(0, 160),
+
+    return FALLBACK_CLARIFICATION;
+  };
+
+  const baseModel = params.modelOverride ?? FASHION_ROUTER_MODEL;
+  let result = await runOnce({ callStage: stage, model: baseModel });
+
+  // Escalation: weird ~5% of turns get one Opus-class re-run.
+  if (
+    FASHION_ROUTER_ESCALATION_ENABLED &&
+    !params.modelOverride &&
+    baseModel !== FASHION_ROUTER_ESCALATION_MODEL
+  ) {
+    const userText = latestUserText(params.context.conversationMessages);
+    const garments =
+      result.move === "ready_to_search" ? result.brief.garments : [];
+    const askedClothingSizesForAccessories =
+      result.move === "ask_clarification" &&
+      userMentionsAccessories(userText) &&
+      result.questions.some(
+        (q) =>
+          q.gap === "size" &&
+          (q.garment_type === "tops" ||
+            q.garment_type === "shoes" ||
+            q.garment_type === "dresses" ||
+            /top|shoe/i.test(q.text)),
+      );
+    const reasons = assessRouterEscalation({
+      userText,
+      garments,
+      askedClothingSizesForAccessories,
+      validationRetry: isValidationRetry,
     });
+    if (reasons.length) {
+      recordRouterEscalation(true);
+      recordPipelineEvent({
+        traceId: params.traceId,
+        stage: "router_escalated",
+        payload: {
+          reasons,
+          from_model: baseModel,
+          to_model: FASHION_ROUTER_ESCALATION_MODEL,
+          prior_move: result.move,
+          prior_garments: garments,
+        },
+      });
+      logAiChat("info", "fashion_router_escalated", {
+        traceId: params.traceId,
+        reasons,
+        from_model: baseModel,
+        to_model: FASHION_ROUTER_ESCALATION_MODEL,
+      });
+      result = await runOnce({
+        callStage: "router_escalated",
+        model: FASHION_ROUTER_ESCALATION_MODEL,
+      });
+    } else {
+      recordRouterEscalation(false);
+    }
   }
 
-  return FALLBACK_CLARIFICATION;
+  return result;
 }
 
 export function resolveBriefRecipientPersonId(params: {

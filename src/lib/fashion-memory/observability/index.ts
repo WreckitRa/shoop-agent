@@ -3,8 +3,17 @@ export {
   closeFashionTrace,
   markFashionTraceError,
   recordPipelineEvent,
+  beginTurnPipelineBuffer,
+  drainTurnPipelineBuffer,
 } from "./trace";
-export { tracedLLMCall } from "./traced-llm-call";
+export { tracedLLMCall, withTracedLlmCall } from "./traced-llm-call";
+export type {
+  HydrationPipelinePayload,
+  HardDropsPipelinePayload,
+  CuratorVetoPipelinePayload,
+  StyleSignalWrittenPayload,
+  CompactPipelineEvent,
+} from "./pipeline-event-payloads";
 export {
   isConsecutiveDuplicateUserTurn,
   dedupeConsecutiveUserMessages,

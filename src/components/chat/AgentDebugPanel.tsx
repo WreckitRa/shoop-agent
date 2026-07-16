@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bug,
   ChevronRight,
@@ -22,6 +22,8 @@ import {
   copyChatDebugExport,
   downloadChatDebugExport,
 } from "@/lib/client/chat-debug-export";
+import { QaDebugCriteriaPanel } from "@/components/qa/QaDebugCriteriaPanel";
+import { buildQaDebugCriteria } from "@/lib/qa/debug-criteria";
 
 const PANEL_WIDTH = 560;
 
@@ -116,6 +118,34 @@ export const AgentDebugPanel = memo(function AgentDebugPanel() {
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const messages = useChatStore((s) => s.messages);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  const qaCriteria = useMemo(() => {
+    const assistant = [...messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.metadata?.fashionCatalogSearch);
+    if (!assistant?.metadata) return null;
+    const meta = assistant.metadata;
+    const catalogRun = fashionCatalogRuns[fashionCatalogRuns.length - 1];
+    const compactEvents = meta.fashionPipelineEvents ?? [];
+    const pipelineEvents = compactEvents.map((e, i) => ({
+      id: `chat-${i}`,
+      stage: e.stage,
+      payload: e.payload,
+      created_at: "",
+    }));
+    return buildQaDebugCriteria({
+      traceId:
+        catalogRun?.trace_id ??
+        meta.fashionCatalogSearch?.trace_id ??
+        meta.fashionSearchPlan?.trace_id ??
+        null,
+      fashionRouter: meta.fashionRouter,
+      fashionSearchPlan: meta.fashionSearchPlan,
+      catalogSearch: meta.fashionCatalogSearch,
+      pipelineEvents,
+      curationDebug: fashionCurationRuns[fashionCurationRuns.length - 1] ?? null,
+    });
+  }, [messages, fashionCatalogRuns, fashionCurationRuns]);
 
   useEffect(() => {
     if (!enabled || !activeConversationId) return;
@@ -271,6 +301,12 @@ export const AgentDebugPanel = memo(function AgentDebugPanel() {
             </button>
           </div>
         </header>
+
+        {qaCriteria ? (
+          <div className="max-h-48 shrink-0 overflow-y-auto border-b border-border/60 p-3">
+            <QaDebugCriteriaPanel model={qaCriteria} />
+          </div>
+        ) : null}
 
         <div className="flex shrink-0 gap-1 border-b border-border/60 p-2">
           <button

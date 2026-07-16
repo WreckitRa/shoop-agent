@@ -21,6 +21,7 @@ export const PLANNER_RAW_DE4048B3 = {
         "mens formal blazer tailored fit",
         "mens business suit jacket premium wool",
         "mens structured dress blazer refined",
+        "mens classic navy blazer professional",
       ],
       budget_fraction: 0.35,
       style_direction:
@@ -37,6 +38,7 @@ export const PLANNER_RAW_DE4048B3 = {
         "mens formal dress shirt cotton crisp",
         "mens business oxford shirt slim fit",
         "mens premium poplin dress shirt white",
+        "mens classic cotton dress shirt refined",
       ],
       budget_fraction: 0.2,
       style_direction:
@@ -53,6 +55,7 @@ export const PLANNER_RAW_DE4048B3 = {
         "mens formal dress pants tailored fit",
         "mens business trousers wool blend",
         "mens premium flat-front dress pants",
+        "mens classic tailored dress trousers",
       ],
       budget_fraction: 0.25,
       style_direction:
@@ -69,6 +72,7 @@ export const PLANNER_RAW_DE4048B3 = {
         "mens formal silk tie classic",
         "mens business dress tie solid",
         "mens premium necktie refined pattern",
+        "mens classic silk necktie professional",
       ],
       budget_fraction: 0.08,
       style_direction:
@@ -85,6 +89,7 @@ export const PLANNER_RAW_DE4048B3 = {
         "mens formal leather dress shoes oxford",
         "mens business dress shoes polished",
         "mens premium leather formal footwear",
+        "mens classic oxford dress shoes black",
       ],
       budget_fraction: 0.12,
       style_direction:

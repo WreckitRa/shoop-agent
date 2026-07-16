@@ -1,5 +1,12 @@
 export { fashionMemoryDb, FashionMemoryError } from "./db";
-export { ensureSelfPerson, createPerson, resolvePerson, getPersonById, listPeopleForUser } from "./people";
+export {
+  ensureSelfPerson,
+  createPerson,
+  resolvePerson,
+  resolvePersonIdRef,
+  getPersonById,
+  listPeopleForUser,
+} from "./people";
 export {
   extractMentionedRelations,
   ensureMentionedPeople,
@@ -89,7 +96,12 @@ export {
   resolveDepartmentEvidence,
   resolveSearchDepartment,
 } from "./department";
-export type { FashionDepartment } from "./department";
+export type {
+  FashionDepartment,
+  PersonDepartment,
+  ProductGenderTarget,
+} from "./department";
+export { coercePersonDepartment, PERSON_DEPARTMENTS } from "./department";
 export {
   loadFashionSearchProfile,
   searchCatalogForSlot,

@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/ai-chat/cn";
+import { QaDebugCriteriaPanel } from "@/components/qa/QaDebugCriteriaPanel";
+import { buildQaDebugCriteriaFromAdminDetail } from "@/lib/qa/debug-criteria";
 import type { FashionCatalogRunDetail } from "@/lib/admin/fashion-types";
 import type { FashionSlotCatalogProduct } from "@/lib/fashion-memory/catalog-search/types";
 import type { ProductScore } from "@/lib/fashion-memory/scoring/types";
@@ -44,6 +46,8 @@ function ProductScorePanel({ score }: { score: ProductScore }) {
       <ScoreBar label="Size confirmed" value={c.size_confirmed} />
       <ScoreBar label="Rating" value={c.rating} />
       <ScoreBar label="Palette" value={c.palette} />
+      <ScoreBar label="Brand match" value={c.brand_match} />
+      <ScoreBar label="Dept confirmed" value={c.department_confirmed} />
       {score.penalties_applied > 0 ? (
         <p className="text-xs text-amber-800">
           Suspicion penalty: −{score.penalties_applied.toFixed(3)}
@@ -218,6 +222,21 @@ export function FashionAdminTraceView({ detail }: { detail: FashionCatalogRunDet
     return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [detail.pipelineEvents]);
 
+  /** Codes/kinds from invariant_warning events — what the amber badge actually means. */
+  const invariantCodes = useMemo(() => {
+    const codes: string[] = [];
+    for (const e of detail.pipelineEvents) {
+      if (e.stage !== "invariant_warning") continue;
+      const payload = e.payload as { code?: unknown; kind?: unknown };
+      const label =
+        (typeof payload.code === "string" && payload.code) ||
+        (typeof payload.kind === "string" && payload.kind) ||
+        "invariant_warning";
+      if (!codes.includes(label)) codes.push(label);
+    }
+    return codes;
+  }, [detail.pipelineEvents]);
+
   const backHref = "/admin/fashion";
   const traceHref = detail.run.traceId
     ? `/admin/fashion/${detail.run.traceId}`
@@ -249,9 +268,28 @@ export function FashionAdminTraceView({ detail }: { detail: FashionCatalogRunDet
           </div>
         </div>
         {detail.run.flagged ? (
-          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-950">
-            Pipeline invariant flagged
-          </span>
+          <div className="flex max-w-md flex-col items-end gap-1.5">
+            <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-950">
+              Pipeline invariant flagged
+            </span>
+            {invariantCodes.length ? (
+              <div className="flex flex-wrap justify-end gap-1">
+                {invariantCodes.map((code) => (
+                  <span
+                    key={code}
+                    className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] text-amber-950"
+                  >
+                    {code}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-right text-[10px] text-ink-muted">
+                Open Pipeline tab → expand{" "}
+                <span className="font-mono">invariant_warning</span>
+              </p>
+            )}
+          </div>
         ) : null}
       </div>
 
@@ -365,17 +403,38 @@ export function FashionAdminTraceView({ detail }: { detail: FashionCatalogRunDet
               </span>
             ))}
           </div>
-          {detail.pipelineEvents.map((event) => (
-            <details key={event.id} className="card overflow-hidden">
-              <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-ink">
-                <span className="font-mono text-brand">{event.stage}</span>
-                <span className="ml-3 text-xs text-ink-muted">{event.created_at}</span>
-              </summary>
-              <pre className="max-h-80 overflow-auto border-t border-hairline bg-surface-subtle p-4 font-mono text-[11px] leading-relaxed text-ink-muted">
-                {JSON.stringify(event.payload, null, 2)}
-              </pre>
-            </details>
-          ))}
+          {detail.pipelineEvents.map((event) => {
+            const payload = event.payload as { code?: unknown; kind?: unknown };
+            const invariantLabel =
+              event.stage === "invariant_warning"
+                ? (typeof payload.code === "string" && payload.code) ||
+                  (typeof payload.kind === "string" && payload.kind) ||
+                  null
+                : null;
+            return (
+              <details
+                key={event.id}
+                className={
+                  event.stage === "invariant_warning"
+                    ? "card overflow-hidden border-amber-300/60 bg-amber-50/30"
+                    : "card overflow-hidden"
+                }
+              >
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-ink">
+                  <span className="font-mono text-brand">{event.stage}</span>
+                  {invariantLabel ? (
+                    <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[11px] text-amber-950">
+                      {invariantLabel}
+                    </span>
+                  ) : null}
+                  <span className="ml-3 text-xs text-ink-muted">{event.created_at}</span>
+                </summary>
+                <pre className="max-h-80 overflow-auto border-t border-hairline bg-surface-subtle p-4 font-mono text-[11px] leading-relaxed text-ink-muted">
+                  {JSON.stringify(event.payload, null, 2)}
+                </pre>
+              </details>
+            );
+          })}
           {detail.pipelineEvents.length === 0 ? (
             <p className="text-sm text-ink-muted">
               No pipeline events in Supabase for this trace. Check that Supabase is configured
@@ -387,6 +446,12 @@ export function FashionAdminTraceView({ detail }: { detail: FashionCatalogRunDet
 
       {tab === "overview" ? (
         <div className="grid gap-4 lg:grid-cols-2">
+          <div className="card p-4 lg:col-span-2">
+            <h2 className="text-sm font-semibold text-ink">QA pass criteria</h2>
+            <div className="mt-3">
+              <QaDebugCriteriaPanel model={buildQaDebugCriteriaFromAdminDetail(detail)} />
+            </div>
+          </div>
           <div className="card p-4">
             <h2 className="text-sm font-semibold text-ink">Trace summary</h2>
             <pre className="mt-2 max-h-64 overflow-auto font-mono text-[11px] text-ink-muted">

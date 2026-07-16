@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   ALLOCATION_PAD_MAX,
   BUDGET_ASSEMBLY_TOLERANCE,
+  CAPSULE_PIECE_PAD,
   LEGACY_BUDGET_PAD_MAX,
   RELEVANCE_GUARD_MULTIPLIER,
   priceBoundsForSlot,
@@ -656,6 +657,225 @@ describe("planner prompt", () => {
     const prompt = buildSearchPlannerPrompt();
     assert.match(prompt, /BUDGET ALLOCATION:/);
     assert.match(prompt, /budget_fraction/);
-    assert.match(prompt, /Fractions must sum to 1 across slots/);
+    assert.match(prompt, /budget_fraction summing to 1 across[\s\S]*slots/);
+  });
+});
+
+function makeCapsulePlan(
+  overrides: Partial<FashionSearchPlan> = {},
+): FashionSearchPlan {
+  return makePlan({
+    mode: "capsule",
+    brief: {
+      ...baseBrief,
+      request_type: "capsule",
+      garments: ["shirt", "trousers", "shoes"],
+      quantity_hint: "3 outfits",
+    },
+    slots: [
+      {
+        slot_id: "tops",
+        garment: "shirt",
+        role: "anchor",
+        style_direction: "casual tops",
+        palette_constraint: null,
+        palette_source: "spread",
+        options_wanted: 3,
+        query_variants: ["mens shirt", "mens tee"],
+        budget_fraction: 0.45,
+      },
+      {
+        slot_id: "bottoms",
+        garment: "trousers",
+        role: "support",
+        style_direction: "chinos",
+        palette_constraint: null,
+        palette_source: "spread",
+        options_wanted: 2,
+        query_variants: ["mens chinos", "mens pants"],
+        budget_fraction: 0.35,
+      },
+      {
+        slot_id: "shoes",
+        garment: "shoes",
+        role: "support",
+        style_direction: "sneakers",
+        palette_constraint: null,
+        palette_source: "spread",
+        options_wanted: 1,
+        query_variants: ["mens sneakers", "mens trainers"],
+        budget_fraction: 0.2,
+      },
+    ],
+    ...overrides,
+  });
+}
+
+describe("capsule_300_per_piece_bounds", () => {
+  it("divides slot allocation by piece count with PIECE_PAD 1.5", () => {
+    const plan = makeCapsulePlan();
+    const allocation = resolveAllocation(plan, "USD");
+    assert.ok(allocation);
+    assert.equal(allocation!.budget_interpretation, "set_total_assumed");
+    assert.equal(allocation!.budget_assembly?.constraint_type, "set_total");
+
+    const tops = allocation!.per_slot.tops!;
+    const bottoms = allocation!.per_slot.bottoms!;
+    const shoes = allocation!.per_slot.shoes!;
+
+    const expectedTops = (300 * 0.45 * CAPSULE_PIECE_PAD) / 3;
+    const expectedBottoms = (300 * 0.35 * CAPSULE_PIECE_PAD) / 2;
+    const expectedShoes = (300 * 0.2 * CAPSULE_PIECE_PAD) / 1;
+
+    assert.ok(Math.abs(tops.per_item_enforced! - expectedTops) < 0.01);
+    assert.ok(Math.abs(bottoms.per_item_enforced! - expectedBottoms) < 0.01);
+    assert.ok(Math.abs(shoes.per_item_enforced! - expectedShoes) < 0.01);
+
+    assert.equal(tops.per_item_guard, tops.per_item_enforced! * RELEVANCE_GUARD_MULTIPLIER);
+    assert.equal(tops.pieces, 3);
+    assert.equal(bottoms.pieces, 2);
+    assert.equal(shoes.pieces, 1);
+
+    // Must not send undivided set allocation as enforcement ceiling.
+    assert.notEqual(tops.padded_max, 300 * 0.45 * CAPSULE_PIECE_PAD);
+
+    for (const [slotId, expected] of [
+      ["tops", expectedTops],
+      ["bottoms", expectedBottoms],
+      ["shoes", expectedShoes],
+    ] as const) {
+      const enforced = priceBoundsForSlot({
+        brief: plan.brief,
+        mode: "capsule",
+        slotId,
+        allocation,
+        profileCurrency: "USD",
+        purpose: "client_enforcement",
+      });
+      const server = priceBoundsForSlot({
+        brief: plan.brief,
+        mode: "capsule",
+        slotId,
+        allocation,
+        profileCurrency: "USD",
+        purpose: "server_filter",
+      });
+      assert.equal(enforced?.max, Math.round(expected * 100));
+      assert.equal(
+        server?.max,
+        Math.round(expected * RELEVANCE_GUARD_MULTIPLIER * 100),
+      );
+    }
+  });
+});
+
+describe("capsule_lift_math", () => {
+  it("computes room with piece-count multiplication and divides lift by pieces", () => {
+    const plan = makeCapsulePlan();
+    const allocation = resolveAllocation(plan, "USD")!;
+
+    const slots = [
+      {
+        slot_id: "tops",
+        products: [
+          product("t1", 35),
+          product("t2", 40),
+          product("t3", 45),
+        ],
+        market_prices: {
+          p10: 35,
+          p50: 40,
+          p90: 45,
+          min_viable: 35,
+          sample_size: 5,
+        },
+      },
+      {
+        slot_id: "bottoms",
+        products: [product("b1", 95)],
+        market_prices: {
+          p10: 90,
+          p50: 95,
+          p90: 110,
+          min_viable: 85,
+          sample_size: 8,
+        },
+        budget_dropped_pool: [product("b85", 85), product("b88", 88)],
+      },
+      {
+        slot_id: "shoes",
+        products: [product("s1", 55)],
+        market_prices: {
+          p10: 50,
+          p50: 55,
+          p90: 70,
+          min_viable: 50,
+          sample_size: 5,
+        },
+      },
+    ];
+
+    const metrics: HardDropMetrics[] = slots.map(() => ({
+      in: 20,
+      out: 3,
+      drops_by_rule: { budget: 5 },
+      suspicions_by_rule: {},
+      ms: 1,
+    }));
+
+    const decisions = evaluateBudgetLift({
+      allocation,
+      slots,
+      hardDropMetrics: metrics,
+      rawCounts: new Map([
+        ["tops", 20],
+        ["bottoms", 20],
+        ["shoes", 20],
+      ]),
+      budgetDrops: new Map([
+        ["tops", 0],
+        ["bottoms", 12],
+        ["shoes", 0],
+      ]),
+    });
+
+    const bottomDecision = decisions.find((d) => d.slot_id === "bottoms");
+    assert.ok(bottomDecision?.should_lift);
+    const room = 300 * (1 + BUDGET_ASSEMBLY_TOLERANCE) - (35 * 3 + 50);
+    assert.equal(room, 330 - 155);
+    assert.equal(bottomDecision!.lifted_max, room / 2);
+    assert.equal(bottomDecision!.lifted_max, 87.5);
+  });
+});
+
+describe("outfit_per_look_unchanged", () => {
+  it("keeps per-look constraint and undivided per-slot padded max", () => {
+    const plan = makePlan();
+    const allocation = resolveAllocation(plan, "USD");
+    assert.ok(allocation);
+    assert.equal(allocation!.budget_assembly?.constraint_type, "per_look");
+    // Ambiguous stated total (no scope) → set_total_assumed; never undefined.
+    assert.equal(allocation!.budget_interpretation, "set_total_assumed");
+
+    const shirt = allocation!.per_slot.shirt!;
+    assert.equal(shirt.padded_max, 300 * shirt.fraction * ALLOCATION_PAD_MAX);
+    assert.equal(shirt.per_item_enforced, undefined);
+    assert.equal(shirt.pieces, undefined);
+  });
+
+  it("sets total_stated when router scope is total", () => {
+    const plan = makePlan({
+      brief: {
+        ...baseBrief,
+        budget_context: {
+          stated: true,
+          max: 300,
+          currency: "USD",
+          scope: "total",
+        },
+      },
+    });
+    const allocation = resolveAllocation(plan, "USD");
+    assert.equal(allocation?.budget_interpretation, "total_stated");
   });
 });

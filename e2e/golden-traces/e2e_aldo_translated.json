@@ -1,0 +1,8 @@
+{
+  "stages": [
+    "gate"
+  ],
+  "eventCounts": {
+    "gate": 1
+  }
+}

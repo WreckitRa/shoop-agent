@@ -8,14 +8,18 @@ export type HardDropRule =
   | "item_type_mismatch"
   | "size_mismatch"
   | "color_no_go"
+  | "color_must_have"
   | "garment_no_go"
   | "material_no_go"
+  | "material_must_have"
   | "drop_check_error";
 
 export type HardDroppedProduct = {
   product_id: string;
   rule: HardDropRule;
   evidence: string;
+  /** Optional thumbnail for live loader / admin discard UI. */
+  image_url?: string;
 };
 
 export type SuspicionRule =
@@ -23,11 +27,13 @@ export type SuspicionRule =
   | "size_system_unverified"
   | "size_unknown"
   | "color_two_tone"
+  | "color_unknown"
   | "pattern_suspected"
   | "department_unknown"
   | "attire_conflict_title"
   | "drop_check_error"
   | "price_outlier_low"
+  | "currency_unconverted"
   | `material_suspected:${string}`;
 
 export type ProductSuspicion = {

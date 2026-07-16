@@ -1,4 +1,9 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
+import {
+  detectAccessoriesCoercion,
+  latestUserText,
+  unknownGarmentsInBrief,
+} from "../router/garment-family";
 import type { FashionRouterContext, FashionSearchBrief } from "../router/types";
 import type { FashionSearchPlan } from "../search-planner/types";
 import { recordPipelineEvent } from "./trace";
@@ -49,11 +54,25 @@ function warnInvariant(params: {
   });
 }
 
+/** Codes that surface on /flagged and can trigger router escalation. */
+export type BriefInvariantTrip =
+  | "accessories_coerced"
+  | "unknown_garment_family"
+  | "outfit_language_single_item_brief"
+  | "occasion_language_missing_from_brief"
+  | "reask_after_answer";
+
+/** Re-export: clarification reask of conversation-known facts. */
+export { checkReaskAfterAnswer } from "../intake/clarification-dedup";
+
 export function checkBriefInvariants(params: {
   traceId?: string | null;
   messages: FashionRouterContext["conversationMessages"];
   brief: FashionSearchBrief;
-}): void {
+}): BriefInvariantTrip[] {
+  const tripped: BriefInvariantTrip[] = [];
+  const userText = latestUserText(params.messages);
+
   if (
     threadMentionsOutfit(params.messages) &&
     params.brief.request_type === "single_item"
@@ -66,6 +85,7 @@ export function checkBriefInvariants(params: {
         occasion_context: params.brief.occasion_context,
       },
     });
+    tripped.push("outfit_language_single_item_brief");
   }
 
   if (
@@ -79,7 +99,37 @@ export function checkBriefInvariants(params: {
         occasion_context: params.brief.occasion_context,
       },
     });
+    tripped.push("occasion_language_missing_from_brief");
   }
+
+  if (
+    detectAccessoriesCoercion({
+      userText,
+      garments: params.brief.garments,
+    })
+  ) {
+    warnInvariant({
+      traceId: params.traceId,
+      code: "accessories_coerced",
+      detail: {
+        garments: params.brief.garments,
+        user_excerpt: userText.slice(0, 160),
+      },
+    });
+    tripped.push("accessories_coerced");
+  }
+
+  const unknown = unknownGarmentsInBrief(params.brief.garments);
+  if (unknown.length) {
+    warnInvariant({
+      traceId: params.traceId,
+      code: "unknown_garment_family",
+      detail: { garments: unknown },
+    });
+    tripped.push("unknown_garment_family");
+  }
+
+  return tripped;
 }
 
 export function checkPlanInvariants(params: {

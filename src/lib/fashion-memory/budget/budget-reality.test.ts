@@ -85,7 +85,12 @@ function makeOutfitPlan(
         palette_constraint: "navy",
         palette_source: "occasion_default",
         options_wanted: 3,
-        query_variants: ["mens oxford shirt"],
+        query_variants: [
+          "mens oxford shirt",
+          "mens formal cotton shirt",
+          "mens business shirt",
+          "mens premium shirt",
+        ],
         budget_fraction: 0.4,
       },
       {
@@ -96,7 +101,12 @@ function makeOutfitPlan(
         palette_constraint: "grey",
         palette_source: "occasion_default",
         options_wanted: 3,
-        query_variants: ["mens chino trousers"],
+        query_variants: [
+          "mens chino trousers",
+          "mens dress pants tailored",
+          "mens business trousers",
+          "mens formal pants",
+        ],
         budget_fraction: 0.35,
       },
       {
@@ -107,7 +117,12 @@ function makeOutfitPlan(
         palette_constraint: "brown",
         palette_source: "occasion_default",
         options_wanted: 3,
-        query_variants: ["mens leather loafers"],
+        query_variants: [
+          "mens leather loafers",
+          "mens dress shoes oxford",
+          "mens business shoes",
+          "mens formal footwear",
+        ],
         budget_fraction: 0.25,
       },
     ],

@@ -3,9 +3,12 @@ import {
   type CatalogMediaItem,
   type CatalogProductDetail,
   type CatalogSearchContext,
+  type SelectedOption,
 } from "@/lib/shopify/catalog";
+import { resolveGetProduct } from "@/lib/shopify/catalog-client-override";
 import { extractCatalogAttributes } from "@/lib/shopify/catalog-attributes";
 import { logAiChat } from "@/lib/ai-chat/observability";
+import { consumeQaFault } from "@/lib/qa/faults";
 import {
   abortSignalWithTimeout,
   type AbortScope,
@@ -19,10 +22,13 @@ import type { FashionSearchBrief } from "../router/types";
 import type { FashionFactRow } from "../types";
 import { recipientSizeForGarment } from "../hard-drops/size-match";
 import type { FashionSlotCatalogProduct } from "../catalog-search/types";
+import { isTransientMcpError } from "@/lib/shopify/mcp-retry";
 import {
   HYDRATION_CALL_TIMEOUT_MS,
   HYDRATION_TIMEOUT_RETRIES,
+  HYDRATION_TRANSIENT_RETRIES,
 } from "./config";
+import type { ConcurrencyGate } from "./concurrency-gate";
 import {
   buildSizeSelection,
   isSizeSelectionFallback,
@@ -30,11 +36,16 @@ import {
   relaxationOrder,
   sizeOptionAvailability,
 } from "./build-size-selection";
+import {
+  buildColorSelection,
+  colorSelectionFromDetail,
+} from "./build-color-selection";
 import type {
   HydrateCandidateResult,
   HydratedCandidate,
   HydrationDeathRecord,
 } from "./types";
+import { classifyOptionName } from "../normalize/option-classifier";
 
 export type HydrateCandidateParams = {
   traceId?: string | null;
@@ -47,8 +58,10 @@ export type HydrateCandidateParams = {
   abortScope?: AbortScope;
   /** Test injection — defaults to catalog getProduct. */
   getProductFn?: typeof getProduct;
-  /** Override per-call timeout (ms) for tests. */
-  timeoutMs?: number;
+  /** Override per-call timeout (ms) for tests. `null` disables the timeout. */
+  timeoutMs?: number | null;
+  /** Request-scoped cap shared across slots — wraps the get_product call. */
+  concurrencyGate?: ConcurrencyGate;
 };
 
 function mediaUrl(item: CatalogMediaItem | string | undefined): string | undefined {
@@ -91,6 +104,30 @@ function resolvedVariant(detail: CatalogProductDetail) {
   );
 }
 
+function sizeSelectionFromDetail(
+  detail: CatalogProductDetail,
+  requested?: HydratedCandidate["size_selection"],
+): HydratedCandidate["size_selection"] | undefined {
+  if (requested?.merchant_label?.trim()) return requested;
+  const fromDetail = detail.selected?.find(
+    (opt) => classifyOptionName(opt.name) === "size",
+  );
+  if (!fromDetail?.label?.trim()) return undefined;
+  return { option_name: fromDetail.name, merchant_label: fromDetail.label };
+}
+
+function resolvedOptionsFromDetail(
+  detail: CatalogProductDetail,
+): SelectedOption[] | undefined {
+  const opts = (detail.selected ?? [])
+    .map((o) => ({
+      name: o.name?.trim() ?? "",
+      label: o.label?.trim() ?? "",
+    }))
+    .filter((o) => o.name && o.label);
+  return opts.length ? opts : undefined;
+}
+
 function readNativeCheckoutFlag(
   detail: CatalogProductDetail,
   product: FashionSlotCatalogProduct,
@@ -106,15 +143,27 @@ function harvestCandidate(params: {
   detail: CatalogProductDetail;
   sizeStatus: HydratedCandidate["size_status"];
   sizeSelection?: HydratedCandidate["size_selection"];
+  colorSelection?: HydratedCandidate["color_selection"];
   hydrationFailed?: boolean;
   nativeCheckout: boolean;
 }): HydratedCandidate {
   const variant = resolvedVariant(params.detail);
   const price = variant?.price;
+  const resolvedOptions = resolvedOptionsFromDetail(params.detail);
   return {
     ...params.product,
+    hydrated_at: new Date().toISOString(),
     size_status: params.sizeStatus,
-    size_selection: params.sizeSelection,
+    size_selection: sizeSelectionFromDetail(
+      params.detail,
+      params.sizeSelection,
+    ),
+    color_selection: colorSelectionFromDetail(
+      params.detail,
+      params.colorSelection,
+    ),
+    resolved_options: resolvedOptions,
+    selected_variant_id: variant?.id,
     hydration_failed: params.hydrationFailed,
     native_checkout: params.nativeCheckout,
     detail: params.detail,
@@ -178,14 +227,37 @@ function departmentDeathFromDetail(
   );
 }
 
+function isAbortError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === "AbortError") return true;
+  if (err instanceof Error && err.name === "AbortError") return true;
+  return /abort/i.test(String(err));
+}
+
+/** Catalog / network blips worth retrying — not permanent product deaths. */
+function isTransientHydrationError(err: unknown): boolean {
+  if (isAbortError(err)) return false;
+  if (isTransientMcpError(err)) return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/hydration_timeout/i.test(msg)) return true;
+  if (/fetch failed|network|econnreset|etimedout|econnrefused|socket/i.test(msg)) {
+    return true;
+  }
+  if (/und_err|other side closed|socket hang up/i.test(msg)) return true;
+  if (/\b(429|502|503|504)\b/.test(msg)) return true;
+  return false;
+}
+
 function callWithTimeout<T>(
-  fn: (signal: AbortSignal) => Promise<T>,
-  ms: number,
+  fn: (signal: AbortSignal | undefined) => Promise<T>,
+  ms: number | null,
   abortScope?: AbortScope,
 ): Promise<T> {
   const opSignal = abortScope?.fork();
-  const deadline = abortSignalWithTimeout(opSignal, ms);
+  if (ms == null || ms <= 0) {
+    return fn(opSignal);
+  }
 
+  const deadline = abortSignalWithTimeout(opSignal, ms);
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("hydration_timeout")), ms);
     fn(deadline)
@@ -201,14 +273,12 @@ function callWithTimeout<T>(
 }
 
 /**
- * get_product with a single retry on timeout. Timeouts under a concurrency
- * stampede are usually transient; a re-attempt after the herd clears recovers
- * the candidate instead of degrading it to a hydration_failed shell. Aborts
- * (user cancellation / global deadline) never retry.
+ * get_product with optional per-call timeout + retries for timeouts / transient
+ * catalog blips. Parent abort is never retried.
  */
 async function callWithTimeoutRetries<T>(
-  fn: (signal: AbortSignal) => Promise<T>,
-  ms: number,
+  fn: (signal: AbortSignal | undefined) => Promise<T>,
+  ms: number | null,
   retries: number,
   abortScope?: AbortScope,
 ): Promise<T> {
@@ -218,9 +288,18 @@ async function callWithTimeoutRetries<T>(
       return await callWithTimeout(fn, ms, abortScope);
     } catch (err) {
       lastErr = err;
-      const timedOut = /hydration_timeout/i.test(String(err));
-      const aborted = /abort/i.test(String(err));
-      if (!timedOut || aborted || attempt === retries) throw err;
+      if (isAbortError(err) || !isTransientHydrationError(err) || attempt === retries) {
+        throw err;
+      }
+      const backoffMs = Math.min(250 * 2 ** attempt + Math.random() * 100, 2_000);
+      logAiChat("info", "fashion_hydration_retry", {
+        attempt: attempt + 1,
+        retries,
+        backoff_ms: Math.round(backoffMs),
+        error: String(err).slice(0, 120),
+        timeout_ms: ms,
+      });
+      await new Promise<void>((resolve) => setTimeout(resolve, backoffMs));
     }
   }
   throw lastErr;
@@ -239,30 +318,86 @@ export async function hydrateCandidate(
     brief: params.brief,
     recipientSize,
   });
+  const colorSelection = buildColorSelection({
+    product: params.product,
+    garment: params.slot.garment,
+    brief: params.brief,
+  });
+  const selectedForGetProduct = [...selection.selected];
+  if (colorSelection) {
+    const colorKey = colorSelection.option_name.trim().toLowerCase();
+    if (
+      !selectedForGetProduct.some(
+        (opt) => opt.name.trim().toLowerCase() === colorKey,
+      )
+    ) {
+      selectedForGetProduct.push({
+        name: colorSelection.option_name,
+        label: colorSelection.merchant_label,
+      });
+    }
+  }
 
-  const timeoutMs = params.timeoutMs ?? HYDRATION_CALL_TIMEOUT_MS;
+  const timeoutMs =
+    params.timeoutMs !== undefined
+      ? params.timeoutMs
+      : HYDRATION_CALL_TIMEOUT_MS;
   const started = Date.now();
 
-  try {
-    const fetchProduct = params.getProductFn ?? getProduct;
-    const { product: detail } = await callWithTimeoutRetries(
-      (signal) =>
-        fetchProduct(
-          params.accessToken,
-          params.product.id,
-          selection.selected,
-          {
-            ...(selection.selected.length
-              ? { preferences: relaxationOrder(selection.selected) }
-              : {}),
-            context: params.context,
-            signal,
-          },
-        ),
-      timeoutMs,
-      HYDRATION_TIMEOUT_RETRIES,
-      params.abortScope,
+  if (
+    consumeQaFault(null, "kill_next_hydration", params.traceId, {
+      product_id: params.product.id,
+      slot_id: params.slot.slot_id,
+    })
+  ) {
+    return death(
+      params.product.id,
+      "size_out_of_stock",
+      "QA fault: selected variant unavailable at get_product",
     );
+  }
+
+  try {
+    const fetchProduct = params.getProductFn ?? resolveGetProduct();
+    const retries =
+      timeoutMs != null && timeoutMs > 0
+        ? Math.max(HYDRATION_TIMEOUT_RETRIES, HYDRATION_TRANSIENT_RETRIES)
+        : HYDRATION_TRANSIENT_RETRIES;
+    const runGet = () =>
+      callWithTimeoutRetries(
+        (signal) =>
+          fetchProduct(
+            params.accessToken,
+            params.product.id,
+            selectedForGetProduct,
+            {
+              ...(selectedForGetProduct.length
+                ? { preferences: relaxationOrder(selectedForGetProduct) }
+                : {}),
+              context: params.context,
+              signal,
+            },
+          ),
+        timeoutMs,
+        retries,
+        params.abortScope,
+      );
+    const { product: detail } = params.concurrencyGate
+      ? await params.concurrencyGate.run(runGet)
+      : await runGet();
+
+    const elapsedMs = Date.now() - started;
+    logAiChat("info", "fashion_hydration_get_product", {
+      traceId: params.traceId,
+      productId: params.product.id,
+      slot_id: params.slot.slot_id,
+      garment: params.slot.garment,
+      shop_domain: params.product.shop_domain ?? null,
+      ok: Boolean(detail),
+      elapsed_ms: elapsedMs,
+      timeout_ms: timeoutMs,
+      timeout_enabled: timeoutMs != null && timeoutMs > 0,
+    });
 
     if (!detail) {
       return death(
@@ -328,6 +463,7 @@ export async function hydrateCandidate(
               option_name: sizeSel.name,
               converted_from: selection.convertedFrom,
             },
+            colorSelection,
             nativeCheckout,
           }),
         };
@@ -347,6 +483,7 @@ export async function hydrateCandidate(
             option_name: sizeSel.name,
             converted_from: selection.convertedFrom,
           },
+          colorSelection,
           nativeCheckout,
         }),
       };
@@ -358,6 +495,7 @@ export async function hydrateCandidate(
         product: params.product,
         detail,
         sizeStatus: "unknown",
+        colorSelection,
         nativeCheckout,
       }),
     };
@@ -365,7 +503,7 @@ export async function hydrateCandidate(
     const elapsedMs = Date.now() - started;
     const errText = String(err);
     const timedOut = /hydration_timeout/i.test(errText);
-    const aborted = /abort/i.test(errText);
+    const aborted = isAbortError(err);
     logAiChat("warn", "fashion_hydration_failed", {
       traceId: params.traceId,
       productId: params.product.id,
@@ -375,8 +513,10 @@ export async function hydrateCandidate(
       error: errText.slice(0, 160),
       timed_out: timedOut,
       aborted,
+      transient: isTransientHydrationError(err),
       elapsed_ms: elapsedMs,
       timeout_ms: timeoutMs,
+      timeout_enabled: timeoutMs != null && timeoutMs > 0,
     });
     // Never admit unhydrated shells as verified — they lack size/media truth.
     return death(

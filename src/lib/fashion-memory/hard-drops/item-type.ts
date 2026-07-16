@@ -37,7 +37,10 @@ export type GarmentFamily =
   | "neckwear"
   | "headwear"
   | "belt"
-  | "bag";
+  | "bag"
+  | "watch"
+  | "jewelry"
+  | "socks";
 
 type FamilyRule = {
   family: GarmentFamily;
@@ -68,12 +71,34 @@ const FAMILY_RULES: readonly FamilyRule[] = [
       "shoe cream",
     ],
   },
-  { family: "footwear_accessory", tokens: ["sock", "socks"] },
+  // Socks are a deliberate accessory-tray family — not only "footwear junk".
+  { family: "socks", tokens: ["sock", "socks"] },
+  // Keep shoelace/care as footwear_accessory junk for shoe slots.
   {
     family: "neckwear",
     tokens: ["necktie", "neckties", "bowtie", "tie", "ties"],
     phrases: ["bow tie", "neck tie"],
     vetoPhrases: ["tie dye"],
+  },
+  {
+    family: "watch",
+    tokens: ["watch", "watches"],
+    phrases: ["smart watch", "wrist watch"],
+  },
+  {
+    family: "jewelry",
+    tokens: [
+      "bracelet",
+      "bracelets",
+      "necklace",
+      "necklaces",
+      "earring",
+      "earrings",
+      "ring",
+      "rings",
+      "cufflink",
+      "cufflinks",
+    ],
   },
   {
     family: "footwear",

@@ -1,9 +1,7 @@
 import type { HydratedCandidate } from "../hydration/types";
 import type { FashionSearchPlanSlot } from "../search-planner/types";
 import type { CurationRefRegistry, RefEntry } from "./types";
-import {
-  CURATION_IMAGE_BUDGET,
-} from "./config";
+import { imageBudgetForSlot } from "./deliverables";
 
 function slotPrefix(slotId: string): string {
   return slotId.replace(/[^a-z0-9]+/gi, "_").slice(0, 12);
@@ -24,12 +22,10 @@ export function buildRefRegistry(params: {
       (a, b) => (b.score?.final ?? 0) - (a.score?.final ?? 0),
     );
 
-    const imageBudget =
-      params.mode === "single_item"
-        ? CURATION_IMAGE_BUDGET.single_item
-        : slot.planSlot.role === "anchor"
-          ? CURATION_IMAGE_BUDGET.anchor_slot
-          : CURATION_IMAGE_BUDGET.support_slot;
+    const imageBudget = imageBudgetForSlot({
+      mode: params.mode,
+      role: slot.planSlot.role,
+    });
 
     sorted.forEach((candidate, idx) => {
       const ref = `${slotPrefix(slot.slot_id)}_${idx + 1}`;

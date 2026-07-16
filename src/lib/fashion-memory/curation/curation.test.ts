@@ -2,7 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildRefRegistry } from "./refs";
 import { validateCurationOutput } from "./validate";
-import { buildDeterministicFallback } from "./fallback";
+import {
+  buildDeterministicFallback,
+  validateAndRepairFallback,
+} from "./fallback";
 import { buildPresentationContract } from "./presentation";
 import { buildCurationSystemPrompt } from "./prompt";
 import { promotePick, rejectPick } from "./picks-actions";
@@ -163,7 +166,7 @@ describe("veto_tripwire", () => {
 });
 
 describe("look_over_budget_dropped", () => {
-  it("recomputes totals and drops over-budget looks", () => {
+  it("keeps closest look when all exceed ceiling (tight budget salvage)", () => {
     const outfitPlan: FashionSearchPlan = {
       ...plan,
       mode: "outfit",
@@ -225,15 +228,60 @@ describe("look_over_budget_dropped", () => {
         total_max: 200,
         currency: "USD",
         tolerance: 0.1,
+        constraint_type: "per_look",
         per_slot_allocated: {},
       },
     });
 
+    assert.equal(validated.ok, true);
     assert.ok(validated.issues.some((i) => i.code === "look_over_budget"));
-    assert.equal(validated.output?.looks?.length, 0);
+    assert.ok(validated.issues.some((i) => i.code === "look_over_budget_kept"));
+    assert.equal(validated.output?.looks?.length, 1);
+    assert.ok(validated.output?.narration.budget_note?.trim());
   });
 });
 
+describe("underfilled_slot_padded", () => {
+  it("pads under-filled slots from pool and keeps live curation", () => {
+    const pool = Array.from({ length: 6 }, (_, i) =>
+      candidate(`p${i}`, "shirt", 40 + i),
+    );
+    const registry = registryFor(pool);
+    const refs = [...registry.keys()];
+    const output: DeliverCurationInput = {
+      slots: [
+        {
+          slot_id: "shirt",
+          picks: [
+            { ref: refs[0]!, role: "safe", stylist_line: "Opus pick." },
+          ],
+        },
+      ],
+      vetoes: [],
+      narration: { opening: "Partial rack." },
+    };
+
+    const validated = validateCurationOutput({
+      output,
+      registry,
+      plan: {
+        ...plan,
+        slots: [{ ...plan.slots[0]!, options_wanted: 3 }],
+      },
+      slots: [{ slot_id: "shirt", garment: "shirt" }],
+    });
+
+    assert.equal(validated.ok, true);
+    assert.ok(
+      validated.issues.some((i) => i.code === "underfilled_slot_padded"),
+    );
+    assert.equal(validated.output?.slots[0]?.picks.length, 3);
+    assert.equal(
+      validated.issues.some((i) => i.code === "underfilled_slot"),
+      false,
+    );
+  });
+});
 describe("mandatory_brand_note_missing", () => {
   it("fails validation when brand partial and no brand_note", () => {
     const registry = registryFor([candidate("p1", "shirt", 80)]);
@@ -303,7 +351,7 @@ describe("fallback_after_two_failures", () => {
     assert.ok(fallback.slots[0]!.picks.length >= 2);
     assert.match(fallback.narration.opening, /strongest verified picks/i);
     assert.equal(
-      /\b(funnel|fit score|pipeline|curation|fallback|slot)\b/i.test(
+      /\b(funnel|fit score|pipeline|curation|fallback)\b/i.test(
         fallback.narration.opening,
       ),
       false,
@@ -835,10 +883,255 @@ describe("fallback_narration_no_machinery_words", () => {
       thinSlots: [],
     });
     const machinery =
-      /\b(funnel|fit score|verified options|pipeline|curation|fallback|slot)\b/i;
+      /\b(funnel|fit score|verified options|pipeline|curation|fallback)\b/i;
     assert.equal(machinery.test(fallback.narration.opening), false);
     if (fallback.narration.thin_note) {
       assert.equal(machinery.test(fallback.narration.thin_note), false);
     }
   });
 });
+
+describe("fallback_validate_repairs_missing_budget_note", () => {
+  it("repairs mandatory budget_note instead of shipping note-less output", () => {
+    const registry = registryFor([
+      candidate("p1", "shirt", 80),
+      candidate("p2", "shirt", 70),
+      candidate("p3", "shirt", 60),
+      candidate("p4", "shirt", 50),
+    ]);
+    const raw = buildDeterministicFallback({
+      plan,
+      registry,
+      thinSlots: [],
+      // Intentionally omit budgetNote — validator requires it for per_item_assumed.
+    });
+    assert.equal(raw.narration.budget_note, undefined);
+
+    const repaired = validateAndRepairFallback({
+      output: raw,
+      registry,
+      plan,
+      slots: [{ slot_id: "shirt", garment: "shirt" }],
+      budget_interpretation: "per_item_assumed",
+      budgetNote:
+        "I'm treating your budget as a per-item ceiling unless you meant a total.",
+    });
+
+    assert.equal(repaired.degraded, false);
+    assert.ok(
+      repaired.output.narration.budget_note?.trim(),
+      "budget_note must be present after repair",
+    );
+    assert.match(
+      repaired.output.narration.budget_note!,
+      /per-item ceiling/i,
+    );
+  });
+});
+
+describe("capsule_set_total_enforced", () => {
+  it("swaps expensive picks deterministically and never rejects per-outfit combos", () => {
+    const capsulePlan: FashionSearchPlan = {
+      ...plan,
+      mode: "capsule",
+      brief: {
+        ...plan.brief,
+        request_type: "capsule",
+        budget_context: { stated: true, max: 300, currency: "USD" },
+      },
+      slots: [
+        {
+          ...plan.slots[0]!,
+          slot_id: "tops",
+          garment: "shirt",
+          options_wanted: 2,
+        },
+        {
+          ...plan.slots[0]!,
+          slot_id: "bottoms",
+          garment: "trousers",
+          options_wanted: 1,
+        },
+        {
+          ...plan.slots[0]!,
+          slot_id: "shoes",
+          garment: "shoes",
+          options_wanted: 1,
+        },
+      ],
+    };
+
+    const registry = buildRefRegistry({
+      mode: "capsule",
+      slots: [
+        {
+          slot_id: "tops",
+          planSlot: capsulePlan.slots[0]!,
+          verified: [
+            candidate("t1", "tops", 120),
+            candidate("t2", "tops", 90),
+            candidate("t3", "tops", 55),
+          ],
+        },
+        {
+          slot_id: "bottoms",
+          planSlot: capsulePlan.slots[1]!,
+          verified: [
+            candidate("b1", "bottoms", 100),
+            candidate("b2", "bottoms", 70),
+          ],
+        },
+        {
+          slot_id: "shoes",
+          planSlot: capsulePlan.slots[2]!,
+          verified: [
+            candidate("s1", "shoes", 92),
+            candidate("s2", "shoes", 60),
+          ],
+        },
+      ],
+    });
+
+    const ref = (prefix: string) =>
+      [...registry.keys()].find((r) => r.startsWith(prefix))!;
+
+    const output: DeliverCurationInput = {
+      slots: [
+        {
+          slot_id: "tops",
+          picks: [
+            { ref: ref("tops_1"), role: "anchor", stylist_line: "Top 1." },
+            { ref: ref("tops_2"), role: "safe", stylist_line: "Top 2." },
+          ],
+        },
+        {
+          slot_id: "bottoms",
+          picks: [{ ref: ref("bottoms_1"), role: "support", stylist_line: "Bottom." }],
+        },
+        {
+          slot_id: "shoes",
+          picks: [{ ref: ref("shoes_1"), role: "support", stylist_line: "Shoes." }],
+        },
+      ],
+      capsule_outfits: [
+        {
+          item_refs: [ref("tops_1"), ref("bottoms_1"), ref("shoes_1")],
+          label: "Look A",
+        },
+        {
+          item_refs: [ref("tops_2"), ref("bottoms_1"), ref("shoes_1")],
+          label: "Look B",
+        },
+      ],
+      vetoes: [],
+      narration: { opening: "Capsule set." },
+    };
+
+    const budgetAssembly = {
+      total_max: 300,
+      currency: "USD",
+      tolerance: 0.1,
+      constraint_type: "set_total" as const,
+      per_slot_allocated: {},
+    };
+
+    const firstPass = validateCurationOutput({
+      output,
+      registry,
+      plan: capsulePlan,
+      slots: [
+        { slot_id: "tops", garment: "shirt" },
+        { slot_id: "bottoms", garment: "trousers" },
+        { slot_id: "shoes", garment: "shoes" },
+      ],
+      budget_assembly: budgetAssembly,
+    });
+    assert.equal(firstPass.ok, false);
+    assert.ok(firstPass.issues.some((i) => i.code === "set_over_budget"));
+
+    const swapped = validateCurationOutput({
+      output,
+      registry,
+      plan: capsulePlan,
+      slots: [
+        { slot_id: "tops", garment: "shirt" },
+        { slot_id: "bottoms", garment: "trousers" },
+        { slot_id: "shoes", garment: "shoes" },
+      ],
+      budget_assembly: budgetAssembly,
+      deterministicBudgetSwap: true,
+    });
+    assert.equal(swapped.ok, true);
+    assert.ok(
+      swapped.issues.some((i) => i.code === "set_budget_swapped") ||
+        recomputeSetTotal(swapped.output!, registry) <= 330,
+    );
+    assert.equal(
+      swapped.issues.some((i) => i.code === "look_over_budget"),
+      false,
+    );
+    assert.ok(recomputeSetTotal(swapped.output!, registry) <= 330);
+    assert.equal(swapped.output?.capsule_outfits?.length, 2);
+  });
+});
+
+describe("capsule_interpretation_narrated", () => {
+  it("requires budget_note when set_total_assumed and validates narration clause", () => {
+    const registry = registryFor([candidate("p1", "shirt", 80)]);
+    const ref = [...registry.keys()][0]!;
+    const output: DeliverCurationInput = {
+      slots: [
+        {
+          slot_id: "shirt",
+          picks: [{ ref, role: "safe", stylist_line: "Good shirt." }],
+        },
+      ],
+      vetoes: [],
+      narration: {
+        opening: "Here is your capsule — $300 across all six pieces.",
+        budget_note: "$300 covers the full set.",
+      },
+    };
+
+    const capsulePlan: FashionSearchPlan = {
+      ...plan,
+      mode: "capsule",
+      brief: {
+        ...plan.brief,
+        request_type: "capsule",
+        budget_context: { stated: true, max: 300, currency: "USD" },
+      },
+    };
+
+    const validated = validateCurationOutput({
+      output,
+      registry,
+      plan: capsulePlan,
+      slots: [{ slot_id: "shirt", garment: "shirt" }],
+      budget_interpretation: "set_total_assumed",
+      budget_tension: { severity: "none" },
+    });
+    assert.equal(validated.ok, true);
+    assert.match(
+      validated.output!.narration.opening,
+      /\$300 across all six pieces/i,
+    );
+  });
+});
+
+function recomputeSetTotal(
+  output: DeliverCurationInput,
+  registry: ReturnType<typeof buildRefRegistry>,
+): number {
+  let total = 0;
+  for (const slot of output.slots) {
+    for (const pick of slot.picks) {
+      const entry = registry.get(pick.ref);
+      if (entry) {
+        const price = entry.candidate.final_price ?? entry.candidate.price;
+        total += (price?.amount ?? 0) / 100;
+      }
+    }
+  }
+  return Math.round(total * 100) / 100;
+}

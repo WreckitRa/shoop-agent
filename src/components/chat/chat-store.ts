@@ -28,11 +28,19 @@ import {
 } from "@/lib/client/sidebar-nodes";
 import { useToastStore } from "@/lib/client/toast-store";
 import { consumeChatSseStream } from "@/lib/ai-chat/sse-client";
+import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
 import { scheduleIdleWork } from "@/lib/fashion-memory/schedule-detached";
 import {
-  loadGuestFashionMemorySnapshot,
+  loadGuestFashionStore,
   persistGuestFashionRequestEvent,
+  readGuestFashionMemoryForUser,
+  saveGuestFashionSnapshot,
 } from "@/lib/fashion-memory/client/guest-bridge";
+import { applyFashionMemoryDelta } from "@/lib/fashion-memory/local/apply-delta";
+import type { GuestFashionMemorySnapshot } from "@/lib/fashion-memory/local/store";
+import type { FashionLlmOp } from "@/lib/fashion-memory/extraction/tool-schema";
+import type { RequestEventAttributes } from "@/lib/fashion-memory/types";
+import { guestUserIdFromSessionId } from "@/lib/auth/guest-session";
 import {
   scheduleGuestFashionExtraction,
   spawnGuestFashionExtractionSweep,
@@ -486,6 +494,39 @@ function applyOptionPreviewsToMessage(
   });
 }
 
+function applyFashionCatalogSearch(
+  messages: ChatMessage[],
+  messageId: string,
+  catalogSearch: MessageFashionCatalogSearchMetaV1,
+): ChatMessage[] {
+  return messages.map((m) => {
+    if (m.id !== messageId) return m;
+    return {
+      ...m,
+      metadata: {
+        ...(m.metadata ?? {}),
+        fashionCatalogSearch: catalogSearch,
+      },
+    };
+  });
+}
+
+function isMessageFashionCatalogSearchV1(
+  v: unknown,
+): v is MessageFashionCatalogSearchMetaV1 {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return o.version === 1 && Array.isArray(o.slots);
+}
+
+function fashionCatalogHasResults(
+  catalogSearch: MessageFashionCatalogSearchMetaV1 | undefined,
+): boolean {
+  return Boolean(
+    catalogSearch?.slots?.some((slot) => (slot.verified_pool?.length ?? 0) > 0),
+  );
+}
+
 /** Append a product-search invocation to the streaming assistant's metadata. */
 function applyProductSearchInvocation(
   messages: ChatMessage[],
@@ -642,6 +683,12 @@ type ChatState = {
   streamingDraft: string;
   /** Transient search-engine progress lines (narration_line) shown while streaming. */
   streamingNarration: string[];
+  /** Fashion catalog pipeline active — show rack loader until results land. */
+  streamingFashionPipeline: boolean;
+  /** Preview thumbnails streamed during fashion catalog fan-out. */
+  streamingFashionPreviewImages: string[];
+  /** Hard-dropped product thumbnails for the loader discard strip. */
+  streamingFashionDroppedImages: string[];
   activeStream: ActiveStream | null;
   error: string | null;
   loadingList: boolean;
@@ -655,6 +702,14 @@ type ChatState = {
   selectedCategories: string[];
   /** Fashion mode — raw Shopify search path, no curation. */
   fashionMode: boolean;
+  /**
+   * Mid-session fashion quiz answers queued for the next sendMessage so the
+   * assistant bubble can persist status=answered across refresh.
+   */
+  pendingFashionClarification: {
+    messageId: string;
+    answers: Record<string, string>;
+  } | null;
 
   /** Monotonic tokens — discard stale `loadConversation` / `fetchList` resolutions. */
   _loadConvToken: number;
@@ -673,6 +728,11 @@ type ChatState = {
   toggleHomeCategory: (name: string) => void;
   removeHomeCategory: (name: string) => void;
   toggleFashionMode: () => void;
+  /** Mark a fashion mid-session quiz answered (optimistic) and queue persistence. */
+  answerFashionClarification: (
+    messageId: string,
+    answers: Record<string, string>,
+  ) => void;
   requestComposerFocus: () => void;
   setSidebarOpen: (v: boolean) => void;
   setSidebarCollapsed: (v: boolean) => void;
@@ -796,6 +856,9 @@ export const useChatStore = create<ChatState>((set, get) => {
       streamingAssistantMessageId: args.optimisticAssistantId,
       streamingDraft: "",
       streamingNarration: [],
+      streamingFashionPipeline: false,
+      streamingFashionPreviewImages: [],
+      streamingFashionDroppedImages: [],
     });
 
     if (useAgentDebugStore.getState().enabled) {
@@ -926,10 +989,51 @@ export const useChatStore = create<ChatState>((set, get) => {
         },
         onNarrationLine: (payload) => {
           const line = typeof payload.line === "string" ? payload.line : null;
-          if (!line || !get().isStreaming) return;
-          set((s) => ({
-            streamingNarration: [...s.streamingNarration, line].slice(-6),
-          }));
+          if (!get().isStreaming) return;
+          const previewImages = Array.isArray(payload.previewImages)
+            ? payload.previewImages.filter(
+                (url): url is string =>
+                  typeof url === "string" && url.length > 0,
+              )
+            : [];
+          const droppedImages = Array.isArray(payload.droppedImages)
+            ? payload.droppedImages.filter(
+                (url): url is string =>
+                  typeof url === "string" && url.length > 0,
+              )
+            : [];
+          if (!line && previewImages.length === 0 && droppedImages.length === 0) {
+            return;
+          }
+          set((s) => {
+            // Once hard-drops start, previewImages are survivors — replace the pool
+            // so dropped thumbs don't keep flipping on the rack.
+            let mergedPreview: string[];
+            if (droppedImages.length > 0 && previewImages.length > 0) {
+              mergedPreview = [...previewImages];
+            } else {
+              mergedPreview = [...s.streamingFashionPreviewImages];
+              for (const url of previewImages) {
+                if (!mergedPreview.includes(url)) mergedPreview.push(url);
+              }
+            }
+            const mergedDropped = [...s.streamingFashionDroppedImages];
+            for (const url of droppedImages) {
+              if (!mergedDropped.includes(url)) mergedDropped.push(url);
+            }
+            return {
+              ...(line
+                ? {
+                    streamingNarration: [...s.streamingNarration, line].slice(
+                      -6,
+                    ),
+                  }
+                : {}),
+              // Keep a wide pool so the rack can keep randomizing.
+              streamingFashionPreviewImages: mergedPreview.slice(-24),
+              streamingFashionDroppedImages: mergedDropped.slice(-16),
+            };
+          });
         },
         onAgentDebug: (payload) => {
           ingestAgentDebugFromSse(payload);
@@ -980,7 +1084,55 @@ export const useChatStore = create<ChatState>((set, get) => {
           }));
         },
         onFashionMemoryDelta: (payload) => {
-          void payload;
+          const guestId = getGuestSessionId();
+          if (!guestId) return;
+          if (payload.version !== 1) return;
+          if (typeof payload.conversationId !== "string") return;
+          if (typeof payload.triggerMessageId !== "string") return;
+          scheduleIdleWork(() => {
+            try {
+              const userId = guestUserIdFromSessionId(guestId);
+              const store = loadGuestFashionStore(guestId);
+              applyFashionMemoryDelta({
+                store,
+                userId,
+                delta: {
+                  version: 1,
+                  conversationId: payload.conversationId as string,
+                  triggerMessageId: payload.triggerMessageId as string,
+                  requestEvent:
+                    payload.requestEvent &&
+                    typeof payload.requestEvent === "object"
+                      ? (payload.requestEvent as {
+                          personId?: string;
+                          attributes: RequestEventAttributes;
+                        })
+                      : undefined,
+                  extractionOps: Array.isArray(payload.extractionOps)
+                    ? (payload.extractionOps as FashionLlmOp[])
+                    : undefined,
+                },
+              });
+              saveGuestFashionSnapshot(store.snapshot);
+            } catch (error) {
+              console.error("[shoop] fashion guest memory delta failed", error);
+            }
+          });
+        },
+        onFashionMemorySnapshot: (payload) => {
+          const guestId = getGuestSessionId();
+          if (!guestId) return;
+          if (payload.version !== 1) return;
+          const snapshot = payload.snapshot;
+          if (!snapshot || typeof snapshot !== "object") return;
+          scheduleIdleWork(() => {
+            try {
+              saveGuestFashionSnapshot(snapshot as GuestFashionMemorySnapshot);
+              window.dispatchEvent(new Event("shoop-guest-changed"));
+            } catch (error) {
+              console.error("[shoop] fashion guest memory snapshot failed", error);
+            }
+          });
         },
         onFashionRequestEvent: (payload) => {
           const guestId = getGuestSessionId();
@@ -994,11 +1146,51 @@ export const useChatStore = create<ChatState>((set, get) => {
                 guestId,
                 conversationId: payload.conversationId as string,
                 query: payload.query as string,
+                attributes:
+                  payload.attributes &&
+                  typeof payload.attributes === "object"
+                    ? (payload.attributes as RequestEventAttributes)
+                    : undefined,
+                personId:
+                  typeof payload.recipientPersonId === "string"
+                    ? payload.recipientPersonId
+                    : undefined,
               });
             } catch (error) {
               console.error("[shoop] fashion guest request event failed", error);
             }
           });
+        },
+        onFashionPipeline: (payload) => {
+          if (typeof payload.phase !== "string") return;
+          if (payload.phase === "started") {
+            setIfActive(streamId, () => ({
+              streamingFashionPipeline: true,
+              streamingFashionPreviewImages: [],
+              streamingFashionDroppedImages: [],
+            }));
+          } else if (payload.phase === "complete") {
+            setIfActive(streamId, () => ({
+              streamingFashionPipeline: false,
+            }));
+          }
+        },
+        onFashionCatalogSearch: (payload) => {
+          if (payload.version !== 1) return;
+          const mid = resolvedAssistantId ?? args.optimisticAssistantId;
+          if (!mid) return;
+          if (!isMessageFashionCatalogSearchV1(payload.catalogSearch)) return;
+          const catalogSearch = payload.catalogSearch;
+          setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
+            messages: applyFashionCatalogSearch(s.messages, mid, catalogSearch),
+          }));
+          if (fashionCatalogHasResults(catalogSearch)) {
+            setIfActive(streamId, () => ({
+              streamingFashionPipeline: false,
+              streamingFashionPreviewImages: [],
+              streamingFashionDroppedImages: [],
+            }));
+          }
         },
         onOptionPreviews: (payload) => {
           const mid =
@@ -1057,6 +1249,9 @@ export const useChatStore = create<ChatState>((set, get) => {
           if (!mid) return;
           setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
             streamingNarration: [],
+            streamingFashionPipeline: false,
+            streamingFashionPreviewImages: [],
+            streamingFashionDroppedImages: [],
             messages: applyAssistantStreamDone(
               s.messages,
               mid,
@@ -1175,6 +1370,10 @@ export const useChatStore = create<ChatState>((set, get) => {
           activeStream: null,
           streamingAssistantMessageId: null,
           streamingDraft: "",
+          streamingNarration: [],
+          streamingFashionPipeline: false,
+          streamingFashionPreviewImages: [],
+          streamingFashionDroppedImages: [],
         });
 
         // Auto-send a message queued during streaming.
@@ -1222,6 +1421,9 @@ export const useChatStore = create<ChatState>((set, get) => {
     streamingAssistantMessageId: null,
     streamingDraft: "",
     streamingNarration: [],
+    streamingFashionPipeline: false,
+    streamingFashionPreviewImages: [],
+    streamingFashionDroppedImages: [],
     activeStream: null,
     error: null,
     loadingList: false,
@@ -1232,6 +1434,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     composerFocusNonce: 0,
     selectedCategories: [],
     fashionMode: true,
+    pendingFashionClarification: null,
 
     _loadConvToken: 0,
     _fetchListToken: 0,
@@ -1302,6 +1505,28 @@ export const useChatStore = create<ChatState>((set, get) => {
       })),
     toggleFashionMode: () =>
       set((s) => ({ fashionMode: !s.fashionMode })),
+    answerFashionClarification: (messageId, answers) => {
+      set((s) => ({
+        pendingFashionClarification: { messageId, answers },
+        messages: s.messages.map((m) => {
+          if (m.id !== messageId || !m.metadata?.fashionRouter) return m;
+          const fashionRouter = m.metadata.fashionRouter;
+          if (fashionRouter.move !== "ask_clarification") return m;
+          return {
+            ...m,
+            metadata: {
+              ...m.metadata,
+              fashionRouter: {
+                ...fashionRouter,
+                status: "answered" as const,
+                answers,
+              },
+            },
+          };
+        }),
+      }));
+      persistGuestChatState(get());
+    },
     requestComposerFocus: () =>
       set((s) => ({ composerFocusNonce: s.composerFocusNonce + 1 })),
     setSidebarOpen: (v) => {
@@ -2072,10 +2297,12 @@ export const useChatStore = create<ChatState>((set, get) => {
       const conversationId = get().activeConversationId ?? undefined;
       const replyContext = get().composerReplyContext;
       const fashionMode = get().fashionMode;
+      const guestId = isGuestSessionActive() ? getGuestSessionId() : null;
       const guestFashionMemory =
-        fashionMode && isGuestSessionActive()
-          ? (loadGuestFashionMemorySnapshot() ?? undefined)
+        fashionMode && guestId
+          ? readGuestFashionMemoryForUser(guestId)
           : undefined;
+      const pendingFashionClarification = get().pendingFashionClarification;
 
       const optimisticUserId = makeLocalUserId();
       const optimisticAssistantId = makeLocalAssistantId();
@@ -2086,6 +2313,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         input: "",
         composerReplyContext: null,
         similarPickSelection: null,
+        pendingFashionClarification: null,
         messages: [
           ...s.messages,
           {
@@ -2128,7 +2356,15 @@ export const useChatStore = create<ChatState>((set, get) => {
           ...(fashionMode
             ? {
                 fashionMode: true,
-                ...(guestFashionMemory ? { guestFashionMemory } : {}),
+                guestFashionMemory,
+                ...(pendingFashionClarification
+                  ? {
+                      fashionClarificationMessageId:
+                        pendingFashionClarification.messageId,
+                      fashionClarificationAnswers:
+                        pendingFashionClarification.answers,
+                    }
+                  : {}),
               }
             : {
                 shoppingMode: "auto",

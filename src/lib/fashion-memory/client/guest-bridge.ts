@@ -12,6 +12,7 @@ import {
 } from "@/lib/client/guest-storage";
 import { guestUserIdFromSessionId } from "@/lib/auth/guest-session";
 import { requestAttributesFromQuery } from "@/lib/fashion-memory/request-attributes";
+import type { RequestEventAttributes } from "@/lib/fashion-memory/types";
 import { FashionLocalStore } from "@/lib/fashion-memory/local/store";
 
 export function loadGuestFashionMemorySnapshot(): GuestFashionMemorySnapshot | null {
@@ -47,15 +48,19 @@ export function persistGuestFashionRequestEvent(params: {
   guestId: string;
   conversationId: string;
   query: string;
+  attributes?: RequestEventAttributes;
+  personId?: string;
 }): void {
   const userId = guestUserIdFromSessionId(params.guestId);
   const store = loadGuestFashionStore(params.guestId);
-  const self = store.ensureSelfPerson(userId);
+  const personId =
+    params.personId ?? store.ensureSelfPerson(userId).id;
   store.logRequestEvent({
     userId,
-    personId: self.id,
+    personId,
     conversationId: params.conversationId,
-    attributes: requestAttributesFromQuery(params.query),
+    attributes:
+      params.attributes ?? requestAttributesFromQuery(params.query),
   });
   saveGuestFashionSnapshot(store.snapshot);
 }

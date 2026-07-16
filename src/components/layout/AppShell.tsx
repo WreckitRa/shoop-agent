@@ -8,6 +8,9 @@ import {
 } from "@/components/chat/ChatSidebar";
 import { ToastHost } from "@/components/ui/ToastHost";
 import { CartDrawer } from "@/components/cart/CartDrawer";
+import { TryOnDrawer } from "@/components/tryon/TryOnDrawer";
+import { TryOnAvatarSlider } from "@/components/tryon/TryOnAvatarSlider";
+import { SelfAvatarHost } from "@/components/tryon/SelfAvatarHost";
 import { AppTopBar } from "@/components/layout/AppTopBar";
 import { GuestModeBanner } from "@/components/auth/GuestModeBanner";
 
@@ -36,7 +39,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {children}
           </div>
+          <TryOnAvatarSlider />
         </main>
+        <TryOnDrawer />
+        <SelfAvatarHost />
         <CartDrawer />
       </div>
     </div>

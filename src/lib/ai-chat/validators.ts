@@ -140,6 +140,12 @@ export const chatPostBodySchema = z
     fashionMode: z.boolean().optional(),
     /** Guest fashion memory snapshot for profile-aware routing when fashionMode is true. */
     guestFashionMemory: guestFashionMemoryPayloadSchema.optional(),
+    /** Assistant message id holding the mid-session fashion quiz just answered. */
+    fashionClarificationMessageId: z.string().min(1).max(80).optional(),
+    /** question.text → selected answer for that fashion quiz. */
+    fashionClarificationAnswers: z
+      .record(z.string().max(500), z.string().max(500))
+      .optional(),
   })
   .strict()
   .superRefine((val, ctx) => {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createLightweightMessage } from "@/lib/ai-chat/anthropic";
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { stripJsonFence, stripNullFields } from "@/lib/ai-chat/shopping-memory/llm-json";
+import { kvGet, kvSetex } from "@/lib/cache/kv-store";
 import { swatchColorFallbackFromLabel } from "@/lib/commerce/swatch-color-fallback";
 
 const SWATCH_SYSTEM = `Map e-commerce color variant labels to realistic #RRGGBB hex swatch colors.
@@ -10,9 +11,41 @@ Return one JSON object only. Keys must be the exact input labels. Values must be
 When a label lists multiple colors (e.g. "Linen / Lilac"), pick the dominant garment color shoppers expect.`;
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/;
+const SWATCH_CACHE_TTL_SEC = 90 * 24 * 60 * 60;
 
-/** Process-wide cache: each distinct label hits the model at most once. */
+/** Process-wide cache: each distinct label hits the model at most once per instance. */
 const labelCache = new Map<string, string>();
+
+function swatchCacheKey(label: string): string {
+  return `swatch-color:v1:${normalizeSwatchLabelKey(label)}`;
+}
+
+async function readCachedSwatchColor(label: string): Promise<string | null> {
+  const key = normalizeSwatchLabelKey(label);
+  const inMemory = labelCache.get(key);
+  if (inMemory) return inMemory;
+
+  try {
+    const cached = await kvGet(swatchCacheKey(label));
+    const hex = parseHex(cached);
+    if (hex) {
+      labelCache.set(key, hex);
+      return hex;
+    }
+  } catch {
+    /* cache miss */
+  }
+  return null;
+}
+
+async function writeCachedSwatchColor(label: string, hex: string): Promise<void> {
+  labelCache.set(normalizeSwatchLabelKey(label), hex);
+  try {
+    await kvSetex(swatchCacheKey(label), SWATCH_CACHE_TTL_SEC, hex);
+  } catch {
+    /* best-effort */
+  }
+}
 
 export function normalizeSwatchLabelKey(label: string): string {
   return label.trim().toLowerCase();
@@ -101,10 +134,15 @@ export async function resolveSwatchColors(
   const result: Record<string, string> = {};
   const missing: string[] = [];
 
-  for (const label of unique) {
-    const cached = labelCache.get(normalizeSwatchLabelKey(label));
-    if (cached) {
-      result[label] = cached;
+  const cacheResults = await Promise.all(
+    unique.map(async (label) => ({
+      label,
+      hex: await readCachedSwatchColor(label),
+    })),
+  );
+  for (const { label, hex } of cacheResults) {
+    if (hex) {
+      result[label] = hex;
     } else {
       missing.push(label);
     }
@@ -126,12 +164,16 @@ export async function resolveSwatchColors(
     });
   }
 
-  for (const label of missing) {
-    const hex =
-      modelColors[label] ?? swatchColorFallbackFromLabel(label);
-    labelCache.set(normalizeSwatchLabelKey(label), hex);
-    result[label] = hex;
-  }
+  await Promise.all(
+    missing.map(async (label) => {
+      const modelHex = modelColors[label];
+      const hex = modelHex ?? swatchColorFallbackFromLabel(label);
+      if (modelHex) {
+        await writeCachedSwatchColor(label, modelHex);
+      }
+      result[label] = hex;
+    }),
+  );
 
   return result;
 }

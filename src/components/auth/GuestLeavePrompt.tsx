@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { isGuestSessionActive } from "@/lib/client/guest-storage";
 
 const LEAVE_MESSAGE =
-  "You might lose your cart, chats, and personalized picks if you leave. Sign up to save your progress on any device.";
+  "You might lose your cart, chats, and personalized picks if you leave or clear browser data. Sign up to save your progress on any device.";
 
 /**
  * Warns guest users before closing or navigating away from the site.

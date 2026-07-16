@@ -31,6 +31,7 @@ export type FashionCatalogDebugV1 = {
   version: 1;
   searchKey: string;
   ts: number;
+  trace_id?: string;
   timing_ms: number;
   mode: string;
   slots: FashionCatalogSlotDebug[];
@@ -82,6 +83,7 @@ function slotDebugFromResult(
 export function buildFashionCatalogDebug(
   result: FashionCatalogSearchResult,
   ts = Date.now(),
+  traceId?: string | null,
 ): FashionCatalogDebugV1 {
   const catalogById: Record<string, Record<string, unknown>> = {};
   const slots = result.slots.map((slot) => {
@@ -101,6 +103,7 @@ export function buildFashionCatalogDebug(
     version: 1,
     searchKey: `fashion:${garmentLabel}:${ts}`,
     ts,
+    ...(traceId ? { trace_id: traceId } : {}),
     timing_ms: result.timing_ms,
     mode: result.plan.mode,
     slots,

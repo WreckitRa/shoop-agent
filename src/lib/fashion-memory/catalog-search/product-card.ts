@@ -4,11 +4,99 @@ import {
   parseCatalogRating,
   searchFeaturedVariantFromProduct,
   type CatalogProductSummary,
+  type SelectedOption,
 } from "@/lib/shopify/catalog";
 import { extractCatalogAttributes } from "@/lib/shopify/catalog-attributes";
 import type { ProductCard } from "@/lib/ai-chat/types";
 import type { FashionSlotCatalogProduct } from "./types";
+import { findColorOptionNameForCandidate } from "../hydration/build-color-selection";
+import { classifyOptionName } from "../normalize/option-classifier";
 import type { HydratedCandidate, OverflowItem } from "../hydration/types";
+
+export type HydratedProductCardHints = {
+  correctedColor?: string;
+};
+
+export function preferredOptionsFromHydratedCandidate(
+  candidate: HydratedCandidate,
+  hints?: HydratedProductCardHints,
+): ProductCard["preferredOptions"] {
+  const out: NonNullable<ProductCard["preferredOptions"]> = [];
+  const seen = new Set<string>();
+
+  const push = (name: string, label: string) => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    const key = name.trim().toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ name, label: trimmed });
+  };
+
+  // Prefer get_product's resolved selection (survives detail slim).
+  if (candidate.resolved_options?.length) {
+    for (const opt of candidate.resolved_options) {
+      if (
+        hints?.correctedColor?.trim() &&
+        classifyOptionName(opt.name) === "color"
+      ) {
+        push(opt.name, hints.correctedColor);
+      } else {
+        push(opt.name, opt.label);
+      }
+    }
+    return out.length ? out : undefined;
+  }
+
+  if (candidate.size_selection) {
+    push(
+      candidate.size_selection.option_name,
+      candidate.size_selection.merchant_label,
+    );
+  }
+
+  if (hints?.correctedColor?.trim()) {
+    push(findColorOptionNameForCandidate(candidate), hints.correctedColor);
+  } else if (candidate.color_selection) {
+    push(
+      candidate.color_selection.option_name,
+      candidate.color_selection.merchant_label,
+    );
+  }
+
+  return out.length ? out : undefined;
+}
+
+function featuredVariantForPreferred(
+  p: Pick<
+    HydratedCandidate,
+    | "id"
+    | "selected_variant_id"
+    | "final_price"
+    | "price"
+    | "variant_url"
+  >,
+  preferredOptions: SelectedOption[] | undefined,
+  existing?: ProductCard["featuredVariant"],
+): ProductCard["featuredVariant"] | undefined {
+  if (!preferredOptions?.length && !p.variant_url && !existing) return undefined;
+  const variantId =
+    p.selected_variant_id && p.selected_variant_id !== p.id
+      ? p.selected_variant_id
+      : existing?.id && existing.id !== p.id
+        ? existing.id
+        : undefined;
+  if (!variantId && !preferredOptions?.length && !p.variant_url) {
+    return existing;
+  }
+  const displayPrice = p.final_price ?? p.price ?? existing?.price;
+  return {
+    id: variantId ?? existing?.id ?? p.id,
+    price: displayPrice,
+    checkoutUrl: p.variant_url ?? existing?.checkoutUrl,
+    options: preferredOptions ?? existing?.options,
+  };
+}
 
 function minimalSlotProductCard(
   p: Pick<
@@ -19,32 +107,29 @@ function minimalSlotProductCard(
     final_price?: { amount: number; currency: string };
     variant_url?: string;
     size_selection?: HydratedCandidate["size_selection"];
+    color_selection?: HydratedCandidate["color_selection"];
+    resolved_options?: HydratedCandidate["resolved_options"];
+    selected_variant_id?: HydratedCandidate["selected_variant_id"];
   },
+  hints?: HydratedProductCardHints,
 ): ProductCard {
   const displayPrice = p.final_price ?? p.price;
   const imageUrl = p.media_urls?.[0] ?? p.image_urls[0];
-  const featuredVariant =
-    p.variant_url || p.size_selection
-      ? {
-          id: p.id,
-          price: displayPrice,
-          checkoutUrl: p.variant_url,
-          options: p.size_selection
-            ? [
-                {
-                  name: p.size_selection.option_name,
-                  label: p.size_selection.merchant_label,
-                },
-              ]
-            : undefined,
-        }
-      : undefined;
+  const preferredOptions = preferredOptionsFromHydratedCandidate(
+    p as HydratedCandidate,
+    hints,
+  );
+  const featuredVariant = featuredVariantForPreferred(
+    p,
+    preferredOptions,
+  );
 
   return {
     id: p.id,
     title: p.title,
     imageUrl,
     featuredVariant,
+    preferredOptions,
     displayPrice: displayPrice
       ? { amount: displayPrice.amount, currency: displayPrice.currency }
       : undefined,
@@ -124,13 +209,25 @@ export function fashionSlotProductToProductCard(
 }
 
 /** Hydrated verified candidate → chat card (prefers live get_product fields). */
-export function hydratedCandidateToProductCard(p: HydratedCandidate): ProductCard {
+export function hydratedCandidateToProductCard(
+  p: HydratedCandidate,
+  hints?: HydratedProductCardHints,
+): ProductCard {
   const card = p.raw?.id
     ? fashionSlotProductToProductCard(p)
-    : minimalSlotProductCard(p);
+    : minimalSlotProductCard(p, hints);
   if (p.media_urls[0]) card.imageUrl = p.media_urls[0];
   if (p.final_price) card.displayPrice = p.final_price;
   if (p.detail?.rating) card.rating = p.detail.rating;
+  const preferredOptions = preferredOptionsFromHydratedCandidate(p, hints);
+  if (preferredOptions?.length) {
+    card.preferredOptions = preferredOptions;
+  }
+  card.featuredVariant = featuredVariantForPreferred(
+    p,
+    preferredOptions ?? card.preferredOptions,
+    card.featuredVariant,
+  );
   if (p.variant_url && card.featuredVariant) {
     card.featuredVariant = { ...card.featuredVariant, checkoutUrl: p.variant_url };
   }

@@ -77,7 +77,10 @@ export function buildInlineProductState(
     displayPrice?: ProductCard["displayPrice"];
   },
 ): InlineProductState {
-  const preferred = options.preferredOptions ?? [];
+  const preferred =
+    options.preferredOptions?.length
+      ? options.preferredOptions
+      : (options.featuredVariant?.options ?? []);
   return {
     messageId: options.messageId,
     productId,
@@ -85,6 +88,6 @@ export function buildInlineProductState(
     fallbackTitle: options.title,
     fallbackImageUrl: options.imageUrl ?? undefined,
     prefilledOptions: preferred.length ? preferred : undefined,
-    chatPriceRange: resolveChatPriceRange(options),
+    chatPriceRange: resolveChatPriceRange({ ...options, preferredOptions: preferred }),
   };
 }

@@ -1,6 +1,8 @@
+import { logAiChat } from "@/lib/ai-chat/observability";
+import { recordPipelineEvent } from "../observability/trace";
 import type { FashionSearchPlan } from "../search-planner/types";
 import type { HydratedCandidate } from "../hydration/types";
-import { isDegradedOutfitPlan } from "./validate";
+import { isDegradedOutfitPlan, validateCurationOutput } from "./validate";
 import type {
   CurationRefRegistry,
   DeliverCurationInput,
@@ -9,6 +11,9 @@ import type {
 } from "./types";
 import { refsForSlot } from "./refs";
 import { sanitizeCurationNarration } from "./narration-sanitize";
+import type { BudgetAssembly } from "../budget/budgetAllocation";
+import type { FashionSlotBrandStatus } from "../router/types";
+import { curationPickCap } from "./deliverables";
 
 const ROLE_CYCLE: PickRole[] = ["safe", "stretch", "value", "reach", "safe"];
 
@@ -82,7 +87,13 @@ export function buildDeterministicFallback(params: {
       },
     );
 
-    const count = Math.min(planSlot.options_wanted, entries.length);
+    const count = Math.min(
+      curationPickCap({
+        mode: params.plan.mode,
+        optionsWanted: planSlot.options_wanted,
+      }),
+      entries.length,
+    );
     const picks = entries.slice(0, count).map((entry, idx) => ({
       ref: entry.ref,
       role:
@@ -140,9 +151,208 @@ export function buildDeterministicFallback(params: {
     traceId: params.traceId,
   });
 
+  // Capsule pairing — emit a minimal top×bottom grid so validateCurationOutput
+  // does not hard-fail on capsule_orphan for deterministic fallback.
+  let capsule_outfits: DeliverCurationInput["capsule_outfits"];
+  if (params.plan.mode === "capsule") {
+    const tops = slots.filter((s) =>
+      /\b(shirt|blouse|top|sweater|tee)\b/i.test(
+        params.plan.slots.find((p) => p.slot_id === s.slot_id)?.garment ?? "",
+      ),
+    );
+    const bottoms = slots.filter((s) =>
+      /\b(trousers|trouser|pants|pant|jeans|jean|skirts|skirt|bottoms|bottom)\b/i.test(
+        params.plan.slots.find((p) => p.slot_id === s.slot_id)?.garment ?? "",
+      ),
+    );
+    const outfits: NonNullable<DeliverCurationInput["capsule_outfits"]> = [];
+    for (const top of tops) {
+      for (const tPick of top.picks.slice(0, 2)) {
+        for (const bottom of bottoms) {
+          for (const bPick of bottom.picks.slice(0, 2)) {
+            outfits.push({
+              item_refs: [tPick.ref, bPick.ref],
+              label: "Everyday rotation",
+            });
+          }
+        }
+      }
+    }
+    if (outfits.length) capsule_outfits = outfits.slice(0, 8);
+  }
+
   return {
     slots,
     vetoes: params.harvestedVetoes ?? [],
     narration,
+    ...(capsule_outfits ? { capsule_outfits } : {}),
+  };
+}
+
+function repairFallbackNarration(params: {
+  output: DeliverCurationInput;
+  brandNote?: string;
+  budgetNote?: string;
+  thinNote?: string;
+  issues: Array<{ code: string }>;
+  traceId?: string | null;
+}): DeliverCurationInput {
+  let narration = { ...params.output.narration };
+  const codes = new Set(params.issues.map((i) => i.code));
+  if (codes.has("missing_brand_note") && params.brandNote) {
+    narration.brand_note = params.brandNote;
+  }
+  if (codes.has("missing_budget_note") && params.budgetNote) {
+    narration.budget_note = params.budgetNote;
+  }
+  if (codes.has("missing_thin_note")) {
+    narration.thin_note =
+      params.thinNote ??
+      narration.thin_note ??
+      "Fewer solid options than I'd like — showing what actually works.";
+  }
+  if (codes.has("degraded_success_opening")) {
+    narration.opening =
+      "Partial set only — showing the pieces that cleared stock checks.";
+  }
+  narration = sanitizeCurationNarration({
+    ...narration,
+    plainOpening: narration.opening,
+    plainThin: narration.thin_note,
+    traceId: params.traceId,
+  });
+  return { ...params.output, narration };
+}
+
+function minimalHonestFallback(params: {
+  output: DeliverCurationInput;
+  brandNote?: string;
+  budgetNote?: string;
+  thinNote?: string;
+  traceId?: string | null;
+}): DeliverCurationInput {
+  const narration = sanitizeCurationNarration({
+    opening:
+      params.output.narration.opening.trim() ||
+      "Here are the strongest verified picks I could lock.",
+    thin_note:
+      params.thinNote ??
+      params.output.narration.thin_note ??
+      "Presentation is thinner than a full stylist pass — these are the verified survivors.",
+    brand_note: params.brandNote ?? params.output.narration.brand_note,
+    budget_note: params.budgetNote ?? params.output.narration.budget_note,
+    plainOpening: "Here are the strongest verified picks I could lock.",
+    plainThin:
+      "Presentation is thinner than a full stylist pass — these are the verified survivors.",
+    traceId: params.traceId,
+  });
+  return {
+    slots: params.output.slots.filter((s) => s.picks.length > 0),
+    vetoes: params.output.vetoes,
+    looks: params.output.looks,
+    capsule_outfits: params.output.capsule_outfits,
+    narration,
+  };
+}
+
+/**
+ * CHOKE POINT: every path producing user-visible picks exits through
+ * validateCurationOutput. Self-repairs mandatory narration from templates
+ * (through the machinery guard); if still invalid → minimal honest shape
+ * + `fallback_validation_degraded`.
+ *
+ * Soft / inapplicable on pure deterministic fallout (documented):
+ * - capsule_orphan — fallback emits a minimal pairing grid when mode=capsule
+ * - set_over_budget — validator may trim via deterministicBudgetSwap
+ * Mandatory-note + badge/ref integrity are NOT skippable.
+ */
+export function validateAndRepairFallback(params: {
+  output: DeliverCurationInput;
+  registry: CurationRefRegistry;
+  plan: FashionSearchPlan;
+  slots: Array<{
+    slot_id: string;
+    garment?: string;
+    thin_slot?: boolean;
+    coverage_gap?: boolean;
+    curator_exclusions?: string[];
+    brand_status?: FashionSlotBrandStatus;
+  }>;
+  excludedRefs?: string[];
+  budget_assembly?: BudgetAssembly;
+  budget_tension?: { severity: string };
+  budget_interpretation?: string;
+  brandNote?: string;
+  budgetNote?: string;
+  thinNote?: string;
+  traceId?: string | null;
+}): { output: DeliverCurationInput; degraded: boolean; issues: string[] } {
+  let current = params.output;
+  let validated = validateCurationOutput({
+    output: current,
+    registry: params.registry,
+    plan: params.plan,
+    slots: params.slots,
+    excludedRefs: params.excludedRefs,
+    budget_assembly: params.budget_assembly,
+    budget_tension: params.budget_tension,
+    budget_interpretation: params.budget_interpretation,
+    deterministicBudgetSwap: true,
+  });
+
+  if (!validated.ok && validated.output) {
+    current = repairFallbackNarration({
+      output: validated.output,
+      brandNote: params.brandNote,
+      budgetNote: params.budgetNote,
+      thinNote: params.thinNote ?? validated.output.narration.thin_note,
+      issues: validated.issues,
+      traceId: params.traceId,
+    });
+    validated = validateCurationOutput({
+      output: current,
+      registry: params.registry,
+      plan: params.plan,
+      slots: params.slots,
+      excludedRefs: params.excludedRefs,
+      budget_assembly: params.budget_assembly,
+      budget_tension: params.budget_tension,
+      budget_interpretation: params.budget_interpretation,
+      deterministicBudgetSwap: true,
+    });
+  }
+
+  if (validated.ok && validated.output) {
+    return {
+      output: validated.output,
+      degraded: false,
+      issues: validated.issues.map((i) => i.code),
+    };
+  }
+
+  const degraded = minimalHonestFallback({
+    output: validated.output ?? current,
+    brandNote: params.brandNote,
+    budgetNote: params.budgetNote,
+    thinNote:
+      params.thinNote ??
+      "Couldn't complete a full stylist pass — these are the verified survivors.",
+    traceId: params.traceId,
+  });
+  recordPipelineEvent({
+    traceId: params.traceId,
+    stage: "fallback_validation_degraded",
+    payload: {
+      issues: validated.issues.map((i) => i.code),
+    },
+  });
+  logAiChat("warn", "fashion_curation_fallback_validation_degraded", {
+    traceId: params.traceId,
+    issues: validated.issues.map((i) => i.code),
+  });
+  return {
+    output: degraded,
+    degraded: true,
+    issues: validated.issues.map((i) => i.code),
   };
 }

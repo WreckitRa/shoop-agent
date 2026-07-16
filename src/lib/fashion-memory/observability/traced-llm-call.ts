@@ -1,6 +1,7 @@
 import type { Message } from "@anthropic-ai/sdk/resources/messages/messages";
 import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages/messages";
 import { createLightweightMessage } from "@/lib/ai-chat/anthropic";
+import { anthropicTemperatureForModel } from "@/lib/ai-chat/constants";
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { fashionMemoryDb } from "../db";
 import { hashSystemPrompt, upsertPromptVersion } from "./prompt-hash";
@@ -17,6 +18,13 @@ export type TracedLlmCallParams = {
   temperature?: number;
   signal?: AbortSignal;
   createMessage?: typeof createLightweightMessage;
+};
+
+export type TracedLlmExecuteResult<T> = {
+  value: T;
+  rawOutput: unknown;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
 };
 
 function isTraceId(value: string | null | undefined): value is string {
@@ -68,13 +76,18 @@ function persistLlmCall(params: {
 }
 
 /**
- * Wraps createLightweightMessage with verbatim input/output audit to llm_calls.
- * Observability writes are fire-and-forget; failures never throw to callers.
+ * Shared audit choke-point for fashion LLM calls (Anthropic, OpenAI, stream).
+ * Hashes system prompt, upserts prompt_versions, persists llm_calls.
  */
-export async function tracedLLMCall(
-  params: TracedLlmCallParams,
-): Promise<Message> {
-  const createMessage = params.createMessage ?? createLightweightMessage;
+export async function withTracedLlmCall<T>(params: {
+  traceId?: string | null;
+  stage: string;
+  model: string;
+  systemPrompt: string;
+  inputMessages: unknown;
+  toolChoice?: unknown;
+  execute: () => Promise<TracedLlmExecuteResult<T>>;
+}): Promise<T> {
   const systemPromptHash = hashSystemPrompt(params.systemPrompt);
   upsertPromptVersion({
     hash: systemPromptHash,
@@ -82,21 +95,10 @@ export async function tracedLLMCall(
     content: params.systemPrompt,
   });
 
-  const request: MessageCreateParamsNonStreaming = {
-    model: params.model,
-    max_tokens: params.maxTokens ?? 2048,
-    temperature: params.temperature ?? 0.2,
-    system: params.systemPrompt,
-    messages: params.inputMessages,
-    ...(params.tools ? { tools: params.tools } : {}),
-    ...(params.toolChoice ? { tool_choice: params.toolChoice } : {}),
-  };
-
   const started = Date.now();
   try {
-    const response = await createMessage(request, { signal: params.signal });
-    const latencyMs = Date.now() - started;
-
+    const { value, rawOutput, inputTokens, outputTokens } =
+      await params.execute();
     if (isTraceId(params.traceId)) {
       persistLlmCall({
         traceId: params.traceId,
@@ -105,18 +107,15 @@ export async function tracedLLMCall(
         systemPromptHash,
         inputMessages: params.inputMessages,
         toolChoice: params.toolChoice ?? null,
-        rawOutput: response,
-        latencyMs,
-        inputTokens: response.usage?.input_tokens,
-        outputTokens: response.usage?.output_tokens,
+        rawOutput,
+        latencyMs: Date.now() - started,
+        inputTokens,
+        outputTokens,
       });
     }
-
-    return response;
+    return value;
   } catch (error) {
-    const latencyMs = Date.now() - started;
     const message = error instanceof Error ? error.message : String(error);
-
     if (isTraceId(params.traceId)) {
       persistLlmCall({
         traceId: params.traceId,
@@ -126,11 +125,54 @@ export async function tracedLLMCall(
         inputMessages: params.inputMessages,
         toolChoice: params.toolChoice ?? null,
         rawOutput: { error: message },
-        latencyMs,
+        latencyMs: Date.now() - started,
         error: message,
       });
     }
-
     throw error;
   }
+}
+
+/**
+ * Wraps createLightweightMessage with verbatim input/output audit to llm_calls.
+ * Observability writes are fire-and-forget; failures never throw to callers.
+ */
+export async function tracedLLMCall(
+  params: TracedLlmCallParams,
+): Promise<Message> {
+  const createMessage = params.createMessage ?? createLightweightMessage;
+
+  // Opus 4.7+ / Sonnet 5 reject `temperature` (400 invalid_request_error).
+  const temperature = anthropicTemperatureForModel(
+    params.model,
+    params.temperature ?? 0.2,
+  );
+
+  const request: MessageCreateParamsNonStreaming = {
+    model: params.model,
+    max_tokens: params.maxTokens ?? 2048,
+    ...(temperature !== undefined ? { temperature } : {}),
+    system: params.systemPrompt,
+    messages: params.inputMessages,
+    ...(params.tools ? { tools: params.tools } : {}),
+    ...(params.toolChoice ? { tool_choice: params.toolChoice } : {}),
+  };
+
+  return withTracedLlmCall({
+    traceId: params.traceId,
+    stage: params.stage,
+    model: params.model,
+    systemPrompt: params.systemPrompt,
+    inputMessages: params.inputMessages,
+    toolChoice: params.toolChoice ?? null,
+    execute: async () => {
+      const response = await createMessage(request, { signal: params.signal });
+      return {
+        value: response,
+        rawOutput: response,
+        inputTokens: response.usage?.input_tokens,
+        outputTokens: response.usage?.output_tokens,
+      };
+    },
+  });
 }

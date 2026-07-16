@@ -23,6 +23,8 @@ const budgetContextSchema = z.object({
   min: z.number().optional(),
   currency: z.string().max(8).optional(),
   stated: z.boolean().default(false),
+  /** Stated scope from "each" / "per item" / "a piece" language. */
+  scope: z.enum(["per_item", "total"]).optional(),
 });
 
 const colorDirectionSchema = z.object({
@@ -116,7 +118,7 @@ export const fashionSearchBriefSchema = z.object({
     .max(ROUTER_STYLE_DIRECTION_MAX)
     .transform((value) => value.trim() || "general"),
   department_scope: z
-    .enum(["mens", "womens", "boys", "girls", "baby", "unisex", "mixed"])
+    .enum(["mens", "womens", "boys", "girls", "baby", "mixed"])
     .optional(),
   color_direction: colorDirectionSchema.optional(),
   brand_direction: brandDirectionSchema.optional(),
@@ -134,6 +136,7 @@ export const clarificationGapSchema = z.enum([
   "department",
   "size",
   "occasion",
+  "budget",
 ]);
 
 export const clarificationQuestionSchema = z.object({
@@ -203,6 +206,7 @@ export const ASK_CLARIFICATION_TOOL = {
                 "department",
                 "size",
                 "occasion",
+                "budget",
               ],
             },
             garment_type: { type: "string" },
@@ -257,13 +261,19 @@ export const READY_TO_SEARCH_TOOL = {
               min: { type: "number" },
               currency: { type: "string" },
               stated: { type: "boolean" },
+              scope: {
+                type: "string",
+                enum: ["per_item", "total"],
+                description:
+                  'Use "per_item" for "under $50 each" / "$50 per item" / "max $50 a piece". Use "total" only when the user clearly states a set/outfit total.',
+              },
             },
             required: ["stated"],
           },
           style_direction: { type: "string" },
           department_scope: {
             type: "string",
-            enum: ["mens", "womens", "boys", "girls", "baby", "unisex", "mixed"],
+            enum: ["mens", "womens", "boys", "girls", "baby", "mixed"],
           },
           color_direction: {
             type: "object",

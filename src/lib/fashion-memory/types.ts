@@ -24,6 +24,15 @@ export type PersonRow = {
   intake_completed_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Active avatar payload when try-on is set up. */
+  avatar?: {
+    url: string;
+    storage_path: string;
+    attributes: Record<string, unknown>;
+    created_at: string;
+    version: string;
+  } | null;
+  avatar_source_photo_path?: string | null;
 };
 
 // --- fashion_facts.value jsonb shapes ---
@@ -108,7 +117,8 @@ export type StyleSignalType =
   | "silhouette"
   | "aesthetic"
   | "material"
-  | "pattern";
+  | "pattern"
+  | "garment";
 
 export type StyleSignalSource = "stated" | "inferred" | "request" | "rejection";
 

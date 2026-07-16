@@ -13,6 +13,7 @@ import {
   HYDRATION_DEFAULT_OVERFLOW,
   HYDRATION_MAX_CONCURRENCY,
 } from "./config";
+import type { ConcurrencyGate } from "./concurrency-gate";
 import { hydrateCandidate, type HydrateCandidateParams } from "./hydrate-candidate";
 import type {
   HydratedCandidate,
@@ -31,10 +32,26 @@ export type CreateSlotPoolParams = {
   context?: CatalogSearchContext;
   traceId?: string | null;
   abortScope?: AbortScope;
+  /**
+   * Shared across slots in one hydrateCatalogSlots call so parallel support
+   * lanes don't multiply HYDRATION_MAX_CONCURRENCY.
+   */
+  concurrencyGate?: ConcurrencyGate;
   /** Test injection — defaults to live hydrateCandidate. */
   hydrateFn?: (
     params: HydrateCandidateParams,
   ) => Promise<import("./types").HydrateCandidateResult>;
+  /** Restore from persisted state — skips shifting verified into reserve. */
+  initialState?: {
+    verified: HydratedCandidate[];
+    reserve: FashionSlotCatalogProduct[];
+    dead: HydrationDeathRecord[];
+    thin: boolean;
+    vetoed?: string[];
+  };
+  skipInitialFill?: boolean;
+  /** Called after every mutation (fill, death). */
+  onMutation?: () => void | Promise<void>;
 };
 
 type WaveStats = {
@@ -83,7 +100,20 @@ class SlotPoolImpl implements SlotPool {
   constructor(private readonly params: CreateSlotPoolParams) {
     this.options_wanted = params.slot.options_wanted;
     this.target = hydrationTargetCount(params.slot.options_wanted);
-    this.reserve = [...params.scoredProducts];
+    if (params.initialState) {
+      this.verified = [...params.initialState.verified];
+      this.reserve = [...params.initialState.reserve];
+      this.dead = [...params.initialState.dead];
+      this.thin = params.initialState.thin;
+      for (const c of this.verified) this.hydratedIds.add(c.id);
+      for (const d of this.dead) this.hydratedIds.add(d.product_id);
+    } else {
+      this.reserve = [...params.scoredProducts];
+    }
+  }
+
+  private async notifyMutation(): Promise<void> {
+    await this.params.onMutation?.();
   }
 
   private runLocked<T>(fn: () => Promise<T>): Promise<T> {
@@ -115,6 +145,7 @@ class SlotPoolImpl implements SlotPool {
       accessToken: this.params.accessToken,
       context: this.params.context,
       abortScope: this.params.abortScope,
+      concurrencyGate: this.params.concurrencyGate,
     };
   }
 
@@ -155,6 +186,7 @@ class SlotPoolImpl implements SlotPool {
       .slice(beforeDead)
       .filter((d) => d.cause === "hydration_failed").length;
     const verified_ok = added.length;
+    const gateLimit = this.params.concurrencyGate?.limit ?? HYDRATION_MAX_CONCURRENCY;
 
     logAiChat("info", "fashion_hydration_wave", {
       traceId: this.params.traceId,
@@ -162,11 +194,14 @@ class SlotPoolImpl implements SlotPool {
       garment: this.params.slot.garment,
       wave,
       concurrent: Math.min(batch.length, HYDRATION_MAX_CONCURRENCY),
+      global_concurrency: gateLimit,
       attempted: batch.length,
       verified_ok,
       killed,
       hydration_failed,
       timeout_ms: HYDRATION_CALL_TIMEOUT_MS,
+      timeout_enabled:
+        HYDRATION_CALL_TIMEOUT_MS != null && HYDRATION_CALL_TIMEOUT_MS > 0,
       elapsed_ms: Date.now() - started,
       reserve_left: this.reserve.length,
       verified_total: this.verified.length,
@@ -183,16 +218,18 @@ class SlotPoolImpl implements SlotPool {
       const stats1 = await this.hydrateWave(wave1);
       this.waveStats.push(stats1);
 
-      const deficit = this.target - this.verified.length;
-      if (deficit > 0 && this.reserve.length > 0) {
-        const wave2 = this.popBatch(deficit);
-        const stats2 = await this.hydrateWave(wave2);
-        this.waveStats.push(stats2);
+      while (this.verified.length < this.target && this.reserve.length > 0) {
+        const deficit = this.target - this.verified.length;
+        const wave = this.popBatch(deficit);
+        if (!wave.length) break;
+        const stats = await this.hydrateWave(wave);
+        this.waveStats.push(stats);
       }
 
       if (this.verified.length < this.target && this.reserve.length === 0) {
         this.thin = true;
       }
+      await this.notifyMutation();
     });
   }
 
@@ -223,6 +260,7 @@ class SlotPoolImpl implements SlotPool {
       if (this.verified.length < this.target && this.reserve.length === 0) {
         this.thin = true;
       }
+      await this.notifyMutation();
     });
   }
 

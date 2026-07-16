@@ -30,6 +30,8 @@ describe("buildFashionRouterPrompt", () => {
     assert.match(prompt, /Exactly one tool call per turn/);
     assert.match(prompt, /do NOT ask "for yourself or someone else\?"/);
     assert.match(prompt, /three moves/);
+    assert.match(prompt, /ACCESSORIES are garments too/);
+    assert.match(prompt, /GENERAL PRINCIPLE/);
     assert.doesNotMatch(prompt, /run_intake/);
     assert.match(prompt, /#abcd self \(Raphael\)/);
     assert.match(prompt, /CURRENT DATE: 2026-07-08/);
