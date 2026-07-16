@@ -3,6 +3,7 @@ import type { FashionLocalStore } from "../local/store";
 import { normalizeSignalValue } from "../signals";
 import type { ExtractionOpResult, PersonRow } from "../types";
 import { evidenceQuoteInMessages } from "../extraction/evidence";
+import { measurementGarmentType } from "../extraction/measurement-garment";
 import {
   collectDeclaredNewPersonRefs,
   personRefAllowed,
@@ -105,11 +106,16 @@ export function applyLocalFashionOps(params: {
     try {
       switch (op.op) {
         case "fact_add": {
+          const garmentType = measurementGarmentType(
+            op.fact_type,
+            op.garment_type,
+            op.value,
+          );
           const fact = store.upsertFashionFact({
             userId,
             personId,
             factType: op.fact_type,
-            garmentType: op.garment_type,
+            garmentType,
             value: op.value as never,
             sourceQuote: op.evidence_quote,
           });
@@ -117,11 +123,16 @@ export function applyLocalFashionOps(params: {
           break;
         }
         case "fact_reverse": {
+          const garmentType = measurementGarmentType(
+            op.fact_type,
+            op.garment_type,
+            op.value,
+          );
           const active = store.findActiveFashionFact({
             userId,
             personId,
             factType: op.fact_type,
-            garmentType: op.garment_type,
+            garmentType,
           });
           if (!active || !fashionFactValuesEqual(active.value, op.old_value)) {
             results.push(reject(op.op, "old_value_mismatch"));
@@ -131,7 +142,7 @@ export function applyLocalFashionOps(params: {
             userId,
             personId,
             factType: op.fact_type,
-            garmentType: op.garment_type,
+            garmentType,
             value: op.value as never,
             sourceQuote: op.evidence_quote,
           });

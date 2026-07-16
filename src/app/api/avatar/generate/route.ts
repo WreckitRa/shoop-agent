@@ -19,6 +19,8 @@ const bodySchema = z.object({
       height_band: z.string().optional(),
       build: z.string().optional(),
       muscularity: z.string().optional(),
+      body_shape: z.string().optional(),
+      bust_fullness: z.string().optional(),
     })
     .optional(),
 });

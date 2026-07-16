@@ -28,3 +28,17 @@ Must be set whenever `budget_context.stated` (see `attachBudgetAllocation` + `st
 **Presentation:** `src/lib/fashion-memory/curation/badge-copy.ts` / `presentation.ts`  
 **Render contract mapping:** `src/lib/fashion-memory/curation/build-render-contract.ts`  
 Kinds include converted size, size unknown, material suspected, photo color, near-budget lifted, brand unconfirmed.
+
+## fashion_facts.fact_type
+
+**Type:** `FashionFactType` in `src/lib/fashion-memory/types.ts`  
+**Values:** `size | fit | no_go | budget_band | body_note | gender_presentation | measurement`
+
+### `measurement` (reserved)
+
+Value shape: `{ "metric": "neck"|"chest"|"waist"|"hips"|"inseam", "value": number, "unit": "cm"|"in" }`  
+Supersede key: `(person_id, fact_type=measurement, garment_type=metric)`.
+
+**Reserved for a future size-chart fit layer.** Nothing in search, scoring, or try-on consumes these yet — they are stored from the Tailored avatar path and conversational extraction ("my waist is 84cm") only. Avatar image generators must never receive centimeters; visual silhouette attrs feed the avatar, measurements feed shopping fit later.
+
+Privacy: body data — purged on person hard-delete (`purgePersonMeasurementFacts`); admin/debug shows `measurements on file: N` count only, never values.

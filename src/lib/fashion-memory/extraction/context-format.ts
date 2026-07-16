@@ -195,6 +195,9 @@ function formatFactLine(fact: FashionFactRow): string | null {
     }
     case "body_note":
       return null;
+    case "measurement":
+      // Body data — never echo numeric values into LLM snapshots/debug.
+      return null;
     default:
       return null;
   }

@@ -11,7 +11,9 @@ import {
 import {
   Camera,
   Check,
+  ChevronDown,
   ChevronLeft,
+  Ruler,
   Sparkles,
   Sun,
   UserRound,
@@ -19,10 +21,13 @@ import {
 import type {
   AvatarAttributes,
   AvatarCompareVariant,
+  BodyShapeBand,
   BuildBand,
+  BustFullnessBand,
   HeightBand,
   MuscularityBand,
 } from "@/lib/tryon/types";
+import type { FashionFactMeasurementMetric } from "@/lib/fashion-memory/types";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { cn } from "@/lib/ai-chat/cn";
 import { isCompareSettled } from "@/lib/tryon/compare-variants";
@@ -31,28 +36,35 @@ import {
   TRYON_CLIENT_POLL_MS,
 } from "@/lib/tryon/client-poll";
 import {
+  BODY_SHAPE_LABELS,
+  BUST_FULLNESS_LABELS,
   hasRequiredSilhouetteAttributes,
   missingSilhouetteAttributes,
   SILHOUETTE_LABELS,
 } from "@/lib/tryon/avatar/attributes";
 import { TryOnLoadingPanel } from "./TryOnLoadingPanel";
+import {
+  BodyShapeSilhouette,
+  BuildSilhouette,
+  BustFullnessSilhouette,
+} from "./avatar-silhouettes";
+
+type FlowPath = "quick" | "tailored";
 
 type FlowStep =
   | "intro"
   | "photo"
+  | "path"
   | "height"
   | "build"
+  | "body_shape"
+  | "bust_fullness"
   | "muscularity"
+  | "measurements"
+  | "review"
   | "generating"
   | "reveal"
   | "saved";
-
-const ATTRIBUTE_STEPS: FlowStep[] = [
-  "photo",
-  "height",
-  "build",
-  "muscularity",
-];
 
 const HEIGHT_OPTIONS: {
   id: HeightBand;
@@ -79,6 +91,27 @@ const BUILD_OPTIONS: {
   { id: "plus", label: "Plus", hint: "Fuller, curvier silhouette", width: 20 },
 ];
 
+const BODY_SHAPE_OPTIONS: {
+  id: BodyShapeBand;
+  label: string;
+}[] = [
+  { id: "rectangle", label: BODY_SHAPE_LABELS.rectangle },
+  { id: "triangle", label: BODY_SHAPE_LABELS.triangle },
+  { id: "inverted_triangle", label: BODY_SHAPE_LABELS.inverted_triangle },
+  { id: "hourglass", label: BODY_SHAPE_LABELS.hourglass },
+  { id: "oval", label: BODY_SHAPE_LABELS.oval },
+];
+
+const BUST_OPTIONS: {
+  id: BustFullnessBand;
+  label: string;
+}[] = [
+  { id: "subtle", label: BUST_FULLNESS_LABELS.subtle },
+  { id: "average", label: BUST_FULLNESS_LABELS.average },
+  { id: "full", label: BUST_FULLNESS_LABELS.full },
+  { id: "very_full", label: BUST_FULLNESS_LABELS.very_full },
+];
+
 const MUSCLE_OPTIONS: {
   id: MuscularityBand;
   label: string;
@@ -89,11 +122,26 @@ const MUSCLE_OPTIONS: {
   { id: "high", label: "Defined", hint: "Visible muscle shape" },
 ];
 
+const MEASUREMENT_FIELDS: {
+  metric: FashionFactMeasurementMetric;
+  label: string;
+}[] = [
+  { metric: "neck", label: "Neck" },
+  { metric: "chest", label: "Chest / bust" },
+  { metric: "waist", label: "Waist" },
+  { metric: "hips", label: "Hips" },
+  { metric: "inseam", label: "Inseam" },
+];
+
 const PHOTO_TIPS = [
   { icon: Sun, text: "Face the light — natural window light is perfect" },
   { icon: UserRound, text: "One person, eyes toward the camera" },
   { icon: Camera, text: "Skip sunglasses, heavy filters, or group shots" },
 ] as const;
+
+type MeasurementDraft = Partial<
+  Record<FashionFactMeasurementMetric, string>
+>;
 
 type AvatarStepperProps = {
   personId: string;
@@ -104,6 +152,8 @@ type AvatarStepperProps = {
   startAtPhoto?: boolean;
   /** Optional skip control (onboarding). Hidden while generating/saving. */
   onSkip?: () => void;
+  /** When true, show bust fullness on Tailored path. */
+  womensDepartment?: boolean;
 };
 
 type AvatarApiBody = {
@@ -116,7 +166,12 @@ type AvatarApiBody = {
     compare_job_id?: string;
     preview_variants?: AvatarCompareVariant[];
     selected_provider_key?: AvatarCompareVariant["provider_key"];
-    intake?: { refusal_message?: string };
+    intake?: {
+      refusal_message?: string;
+      clear?: Partial<AvatarAttributes>;
+      body_inference_attempted?: boolean;
+    };
+    attributes?: Partial<AvatarAttributes>;
   };
 };
 
@@ -135,15 +190,17 @@ async function readApiJson(res: Response): Promise<AvatarApiBody> {
 }
 
 function ProgressRail({
+  steps,
   current,
 }: {
+  steps: FlowStep[];
   current: FlowStep;
 }) {
-  const idx = ATTRIBUTE_STEPS.indexOf(current);
+  const idx = steps.indexOf(current);
   if (idx < 0) return null;
   return (
     <div className="flex items-center gap-1.5" aria-hidden>
-      {ATTRIBUTE_STEPS.map((s, i) => (
+      {steps.map((s, i) => (
         <div
           key={s}
           className={cn(
@@ -156,27 +213,6 @@ function ProgressRail({
   );
 }
 
-function BodySilhouette({ width }: { width: number }) {
-  const torso = width;
-  const head = 8;
-  return (
-    <svg viewBox="0 0 40 72" className="h-14 w-7 text-ink" aria-hidden>
-      <ellipse cx="20" cy="10" rx={head} ry="9" fill="currentColor" opacity="0.22" />
-      <rect
-        x={20 - torso / 2}
-        y="20"
-        width={torso}
-        height="24"
-        rx="5"
-        fill="currentColor"
-        opacity="0.38"
-      />
-      <rect x="12" y="44" width="6" height="22" rx="2" fill="currentColor" opacity="0.28" />
-      <rect x="22" y="44" width="6" height="22" rx="2" fill="currentColor" opacity="0.28" />
-    </svg>
-  );
-}
-
 function ChoiceCard({
   selected,
   onClick,
@@ -184,6 +220,7 @@ function ChoiceCard({
   hint,
   children,
   className,
+  suggested,
 }: {
   selected: boolean;
   onClick: () => void;
@@ -191,6 +228,7 @@ function ChoiceCard({
   hint?: string;
   children?: ReactNode;
   className?: string;
+  suggested?: boolean;
 }) {
   return (
     <button
@@ -209,6 +247,10 @@ function ChoiceCard({
         <span className="absolute right-2 top-2 flex size-4 items-center justify-center rounded-full bg-white text-ink">
           <Check className="size-2.5" strokeWidth={3} />
         </span>
+      ) : suggested ? (
+        <span className="absolute right-2 top-2 rounded-full bg-surface-tint px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-ink-muted">
+          Suggested
+        </span>
       ) : null}
       {children}
       <span className="text-xs font-semibold leading-tight">{title}</span>
@@ -226,6 +268,23 @@ function ChoiceCard({
   );
 }
 
+function SectionHonesty({
+  title,
+  help,
+}: {
+  title: string;
+  help: string;
+}) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink">
+        {title}
+      </p>
+      <p className="text-xs text-ink-muted">{help}</p>
+    </div>
+  );
+}
+
 export function AvatarStepper({
   personId,
   personLabel,
@@ -233,14 +292,22 @@ export function AvatarStepper({
   onBusyChange,
   startAtPhoto = false,
   onSkip,
+  womensDepartment: womensProp,
 }: AvatarStepperProps) {
   const [step, setStep] = useState<FlowStep>(startAtPhoto ? "photo" : "intro");
+  const [path, setPath] = useState<FlowPath | null>(null);
   const [attributes, setAttributes] = useState<Partial<AvatarAttributes>>({});
+  const [suggestedBodyShape, setSuggestedBodyShape] =
+    useState<BodyShapeBand | null>(null);
+  const [womensDepartment, setWomensDepartment] = useState(Boolean(womensProp));
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [photoReady, setPhotoReady] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [measurementsOpen, setMeasurementsOpen] = useState(false);
+  const [measureUnit, setMeasureUnit] = useState<"cm" | "in">("cm");
+  const [measurementDraft, setMeasurementDraft] = useState<MeasurementDraft>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const startedRef = useRef(false);
 
@@ -257,6 +324,51 @@ export function AvatarStepper({
       if (localPreview) URL.revokeObjectURL(localPreview);
     };
   }, [localPreview]);
+
+  useEffect(() => {
+    if (womensProp != null) {
+      setWomensDepartment(womensProp);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await guestFetch("/api/avatar/people");
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          people?: Array<{ id: string; department?: string | null }>;
+        };
+        const me = body.people?.find((p) => p.id === personId);
+        if (!cancelled && me?.department === "womens") {
+          setWomensDepartment(true);
+        }
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [personId, womensProp]);
+
+  const attributeSteps = useMemo((): FlowStep[] => {
+    if (path === "tailored") {
+      const steps: FlowStep[] = [
+        "photo",
+        "path",
+        "height",
+        "build",
+        "body_shape",
+      ];
+      if (womensDepartment) steps.push("bust_fullness");
+      steps.push("muscularity", "measurements", "review");
+      return steps;
+    }
+    if (path === "quick") {
+      return ["photo", "path", "height", "build", "muscularity"];
+    }
+    return ["photo", "path"];
+  }, [path, womensDepartment]);
 
   const start = useCallback(async () => {
     if (startedRef.current) return;
@@ -277,6 +389,7 @@ export function AvatarStepper({
       return objectUrl;
     });
     setPhotoReady(false);
+    setSuggestedBodyShape(null);
 
     try {
       await start();
@@ -300,6 +413,29 @@ export function AvatarStepper({
         setBusyState(false);
         return;
       }
+
+      // Vision attribute check — may pre-fill body_shape for full-body photos
+      const checkRes = await guestFetch("/api/avatar/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check", person_id: personId }),
+      });
+      const checkBody = await readApiJson(checkRes);
+      if (checkBody.draft?.step === "refused_minor") {
+        setMessage(
+          checkBody.draft.intake?.refusal_message ?? "We can't use this photo.",
+        );
+        setBusyState(false);
+        return;
+      }
+      const suggested =
+        checkBody.draft?.intake?.clear?.body_shape ??
+        checkBody.draft?.attributes?.body_shape;
+      if (suggested) {
+        setSuggestedBodyShape(suggested);
+        setAttributes((a) => ({ ...a, body_shape: suggested }));
+      }
+
       setPhotoReady(true);
       setBusyState(false);
     } catch {
@@ -329,11 +465,13 @@ export function AvatarStepper({
     [],
   );
 
+  const fallbackAfterFail = path === "tailored" ? "review" : "muscularity";
+
   const pollAvatarJob = useCallback(
     async (jobId: string, startedAt: number) => {
       if (Date.now() - startedAt > TRYON_CLIENT_POLL_MAX_MS) {
         setMessage("That took too long — try generating again.");
-        setStep("muscularity");
+        setStep(fallbackAfterFail);
         setBusyState(false);
         return;
       }
@@ -348,7 +486,7 @@ export function AvatarStepper({
       };
       if (!res.ok || body.error) {
         setMessage(body.error ?? "Could not check generation status.");
-        setStep("muscularity");
+        setStep(fallbackAfterFail);
         setBusyState(false);
         return;
       }
@@ -359,7 +497,7 @@ export function AvatarStepper({
           (body.variants ?? []).some((v) => v.preview_url);
         if (!hasPreview) {
           setMessage("Generation failed — try again with a clearer photo.");
-          setStep("muscularity");
+          setStep(fallbackAfterFail);
         }
         setBusyState(false);
         return;
@@ -369,8 +507,24 @@ export function AvatarStepper({
         TRYON_CLIENT_POLL_MS,
       );
     },
-    [applyAvatarPoll, personId, setBusyState],
+    [applyAvatarPoll, fallbackAfterFail, personId, setBusyState],
   );
+
+  const filledMeasurements = useMemo(() => {
+    const out: Array<{
+      metric: FashionFactMeasurementMetric;
+      value: number;
+      unit: "cm" | "in";
+    }> = [];
+    for (const { metric } of MEASUREMENT_FIELDS) {
+      const raw = measurementDraft[metric]?.trim();
+      if (!raw) continue;
+      const value = Number.parseFloat(raw);
+      if (!Number.isFinite(value) || value <= 0) continue;
+      out.push({ metric, value, unit: measureUnit });
+    }
+    return out;
+  }, [measurementDraft, measureUnit]);
 
   const generate = async () => {
     if (!photoReady) {
@@ -385,6 +539,11 @@ export function AvatarStepper({
       setMessage(`Still need: ${missing.join(", ")}.`);
       return;
     }
+    if (path === "tailored" && !attributes.body_shape) {
+      setMessage("Pick a body shape for your avatar.");
+      setStep("body_shape");
+      return;
+    }
 
     setStep("generating");
     setBusyState(true);
@@ -393,19 +552,38 @@ export function AvatarStepper({
 
     await start();
 
+    // Shopping-side measurements — never sent to the image generator
+    if (path === "tailored" && filledMeasurements.length > 0) {
+      await guestFetch("/api/avatar/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "measurements",
+          person_id: personId,
+          measurements: filledMeasurements,
+        }),
+      });
+    }
+
+    const attrsForGenerate: AvatarAttributes = { ...attributes };
+    if (path === "quick") {
+      delete attrsForGenerate.body_shape;
+      delete attrsForGenerate.bust_fullness;
+    }
+
     const attrRes = await guestFetch("/api/avatar/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "attributes",
         person_id: personId,
-        attributes,
+        attributes: attrsForGenerate,
       }),
     });
     const attrBody = await readApiJson(attrRes);
     if (!attrRes.ok || attrBody.error) {
       setMessage(attrBody.error ?? "Could not save your selections.");
-      setStep("muscularity");
+      setStep(fallbackAfterFail);
       setBusyState(false);
       return;
     }
@@ -416,7 +594,7 @@ export function AvatarStepper({
       body: JSON.stringify({
         person_id: personId,
         action: "generate",
-        attributes,
+        attributes: attrsForGenerate,
       }),
     });
     const body = await readApiJson(res);
@@ -426,7 +604,7 @@ export function AvatarStepper({
           ? "Generation took too long — try again in a moment."
           : (body.error ?? "Generation failed."),
       );
-      setStep("muscularity");
+      setStep(fallbackAfterFail);
       setBusyState(false);
       return;
     }
@@ -444,7 +622,7 @@ export function AvatarStepper({
     }
 
     setMessage("Generation failed.");
-    setStep("muscularity");
+    setStep(fallbackAfterFail);
     setBusyState(false);
   };
 
@@ -470,18 +648,43 @@ export function AvatarStepper({
     window.setTimeout(() => onComplete?.(), 1200);
   };
 
+  const nextAfterBuild = () => {
+    if (path === "tailored") setStep("body_shape");
+    else setStep("muscularity");
+  };
+
+  const nextAfterBodyShape = () => {
+    if (womensDepartment) setStep("bust_fullness");
+    else setStep("muscularity");
+  };
+
+  const nextAfterMuscle = () => {
+    if (path === "tailored") setStep("measurements");
+    else void generate();
+  };
+
   const stepTitle = useMemo(() => {
     switch (step) {
       case "intro":
         return "Your digital twin";
       case "photo":
         return "Start with your face";
+      case "path":
+        return "How detailed?";
       case "height":
         return "How tall are you?";
       case "build":
         return "What’s your build?";
+      case "body_shape":
+        return "Body shape";
+      case "bust_fullness":
+        return "Bust fullness";
       case "muscularity":
         return "Muscle definition";
+      case "measurements":
+        return "Precise measurements";
+      case "review":
+        return "Review";
       case "generating":
         return "Crafting your avatar";
       case "reveal":
@@ -493,25 +696,36 @@ export function AvatarStepper({
     }
   }, [step]);
 
+  const stepOrder = useMemo((): FlowStep[] => {
+    const base: FlowStep[] = ["intro", "photo", "path", "height", "build"];
+    if (path === "tailored") {
+      base.push("body_shape");
+      if (womensDepartment) base.push("bust_fullness");
+      base.push("muscularity", "measurements", "review");
+    } else {
+      base.push("muscularity");
+    }
+    return base;
+  }, [path, womensDepartment]);
+
   const goBack = () => {
-    const order: FlowStep[] = [
-      "intro",
-      "photo",
-      "height",
-      "build",
-      "muscularity",
-    ];
-    const i = order.indexOf(step);
-    if (i > 0) setStep(order[i - 1]!);
+    const i = stepOrder.indexOf(step);
+    if (i > 0) setStep(stepOrder[i - 1]!);
   };
 
   const canBack =
     !busy &&
-    (step === "photo" ||
-      step === "height" ||
-      step === "build" ||
-      step === "muscularity" ||
-      step === "reveal");
+    step !== "intro" &&
+    step !== "generating" &&
+    step !== "saved" &&
+    (step === "reveal" || stepOrder.includes(step));
+
+  const heightLabel =
+    HEIGHT_OPTIONS.find((o) => o.id === attributes.height_band)?.label ?? "—";
+  const buildLabel =
+    BUILD_OPTIONS.find((o) => o.id === attributes.build)?.label ?? "—";
+  const muscleLabel =
+    MUSCLE_OPTIONS.find((o) => o.id === attributes.muscularity)?.label ?? "—";
 
   return (
     <div className="space-y-5">
@@ -523,7 +737,7 @@ export function AvatarStepper({
                 type="button"
                 onClick={() => {
                   if (step === "reveal") {
-                    setStep("muscularity");
+                    setStep(fallbackAfterFail);
                     return;
                   }
                   goBack();
@@ -545,7 +759,9 @@ export function AvatarStepper({
               ) : null}
             </div>
           </div>
-          {ATTRIBUTE_STEPS.includes(step) ? <ProgressRail current={step} /> : null}
+          {attributeSteps.includes(step) ? (
+            <ProgressRail steps={attributeSteps} current={step} />
+          ) : null}
         </div>
       ) : null}
 
@@ -565,8 +781,8 @@ export function AvatarStepper({
               Your digital twin
             </h3>
             <p className="mx-auto max-w-sm text-sm leading-relaxed text-ink-secondary">
-              One great photo + a few quick vibe checks. We’ll build a try-on
-              avatar that looks like you — so outfits preview honestly.
+              One great photo + a few shape checks. We’ll build a try-on avatar
+              that looks like you — so outfits preview honestly.
             </p>
           </div>
           <ul className="mx-auto max-w-xs space-y-2 text-left text-xs text-ink-muted">
@@ -576,7 +792,7 @@ export function AvatarStepper({
             </li>
             <li className="flex gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-ink" />
-              Face stays private — used only for your avatar
+              Shape picks change the avatar; measurements never do
             </li>
             <li className="flex gap-2">
               <Check className="mt-0.5 size-3.5 shrink-0 text-ink" />
@@ -605,8 +821,8 @@ export function AvatarStepper({
       {step === "photo" ? (
         <div className="space-y-4">
           <p className="text-sm leading-relaxed text-ink-secondary">
-            A clear selfie is the #1 ingredient. Face, hair, and skin tone
-            come from the photo — next we only ask about body shape.
+            A clear selfie is the #1 ingredient. Face, hair, and skin tone come
+            from the photo — next we only ask about body shape.
           </p>
 
           <input
@@ -645,9 +861,15 @@ export function AvatarStepper({
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/55 via-transparent to-transparent" />
                 <div className="relative z-10 mt-auto w-full p-4 text-left">
                   <p className="text-sm font-semibold text-white">
-                    {photoReady ? "Looking good" : busy ? "Uploading…" : "Photo selected"}
+                    {photoReady
+                      ? "Looking good"
+                      : busy
+                        ? "Uploading…"
+                        : "Photo selected"}
                   </p>
-                  <p className="text-xs text-white/75">Tap to choose a different shot</p>
+                  <p className="text-xs text-white/75">
+                    Tap to choose a different shot
+                  </p>
                 </div>
               </>
             ) : (
@@ -656,7 +878,9 @@ export function AvatarStepper({
                   <Camera className="size-6 text-ink" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-ink">Add a face photo</p>
+                  <p className="text-sm font-semibold text-ink">
+                    Add a face photo
+                  </p>
                   <p className="mt-1 text-xs text-ink-muted">
                     Selfie or headshot · JPG/PNG
                   </p>
@@ -667,7 +891,10 @@ export function AvatarStepper({
 
           <div className="space-y-2 rounded-2xl bg-surface-subtle/80 px-3.5 py-3">
             {PHOTO_TIPS.map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-start gap-2.5 text-xs text-ink-secondary">
+              <div
+                key={text}
+                className="flex items-start gap-2.5 text-xs text-ink-secondary"
+              >
                 <Icon className="mt-0.5 size-3.5 shrink-0 text-ink-muted" />
                 <span>{text}</span>
               </div>
@@ -678,9 +905,9 @@ export function AvatarStepper({
             type="button"
             className="btn-primary w-full"
             disabled={busy || !photoReady}
-            onClick={() => setStep("height")}
+            onClick={() => setStep("path")}
           >
-            {busy ? "Uploading…" : "Next — body shape"}
+            {busy ? "Uploading…" : "Next"}
           </button>
           {onSkip && !busy ? (
             <button
@@ -694,8 +921,48 @@ export function AvatarStepper({
         </div>
       ) : null}
 
+      {step === "path" ? (
+        <div className="space-y-3">
+          <p className="text-sm text-ink-secondary">
+            Quick covers the essentials. Tailored adds shape detail — and
+            optional measurements for size-matching later.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setPath("quick");
+              window.setTimeout(() => setStep("height"), 120);
+            }}
+            className="w-full rounded-2xl border border-hairline bg-white px-4 py-4 text-left transition hover:border-ink/25 hover:bg-surface-subtle active:scale-[0.99]"
+          >
+            <p className="text-sm font-semibold text-ink">Quick</p>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              Height, build, muscle — about 30 seconds
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPath("tailored");
+              window.setTimeout(() => setStep("height"), 120);
+            }}
+            className="w-full rounded-2xl border border-ink/15 bg-gradient-to-br from-white to-surface-subtle px-4 py-4 text-left shadow-soft transition hover:border-ink/30 active:scale-[0.99]"
+          >
+            <p className="text-sm font-semibold text-ink">Tailored</p>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              Body shape{womensDepartment ? ", bust," : ""} and optional
+              measurements for perfect size-matching later
+            </p>
+          </button>
+        </div>
+      ) : null}
+
       {step === "height" ? (
         <div className="space-y-4">
+          <SectionHonesty
+            title="Shape your avatar"
+            help="these change how your avatar looks."
+          />
           <p className="text-sm text-ink-secondary">
             Helps scale proportions so clothes sit right on you.
           </p>
@@ -719,9 +986,15 @@ export function AvatarStepper({
 
       {step === "build" ? (
         <div className="space-y-4">
+          <SectionHonesty
+            title="Shape your avatar"
+            help="these change how your avatar looks."
+          />
           <p className="text-sm text-ink-secondary">
-            Pick the silhouette closest to you — honesty beats flattery for
-            better try-ons.
+            Overall scale — honesty beats flattery for better try-ons.
+            {path === "tailored"
+              ? " Next you’ll pick how that mass is distributed."
+              : ""}
           </p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {BUILD_OPTIONS.map((opt) => (
@@ -730,12 +1003,69 @@ export function AvatarStepper({
                 selected={attributes.build === opt.id}
                 onClick={() => {
                   setAttributes((a) => ({ ...a, build: opt.id }));
-                  window.setTimeout(() => setStep("muscularity"), 180);
+                  window.setTimeout(() => nextAfterBuild(), 180);
                 }}
                 title={opt.label}
                 hint={opt.hint}
               >
-                <BodySilhouette width={opt.width} />
+                <BuildSilhouette width={opt.width} />
+              </ChoiceCard>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {step === "body_shape" ? (
+        <div className="space-y-4">
+          <SectionHonesty
+            title="Shape your avatar"
+            help="these change how your avatar looks."
+          />
+          <p className="text-sm text-ink-secondary">
+            How weight sits on your frame — complements overall build scale.
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {BODY_SHAPE_OPTIONS.map((opt) => (
+              <ChoiceCard
+                key={opt.id}
+                selected={attributes.body_shape === opt.id}
+                suggested={
+                  suggestedBodyShape === opt.id &&
+                  attributes.body_shape === opt.id
+                }
+                onClick={() => {
+                  setAttributes((a) => ({ ...a, body_shape: opt.id }));
+                  window.setTimeout(() => nextAfterBodyShape(), 180);
+                }}
+                title={opt.label}
+                className="min-h-[7.5rem] justify-center px-2"
+              >
+                <BodyShapeSilhouette shape={opt.id} />
+              </ChoiceCard>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {step === "bust_fullness" ? (
+        <div className="space-y-4">
+          <SectionHonesty
+            title="Shape your avatar"
+            help="these change how your avatar looks."
+          />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {BUST_OPTIONS.map((opt) => (
+              <ChoiceCard
+                key={opt.id}
+                selected={attributes.bust_fullness === opt.id}
+                onClick={() => {
+                  setAttributes((a) => ({ ...a, bust_fullness: opt.id }));
+                  window.setTimeout(() => setStep("muscularity"), 180);
+                }}
+                title={opt.label}
+                className="min-h-[7rem] justify-center"
+              >
+                <BustFullnessSilhouette band={opt.id} />
               </ChoiceCard>
             ))}
           </div>
@@ -744,6 +1074,10 @@ export function AvatarStepper({
 
       {step === "muscularity" ? (
         <div className="space-y-4">
+          <SectionHonesty
+            title="Shape your avatar"
+            help="these change how your avatar looks."
+          />
           <p className="text-sm text-ink-secondary">
             How defined is your body under clothes? Soft is totally fine.
           </p>
@@ -752,18 +1086,223 @@ export function AvatarStepper({
               <ChoiceCard
                 key={opt.id}
                 selected={attributes.muscularity === opt.id}
-                onClick={() =>
-                  setAttributes((a) => ({ ...a, muscularity: opt.id }))
-                }
+                onClick={() => {
+                  setAttributes((a) => ({ ...a, muscularity: opt.id }));
+                  if (path === "tailored") {
+                    window.setTimeout(() => nextAfterMuscle(), 180);
+                  }
+                }}
                 title={opt.label}
                 hint={opt.hint}
               />
             ))}
           </div>
-          <p className="text-xs text-ink-muted">
-            Face, hair, and skin come from your photo — we only use these picks
-            for body shape.
-          </p>
+          {path === "quick" ? (
+            <>
+              <p className="text-xs text-ink-muted">
+                Face, hair, and skin come from your photo — we only use these
+                picks for body shape.
+              </p>
+              <button
+                type="button"
+                className="btn-primary w-full gap-2"
+                disabled={busy || !hasRequiredSilhouetteAttributes(attributes)}
+                onClick={() => void generate()}
+              >
+                <Sparkles className="size-4" />
+                Create my avatar
+              </button>
+            </>
+          ) : attributes.muscularity ? (
+            <button
+              type="button"
+              className="btn-primary w-full"
+              onClick={() => nextAfterMuscle()}
+            >
+              Continue
+            </button>
+          ) : null}
+          {onSkip && !busy && path === "quick" ? (
+            <button
+              type="button"
+              className="w-full text-center text-sm font-medium text-ink-muted underline-offset-2 hover:underline"
+              onClick={onSkip}
+            >
+              Skip for now
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {step === "measurements" ? (
+        <div className="space-y-4">
+          <SectionHonesty
+            title="Shopping fit"
+            help="these power fit-checked shopping — they don't change the image."
+          />
+
+          <div className="overflow-hidden rounded-2xl border border-hairline bg-white">
+            <button
+              type="button"
+              onClick={() => setMeasurementsOpen((o) => !o)}
+              className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-surface-subtle/60"
+            >
+              <span className="flex size-9 items-center justify-center rounded-xl bg-surface-subtle text-ink">
+                <Ruler className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink">
+                  Precise measurements (optional — for perfect size-matching
+                  later)
+                </span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 text-ink-muted transition",
+                  measurementsOpen && "rotate-180",
+                )}
+              />
+            </button>
+
+            {measurementsOpen ? (
+              <div className="space-y-3 border-t border-hairline-soft px-4 pb-4 pt-3">
+                <p className="text-xs leading-relaxed text-ink-secondary">
+                  These never change your avatar — they let Shoop match you
+                  against brand size charts, so a find can say &apos;in this
+                  brand you&apos;re an L&apos;.
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ink-muted">Unit</span>
+                  <div className="inline-flex rounded-full border border-hairline p-0.5">
+                    {(["cm", "in"] as const).map((u) => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setMeasureUnit(u)}
+                        className={cn(
+                          "rounded-full px-3 py-1 text-xs font-medium transition",
+                          measureUnit === u
+                            ? "bg-ink text-white"
+                            : "text-ink-muted hover:text-ink",
+                        )}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {MEASUREMENT_FIELDS.map(({ metric, label }) => (
+                    <label
+                      key={metric}
+                      className="flex items-center gap-3 text-sm"
+                    >
+                      <span className="w-24 shrink-0 text-ink-secondary">
+                        {label}
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step="any"
+                        placeholder="—"
+                        value={measurementDraft[metric] ?? ""}
+                        onChange={(e) =>
+                          setMeasurementDraft((d) => ({
+                            ...d,
+                            [metric]: e.target.value,
+                          }))
+                        }
+                        className="h-10 flex-1 rounded-xl border border-hairline bg-surface-subtle/50 px-3 text-ink outline-none transition focus:border-ink/30 focus:bg-white"
+                      />
+                      <span className="w-6 text-xs text-ink-muted">
+                        {measureUnit}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            className="btn-primary w-full"
+            onClick={() => setStep("review")}
+          >
+            Continue to review
+          </button>
+          <button
+            type="button"
+            className="w-full text-center text-sm font-medium text-ink-muted underline-offset-2 hover:underline"
+            onClick={() => {
+              setMeasurementDraft({});
+              setStep("review");
+            }}
+          >
+            Skip measurements
+          </button>
+        </div>
+      ) : null}
+
+      {step === "review" ? (
+        <div className="space-y-4">
+          <div className="space-y-3 rounded-2xl border border-hairline bg-gradient-to-b from-white to-surface-subtle/80 p-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink">
+                Avatar
+              </p>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                these change how your avatar looks.
+              </p>
+              <dl className="mt-3 space-y-1.5 text-sm">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-ink-muted">Height</dt>
+                  <dd className="font-medium text-ink">{heightLabel}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-ink-muted">Build</dt>
+                  <dd className="font-medium text-ink">{buildLabel}</dd>
+                </div>
+                {attributes.body_shape ? (
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-ink-muted">Body shape</dt>
+                    <dd className="text-right font-medium text-ink">
+                      {BODY_SHAPE_LABELS[attributes.body_shape]}
+                    </dd>
+                  </div>
+                ) : null}
+                {attributes.bust_fullness ? (
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-ink-muted">Bust</dt>
+                    <dd className="font-medium text-ink">
+                      {BUST_FULLNESS_LABELS[attributes.bust_fullness]}
+                    </dd>
+                  </div>
+                ) : null}
+                <div className="flex justify-between gap-3">
+                  <dt className="text-ink-muted">Muscle</dt>
+                  <dd className="font-medium text-ink">{muscleLabel}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="border-t border-hairline-soft pt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink">
+                Shopping fit
+              </p>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                these power fit-checked shopping — they don&apos;t change the
+                image.
+              </p>
+              <p className="mt-2 text-sm text-ink">
+                {filledMeasurements.length === 0
+                  ? "No precise measurements"
+                  : `${filledMeasurements.length} measurement${filledMeasurements.length === 1 ? "" : "s"} on file`}
+              </p>
+            </div>
+          </div>
+
           <button
             type="button"
             className="btn-primary w-full gap-2"
@@ -773,23 +1312,6 @@ export function AvatarStepper({
             <Sparkles className="size-4" />
             Create my avatar
           </button>
-          {onSkip && !busy ? (
-            <button
-              type="button"
-              className="w-full text-center text-sm font-medium text-ink-muted underline-offset-2 hover:underline"
-              onClick={onSkip}
-            >
-              Skip for now
-            </button>
-          ) : null}
-          {!hasRequiredSilhouetteAttributes(attributes) ? (
-            <p className="text-center text-xs text-ink-muted">
-              Missing{" "}
-              {missingSilhouetteAttributes(attributes)
-                .map((k) => SILHOUETTE_LABELS[k])
-                .join(", ")}
-            </p>
-          ) : null}
         </div>
       ) : null}
 

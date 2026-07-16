@@ -1,8 +1,39 @@
 import type { AvatarAttributes } from "../types";
 
 /**
+ * Versioned avatar prompt for FASHN face-to-model.
+ * Bump when attribute→phrase maps or fidelity rules change.
+ */
+export const TRYON_AVATAR_PROMPT_VERSION = "v2" as const;
+
+const BODY_SHAPE_PHRASE: Record<
+  NonNullable<AvatarAttributes["body_shape"]>,
+  string
+> = {
+  rectangle: "balanced proportions",
+  triangle: "fuller hips relative to shoulders",
+  inverted_triangle: "broader shoulders, narrower hips",
+  hourglass: "defined waist with proportionate bust and hips",
+  oval: "fuller midsection",
+};
+
+const BUST_FULLNESS_PHRASE: Record<
+  NonNullable<AvatarAttributes["bust_fullness"]>,
+  string
+> = {
+  subtle: "subtle bust",
+  average: "average bust fullness",
+  full: "full bust",
+  very_full: "very full bust",
+};
+
+const FIDELITY_RULE =
+  "faithful to stated body attributes only — no beautification, slimming, or idealization beyond them";
+
+/**
  * Compact body-shape prompt for FASHN face-to-model.
  * Face/hair/skin identity come from `face_image` — never restate them here.
+ * Image generators consume visual descriptions, not centimeters.
  */
 export function buildFashnAvatarPrompt(
   attributes: AvatarAttributes,
@@ -19,6 +50,14 @@ export function buildFashnAvatarPrompt(
         plus: "curvy fuller figure",
       }[attributes.build],
     );
+  }
+
+  if (attributes.body_shape) {
+    parts.push(BODY_SHAPE_PHRASE[attributes.body_shape]);
+  }
+
+  if (attributes.bust_fullness) {
+    parts.push(BUST_FULLNESS_PHRASE[attributes.bust_fullness]);
   }
 
   if (attributes.muscularity) {
@@ -45,6 +84,7 @@ export function buildFashnAvatarPrompt(
 
   // Pose that dress try-on can use cleanly.
   parts.push("neutral standing pose, arms relaxed at sides");
+  parts.push(FIDELITY_RULE);
 
   return parts.length ? parts.join(", ") : undefined;
 }

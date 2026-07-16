@@ -10,11 +10,30 @@ export type BuildBand = "slim" | "average" | "broad" | "athletic" | "plus";
 
 export type MuscularityBand = "low" | "moderate" | "high";
 
+/**
+ * Visual body-shape distribution (avatar-side).
+ * Neutral labels only — never judgmental.
+ */
+export type BodyShapeBand =
+  | "rectangle"
+  | "triangle"
+  | "inverted_triangle"
+  | "hourglass"
+  | "oval";
+
+/** Bust fullness bands — women's department only; visual, not cup letters. */
+export type BustFullnessBand = "subtle" | "average" | "full" | "very_full";
+
 /** Body silhouette only — face / hair / skin come from the face photo. */
 export type AvatarAttributes = {
   height_band?: HeightBand;
+  /** Overall scale (slim → plus). Complements body_shape (distribution). */
   build?: BuildBand;
   muscularity?: MuscularityBand;
+  /** Shape distribution — Tailored path. Feeds avatar prompt, not cm. */
+  body_shape?: BodyShapeBand;
+  /** Women's department only — Tailored path. */
+  bust_fullness?: BustFullnessBand;
 };
 
 export type StoredAvatar = {
@@ -65,6 +84,8 @@ export type AttributeIntakeResult = {
   missing: Array<keyof AvatarAttributes>;
   minor_refused: boolean;
   refusal_message?: string;
+  /** Whether body inference was attempted (full-body photo only). */
+  body_inference_attempted?: boolean;
 };
 
 export type ProviderCallResult = {

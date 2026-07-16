@@ -378,6 +378,23 @@ export class FashionLocalStore {
     );
   }
 
+  /** Hard-delete measurement facts (privacy) — mirrors purgePersonMeasurementFacts. */
+  purgeMeasurementFacts(params: {
+    userId: string;
+    personId: string;
+  }): number {
+    const before = this.snapshot.fashion_facts.length;
+    this.snapshot.fashion_facts = this.snapshot.fashion_facts.filter(
+      (f) =>
+        !(
+          f.user_id === params.userId &&
+          f.person_id === params.personId &&
+          f.fact_type === "measurement"
+        ),
+    );
+    return before - this.snapshot.fashion_facts.length;
+  }
+
   findActiveStyleSignal(params: {
     userId: string;
     personId: string;

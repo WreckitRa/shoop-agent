@@ -220,6 +220,7 @@ describe("fashn avatar prompt", () => {
     assert.match(prompt ?? "", /tall stature/);
     assert.doesNotMatch(prompt ?? "", /skin|hair/i);
     assert.match(prompt ?? "", /neutral standing pose/);
+    assert.match(prompt ?? "", /no beautification/);
   });
 });
 

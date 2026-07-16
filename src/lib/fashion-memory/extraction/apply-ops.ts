@@ -14,6 +14,7 @@ import {
 } from "../signals";
 import type { ExtractionOpResult, PersonRow } from "../types";
 import { evidenceQuoteInMessages } from "./evidence";
+import { measurementGarmentType } from "./measurement-garment";
 import {
   collectDeclaredNewPersonRefs,
   personRefAllowed,
@@ -148,11 +149,16 @@ export async function applyFashionOps(params: {
     try {
       switch (op.op) {
         case "fact_add": {
+          const garmentType = measurementGarmentType(
+            op.fact_type,
+            op.garment_type,
+            op.value,
+          );
           const fact = await upsertFashionFact({
             userId: params.userId,
             personId,
             factType: op.fact_type,
-            garmentType: op.garment_type,
+            garmentType,
             value: op.value as never,
             sourceQuote: op.evidence_quote,
           });
@@ -160,11 +166,16 @@ export async function applyFashionOps(params: {
           break;
         }
         case "fact_reverse": {
+          const garmentType = measurementGarmentType(
+            op.fact_type,
+            op.garment_type,
+            op.value,
+          );
           const active = await findActiveFashionFact({
             userId: params.userId,
             personId,
             factType: op.fact_type,
-            garmentType: op.garment_type,
+            garmentType,
           });
           if (!active || !fashionFactValuesEqual(active.value, op.old_value)) {
             results.push(reject(op.op, "old_value_mismatch"));
@@ -174,7 +185,7 @@ export async function applyFashionOps(params: {
             userId: params.userId,
             personId,
             factType: op.fact_type,
-            garmentType: op.garment_type,
+            garmentType,
             value: op.value as never,
             sourceQuote: op.evidence_quote,
           });

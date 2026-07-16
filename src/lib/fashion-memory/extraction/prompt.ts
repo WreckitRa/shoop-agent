@@ -72,10 +72,16 @@ scoped to this one item.
 OPERATIONS (via the record_fashion_ops tool)
 ════════════════════════════════════════
 1. fact_add      — a new hard fact: a size, a fit preference, a hard no-go
-                   ("I never wear shorts"), a budget band, a body note, or
+                   ("I never wear shorts"), a budget band, a body note,
                    gender_presentation (which department to shop:
                    { "presentation": "mens" | "womens" | "boys" | "girls"
-                   | "baby" | "mixed" }).
+                   | "baby" | "mixed" }), or a precise measurement
+                   ("my waist is 84cm") as fact_type "measurement" with
+                   value { "metric": "neck"|"chest"|"waist"|"hips"|"inseam",
+                   "value": number, "unit": "cm"|"in" } and garment_type set
+                   to the metric (so waist supersedes prior waist only).
+                   Measurements are body data for future size-chart fit —
+                   never invent them; only when the user stated a number.
 2. fact_reverse  — a [NEW] message directly contradicts a snapshot fact
                    ("actually I'm an L now"). Include the old value.
 3. signal_add    — a new TASTE signal: like or dislike about color, style,

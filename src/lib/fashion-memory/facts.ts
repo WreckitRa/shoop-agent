@@ -111,3 +111,35 @@ export async function findActiveFashionFact(params: {
     facts.find((f) => garmentKey(f.garment_type) === garment) ?? null
   );
 }
+
+/**
+ * Hard-delete measurement facts for a person (privacy — body data).
+ * Used by person try-on / hard-delete purge. Superseded rows included.
+ */
+export async function purgePersonMeasurementFacts(params: {
+  userId: string;
+  personId: string;
+}): Promise<number> {
+  const db = fashionMemoryDb();
+  const result = await db
+    .from("fashion_facts")
+    .delete()
+    .eq("user_id", params.userId)
+    .eq("person_id", params.personId)
+    .eq("fact_type", "measurement");
+  if (result.error) throw new Error(result.error.message);
+  return result.count ?? 0;
+}
+
+/** Count only — never return measurement values to admin/debug UIs. */
+export async function countActiveMeasurementFacts(params: {
+  userId: string;
+  personId: string;
+}): Promise<number> {
+  const facts = await listActiveFashionFacts({
+    userId: params.userId,
+    personId: params.personId,
+    factType: "measurement",
+  });
+  return facts.length;
+}

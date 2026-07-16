@@ -72,13 +72,33 @@ export type FashionFactGenderPresentationValue = {
   presentation: "mens" | "womens" | "boys" | "girls" | "baby" | "mixed";
 };
 
+/**
+ * Precise body measurements for a future size-chart fit layer.
+ * Avatar image generators must never consume these — visual attrs only.
+ * Reserved: no shopping pipeline consumer yet (see docs/fashion/enums.md).
+ */
+export type FashionFactMeasurementMetric =
+  | "neck"
+  | "chest"
+  | "waist"
+  | "hips"
+  | "inseam";
+
+export type FashionFactMeasurementValue = {
+  metric: FashionFactMeasurementMetric;
+  value: number;
+  unit: "cm" | "in";
+};
+
 export type FashionFactType =
   | "size"
   | "fit"
   | "no_go"
   | "budget_band"
   | "body_note"
-  | "gender_presentation";
+  | "gender_presentation"
+  /** Reserved for future size-chart fit — do not consume in scoring/search yet. */
+  | "measurement";
 
 export type FashionFactValueByType = {
   size: FashionFactSizeValue;
@@ -87,6 +107,7 @@ export type FashionFactValueByType = {
   budget_band: FashionFactBudgetBandValue;
   body_note: FashionFactBodyNoteValue;
   gender_presentation: FashionFactGenderPresentationValue;
+  measurement: FashionFactMeasurementValue;
 };
 
 export type FashionFactValue<T extends FashionFactType = FashionFactType> =

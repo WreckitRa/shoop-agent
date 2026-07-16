@@ -3,6 +3,7 @@ import {
   fashionFactBudgetBandValueSchema,
   fashionFactFitValueSchema,
   fashionFactGenderPresentationValueSchema,
+  fashionFactMeasurementValueSchema,
   fashionFactNoGoValueSchema,
   fashionFactSizeValueSchema,
 } from "./fact-value-schemas";
@@ -15,6 +16,7 @@ const factValueSchema = z.union([
   fashionFactNoGoValueSchema,
   fashionFactBudgetBandValueSchema,
   fashionFactGenderPresentationValueSchema,
+  fashionFactMeasurementValueSchema,
   z.record(z.string(), z.unknown()),
 ]);
 
@@ -35,6 +37,7 @@ const factTypeSchema = z.enum([
   "budget_band",
   "body_note",
   "gender_presentation",
+  "measurement",
 ]);
 
 const opBaseSchema = z.object({
@@ -243,14 +246,28 @@ export function parseRecordFashionOpsResult(raw: unknown): {
   droppedAmbiguous: number;
   issues: string[];
 } {
+  const opsIn = Array.isArray((raw as Record<string, unknown> | null)?.ops)
+    ? ((raw as Record<string, unknown>).ops as unknown[]).length
+    : 0;
+  const ambiguousIn = Array.isArray(
+    (raw as Record<string, unknown> | null)?.ambiguous_subjects,
+  )
+    ? ((raw as Record<string, unknown>).ambiguous_subjects as unknown[]).length
+    : 0;
+
   const coerced = coerceRecordFashionOpsInput(raw);
   const strict = recordFashionOpsResultSchema.safeParse(coerced);
   if (strict.success) {
     return {
       result: strict.data,
-      recoveredPartially: false,
-      droppedOps: 0,
-      droppedAmbiguous: 0,
+      recoveredPartially:
+        opsIn > strict.data.ops.length ||
+        ambiguousIn > strict.data.ambiguous_subjects.length,
+      droppedOps: Math.max(0, opsIn - strict.data.ops.length),
+      droppedAmbiguous: Math.max(
+        0,
+        ambiguousIn - strict.data.ambiguous_subjects.length,
+      ),
       issues: [],
     };
   }
@@ -266,15 +283,6 @@ export function parseRecordFashionOpsResult(raw: unknown): {
     const parsed = ambiguousSubjectSchema.safeParse(subject);
     if (parsed.success) validAmbiguous.push(parsed.data);
   }
-
-  const opsIn = Array.isArray((raw as Record<string, unknown> | null)?.ops)
-    ? ((raw as Record<string, unknown>).ops as unknown[]).length
-    : 0;
-  const ambiguousIn = Array.isArray(
-    (raw as Record<string, unknown> | null)?.ambiguous_subjects,
-  )
-    ? ((raw as Record<string, unknown>).ambiguous_subjects as unknown[]).length
-    : 0;
 
   const droppedOps = Math.max(0, opsIn - validOps.length);
   const droppedAmbiguous = Math.max(0, ambiguousIn - validAmbiguous.length);
@@ -329,6 +337,7 @@ export const RECORD_FASHION_OPS_TOOL = {
                 "budget_band",
                 "body_note",
                 "gender_presentation",
+                "measurement",
               ],
             },
             garment_type: { type: ["string", "null"] },

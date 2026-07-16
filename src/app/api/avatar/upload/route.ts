@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
+import { applyStatedMeasurements } from "@/lib/fashion-memory/intake/apply-stated-measurements";
 import {
   checkAvatarAttributes,
   submitAvatarAttributes,
@@ -8,6 +9,12 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const measurementSchema = z.object({
+  metric: z.enum(["neck", "chest", "waist", "hips", "inseam"]),
+  value: z.number().positive(),
+  unit: z.enum(["cm", "in"]),
+});
 
 export async function POST(req: Request) {
   const auth = await getAuthContext();
@@ -39,7 +46,9 @@ export async function POST(req: Request) {
     }
 
     const json = await req.json();
-    const action = z.enum(["check", "attributes"]).parse(json.action);
+    const action = z
+      .enum(["check", "attributes", "measurements"])
+      .parse(json.action);
     const personId = z.string().uuid().parse(json.person_id);
 
     if (action === "check") {
@@ -51,6 +60,23 @@ export async function POST(req: Request) {
       });
       return Response.json({ ok: true, draft });
     }
+
+    if (action === "measurements") {
+      const measurements = z.array(measurementSchema).parse(json.measurements ?? []);
+      // Reserved for future size-chart fit — store only, no consumer.
+      const written = await applyStatedMeasurements({
+        userId: auth.userId,
+        personId,
+        measurements,
+      });
+      return Response.json({
+        ok: true,
+        written: written.length,
+        // Privacy: never echo measurement values back
+        measurements_on_file: written.length,
+      });
+    }
+
     const draft = await submitAvatarAttributes({
       userId: auth.userId,
       personId,

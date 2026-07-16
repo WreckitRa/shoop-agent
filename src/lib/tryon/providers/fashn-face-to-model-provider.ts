@@ -1,5 +1,8 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
-import { buildFashnAvatarPrompt } from "../avatar/fashn-prompt";
+import {
+  buildFashnAvatarPrompt,
+  TRYON_AVATAR_PROMPT_VERSION,
+} from "../avatar/fashn-prompt";
 import { TRYON_COST_ESTIMATES } from "../config";
 import { fetchImageBytes } from "./image-utils";
 import { runFashnPrediction } from "./fashn-api";
@@ -59,6 +62,7 @@ export class FashnFaceToModelAvatarProvider implements AvatarProvider {
     logAiChat("info", "avatar_fashn_face_to_model_complete", {
       latency_ms: Date.now() - started,
       has_prompt: Boolean(prompt),
+      prompt_version: TRYON_AVATAR_PROMPT_VERSION,
       seed,
     });
 

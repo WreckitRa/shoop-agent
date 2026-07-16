@@ -1,4 +1,5 @@
 import { fashionMemoryDb } from "@/lib/fashion-memory/db";
+import { purgePersonMeasurementFacts } from "@/lib/fashion-memory/facts";
 import { getPersonById } from "@/lib/fashion-memory/people";
 import {
   deleteGenerationsForPerson,
@@ -40,6 +41,12 @@ export async function purgePersonTryonData(params: {
 
   await deletePrivateObjects(paths);
   await deleteGenerationsForPerson(params.personId);
+
+  // Body measurements are privacy-sensitive — purge with person hard-delete.
+  await purgePersonMeasurementFacts({
+    userId: params.userId,
+    personId: params.personId,
+  });
 
   const db = fashionMemoryDb();
   await db
