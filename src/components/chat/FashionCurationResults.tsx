@@ -110,8 +110,8 @@ function CuratedPickCard({
   return (
     <article
       className={cn(
-        "flex flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_2px_12px_rgba(12,12,12,0.04)]",
-        compact ? "max-w-[11rem]" : "max-w-[14rem]",
+        "flex shrink-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_2px_12px_rgba(12,12,12,0.04)]",
+        compact ? "w-[11rem]" : "w-[14rem]",
         selected
           ? "border-ink ring-1 ring-ink/15"
           : "border-hairline-soft",
@@ -255,57 +255,55 @@ function SlotBenches({
 }) {
   if (!verified.length && !unverified.length) return null;
   return (
-    <section className="space-y-3">
-      <h4 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-        More {garment}
-      </h4>
-      {verified.length ? (
-        <div className="space-y-1.5">
-          <p className="text-[11px] text-ink-secondary">
-            Verified alternatives ({verified.length})
-          </p>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {verified.map((item) => (
-              <BenchCard
-                key={item.ref}
-                title={item.title}
-                imageUrl={item.imageUrl}
-                price={item.displayPrice}
-                selected={selectedProductId === item.id}
-                onOpen={() => openProduct(item)}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {unverified.length ? (
-        <div className="space-y-1.5">
-          <p className="text-[11px] text-ink-secondary">
-            Unverified from scoring ({unverified.length}) — size/stock not
-            checked
-          </p>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {unverified.map((item) => (
-              <BenchCard
-                key={`${item.slot_id}-${item.product_id}`}
-                title={item.title}
-                imageUrl={item.image_url}
-                price={item.price}
-                unverified
-                selected={selectedProductId === item.product_id}
-                onOpen={() =>
-                  openProduct({
-                    id: item.product_id,
-                    title: item.title,
-                    imageUrl: item.image_url,
-                    displayPrice: item.price,
-                  })
-                }
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
+    <section className="space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h4 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+          More {garment}
+        </h4>
+        <p className="text-[11px] text-ink-secondary">
+          {verified.length ? `${verified.length} verified` : null}
+          {verified.length && unverified.length ? " · " : null}
+          {unverified.length
+            ? `${unverified.length} unverified (size/stock not checked)`
+            : null}
+        </p>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {verified.map((item) => (
+          <BenchCard
+            key={item.ref}
+            title={item.title}
+            imageUrl={item.imageUrl}
+            price={item.displayPrice}
+            selected={selectedProductId === item.id}
+            onOpen={() => openProduct(item)}
+          />
+        ))}
+        {verified.length && unverified.length ? (
+          <div
+            className="mx-1 flex w-px shrink-0 self-stretch bg-hairline"
+            aria-hidden
+          />
+        ) : null}
+        {unverified.map((item) => (
+          <BenchCard
+            key={`${item.slot_id}-${item.product_id}`}
+            title={item.title}
+            imageUrl={item.image_url}
+            price={item.price}
+            unverified
+            selected={selectedProductId === item.product_id}
+            onOpen={() =>
+              openProduct({
+                id: item.product_id,
+                title: item.title,
+                imageUrl: item.image_url,
+                displayPrice: item.price,
+              })
+            }
+          />
+        ))}
+      </div>
     </section>
   );
 }
@@ -467,75 +465,71 @@ export const FashionCurationResults = memo(function FashionCurationResults({
       ) : null}
 
       {isCapsule ? (
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium text-ink">Capsule rotations</h3>
-          {render.meta.set_total != null ? (
-            <p className="text-sm text-ink-secondary">
-              Set total ~${render.meta.set_total.toFixed(0)} across rotations
-            </p>
-          ) : null}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {render.capsule_outfits!.map((outfit, index) => {
-              const lookId =
-                outfit.look_id ?? capsuleLookId(index, outfit.label);
-              const label = outfit.label ?? `Rotation ${index + 1}`;
-              const total = outfit.item_refs.reduce((sum, ref) => {
-                const meta = picksByRef[ref];
-                return sum + (meta?.price?.amount ?? 0) / 100;
-              }, 0);
-              return (
-                <section
-                  key={lookId}
-                  className="rounded-2xl border border-hairline-soft bg-surface/50 p-4"
-                >
-                  <div className="mb-3 flex items-end justify-between gap-2">
-                    <h3 className="font-medium text-ink">{label}</h3>
-                    {total > 0 ? (
-                      <p className="text-xs text-ink-muted">
-                        ~${total.toFixed(0)}
-                      </p>
-                    ) : null}
-                  </div>
-                  <ul className="mb-3 space-y-1 text-sm text-ink-secondary">
-                    {outfit.item_refs.map((ref) => {
-                      const pick = resolveLookPick(ref);
-                      return (
-                        <li key={ref}>
-                          <button
-                            type="button"
-                            className={cn(
-                              "line-clamp-1 text-left hover:text-ink",
-                              selectedProductId === pick?.id &&
-                                "font-medium text-ink",
-                            )}
-                            onClick={() => {
-                              if (pick) openProduct(pick);
-                            }}
-                          >
-                            {pick?.title ?? picksByRef[ref]?.title ?? ref}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {outfit.tryon?.available ||
-                  outfit.tryon?.cta === "create_avatar" ? (
-                    <TryOnLookButton
-                      look={{
-                        name: lookId,
-                        item_refs: outfit.item_refs,
-                        total,
-                        tryon: outfit.tryon,
-                      }}
-                      searchId={searchId}
-                      picksByRef={picksByRef}
-                      onOpenProduct={openByRef}
-                    />
-                  ) : null}
-                </section>
-              );
-            })}
+        <div className="space-y-5">
+          <div>
+            <h3 className="text-sm font-medium text-ink">Capsule rotations</h3>
+            {render.meta.set_total != null ? (
+              <p className="mt-0.5 text-sm text-ink-secondary">
+                Set total ~${render.meta.set_total.toFixed(0)} across rotations
+              </p>
+            ) : null}
           </div>
+          {render.capsule_outfits!.map((outfit, index) => {
+            const lookId =
+              outfit.look_id ?? capsuleLookId(index, outfit.label);
+            const label = outfit.label ?? `Rotation ${index + 1}`;
+            const total = outfit.item_refs.reduce((sum, ref) => {
+              const meta = picksByRef[ref];
+              return sum + (meta?.price?.amount ?? 0) / 100;
+            }, 0);
+            return (
+              <section
+                key={lookId}
+                className="rounded-2xl border border-hairline-soft bg-surface/50 p-4"
+              >
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <h3 className="font-medium text-ink">{label}</h3>
+                  </div>
+                  {total > 0 ? (
+                    <p className="text-sm font-medium text-ink">
+                      ${total.toFixed(0)} total
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-1">
+                  {outfit.item_refs.map((ref) => {
+                    const pick = resolveLookPick(ref);
+                    if (!pick) return null;
+                    return (
+                      <CuratedPickCard
+                        key={ref}
+                        pick={pick}
+                        searchId={searchId}
+                        compact
+                        selected={selectedProductId === pick.id}
+                        onOpen={() => openProduct(pick)}
+                      />
+                    );
+                  })}
+                </div>
+                {outfit.tryon?.available ||
+                outfit.tryon?.cta === "create_avatar" ? (
+                  <TryOnLookButton
+                    look={{
+                      name: lookId,
+                      item_refs: outfit.item_refs,
+                      total,
+                      tryon: outfit.tryon,
+                    }}
+                    searchId={searchId}
+                    picksByRef={picksByRef}
+                    onOpenProduct={openByRef}
+                  />
+                ) : null}
+              </section>
+            );
+          })}
           {panel}
         </div>
       ) : null}
