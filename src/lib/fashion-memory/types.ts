@@ -78,6 +78,7 @@ export type FashionFactGenderPresentationValue = {
  * Reserved: no shopping pipeline consumer yet (see docs/fashion/enums.md).
  */
 export type FashionFactMeasurementMetric =
+  | "height"
   | "neck"
   | "chest"
   | "waist"

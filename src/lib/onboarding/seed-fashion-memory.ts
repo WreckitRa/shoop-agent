@@ -2,7 +2,6 @@
  * Project Prisma onboarding profile → fashion-memory (self person facts/signals).
  * Fashion search/hard-drops/curation read this store — not UserProfile directly.
  */
-import { prisma } from "@/lib/ai-chat/db";
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { isSupabaseAuthUserId } from "@/lib/fashion-memory/auth";
 import { upsertFashionFact } from "@/lib/fashion-memory/facts";
@@ -16,6 +15,10 @@ import type {
   StyleSignalType,
 } from "@/lib/fashion-memory/types";
 import type { PersonDepartment } from "@/lib/fashion-memory/department";
+import {
+  loadOnboardingProjectionSnapshot,
+  type OnboardingProjectionSnapshot,
+} from "@/lib/onboarding/projection-snapshot";
 
 const MATERIAL_NO_GOS = new Set([
   "leather",
@@ -174,19 +177,22 @@ function noGoGarmentKey(kind: FashionFactNoGoKind, value: string): string {
  */
 export async function seedOnboardingIntoFashionMemory(
   userId: string,
+  suppliedSnapshot?: OnboardingProjectionSnapshot,
 ): Promise<{ ok: boolean; seeded: boolean; reason?: string }> {
   if (!isSupabaseAuthUserId(userId)) {
     return { ok: false, seeded: false, reason: "not_auth_user" };
   }
 
   try {
-    const [profile, sizing, brands, hardNegatives, tasteTags] = await Promise.all([
-      prisma.userProfile.findUnique({ where: { userId } }),
-      prisma.sizingProfile.findUnique({ where: { userId } }),
-      prisma.brandPreference.findMany({ where: { userId } }),
-      prisma.hardNegative.findMany({ where: { userId } }),
-      prisma.tasteTag.findMany({ where: { userId } }),
-    ]);
+    const snapshot =
+      suppliedSnapshot ?? (await loadOnboardingProjectionSnapshot(userId));
+    const {
+      profile,
+      sizing,
+      brandPreferences: brands,
+      hardNegatives,
+      tasteTags,
+    } = snapshot;
 
     if (!profile) {
       return { ok: true, seeded: false, reason: "no_profile" };
@@ -203,30 +209,31 @@ export async function seedOnboardingIntoFashionMemory(
     }
 
     const presentation = mapOnboardingGender(profile.genderPresentation);
+    const writes: Promise<unknown>[] = [];
     if (presentation) {
-      await upsertFashionFact({
+      writes.push(upsertFashionFact({
         userId,
         personId: person.id,
         factType: "gender_presentation",
         garmentType: null,
         value: { presentation },
         sourceQuote: `onboarding:${profile.genderPresentation}`,
-      });
+      }));
     }
 
     for (const size of sizeSeedsFromSizing(sizing)) {
-      await upsertFashionFact({
+      writes.push(upsertFashionFact({
         userId,
         personId: person.id,
         factType: "size",
         garmentType: size.bucket,
         value: size.value,
         sourceQuote: `onboarding:${size.quote}`,
-      });
+      }));
     }
 
     if (profile.ageRange?.trim() || profile.valuePhilosophy?.trim()) {
-      await upsertFashionFact({
+      writes.push(upsertFashionFact({
         userId,
         personId: person.id,
         factType: "body_note",
@@ -240,20 +247,20 @@ export async function seedOnboardingIntoFashionMemory(
             : {}),
         },
         sourceQuote: "onboarding:profile-meta",
-      });
+      }));
     }
 
     for (const h of hardNegatives) {
       const classified = classifyHardAvoid(h.value);
       if (!classified) continue;
-      await upsertFashionFact({
+      writes.push(upsertFashionFact({
         userId,
         personId: person.id,
         factType: "no_go",
         garmentType: noGoGarmentKey(classified.kind, classified.value),
         value: classified,
         sourceQuote: `onboarding:hard_negative:${h.value}`,
-      });
+      }));
     }
 
     for (const b of brands) {
@@ -262,7 +269,7 @@ export async function seedOnboardingIntoFashionMemory(
       const avoid =
         b.sentiment === "avoid" ||
         b.sentiment === "hate";
-      await upsertStyleSignal({
+      writes.push(upsertStyleSignal({
         userId,
         personId: person.id,
         context: "general",
@@ -272,14 +279,15 @@ export async function seedOnboardingIntoFashionMemory(
         source: "stated",
         confidence: 0.85,
         sourceQuote: `onboarding:brand:${b.sentiment}`,
-      });
+        incrementEvidence: false,
+      }));
     }
 
     for (const t of tasteTags) {
       if (!shouldSeedTasteCategory(t.category)) continue;
       const tag = t.tag.trim();
       if (!tag) continue;
-      await upsertStyleSignal({
+      writes.push(upsertStyleSignal({
         userId,
         personId: person.id,
         context: "general",
@@ -289,7 +297,8 @@ export async function seedOnboardingIntoFashionMemory(
         source: "stated",
         confidence: Math.min(0.9, Math.max(0.6, t.score ?? 0.75)),
         sourceQuote: `onboarding:taste:${t.category ?? "general"}`,
-      });
+        incrementEvidence: false,
+      }));
     }
 
     // Soft aesthetic from budget philosophy — never invent a numeric budget_band.
@@ -306,7 +315,7 @@ export async function seedOnboardingIntoFashionMemory(
                 ? "design led"
                 : null;
       if (aesthetic) {
-        await upsertStyleSignal({
+        writes.push(upsertStyleSignal({
           userId,
           personId: person.id,
           context: "general",
@@ -316,9 +325,12 @@ export async function seedOnboardingIntoFashionMemory(
           source: "inferred",
           confidence: 0.55,
           sourceQuote: `onboarding:valuePhilosophy:${vp}`,
-        });
+          incrementEvidence: false,
+        }));
       }
     }
+
+    await Promise.all(writes);
 
     logAiChat("info", "onboarding_seeded_fashion_memory", {
       userId,

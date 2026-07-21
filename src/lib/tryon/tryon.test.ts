@@ -378,12 +378,14 @@ describe("tryon cache", () => {
     const cached = await findCachedSingleTryon({
       avatarVersion: "av_v1",
       productRef: "ref1",
+      userId: USER,
     });
     assert.ok(cached?.outputUrl);
     clearMockDressCallLog();
     const cached2 = await findCachedSingleTryon({
       avatarVersion: "av_v1",
       productRef: "ref1",
+      userId: USER,
     });
     assert.equal(cached2?.id, gen.id);
     assert.equal(getMockDressCallLog().length, 0);
@@ -393,6 +395,7 @@ describe("tryon cache", () => {
     const old = await findCachedSingleTryon({
       avatarVersion: "av_old",
       productRef: "ref1",
+      userId: USER,
     });
     assert.equal(old, null);
     const { createGeneration, updateGeneration } = await import("./generations");
@@ -413,11 +416,37 @@ describe("tryon cache", () => {
     const hit = await findCachedSingleTryon({
       avatarVersion: "av_new",
       productRef: "ref1",
+      userId: USER,
     });
     assert.ok(hit);
     const miss = await findCachedSingleTryon({
       avatarVersion: "av_old",
       productRef: "ref1",
+      userId: USER,
+    });
+    assert.equal(miss, null);
+  });
+
+  it("scopes single cache by user id", async () => {
+    const { createGeneration, updateGeneration } = await import("./generations");
+    const otherUser = "c3d4e5f6-a7b8-4901-c234-567890abcdef";
+    const gen = await createGeneration({
+      personId: PERSON,
+      userId: otherUser,
+      kind: "single",
+      provider: "mock",
+      inputRefs: {},
+      productRef: "ref1",
+      avatarVersion: "av_v1",
+    });
+    await updateGeneration(gen.id, {
+      status: "completed",
+      outputUrl: "https://cached.local/other.jpg",
+    });
+    const miss = await findCachedSingleTryon({
+      avatarVersion: "av_v1",
+      productRef: "ref1",
+      userId: USER,
     });
     assert.equal(miss, null);
   });
@@ -637,6 +666,7 @@ describe("outfit compare", () => {
     const cached = await findCachedOutfitTryon({
       avatarVersion: "av_v1",
       cacheKey: "top1|bot1",
+      userId: USER,
     });
     assert.equal(cached?.id, single.id);
   });

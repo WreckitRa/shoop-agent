@@ -27,7 +27,7 @@ export async function upsertFashionFact<T extends FashionFactType>(params: {
 
   let activeQuery = db
     .from("fashion_facts")
-    .select("id")
+    .select("*")
     .eq("user_id", params.userId)
     .eq("person_id", params.personId)
     .eq("fact_type", params.factType)
@@ -38,6 +38,25 @@ export async function upsertFashionFact<T extends FashionFactType>(params: {
     : activeQuery.is("garment_type", null);
 
   const active = await activeQuery.maybeSingle();
+  if (active.error) throw new Error(active.error.message);
+  const activeRow = active.data as FashionFactRow<T> | null;
+  if (
+    activeRow &&
+    fashionFactValuesEqual(activeRow.value, params.value) &&
+    (activeRow.source_quote ?? null) === (params.sourceQuote ?? null)
+  ) {
+    return activeRow;
+  }
+
+  if (activeRow?.id) {
+    const superseded = await db
+      .from("fashion_facts")
+      .update({ status: "superseded" })
+      .eq("id", activeRow.id)
+      .eq("user_id", params.userId)
+      .eq("status", "active");
+    if (superseded.error) throw new Error(superseded.error.message);
+  }
 
   const inserted = await db
     .from("fashion_facts")
@@ -53,20 +72,47 @@ export async function upsertFashionFact<T extends FashionFactType>(params: {
     .select("*")
     .single();
 
+  if (inserted.error?.code === "23505") {
+    let winnerQuery = db
+      .from("fashion_facts")
+      .select("*")
+      .eq("user_id", params.userId)
+      .eq("person_id", params.personId)
+      .eq("fact_type", params.factType)
+      .eq("status", "active");
+    winnerQuery = garment
+      ? winnerQuery.eq("garment_type", garment)
+      : winnerQuery.is("garment_type", null);
+    const winner = await winnerQuery.single();
+    return assertFashionRow(
+      "upsertFashionFact.concurrent",
+      winner.data as FashionFactRow<T> | null,
+      winner.error,
+    );
+  }
+  if (inserted.error && activeRow?.id) {
+    await db
+      .from("fashion_facts")
+      .update({ status: "active" })
+      .eq("id", activeRow.id)
+      .eq("user_id", params.userId)
+      .eq("status", "superseded");
+  }
+
   const newRow = assertFashionRow(
     "upsertFashionFact",
     inserted.data as FashionFactRow<T> | null,
     inserted.error,
   );
 
-  if (active.data?.id) {
+  if (activeRow?.id) {
     await db
       .from("fashion_facts")
       .update({
         status: "superseded",
         superseded_by: newRow.id,
       })
-      .eq("id", active.data.id)
+      .eq("id", activeRow.id)
       .eq("user_id", params.userId);
   }
 

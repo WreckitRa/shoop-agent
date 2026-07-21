@@ -8,6 +8,7 @@ import { useCatalogLocalization } from "@/hooks/useCatalogLocalization";
 export function CatalogLocalizationBar() {
   const {
     localization,
+    areaLabel,
     loading,
     saving,
     canEdit,
@@ -23,6 +24,7 @@ export function CatalogLocalizationBar() {
     <div className="flex min-w-0 items-center gap-1.5">
       <CatalogCountryPicker
         localization={localization}
+        areaLabel={areaLabel}
         loading={loading}
         saving={saving}
         disabled={!canEdit}

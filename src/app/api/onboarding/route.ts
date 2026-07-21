@@ -4,7 +4,9 @@ import {
   getOnboardingStatus,
   onboardingPatchSchema,
 } from "@/lib/onboarding/status";
+import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
 import { getAuthContext } from "@/lib/auth/session";
+import { after } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,9 @@ export async function PATCH(req: Request) {
       return Response.json({ error: "Invalid body.", issues: parsed.error.flatten() }, { status: 400 });
     }
 
-    return Response.json(await applyOnboardingPatch(parsed.data, auth.userId));
+    const status = await applyOnboardingPatch(parsed.data, auth.userId);
+    after(kickOnboardingJobWorker);
+    return Response.json(status);
   } catch {
     return Response.json({ error: "Could not save onboarding answers." }, { status: 500 });
   }
@@ -51,6 +55,7 @@ export async function POST() {
       );
     }
 
+    after(kickOnboardingJobWorker);
     return Response.json(result.status);
   } catch {
     return Response.json({ error: "Could not complete onboarding." }, { status: 500 });

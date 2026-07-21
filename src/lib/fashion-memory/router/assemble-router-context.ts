@@ -177,13 +177,26 @@ export async function assembleRouterContext(params: {
       const { prisma } = await import("@/lib/ai-chat/db");
       const profile = await prisma.userProfile.findUnique({
         where: { userId: params.userId },
-        select: { onboardingCompleted: true },
+        select: {
+          onboardingCompleted: true,
+          onboardingProjectionVersion: true,
+        },
       });
       if (profile?.onboardingCompleted) {
-        const { seedOnboardingIntoFashionMemory } = await import(
-          "@/lib/onboarding/seed-fashion-memory"
-        );
-        await seedOnboardingIntoFashionMemory(params.userId);
+        const projected = await prisma.onboardingProjectionJob.findFirst({
+          where: {
+            userId: params.userId,
+            status: "completed",
+            version: { gte: profile.onboardingProjectionVersion },
+          },
+          select: { id: true },
+        });
+        if (!projected) {
+          const { seedOnboardingIntoFashionMemory } = await import(
+            "@/lib/onboarding/seed-fashion-memory"
+          );
+          await seedOnboardingIntoFashionMemory(params.userId);
+        }
       }
     } catch {
       /* non-blocking — router must still run */

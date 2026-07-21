@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Menu } from "lucide-react";
 import { CartButton } from "@/components/cart/CartButton";
-import { TryOnTopBarButton } from "@/components/tryon/TryOnTopBarButton";
 import { ProfileAvatarLink } from "@/components/auth/ProfileAvatarLink";
 import { CatalogLocalizationBar } from "@/components/layout/CatalogLocalizationBar";
 import { ShoopLogo } from "@/components/brand/ShoopBrand";
@@ -52,7 +51,6 @@ export function AppTopBar({ onOpenSidebar }: AppTopBarProps) {
           <div className="hidden min-w-0 sm:block">
             <CatalogLocalizationBar />
           </div>
-          <TryOnTopBarButton />
           <CartButton />
           <ProfileAvatarLink className="ml-1 sm:ml-1.5 md:ml-2" />
         </div>

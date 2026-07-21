@@ -461,6 +461,48 @@ model ShoppingMemoryJob {
   @@schema("public")
 }
 
+/// Durable, versioned projection work for onboarding. Canonical profile writes
+/// commit with this row; summary/fashion-memory projection happens afterward.
+model OnboardingProjectionJob {
+  id          String              @id @default(cuid())
+  userId      String
+  version     Int
+  status      BackgroundJobStatus @default(pending)
+  attempts    Int                 @default(0)
+  maxAttempts Int                 @default(3)
+  lockedAt    DateTime?
+  processedAt DateTime?
+  lastError   String?             @db.Text
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([userId, version])
+  @@index([status, updatedAt])
+  @@index([userId, version(sort: Desc)])
+  @@schema("public")
+}
+
+/// Optional reviewed notes are extracted after the onboarding response. They
+/// enrich memory but cannot overwrite the profile the user just reviewed.
+model OnboardingExtraNotesJob {
+  id          String              @id @default(cuid())
+  userId      String
+  requestKey  String              @unique
+  text        String              @db.Text
+  status      BackgroundJobStatus @default(pending)
+  attempts    Int                 @default(0)
+  maxAttempts Int                 @default(3)
+  lockedAt    DateTime?
+  processedAt DateTime?
+  lastError   String?             @db.Text
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@schema("public")
+}
+
 /// Durable post-turn queue for LLM intent-shift detection within a conversation.
 model ConversationIntentJob {
   id             String              @id @default(cuid())
@@ -698,6 +740,7 @@ model UserProfile {
 
   onboardingStarted   Boolean @default(false)
   onboardingCompleted Boolean @default(false)
+  onboardingProjectionVersion Int @default(0)
 
   /// Virtual try-on (enabled by default; avatar approval still required to dress).
   tryonEnabled        Boolean @default(true) @map("tryon_enabled")

@@ -85,6 +85,49 @@
     0 12px 36px rgba(12, 12, 12, 0.07);
 }
 
+.shoop-buybrief-box--hero {
+  min-height: 204px;
+  border-color: rgba(12, 12, 12, 0.1);
+  border-radius: 30px;
+  padding: 20px 22px 15px;
+  box-shadow:
+    inset 0 2px 5px rgba(12, 12, 12, 0.045),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.9),
+    0 2px 3px rgba(12, 12, 12, 0.07),
+    0 14px 34px rgba(12, 12, 12, 0.11);
+}
+
+.shoop-buybrief-box--hero:focus-within {
+  border-color: rgba(12, 12, 12, 0.22);
+  box-shadow:
+    inset 0 3px 7px rgba(12, 12, 12, 0.065),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px rgba(12, 12, 12, 0.08),
+    0 10px 28px rgba(12, 12, 12, 0.12);
+}
+
+/*
+ * Reserve room around the home composer for its soft shadow. The negative
+ * margin preserves the original alignment and width while preventing the
+ * surrounding hero content from visually clipping the blur.
+ */
+.shoop-hero-composer {
+  width: calc(100% + 24px);
+  margin: -12px;
+  padding: 12px;
+}
+
+.shoop-buybrief-box--hero .shoop-composer-textarea {
+  min-height: 96px;
+  font-size: 18px !important;
+  line-height: 28px !important;
+}
+
+.shoop-buybrief-box--hero .shoop-textarea-placeholder::placeholder {
+  font-size: 18px !important;
+  color: #77736c !important;
+}
+
 /* Quoted pick context above the composer textarea (ChatGPT-style reply). */
 .shoop-composer-reply {
   display: flex;
@@ -170,6 +213,45 @@
   .shoop-buybrief-box .shoop-composer-textarea {
     min-height: 20px !important;
     line-height: 22px !important;
+  }
+
+  .shoop-buybrief-box--hero {
+    min-height: 148px;
+    padding: 12px 16px 10px;
+    border-radius: 24px;
+  }
+
+  .shoop-buybrief-box--hero .shoop-composer-textarea {
+    min-height: 48px !important;
+    font-size: 16px !important;
+    line-height: 23px !important;
+  }
+
+  .shoop-buybrief-box--hero .shoop-textarea-placeholder::placeholder {
+    font-size: 14px !important;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 800px) {
+  .shoop-home-desktop-content .shoop-buybrief-box--hero {
+    min-height: 164px;
+    padding-block: 14px 10px;
+  }
+
+  .shoop-home-desktop-content
+    .shoop-buybrief-box--hero
+    .shoop-composer-textarea {
+    min-height: 58px;
+  }
+
+  .shoop-home-desktop-content .shoop-home-quick-action {
+    min-height: 104px;
+    padding-block: 12px 10px;
+  }
+
+  .shoop-home-desktop-content .shoop-home-how-it-works > li {
+    min-height: 56px;
+    padding-block: 8px;
   }
 }
 

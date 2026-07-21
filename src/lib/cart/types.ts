@@ -18,6 +18,8 @@ export type ActiveCartLine = {
   title: string;
   imageUrl: string | null;
   priceCents: number | null;
+  /** Price captured when this item was added; used for truthful drop detection. */
+  priceAtAddCents?: number | null;
   lineTotalCents: number | null;
   currency: string | null;
   sellerName: string | null;

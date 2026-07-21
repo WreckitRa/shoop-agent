@@ -1,7 +1,8 @@
 "use client";
 
 import { create } from "zustand";
-import type { RenderPickBadge } from "@/lib/fashion-memory/types/render-contract";
+import type { FittingRoomItem } from "@/lib/tryon/fitting-room-types";
+import { MAX_FITTING_ROOM_ITEMS } from "@/lib/tryon/fitting-room-types";
 import type { TryonCompareVariant } from "@/lib/tryon/types";
 import { isCompareSettled } from "@/lib/tryon/compare-variants";
 import {
@@ -10,33 +11,13 @@ import {
 } from "@/lib/tryon/client-poll";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useCartStore } from "@/components/cart/cart-store";
+import {
+  findActiveSlotConflict,
+  fittingRoomGarmentType,
+  slotGuardMessage,
+} from "@/lib/tryon/fitting-room-slot-guard";
 
-export type TryOnDrawerItem = {
-  ref: string;
-  title: string;
-  imageUrl?: string;
-  price?: { amount: number; currency: string };
-  productId?: string;
-  preferredOptions?: Array<{ name: string; label: string }>;
-  featuredVariant?: {
-    id: string;
-    price?: { amount: number; currency: string };
-    checkoutUrl?: string;
-    options?: Array<{ name: string; label: string }>;
-  };
-};
-
-export type TryOnDrawerSession = {
-  kind: "item" | "look";
-  searchId: string;
-  /** Pick ref for single-item try-on. */
-  ref?: string;
-  /** Look id / name for outfit try-on. */
-  lookId?: string;
-  title: string;
-  items: TryOnDrawerItem[];
-  badgesByRef?: Record<string, RenderPickBadge[]>;
-};
+export type { FittingRoomItem };
 
 type LookStep = {
   ref: string;
@@ -53,9 +34,15 @@ type TryOnDrawerStatus =
   | "completed"
   | "failed";
 
+type AddToFittingRoomResult = "added" | "duplicate" | "full";
+
+type PollSource = "fitting-room" | "look";
+
 type TryOnDrawerState = {
   open: boolean;
-  session: TryOnDrawerSession | null;
+  itemsById: Record<string, FittingRoomItem>;
+  rackIds: string[];
+  activeIds: string[];
   avatarUrl: string | null;
   status: TryOnDrawerStatus;
   jobId: string | null;
@@ -65,30 +52,35 @@ type TryOnDrawerState = {
   variants: TryonCompareVariant[];
   lookSteps: LookStep[];
   partialNote: string | null;
-  /** Generation token — stale polls ignore after a new open. */
-  generation: number;
+  /** Generation token — stale polls ignore after a new render. */
+  renderGeneration: number;
+  /** Look id when a curated look preview job is running. */
+  previewLookId: string | null;
+  previewLookTitle: string | null;
 
-  openItemTryOn: (params: {
-    searchId: string;
-    ref: string;
-    title: string;
-    imageUrl?: string;
-    price?: { amount: number; currency: string };
-    productId?: string;
-    preferredOptions?: Array<{ name: string; label: string }>;
-    featuredVariant?: TryOnDrawerItem["featuredVariant"];
-    badges?: RenderPickBadge[];
-  }) => void;
+  openFittingRoom: () => void;
+  addToFittingRoom: (item: FittingRoomItem) => AddToFittingRoomResult;
+  addManyToFittingRoom: (items: FittingRoomItem[]) => {
+    added: number;
+    skipped: number;
+    full: boolean;
+  };
+  removeFromRack: (id: string) => void;
+  tryOnItem: (id: string, opts?: { replaceSameType?: boolean }) => void;
+  removeFromAvatar: (id: string) => void;
   openLookTryOn: (params: {
     searchId: string;
     lookId: string;
     title: string;
-    items: TryOnDrawerItem[];
   }) => void;
-  /** Reopen drawer on avatar + last try-on without starting a new job. */
   openAvatarViewer: () => Promise<void>;
   close: () => void;
   sendFeedback: (rating: 1 | -1, generationId?: string) => void;
+
+  isInRack: (id: string) => boolean;
+  isActive: (id: string) => boolean;
+  isRackFull: () => boolean;
+  isActiveFull: () => boolean;
 };
 
 function syncChromeForTryOnDrawer(open: boolean) {
@@ -100,6 +92,7 @@ function syncChromeForTryOnDrawer(open: boolean) {
 }
 
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
+let pollSource: PollSource = "fitting-room";
 
 function clearPollTimer() {
   if (pollTimer != null) {
@@ -127,117 +120,71 @@ async function fetchSelfAvatarUrl(): Promise<string | null> {
   }
 }
 
+function ensureAvatarLoaded(generation: number) {
+  const state = useTryOnDrawerStore.getState();
+  if (state.avatarUrl) return Promise.resolve(state.avatarUrl);
+  useTryOnDrawerStore.setState({ status: "loading_avatar" });
+  return fetchSelfAvatarUrl().then((avatarUrl) => {
+    if (useTryOnDrawerStore.getState().renderGeneration !== generation) {
+      return avatarUrl;
+    }
+    useTryOnDrawerStore.setState({ avatarUrl });
+    return avatarUrl;
+  });
+}
+
 function schedulePoll(
   generation: number,
-  kind: "item" | "look",
   jobId: string,
   startedAt: number,
+  source: PollSource = pollSource,
 ) {
+  pollSource = source;
   clearPollTimer();
   pollTimer = setTimeout(() => {
-    void pollOnce(generation, kind, jobId, startedAt);
+    void pollOnce(generation, jobId, startedAt);
   }, TRYON_CLIENT_POLL_MS);
 }
 
 async function pollOnce(
   generation: number,
-  kind: "item" | "look",
   jobId: string,
   startedAt: number,
+  source: PollSource = pollSource,
 ) {
+  pollSource = source;
   const state = useTryOnDrawerStore.getState();
-  if (!state.open || state.generation !== generation) return;
+  if (!state.open || state.renderGeneration !== generation) return;
 
   if (Date.now() - startedAt > TRYON_CLIENT_POLL_MAX_MS) {
     useTryOnDrawerStore.setState({
       status: "failed",
       error:
-        kind === "look"
-          ? "Still dressing in the background — open try-on again in a moment."
-          : "Still dressing in the background — tap try-on again in a moment.",
+        "Still dressing in the background — open the fitting room again in a moment.",
     });
     return;
   }
 
   try {
-    if (kind === "item") {
-      const res = await fetch(`/api/tryon/${jobId}`);
-      const body = await res.json();
-      if (useTryOnDrawerStore.getState().generation !== generation) return;
-      applyItemPoll(generation, jobId, body, startedAt);
-    } else {
-      const res = await fetch(`/api/tryon/look/${jobId}`);
-      const body = await res.json();
-      if (useTryOnDrawerStore.getState().generation !== generation) return;
-      if (!body.tryon_look) {
-        useTryOnDrawerStore.setState({
-          status: "failed",
-          error: "Couldn't load try-on status — try again.",
-        });
-        return;
-      }
-      applyLookPoll(generation, jobId, body.tryon_look, startedAt);
+    const pollPath =
+      pollSource === "look"
+        ? `/api/tryon/look/${jobId}`
+        : `/api/tryon/fitting-room/${jobId}`;
+    const res = await fetch(pollPath);
+    const body = await res.json();
+    if (useTryOnDrawerStore.getState().renderGeneration !== generation) return;
+    if (!body.tryon_look) {
+      useTryOnDrawerStore.setState({
+        status: "failed",
+        error: "Couldn't load try-on status — try again.",
+      });
+      return;
     }
+    applyLookPoll(generation, jobId, body.tryon_look, startedAt);
   } catch {
-    if (useTryOnDrawerStore.getState().generation !== generation) return;
-    schedulePoll(generation, kind, jobId, startedAt);
+    if (useTryOnDrawerStore.getState().renderGeneration !== generation) return;
+    schedulePoll(generation, jobId, startedAt);
   }
-}
-
-function applyItemPoll(
-  generation: number,
-  jobId: string,
-  body: {
-    status: string;
-    imageUrl?: string;
-    compare?: boolean;
-    variants?: TryonCompareVariant[];
-    error?: string;
-  },
-  startedAt: number,
-) {
-  if (body.compare) {
-    const variants = body.variants ?? [];
-    const first = variants.find((v) => v.image_url);
-    useTryOnDrawerStore.setState({
-      compare: true,
-      variants,
-      resultUrl: first?.image_url ?? null,
-      status: isCompareSettled(variants)
-        ? variants.some((v) => v.image_url)
-          ? "completed"
-          : body.status === "failed"
-            ? "failed"
-            : "processing"
-        : "processing",
-      error:
-        body.status === "failed" && !variants.some((v) => v.image_url)
-          ? (body.error ?? "Couldn't dress this one — try another piece.")
-          : null,
-    });
-    if (!isCompareSettled(variants) && body.status !== "failed") {
-      schedulePoll(generation, "item", jobId, startedAt);
-    }
-    return;
-  }
-
-  if (body.status === "completed" && body.imageUrl) {
-    useTryOnDrawerStore.setState({
-      status: "completed",
-      resultUrl: body.imageUrl,
-      error: null,
-    });
-    return;
-  }
-  if (body.status === "failed") {
-    useTryOnDrawerStore.setState({
-      status: "failed",
-      error: body.error ?? "Couldn't dress this one — try another piece.",
-    });
-    return;
-  }
-  useTryOnDrawerStore.setState({ status: "processing" });
-  schedulePoll(generation, "item", jobId, startedAt);
 }
 
 function applyLookPoll(
@@ -272,11 +219,11 @@ function applyLookPoll(
       error:
         body.status === "failed" && !variants.some((v) => v.image_url)
           ? (body.partial_note ??
-            "Couldn't dress this look — try another combination.")
+            "Couldn't dress this outfit — try another combination.")
           : null,
     });
     if (!isCompareSettled(variants) && body.status !== "failed") {
-      schedulePoll(generation, "look", jobId, startedAt);
+      schedulePoll(generation, jobId, startedAt);
     }
     return;
   }
@@ -291,7 +238,7 @@ function applyLookPoll(
     if (!body.final_image_url) {
       useTryOnDrawerStore.setState({
         status: "failed",
-        error: "Couldn't dress this look — try another combination.",
+        error: "Couldn't dress this outfit — try another combination.",
       });
       return;
     }
@@ -307,80 +254,78 @@ function applyLookPoll(
       status: "failed",
       error:
         body.partial_note ??
-        "Couldn't dress this look — try another combination.",
+        "Couldn't dress this outfit — try another combination.",
     });
     return;
   }
   useTryOnDrawerStore.setState({ status: "processing" });
-  schedulePoll(generation, "look", jobId, startedAt);
+  schedulePoll(generation, jobId, startedAt);
 }
 
-async function startItemJob(generation: number, session: TryOnDrawerSession) {
-  useTryOnDrawerStore.setState({ status: "starting", error: null });
-  try {
-    const res = await fetch("/api/tryon", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        search_id: session.searchId,
-        ref: session.ref,
-      }),
-    });
-    const body = await res.json();
-    if (useTryOnDrawerStore.getState().generation !== generation) return;
-    if (!res.ok) {
-      useTryOnDrawerStore.setState({
-        status: "failed",
-        error: body.error ?? "Couldn't dress this one — try another piece.",
-      });
-      return;
-    }
+async function startActiveOutfitRender(generation: number) {
+  const state = useTryOnDrawerStore.getState();
+  const activeItems = state.activeIds
+    .map((id) => state.itemsById[id])
+    .filter(Boolean) as FittingRoomItem[];
+
+  if (!activeItems.length) {
     useTryOnDrawerStore.setState({
-      jobId: body.jobId,
-      compare: Boolean(body.compare),
-      variants: body.variants ?? [],
-      status: "processing",
+      status: "idle",
+      jobId: null,
+      resultUrl: null,
+      error: null,
+      compare: false,
+      variants: [],
+      lookSteps: [],
+      partialNote: null,
     });
-    if (body.imageUrl) {
-      applyItemPoll(generation, body.jobId, body, Date.now());
-      return;
-    }
-    void pollOnce(generation, "item", body.jobId, Date.now());
-  } catch {
-    if (useTryOnDrawerStore.getState().generation !== generation) return;
+    return;
+  }
+
+  const supported = activeItems.filter((item) => item.tryonSupported);
+  if (!supported.length) {
     useTryOnDrawerStore.setState({
       status: "failed",
-      error: "Couldn't dress this one — try another piece.",
+      error: "None of the active pieces support try-on.",
     });
+    return;
   }
-}
 
-async function startLookJob(generation: number, session: TryOnDrawerSession) {
-  useTryOnDrawerStore.setState({ status: "starting", error: null });
+  useTryOnDrawerStore.setState({
+    status: "starting",
+    error: null,
+    compare: false,
+    variants: [],
+    lookSteps: [],
+    partialNote: null,
+  });
+
   try {
-    const res = await fetch("/api/tryon/look", {
+    const res = await fetch("/api/tryon/fitting-room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        search_id: session.searchId,
-        look_id: session.lookId,
+        items: supported.map((item) => ({ provenance: item.provenance })),
       }),
     });
     const body = await res.json();
-    if (useTryOnDrawerStore.getState().generation !== generation) return;
+    if (useTryOnDrawerStore.getState().renderGeneration !== generation) return;
+
     if (!res.ok) {
       useTryOnDrawerStore.setState({
         status: "failed",
-        error: body.error ?? "Couldn't dress this look — try again.",
+        error: body.error ?? "Couldn't dress this outfit — try again.",
       });
       return;
     }
+
     useTryOnDrawerStore.setState({
       jobId: body.jobId,
       compare: Boolean(body.compare),
       variants: body.variants ?? [],
       status: "processing",
     });
+
     if (
       body.compare &&
       body.variants?.some((v: TryonCompareVariant) => v.image_url)
@@ -400,9 +345,82 @@ async function startLookJob(generation: number, session: TryOnDrawerSession) {
       );
       return;
     }
-    void pollOnce(generation, "look", body.jobId, Date.now());
+
+    void pollOnce(generation, body.jobId, Date.now(), "fitting-room");
   } catch {
-    if (useTryOnDrawerStore.getState().generation !== generation) return;
+    if (useTryOnDrawerStore.getState().renderGeneration !== generation) return;
+    useTryOnDrawerStore.setState({
+      status: "failed",
+      error: "Couldn't dress this outfit — try again.",
+    });
+  }
+}
+
+async function startLookTryonJob(
+  generation: number,
+  params: { searchId: string; lookId: string; title: string },
+) {
+  useTryOnDrawerStore.setState({
+    status: "starting",
+    error: null,
+    compare: false,
+    variants: [],
+    lookSteps: [],
+    partialNote: null,
+    previewLookId: params.lookId,
+    previewLookTitle: params.title,
+  });
+
+  try {
+    const res = await fetch("/api/tryon/look", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        search_id: params.searchId,
+        look_id: params.lookId,
+      }),
+    });
+    const body = await res.json();
+    if (useTryOnDrawerStore.getState().renderGeneration !== generation) return;
+
+    if (!res.ok) {
+      useTryOnDrawerStore.setState({
+        status: "failed",
+        error: body.error ?? "Couldn't dress this look — try again.",
+      });
+      return;
+    }
+
+    useTryOnDrawerStore.setState({
+      jobId: body.jobId,
+      compare: Boolean(body.compare),
+      variants: body.variants ?? [],
+      status: "processing",
+    });
+
+    if (
+      body.compare &&
+      body.variants?.some((v: TryonCompareVariant) => v.image_url)
+    ) {
+      applyLookPoll(
+        generation,
+        body.jobId,
+        {
+          status: "completed",
+          compare: true,
+          variants: body.variants,
+          final_image_url: body.variants.find(
+            (v: TryonCompareVariant) => v.image_url,
+          )?.image_url,
+        },
+        Date.now(),
+      );
+      return;
+    }
+
+    void pollOnce(generation, body.jobId, Date.now(), "look");
+  } catch {
+    if (useTryOnDrawerStore.getState().renderGeneration !== generation) return;
     useTryOnDrawerStore.setState({
       status: "failed",
       error: "Couldn't dress this look — try again.",
@@ -410,25 +428,25 @@ async function startLookJob(generation: number, session: TryOnDrawerSession) {
   }
 }
 
-async function bootstrapSession(
-  generation: number,
-  session: TryOnDrawerSession,
-) {
-  useTryOnDrawerStore.setState({ status: "loading_avatar" });
-  const avatarUrl = await fetchSelfAvatarUrl();
-  if (useTryOnDrawerStore.getState().generation !== generation) return;
-  useTryOnDrawerStore.setState({ avatarUrl });
-
-  if (session.kind === "item") {
-    await startItemJob(generation, session);
-  } else {
-    await startLookJob(generation, session);
-  }
+function queueActiveOutfitRender() {
+  clearPollTimer();
+  const generation = useTryOnDrawerStore.getState().renderGeneration + 1;
+  useTryOnDrawerStore.setState({
+    renderGeneration: generation,
+    previewLookId: null,
+    previewLookTitle: null,
+  });
+  void ensureAvatarLoaded(generation).then(() => {
+    if (useTryOnDrawerStore.getState().renderGeneration !== generation) return;
+    void startActiveOutfitRender(generation);
+  });
 }
 
 export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   open: false,
-  session: null,
+  itemsById: {},
+  rackIds: [],
+  activeIds: [],
   avatarUrl: null,
   status: "idle",
   jobId: null,
@@ -438,75 +456,187 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   variants: [],
   lookSteps: [],
   partialNote: null,
-  generation: 0,
+  renderGeneration: 0,
+  previewLookId: null,
+  previewLookTitle: null,
 
-  openItemTryOn: (params) => {
-    clearPollTimer();
-    const generation = get().generation + 1;
-    const session: TryOnDrawerSession = {
-      kind: "item",
-      searchId: params.searchId,
-      ref: params.ref,
-      title: params.title,
-      items: [
-        {
-          ref: params.ref,
-          title: params.title,
-          imageUrl: params.imageUrl,
-          price: params.price,
-          productId: params.productId,
-          preferredOptions: params.preferredOptions,
-          featuredVariant: params.featuredVariant,
-        },
-      ],
-      badgesByRef: params.badges
-        ? { [params.ref]: params.badges }
-        : undefined,
-    };
+  openFittingRoom: () => {
+    syncChromeForTryOnDrawer(true);
+    set({ open: true });
+    if (!get().avatarUrl) {
+      void ensureAvatarLoaded(get().renderGeneration);
+    }
+  },
+
+  addToFittingRoom: (item) => {
+    const state = get();
+    if (state.rackIds.includes(item.id)) return "duplicate";
+    if (state.rackIds.length >= MAX_FITTING_ROOM_ITEMS) return "full";
+
     syncChromeForTryOnDrawer(true);
     set({
       open: true,
-      session,
-      generation,
-      avatarUrl: null,
-      status: "loading_avatar",
-      jobId: null,
-      resultUrl: null,
-      error: null,
-      compare: false,
-      variants: [],
-      lookSteps: [],
-      partialNote: null,
+      itemsById: { ...state.itemsById, [item.id]: item },
+      rackIds: [...state.rackIds, item.id],
     });
-    void bootstrapSession(generation, session);
+
+    if (!get().avatarUrl) {
+      void ensureAvatarLoaded(get().renderGeneration);
+    }
+    return "added";
+  },
+
+  addManyToFittingRoom: (items) => {
+    let added = 0;
+    let skipped = 0;
+    let full = false;
+
+    for (const item of items) {
+      const result = get().addToFittingRoom(item);
+      if (result === "added") added += 1;
+      else if (result === "duplicate") skipped += 1;
+      else {
+        full = true;
+        break;
+      }
+    }
+
+    return { added, skipped, full };
+  },
+
+  removeFromRack: (id) => {
+    const state = get();
+    if (!state.rackIds.includes(id)) return;
+
+    const rackIds = state.rackIds.filter((rackId) => rackId !== id);
+    const itemsById = { ...state.itemsById };
+    if (!state.activeIds.includes(id)) {
+      delete itemsById[id];
+    }
+
+    set({ rackIds, itemsById });
+  },
+
+  tryOnItem: (id, opts) => {
+    const state = get();
+    const item = state.itemsById[id];
+    if (!item) return;
+
+    if (!item.tryonSupported) {
+      syncChromeForTryOnDrawer(true);
+      set({
+        open: true,
+        error: "This item can't be tried on virtually.",
+      });
+      return;
+    }
+
+    if (
+      !state.activeIds.includes(id) &&
+      state.activeIds.length >= MAX_FITTING_ROOM_ITEMS
+    ) {
+      syncChromeForTryOnDrawer(true);
+      set({
+        open: true,
+        error: "You can wear up to six pieces at once.",
+      });
+      return;
+    }
+
+    const activeItems = state.activeIds
+      .map((activeId) => state.itemsById[activeId])
+      .filter(Boolean) as FittingRoomItem[];
+    const conflict = findActiveSlotConflict(activeItems, item);
+    const candidateType = fittingRoomGarmentType(item);
+
+    let activeIds = state.activeIds;
+    if (
+      conflict &&
+      !state.activeIds.includes(id) &&
+      candidateType
+    ) {
+      if (!opts?.replaceSameType) {
+        syncChromeForTryOnDrawer(true);
+        set({
+          open: true,
+          error: slotGuardMessage(conflict),
+        });
+        return;
+      }
+      activeIds = state.activeIds.filter((activeId) => {
+        const active = state.itemsById[activeId];
+        if (!active) return true;
+        return fittingRoomGarmentType(active) !== candidateType;
+      });
+    }
+
+    activeIds =
+      activeIds.includes(id) ? activeIds : [...activeIds, id];
+
+    syncChromeForTryOnDrawer(true);
+    set({
+      open: true,
+      itemsById: { ...state.itemsById, [id]: item },
+      activeIds,
+      error: null,
+    });
+
+    queueActiveOutfitRender();
   },
 
   openLookTryOn: (params) => {
     clearPollTimer();
-    const generation = get().generation + 1;
-    const session: TryOnDrawerSession = {
-      kind: "look",
-      searchId: params.searchId,
-      lookId: params.lookId,
-      title: params.title,
-      items: params.items,
-    };
+    const generation = get().renderGeneration + 1;
     syncChromeForTryOnDrawer(true);
     set({
       open: true,
-      session,
-      generation,
-      avatarUrl: null,
+      renderGeneration: generation,
+      previewLookId: params.lookId,
+      previewLookTitle: params.title,
       status: "loading_avatar",
+      error: null,
       jobId: null,
       resultUrl: null,
-      error: null,
       compare: false,
       variants: [],
       lookSteps: [],
       partialNote: null,
     });
-    void bootstrapSession(generation, session);
+    void ensureAvatarLoaded(generation).then(() => {
+      if (get().renderGeneration !== generation) return;
+      void startLookTryonJob(generation, params);
+    });
+  },
+
+  removeFromAvatar: (id) => {
+    const state = get();
+    if (!state.activeIds.includes(id)) return;
+
+    const activeIds = state.activeIds.filter((activeId) => activeId !== id);
+    const itemsById = { ...state.itemsById };
+    if (!state.rackIds.includes(id)) {
+      delete itemsById[id];
+    }
+
+    set({ activeIds, itemsById });
+
+    if (!activeIds.length) {
+      clearPollTimer();
+      set({
+        status: "idle",
+        jobId: null,
+        resultUrl: null,
+        error: null,
+        compare: false,
+        variants: [],
+        lookSteps: [],
+        partialNote: null,
+        renderGeneration: get().renderGeneration + 1,
+      });
+      return;
+    }
+
+    queueActiveOutfitRender();
   },
 
   openAvatarViewer: async () => {
@@ -516,30 +646,23 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
       return;
     }
 
-    // In-session result still held after close — reopen instantly.
-    if (current.resultUrl) {
+    if (current.resultUrl && current.activeIds.length > 0) {
       clearPollTimer();
       syncChromeForTryOnDrawer(true);
       set({
         open: true,
         status: "completed",
         error: null,
-        session: current.session ?? {
-          kind: "item",
-          searchId: current.jobId ?? "last",
-          title: "Your last try-on",
-          items: [],
-        },
       });
       return;
     }
 
     clearPollTimer();
-    const generation = get().generation + 1;
+    const generation = get().renderGeneration + 1;
     syncChromeForTryOnDrawer(true);
     set({
       open: true,
-      generation,
+      renderGeneration: generation,
       status: "loading_avatar",
       error: null,
       compare: false,
@@ -550,7 +673,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
 
     try {
       const res = await fetch("/api/tryon/latest", { cache: "no-store" });
-      if (get().generation !== generation) return;
+      if (get().renderGeneration !== generation) return;
 
       if (res.status === 401) {
         set({ open: false, status: "idle" });
@@ -594,21 +717,12 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
 
       const tryon = body.tryon;
       if (tryon?.image_url) {
-        const kind = tryon.kind === "look" ? "look" : "item";
         set({
           avatarUrl: body.avatar_url ?? null,
           resultUrl: tryon.image_url,
           jobId: tryon.job_id,
           status: "completed",
           error: null,
-          session: {
-            kind,
-            searchId: tryon.search_id ?? tryon.job_id,
-            ref: tryon.ref ?? undefined,
-            lookId: tryon.look_id ?? undefined,
-            title: tryon.title,
-            items: [],
-          },
         });
         return;
       }
@@ -619,15 +733,9 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
         jobId: null,
         status: "idle",
         error: null,
-        session: {
-          kind: "item",
-          searchId: "avatar",
-          title: "Your avatar",
-          items: [],
-        },
       });
     } catch {
-      if (get().generation !== generation) return;
+      if (get().renderGeneration !== generation) return;
       set({
         status: "failed",
         error: "Couldn't load your avatar — try again.",
@@ -639,8 +747,10 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
     clearPollTimer();
     set({
       open: false,
-      generation: get().generation + 1,
-      status: "idle",
+      renderGeneration: get().renderGeneration + 1,
+      previewLookId: null,
+      previewLookTitle: null,
+      status: get().activeIds.length ? get().status : "idle",
     });
   },
 
@@ -653,4 +763,9 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
       body: JSON.stringify({ generation_id: id, rating }),
     });
   },
+
+  isInRack: (id) => get().rackIds.includes(id),
+  isActive: (id) => get().activeIds.includes(id),
+  isRackFull: () => get().rackIds.length >= MAX_FITTING_ROOM_ITEMS,
+  isActiveFull: () => get().activeIds.length >= MAX_FITTING_ROOM_ITEMS,
 }));

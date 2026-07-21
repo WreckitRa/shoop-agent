@@ -20,6 +20,8 @@ import {
   catalogDisplayImageUrl,
 } from "@/lib/shopify/catalog-display-image";
 import { recordFashionPickSelection } from "@/lib/fashion-memory/client/pick-signals";
+import { FittingRoomAction } from "@/components/tryon/FittingRoomAction";
+import { fittingRoomItemFromProductCard } from "@/components/tryon/fitting-room-item-builders";
 
 /** Expand the full PDP inline in chat below the picks row (card stays visible). */
 function useProductCardAction(
@@ -329,6 +331,9 @@ export function HeroPickCard({
         ) : null}
       </div>
     </button>
+    <div className="px-3 pb-2">
+      <FittingRoomAction item={fittingRoomItemFromProductCard(product)} compact />
+    </div>
     <PickFindSimilarButton pick={product} />
     </div>
     {link.isExpanded ? (
@@ -539,6 +544,12 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
         ) : null}
       </div>
     </button>
+    <div className="px-3 pb-3">
+      <FittingRoomAction
+        item={fittingRoomItemFromProductCard(pick)}
+        compact={!isHero}
+      />
+    </div>
     <PickFindSimilarButton pick={pick} compact={!isHero} className="shrink-0" />
     </div>
   );
@@ -672,6 +683,9 @@ export function GalleryPickCard({ pick }: { pick: CuratedPick }) {
         </p>
       </div>
     </button>
+    <div className="px-3 pb-2">
+      <FittingRoomAction item={fittingRoomItemFromProductCard(pick)} compact />
+    </div>
     <PickFindSimilarButton pick={pick} compact />
     </div>
   );
@@ -844,6 +858,12 @@ export function FashionLeadPickCard({
           </div>
         </div>
       </button>
+      <div className="px-2 pb-2">
+        <FittingRoomAction
+          item={fittingRoomItemFromProductCard(product)}
+          compact
+        />
+      </div>
       <PickFindSimilarButton pick={product} className="shrink-0" />
     </div>
   );
@@ -975,6 +995,12 @@ export function FashionStackPickCard({
           </div>
         </div>
       </button>
+      <div className="px-2 pb-2">
+        <FittingRoomAction
+          item={fittingRoomItemFromProductCard(product)}
+          compact
+        />
+      </div>
     </div>
   );
 }
@@ -1098,6 +1124,12 @@ export function ProductScrollCard({
           ) : null}
         </div>
       </button>
+      <div className="px-2 pb-2">
+        <FittingRoomAction
+          item={fittingRoomItemFromProductCard(product)}
+          compact
+        />
+      </div>
     </div>
   );
 }
@@ -1220,6 +1252,9 @@ export function SecondaryPickCard({
         ) : null}
       </div>
     </button>
+    <div className="px-3 pb-2">
+      <FittingRoomAction item={fittingRoomItemFromProductCard(product)} compact />
+    </div>
     <PickFindSimilarButton pick={product} />
     </div>
     {link.isExpanded ? (

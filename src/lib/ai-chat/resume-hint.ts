@@ -9,17 +9,34 @@ export type ResumeHint = {
 };
 
 const PREFIX_RE =
-  /^(find me|help me find|looking for|search for|i need|i want|can you find|show me)\s+/i;
+  /^(find me|help me find|(?:i'?m|i am|am)?\s*look(?:ing|ign)\s+for|search for|i need|i want|can you find|show me)\s+/i;
 
-export function formatResumeLabel(raw: string): string | null {
+export function formatResumeLabel(
+  raw: string,
+  options: { allowGeneric?: boolean } = {},
+): string | null {
   let text = raw.replace(/\s+/g, " ").trim();
   if (!text) return null;
 
   text = text.replace(PREFIX_RE, "").replace(/[?.!]+$/, "").trim();
   if (text.length < 3) return null;
-  if (text.length > 56) text = `${text.slice(0, 53).trim()}…`;
+  const normalized = text.toLowerCase();
 
-  return text.toLowerCase();
+  if (/\bgolf\b/.test(normalized)) return "that sharp golf look";
+  if (/\bwedding\b/.test(normalized)) return "the right wedding look";
+  if (/\bwork\b/.test(normalized) && /\bwardrobe\b/.test(normalized)) {
+    return "that work wardrobe refresh";
+  }
+  if (/\bgift\b/.test(normalized)) return "the right gift";
+  if (/\bblazer\b/.test(normalized)) return "that blazer look";
+  if (/\b(sneakers?|shoes?|boots?)\b/.test(normalized)) {
+    return "the right pair";
+  }
+  if (/\b(outfit|style|look)\b/.test(normalized)) return "the right look";
+
+  if (options.allowGeneric === false) return null;
+  if (text.length > 42) text = text.slice(0, 42).trim();
+  return `that ${text.toLowerCase()}`;
 }
 
 function queryFromMessages(
@@ -71,14 +88,13 @@ export async function getResumeHint(
 
   if (!conversation) return null;
 
-  const fromMessages = queryFromMessages(conversation.messages);
-  if (fromMessages) {
-    const label = formatResumeLabel(fromMessages);
+  if (conversation.title && conversation.title !== NEW_CHAT_TITLE) {
+    const label = formatResumeLabel(conversation.title);
     if (label) return { label, conversationId: conversation.id };
   }
 
-  if (conversation.title && conversation.title !== NEW_CHAT_TITLE) {
-    const label = formatResumeLabel(conversation.title);
+  if (intent?.intentName) {
+    const label = formatResumeLabel(intent.intentName);
     if (label) return { label, conversationId: conversation.id };
   }
 
@@ -93,8 +109,9 @@ export async function getResumeHint(
     }
   }
 
-  if (intent?.intentName) {
-    const label = formatResumeLabel(intent.intentName);
+  const fromMessages = queryFromMessages(conversation.messages);
+  if (fromMessages) {
+    const label = formatResumeLabel(fromMessages, { allowGeneric: false });
     if (label) return { label, conversationId: conversation.id };
   }
 

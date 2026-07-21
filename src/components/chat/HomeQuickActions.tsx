@@ -5,7 +5,6 @@ import {
   Gift,
   Heart,
   Layers,
-  Search,
   Shirt,
   Sparkles,
   Tag,
@@ -14,61 +13,77 @@ import { useChatStore } from "@/components/chat/chat-store";
 
 const DESKTOP_QUICK_ACTIONS = [
   {
-    id: "summer-outfit",
-    label: "build a summer outfit",
-    prompt: "Help me build a polished summer outfit",
-    icon: Shirt,
+    id: "wedding-guest",
+    label: "what do I wear to a wedding?",
+    prompt:
+      "What do I wear to a wedding? I’m a guest in Sardinia in May, and my budget is $400.",
+    icon: Sparkles,
   },
   {
     id: "gift",
     label: "find a gift for my wife",
-    prompt: "Help me find a thoughtful gift for my wife",
+    prompt:
+      "Find an anniversary gift for my wife — she loves sculptural gold jewelry, and my budget is $300.",
     icon: Gift,
   },
   {
     id: "style-blazer",
     label: "style this blazer",
-    prompt: "Help me style a blazer for a refined everyday look",
+    prompt:
+      "Style my navy blazer for a smart-casual dinner — warm weather, polished but relaxed.",
     icon: Sparkles,
   },
   {
     id: "compare",
     label: "compare similar pieces",
-    prompt: "Compare similar pieces and tell me which is worth buying",
+    prompt:
+      "Compare similar pieces for me — prioritize quality, fit, and cost per wear, then tell me which is worth buying.",
     icon: Layers,
   },
 ] as const;
 
 const MOBILE_QUICK_ACTIONS = [
   {
-    id: "find-item",
-    label: "Find an Item",
-    prompt: "Help me find an item",
-    icon: Search,
+    id: "wedding-guest",
+    label: "Wedding Guest",
+    prompt:
+      "What do I wear to a wedding? I’m a guest in Sardinia in May, and my budget is $400.",
+    icon: Sparkles,
   },
   {
     id: "compare-prices",
     label: "Compare Prices",
-    prompt: "Compare prices and tell me which is the better buy",
+    prompt:
+      "Compare prices on similar pieces — prioritize quality and cost per wear, then tell me which is the better buy.",
     icon: Tag,
   },
   {
     id: "style-advice",
     label: "Style Advice",
-    prompt: "Give me style advice for what I should wear",
+    prompt:
+      "Build me a polished weekend outfit — warm undertone, relaxed fit, and a $250 budget.",
     icon: Shirt,
   },
   {
     id: "track-deals",
     label: "Track Deals",
-    prompt: "Help me track deals and find what's worth buying now",
+    prompt:
+      "Find the best current deals on quality wardrobe staples under $150 — skip anything that only looks cheap.",
     icon: Heart,
   },
 ] as const;
 
+function revealComposer() {
+  requestAnimationFrame(() => {
+    document
+      .querySelector<HTMLTextAreaElement>('textarea[aria-label="Ask Shoop"]')
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
 export function HomeQuickActions() {
   const setInput = useChatStore((s) => s.setInput);
-  const sendMessage = useChatStore((s) => s.sendMessage);
+  const requestComposerFocus = useChatStore((s) => s.requestComposerFocus);
 
   return (
     <div className="grid w-full grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
@@ -78,10 +93,11 @@ export function HomeQuickActions() {
           <button
             key={action.id}
             type="button"
-            className="group flex min-h-[132px] flex-col items-stretch rounded-[18px] bg-[#EFEDE9] px-4 pb-3.5 pt-4 text-left transition duration-150 hover:bg-[#E8E5E0] active:scale-[0.99]"
+            className="shoop-home-quick-action group flex min-h-[132px] flex-col items-stretch rounded-[18px] bg-[#EFEDE9] px-4 pb-3.5 pt-4 text-left transition duration-150 hover:bg-[#E8E5E0] active:scale-[0.99]"
             onClick={() => {
               setInput(action.prompt);
-              void sendMessage();
+              requestComposerFocus();
+              revealComposer();
             }}
           >
             <Icon
@@ -108,7 +124,7 @@ export function HomeQuickActions() {
 
 export function HomeMobileActionGrid() {
   const setInput = useChatStore((s) => s.setInput);
-  const sendMessage = useChatStore((s) => s.sendMessage);
+  const requestComposerFocus = useChatStore((s) => s.requestComposerFocus);
 
   return (
     <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
@@ -118,10 +134,11 @@ export function HomeMobileActionGrid() {
           <button
             key={action.id}
             type="button"
-            className="flex flex-col items-center gap-2 rounded-[18px] bg-white px-1.5 py-3 text-center shadow-soft ring-1 ring-hairline/70 transition active:scale-[0.98]"
+            className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-[16px] bg-white px-1 py-2 text-center shadow-soft ring-1 ring-hairline/70 transition active:scale-[0.98] sm:min-h-0 sm:gap-2 sm:rounded-[18px] sm:px-1.5 sm:py-3"
             onClick={() => {
               setInput(action.prompt);
-              void sendMessage();
+              requestComposerFocus();
+              revealComposer();
             }}
           >
             <Icon
@@ -136,5 +153,43 @@ export function HomeMobileActionGrid() {
         );
       })}
     </div>
+  );
+}
+
+const HOW_IT_WORKS = [
+  "Tell me the occasion",
+  "See it on you",
+  "One cart across every store",
+] as const;
+
+export function HomeHowItWorks() {
+  return (
+    <ol
+      className="shoop-home-how-it-works grid grid-cols-3 overflow-hidden rounded-[16px] border border-hairline bg-white/70 sm:rounded-[18px]"
+      aria-label="How Shoop works"
+    >
+      {HOW_IT_WORKS.map((step, index) => (
+        <li
+          key={step}
+          className="relative flex min-h-[52px] items-center px-2 py-1.5 sm:min-h-[72px] sm:px-4 sm:py-3"
+        >
+          <div>
+            <span className="block text-[9px] font-semibold tabular-nums tracking-[0.12em] text-ink-muted">
+              0{index + 1}
+            </span>
+            <span className="mt-0.5 block text-[10px] font-medium leading-[1.2] text-ink sm:mt-1 sm:text-[12px] sm:leading-[1.3]">
+              {step}
+            </span>
+          </div>
+          {index < HOW_IT_WORKS.length - 1 ? (
+            <ArrowRight
+              className="absolute right-0 top-1/2 size-3 -translate-y-1/2 translate-x-1/2 text-ink-muted"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+          ) : null}
+        </li>
+      ))}
+    </ol>
   );
 }

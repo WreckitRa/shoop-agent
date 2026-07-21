@@ -77,7 +77,7 @@ OPERATIONS (via the record_fashion_ops tool)
                    { "presentation": "mens" | "womens" | "boys" | "girls"
                    | "baby" | "mixed" }), or a precise measurement
                    ("my waist is 84cm") as fact_type "measurement" with
-                   value { "metric": "neck"|"chest"|"waist"|"hips"|"inseam",
+                   value { "metric": "height"|"neck"|"chest"|"waist"|"hips"|"inseam",
                    "value": number, "unit": "cm"|"in" } and garment_type set
                    to the metric (so waist supersedes prior waist only).
                    Measurements are body data for future size-chart fit —

@@ -11,7 +11,10 @@ import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/cat
 import { cn } from "@/lib/ai-chat/cn";
 import { TryOnPickButton } from "@/components/tryon/TryOnPickButton";
 import { TryOnLookButton } from "@/components/tryon/TryOnLookButton";
+import { FittingRoomAction } from "@/components/tryon/FittingRoomAction";
+import { fittingRoomItemFromProductCard, fittingRoomItemFromSearchPick } from "@/components/tryon/fitting-room-item-builders";
 import { capsuleLookId } from "@/lib/tryon/outfit-ids";
+import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
 import { InlineChatProductPanel } from "@/components/chat/InlineChatProductPanel";
 import { useChatMessageProductLink } from "@/components/chat/ChatMessageProductLinkContext";
 import { useChatStore } from "@/components/chat/chat-store";
@@ -185,6 +188,7 @@ function BenchCard({
   unverified = false,
   onOpen,
   selected,
+  fittingRoomItem,
 }: {
   title: string;
   imageUrl?: string;
@@ -192,6 +196,7 @@ function BenchCard({
   unverified?: boolean;
   onOpen?: () => void;
   selected?: boolean;
+  fittingRoomItem?: import("@/lib/tryon/fitting-room-types").FittingRoomItem;
 }) {
   const inner = (
     <>
@@ -236,6 +241,11 @@ function BenchCard({
       ) : (
         inner
       )}
+      {fittingRoomItem ? (
+        <div className="px-2 pb-2">
+          <FittingRoomAction item={fittingRoomItem} compact />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -246,12 +256,14 @@ function SlotBenches({
   unverified,
   openProduct,
   selectedProductId,
+  searchId,
 }: {
   garment: string;
   verified: RenderVerifiedItem[];
   unverified: RenderUnverifiedItem[];
   openProduct: ReturnType<typeof useOpenFashionProduct>;
   selectedProductId: string | null;
+  searchId: string;
 }) {
   if (!verified.length && !unverified.length) return null;
   return (
@@ -277,6 +289,19 @@ function SlotBenches({
             price={item.displayPrice}
             selected={selectedProductId === item.id}
             onOpen={() => openProduct(item)}
+            fittingRoomItem={fittingRoomItemFromSearchPick({
+              searchId,
+              pick: {
+                ref: item.ref,
+                id: item.id,
+                title: item.title,
+                imageUrl: item.imageUrl,
+                displayPrice: item.displayPrice,
+                garment: item.garment,
+                badges: [],
+                tryon: { available: true, disclaimer: TRYON_DISCLAIMER },
+              },
+            })}
           />
         ))}
         {verified.length && unverified.length ? (
@@ -301,6 +326,12 @@ function SlotBenches({
                 displayPrice: item.price,
               })
             }
+            fittingRoomItem={fittingRoomItemFromProductCard({
+              id: item.product_id,
+              title: item.title,
+              imageUrl: item.image_url,
+              displayPrice: item.price,
+            })}
           />
         ))}
       </div>
@@ -569,6 +600,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
                 unverified={unverified}
                 openProduct={openProduct}
                 selectedProductId={selectedProductId}
+                searchId={searchId}
               />
             );
           })}

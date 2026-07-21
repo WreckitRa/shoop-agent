@@ -9,7 +9,10 @@ import { ChatComposer } from "@/components/chat/ChatComposer";
 import { MessageList } from "@/components/chat/MessageList";
 import { ScrollToBottomButton } from "@/components/chat/ScrollToBottomButton";
 import { EmptyChatState } from "@/components/chat/EmptyChatState";
-import { HomeMobileActionGrid } from "@/components/chat/HomeQuickActions";
+import {
+  HomeHowItWorks,
+  HomeMobileActionGrid,
+} from "@/components/chat/HomeQuickActions";
 import { HomeRecentConversations } from "@/components/chat/HomeRecentConversations";
 import { useChatScroll } from "@/components/chat/useChatScroll";
 import { ChatFocusHighlightProvider } from "@/components/chat/ChatFocusHighlightContext";
@@ -99,7 +102,13 @@ export const ChatLayout = memo(function ChatLayout() {
             <AgentDebugToggleRail />
             <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
               {error ? (
-                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-2xl border border-error-border bg-error-bg px-4 py-3 text-sm text-error-deep">
+                <div
+                  className={cn(
+                    "mx-4 mt-3 flex items-center justify-between gap-3 rounded-2xl border border-error-border bg-error-bg px-4 py-3 text-sm text-error-deep",
+                    showEmpty && "absolute inset-x-0 top-0 z-30 shadow-lg",
+                  )}
+                  role="alert"
+                >
                   <span>{error}</span>
                   <button
                     type="button"
@@ -123,9 +132,7 @@ export const ChatLayout = memo(function ChatLayout() {
                   ref={scrollRef}
                   className={cn(
                     "h-full min-h-0 overflow-x-hidden overscroll-y-contain [-webkit-overflow-scrolling:touch]",
-                    showEmpty
-                      ? "overflow-y-auto lg:overflow-y-hidden"
-                      : "overflow-y-auto",
+                    showEmpty ? "overflow-y-hidden" : "overflow-y-auto",
                   )}
                 >
                   <div
@@ -158,15 +165,13 @@ export const ChatLayout = memo(function ChatLayout() {
               </div>
 
               {showEmpty ? (
-                <>
-                  <div className="mx-auto w-full max-w-page-narrow shrink-0 shoop-page-x lg:hidden">
-                    <div className="flex flex-col gap-4 pb-3 sm:gap-5 sm:pb-4">
-                      <HomeMobileActionGrid />
-                      <HomeRecentConversations />
-                    </div>
+                <div className="mx-auto w-full max-w-page-narrow shrink-0 shoop-page-x lg:hidden">
+                  <div className="flex flex-col gap-2.5 pb-[max(8px,env(safe-area-inset-bottom))] sm:gap-4 sm:pb-4">
+                    <HomeMobileActionGrid />
+                    <HomeHowItWorks />
+                    <HomeRecentConversations />
                   </div>
-                  <ChatComposer adjacentMarquee homeBackdrop />
-                </>
+                </div>
               ) : (
                 <ChatComposer />
               )}

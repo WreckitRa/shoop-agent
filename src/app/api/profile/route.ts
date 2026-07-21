@@ -2,8 +2,12 @@ import { prisma } from "@/lib/ai-chat/db";
 import { ownedProduct } from "@/lib/ai-chat/owned-product-db";
 import { userProfilePatchSchema } from "@/lib/ai-chat/profile/validators";
 import { getAuthContext } from "@/lib/auth/session";
-import { catalogLocalizationFromProfile } from "@/lib/shopify/catalog-localization";
+import {
+  catalogLocalizationFromProfile,
+  resolveCatalogLocalization,
+} from "@/lib/shopify/catalog-localization";
 import { loadDefaultSavedAddressLocale } from "@/lib/shopify/default-saved-address";
+import { detectRequestArea } from "@/lib/server/request-area";
 
 /**
  * GET /api/profile
@@ -15,7 +19,7 @@ import { loadDefaultSavedAddressLocale } from "@/lib/shopify/default-saved-addre
  *
  * Designed to back a "Your shopping profile" settings screen.
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const auth = await getAuthContext();
     if (!auth.ok) return auth.response;
@@ -71,14 +75,24 @@ export async function GET() {
       loadDefaultSavedAddressLocale(userId),
     ]);
 
-    const catalogLocalization = catalogLocalizationFromProfile(
+    const profileLocalization = catalogLocalizationFromProfile(
       profile ?? {},
       savedAddress,
     );
+    const detectedArea = detectRequestArea(req.headers);
+    const usesDetectedArea = !profileLocalization.countryCode && detectedArea;
+    const catalogLocalization = usesDetectedArea
+      ? {
+            ...resolveCatalogLocalization(detectedArea.countryCode, null),
+            currency: profileLocalization.currency,
+        }
+      : profileLocalization;
 
     return Response.json({
       profile,
       catalogLocalization,
+      catalogLocalizationSource: usesDetectedArea ? "ip" : "profile",
+      detectedArea,
       sizing,
       categoryPreferences,
       brandPreferences,

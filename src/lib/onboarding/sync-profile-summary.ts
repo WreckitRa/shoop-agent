@@ -1,39 +1,34 @@
 import { prisma } from "@/lib/ai-chat/db";
 import type { ShoppingMemoryScope, ShoppingMemoryType } from "@prisma/client";
+import { createHash } from "node:crypto";
+import {
+  loadOnboardingProjectionSnapshot,
+  type OnboardingProjectionSnapshot,
+} from "@/lib/onboarding/projection-snapshot";
 
 function slugKey(value: string, max = 48): string {
   const slug = value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "")
-    .slice(0, max);
-  return slug || "item";
+    .slice(0, Math.max(8, max - 9));
+  const hash = createHash("sha256").update(value).digest("hex").slice(0, 8);
+  return `${slug || "item"}_${hash}`;
 }
 
 /** Project typed onboarding tables into summary + canonical rows for the brain panel. */
 export async function refreshTypedProfileIntoShoppingView(
   userId: string,
+  suppliedSnapshot?: OnboardingProjectionSnapshot,
 ): Promise<void> {
-  const [profile, sizing, tasteTags, brandPreferences, hardNegatives] =
-    await Promise.all([
-      prisma.userProfile.findUnique({ where: { userId } }),
-      prisma.sizingProfile.findUnique({ where: { userId } }),
-      prisma.tasteTag.findMany({
-        where: { userId },
-        orderBy: [{ polarity: "asc" }, { score: "desc" }],
-        take: 48,
-      }),
-      prisma.brandPreference.findMany({
-        where: { userId },
-        orderBy: [{ sentiment: "asc" }, { strength: "desc" }],
-        take: 32,
-      }),
-      prisma.hardNegative.findMany({
-        where: { userId },
-        orderBy: [{ createdAt: "desc" }],
-        take: 32,
-      }),
-    ]);
+  const [snapshot, currentSummary] = await Promise.all([
+    suppliedSnapshot
+      ? Promise.resolve(suppliedSnapshot)
+      : loadOnboardingProjectionSnapshot(userId),
+    prisma.shoppingProfileSummary.findUnique({ where: { userId } }),
+  ]);
+  const { profile, sizing, tasteTags, brandPreferences, hardNegatives } =
+    snapshot;
 
   const identityLines: string[] = [];
   if (profile?.preferredName) identityLines.push(`Name: ${profile.preferredName}`);
@@ -98,40 +93,36 @@ export async function refreshTypedProfileIntoShoppingView(
   ];
   const summary = summaryBullets.join("\n");
 
-  await prisma.shoppingProfileSummary.upsert({
-    where: { userId },
-    create: {
-      userId,
-      summary,
-      styleSummary: styleSummary || null,
-      sizingSummary: sizingLines.join("\n") || null,
-      budgetSummary: profile?.valuePhilosophy
-        ? `Value philosophy: ${profile.valuePhilosophy}`
-        : null,
-      brandSummary: brandSummary || null,
-      dislikesSummary: dislikesSummary || null,
-      logisticsSummary: profile?.shippingCountry
-        ? `Ships to: ${profile.shippingCountry}`
-        : null,
-      version: 1,
-    },
-    update: {
-      summary,
-      styleSummary: styleSummary || null,
-      sizingSummary: sizingLines.join("\n") || null,
-      budgetSummary: profile?.valuePhilosophy
-        ? `Value philosophy: ${profile.valuePhilosophy}`
-        : null,
-      brandSummary: brandSummary || null,
-      dislikesSummary: dislikesSummary || null,
-      logisticsSummary: profile?.shippingCountry
-        ? `Ships to: ${profile.shippingCountry}`
-        : null,
-      version: { increment: 1 },
-    },
-  });
+  const summaryData = {
+    summary,
+    styleSummary: styleSummary || null,
+    sizingSummary: sizingLines.join("\n") || null,
+    budgetSummary: profile?.valuePhilosophy
+      ? `Value philosophy: ${profile.valuePhilosophy}`
+      : null,
+    brandSummary: brandSummary || null,
+    dislikesSummary: dislikesSummary || null,
+    logisticsSummary: profile?.shippingCountry
+      ? `Ships to: ${profile.shippingCountry}`
+      : null,
+  };
+  const summaryChanged =
+    !currentSummary ||
+    Object.entries(summaryData).some(
+      ([key, value]) =>
+        currentSummary[key as keyof typeof summaryData] !== value,
+    );
+  if (summaryChanged) {
+    await prisma.shoppingProfileSummary.upsert({
+      where: { userId },
+      create: { userId, ...summaryData, version: 1 },
+      update: { ...summaryData, version: { increment: 1 } },
+    });
+  }
 
-  async function upsertMemory(params: {
+  const memoryWrites: Promise<unknown>[] = [];
+  const expectedMemoryKeys = new Set<string>();
+  function upsertMemory(params: {
     memoryKey: string;
     value: string;
     type: ShoppingMemoryType;
@@ -142,7 +133,8 @@ export async function refreshTypedProfileIntoShoppingView(
   }) {
     const value = params.value.trim().slice(0, 2000);
     if (!value) return;
-    await prisma.shoppingMemory.upsert({
+    expectedMemoryKeys.add(params.memoryKey);
+    memoryWrites.push(prisma.shoppingMemory.upsert({
       where: { userId_memoryKey: { userId, memoryKey: params.memoryKey } },
       create: {
         userId,
@@ -162,9 +154,8 @@ export async function refreshTypedProfileIntoShoppingView(
         value,
         isActive: true,
         confidence: 0.95,
-        evidenceCount: { increment: 1 },
       },
-    });
+    }));
   }
 
   if (profile?.preferredName) {
@@ -251,7 +242,7 @@ export async function refreshTypedProfileIntoShoppingView(
 
   for (const b of loves.slice(0, 16)) {
     await upsertMemory({
-      memoryKey: `onboarding.brand.love.${slugKey(b.brand)}`,
+      memoryKey: `onboarding.brand.love.${slugKey(`${b.category}:${b.brand}`)}`,
       value: `Loves brand ${b.brand}`,
       type: "brand",
       scope: "brand",
@@ -260,7 +251,7 @@ export async function refreshTypedProfileIntoShoppingView(
   }
   for (const b of avoids.slice(0, 16)) {
     await upsertMemory({
-      memoryKey: `onboarding.brand.avoid.${slugKey(b.brand)}`,
+      memoryKey: `onboarding.brand.avoid.${slugKey(`${b.category}:${b.brand}`)}`,
       value: `Avoids brand ${b.brand}`,
       type: "dislike",
       scope: "brand",
@@ -270,11 +261,30 @@ export async function refreshTypedProfileIntoShoppingView(
 
   for (const h of hardNegatives.slice(0, 16)) {
     await upsertMemory({
-      memoryKey: `onboarding.hard.${h.scope}.${slugKey(h.value)}`,
+      memoryKey: `onboarding.hard.${h.scope}.${slugKey(`${h.category}:${h.value}`)}`,
       value: `Never: ${h.value}`,
       type: "constraint",
       scope: "global",
       isHardRule: true,
+    });
+  }
+
+  await Promise.all(memoryWrites);
+  const stale = await prisma.shoppingMemory.findMany({
+    where: {
+      userId,
+      memoryKey: { startsWith: "onboarding." },
+      isActive: true,
+    },
+    select: { memoryKey: true },
+  });
+  const staleKeys = stale
+    .map((row) => row.memoryKey)
+    .filter((key) => !expectedMemoryKeys.has(key));
+  if (staleKeys.length > 0) {
+    await prisma.shoppingMemory.updateMany({
+      where: { userId, memoryKey: { in: staleKeys } },
+      data: { isActive: false },
     });
   }
 }

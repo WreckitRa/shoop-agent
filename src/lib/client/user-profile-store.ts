@@ -16,6 +16,7 @@ import { SHOPIFY_COUNTRIES } from "@/lib/cart/countries";
 import { currencyHintForCountry } from "@/lib/onboarding/form-options";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { getGuestSessionId } from "@/lib/client/guest-storage";
+import type { DetectedRequestArea } from "@/lib/server/request-area";
 
 export type UserIdentity = {
   userId: string;
@@ -49,6 +50,8 @@ function buildIdentity(
 type UserProfileState = {
   identity: UserIdentity | null;
   catalogLocalization: CatalogLocalization | null;
+  catalogLocalizationSource: "profile" | "ip";
+  detectedArea: DetectedRequestArea | null;
   onboardingCompleted: boolean | null;
   loadedAt: number;
   hydrating: boolean;
@@ -76,6 +79,8 @@ type UserProfileState = {
 export const useUserProfileStore = create<UserProfileState>((set, get) => ({
   identity: null,
   catalogLocalization: null,
+  catalogLocalizationSource: "profile",
+  detectedArea: null,
   onboardingCompleted: null,
   loadedAt: 0,
   hydrating: false,
@@ -118,6 +123,8 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
     set({
       identity: null,
       catalogLocalization: null,
+      catalogLocalizationSource: "profile",
+      detectedArea: null,
       onboardingCompleted: null,
       loadedAt: 0,
       hydrating: false,
@@ -139,6 +146,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         ...resolveCatalogLocalization(country.label, null),
         currency: nextCurrency,
       },
+      catalogLocalizationSource: "profile",
     });
 
     try {
@@ -241,6 +249,8 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         let preferredName: string | null = null;
         let onboardingCompleted: boolean | null = null;
         let catalogLocalization: CatalogLocalization | null = null;
+        let catalogLocalizationSource: "profile" | "ip" = "profile";
+        let detectedArea: DetectedRequestArea | null = null;
         if (profileRes?.ok) {
           const profileJson = (await profileRes.json()) as {
             profile?: {
@@ -251,14 +261,20 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
               currency?: string | null;
             };
             catalogLocalization?: CatalogLocalization | null;
+            catalogLocalizationSource?: "profile" | "ip";
+            detectedArea?: DetectedRequestArea | null;
           };
           preferredName = profileJson.profile?.preferredName?.trim() || null;
-          onboardingCompleted = profileJson.profile?.onboardingCompleted ?? false;
+          onboardingCompleted =
+            profileJson.profile?.onboardingCompleted ?? false;
           catalogLocalization =
             profileJson.catalogLocalization ??
             (profileJson.profile
               ? catalogLocalizationFromProfile(profileJson.profile)
               : null);
+          catalogLocalizationSource =
+            profileJson.catalogLocalizationSource ?? "profile";
+          detectedArea = profileJson.detectedArea ?? null;
         }
 
         const guestSessionId = getGuestSessionId();
@@ -274,6 +290,8 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
             preferredName ?? (mode === "guest" ? "Guest" : null),
           ),
           catalogLocalization,
+          catalogLocalizationSource,
+          detectedArea,
           onboardingCompleted,
           loadedAt: Date.now(),
         });

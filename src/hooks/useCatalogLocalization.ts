@@ -16,6 +16,10 @@ import {
 export function useCatalogLocalization() {
   const accessMode = useAppSessionStore((s) => s.mode);
   const profileLocalization = useUserProfileStore((s) => s.catalogLocalization);
+  const profileLocalizationSource = useUserProfileStore(
+    (s) => s.catalogLocalizationSource,
+  );
+  const detectedArea = useUserProfileStore((s) => s.detectedArea);
   const profileHydrating = useUserProfileStore((s) => s.hydrating);
   const profileSaving = useUserProfileStore((s) => s.savingShippingCountry);
   const updateProfileLocale = useUserProfileStore((s) => s.updateProfileLocale);
@@ -85,8 +89,17 @@ export function useCatalogLocalization() {
     return updateProfileCurrency(currencyCode);
   };
 
+  const areaLabel =
+    !activeConversationId &&
+    profileLocalizationSource === "ip" &&
+    detectedArea &&
+    detectedArea.countryCode === localization?.countryCode
+      ? (detectedArea.cityLabel ?? detectedArea.countryLabel)
+      : (localization?.countryLabel ?? null);
+
   return {
     localization,
+    areaLabel,
     loading: profileHydrating && !profileLocalization,
     saving: profileSaving || conversationSaving,
     canEdit,

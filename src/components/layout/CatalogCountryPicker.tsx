@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, MapPin, Search, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, MapPin, Search } from "lucide-react";
 import { cn } from "@/lib/ai-chat/cn";
 import { SHOPIFY_COUNTRIES } from "@/lib/cart/countries";
 import type { CatalogLocalization } from "@/lib/shopify/catalog-localization";
@@ -32,8 +32,8 @@ function computeMenuLayout(anchor: HTMLElement): MenuLayout {
   const gap = 4;
   const width = Math.max(rect.width, MENU_MIN_WIDTH);
 
-  let spaceBelow = window.innerHeight - rect.bottom - viewportPad;
-  let spaceAbove = rect.top - viewportPad;
+  const spaceBelow = window.innerHeight - rect.bottom - viewportPad;
+  const spaceAbove = rect.top - viewportPad;
   let openAbove = spaceBelow < 140 && spaceAbove > spaceBelow;
 
   let maxHeight = Math.min(
@@ -62,6 +62,7 @@ function computeMenuLayout(anchor: HTMLElement): MenuLayout {
 
 type CatalogCountryPickerProps = {
   localization: CatalogLocalization | null;
+  areaLabel?: string | null;
   loading?: boolean;
   saving?: boolean;
   disabled?: boolean;
@@ -74,6 +75,7 @@ type CatalogCountryPickerProps = {
  */
 export function CatalogCountryPicker({
   localization,
+  areaLabel,
   loading,
   saving,
   disabled,
@@ -86,14 +88,11 @@ export function CatalogCountryPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [menuLayout, setMenuLayout] = useState<MenuLayout | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedCode = localization?.countryCode ?? "";
   const selectedLabel =
     localization?.countryLabel ?? localization?.profileRaw ?? null;
-
-  useEffect(() => setMounted(true), []);
 
   const updateMenuLayout = useCallback(() => {
     if (!anchorRef.current) return;
@@ -151,7 +150,7 @@ export function CatalogCountryPicker({
   );
 
   const menu =
-    open && menuLayout && mounted
+    open && menuLayout
       ? createPortal(
           <>
             <button
@@ -250,33 +249,15 @@ export function CatalogCountryPicker({
       : null;
 
   const countryLabel =
-    !loading && selectedLabel ? selectedLabel : null;
-  const needsShippingArea =
-    !loading && !localization?.countryCode && !localization?.shipsTo;
+    !loading && (areaLabel?.trim() || selectedLabel)
+      ? (areaLabel?.trim() ?? selectedLabel)
+      : null;
 
   return (
     <div
-      className="inline-flex min-w-0 max-w-[min(100%,18rem)] items-center gap-2"
+      className="inline-flex min-w-0 max-w-[min(100%,18rem)] items-center"
       aria-label="Shipping region for catalog search"
     >
-      {needsShippingArea ? (
-        <span
-          className="inline-flex min-w-0 items-center gap-1 truncate text-[11px] font-medium text-warning-dark"
-          title="Set your shipping area for localized prices and delivery filtering"
-        >
-          <TriangleAlert className="size-3 shrink-0" aria-hidden strokeWidth={1.75} />
-          <span className="truncate">Set area</span>
-        </span>
-      ) : countryLabel ? (
-        <span
-          className="hidden truncate text-[11px] font-medium text-ink-secondary xl:inline"
-          title={countryLabel}
-        >
-          {countryLabel}
-          {saving ? "…" : null}
-        </span>
-      ) : null}
-
       <button
         ref={anchorRef}
         type="button"
@@ -294,14 +275,30 @@ export function CatalogCountryPicker({
           setOpen((v) => !v);
         }}
         className={cn(
-          "inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-hairline bg-white px-2.5 text-[11px] font-medium tracking-wide text-ink-secondary transition-colors",
+          "inline-flex h-8 min-w-0 items-center gap-1 rounded-full border border-hairline bg-white px-2.5 text-[11px] font-medium tracking-wide text-ink-secondary transition-colors",
           disabled
             ? "cursor-not-allowed opacity-55"
             : "hover:border-line-medium hover:bg-warm hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20",
         )}
       >
         <MapPin className="size-3 shrink-0" aria-hidden strokeWidth={1.75} />
-        <span>Area</span>
+        <span className="max-w-32 truncate sm:max-w-44">
+          {loading
+            ? "Area: Detecting…"
+            : countryLabel
+              ? `Area: ${countryLabel}${saving ? "…" : ""}`
+              : "Area: Choose"}
+        </span>
+        {countryLabel && !saving ? (
+          <Check
+            className="size-3 shrink-0 text-success"
+            aria-label="Area applied"
+            strokeWidth={2}
+          />
+        ) : null}
+        {countryLabel ? (
+          <span className="hidden text-ink-muted xl:inline">(change)</span>
+        ) : null}
         {!loading && !disabled ? (
           <ChevronDown
             className={cn(

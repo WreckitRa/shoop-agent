@@ -195,6 +195,7 @@ function applyOptimisticAdd(
     title: input.product?.title ?? "Cart item",
     imageUrl: input.product?.imageUrl ?? null,
     priceCents: input.product?.priceCents ?? null,
+    priceAtAddCents: input.product?.priceCents ?? null,
     lineTotalCents:
       input.product?.priceCents != null
         ? input.product.priceCents * quantity

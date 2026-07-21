@@ -76,6 +76,9 @@ import {
 } from "@/lib/client/coming-soon-toasts";
 import { useToastStore } from "@/lib/client/toast-store";
 import { cn } from "@/lib/ai-chat/cn";
+import { FittingRoomAction } from "@/components/tryon/FittingRoomAction";
+import { fittingRoomItemFromPdp } from "@/components/tryon/fitting-room-item-builders";
+import type { FittingRoomItem } from "@/lib/tryon/fitting-room-types";
 import {
   EMPTY_USER_OPTION_HINTS,
   inferPreferredOptions,
@@ -669,6 +672,31 @@ export function ProductPageView({
     hasCuration && displayCuration?.slot === "shoop_pick";
   const showBuyBadgeOnImage = hasCuration && displayCuration?.verdict === "buy";
 
+  const fittingRoomItem = useMemo((): FittingRoomItem | null => {
+    if (!detail) return null;
+    const variant = resolvedVariant ?? catalogVariant;
+    const preferredOptions = Object.entries(pickedOptions).map(
+      ([name, label]) => ({ name, label }),
+    );
+    return fittingRoomItemFromPdp({
+      productId: detail.id,
+      title: detail.title,
+      imageUrl: productImage ?? undefined,
+      price: variant?.price,
+      variantId: variant?.id,
+      preferredOptions,
+      featuredVariant:
+        variant ?
+          {
+            id: variant.id,
+            price: variant.price,
+            checkoutUrl: variant.checkout_url,
+            options: variant.options,
+          }
+        : undefined,
+    });
+  }, [catalogVariant, detail, pickedOptions, productImage, resolvedVariant]);
+
   const purchaseSidebarProps = {
     priceLabel,
     comparePrice,
@@ -681,6 +709,7 @@ export function ProductPageView({
     quantity,
     onQuantityChange: setQuantity,
     showInlineCtAs: true as const,
+    fittingRoomItem,
     purchaseActions: {
       resolvedVariant,
       allOptionsPicked,
@@ -1613,6 +1642,7 @@ function PurchaseSidebar({
   onQuantityChange,
   showInlineCtAs,
   showShoopPickBadge = false,
+  fittingRoomItem,
   purchaseActions,
 }: {
   className?: string;
@@ -1628,6 +1658,7 @@ function PurchaseSidebar({
   onQuantityChange: (n: number) => void;
   showInlineCtAs: boolean;
   showShoopPickBadge?: boolean;
+  fittingRoomItem?: FittingRoomItem | null;
   purchaseActions: PurchaseActionsProps;
 }) {
   return (
@@ -1678,6 +1709,9 @@ function PurchaseSidebar({
 
         <QuantityStepper quantity={quantity} onChange={onQuantityChange} />
         {showInlineCtAs ? <PurchaseButtons {...purchaseActions} /> : null}
+        {fittingRoomItem ? (
+          <FittingRoomAction item={fittingRoomItem} className="w-full justify-center" />
+        ) : null}
       </div>
     </aside>
   );

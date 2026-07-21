@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import Link from "next/link";
 import { ComposerReplyChip } from "@/components/chat/ComposerReplyChip";
@@ -11,15 +11,14 @@ import { useChatStore } from "@/components/chat/chat-store";
 import { useSuggestedPrompt } from "@/components/chat/useSuggestedPrompt";
 import { ShoopIcon } from "@/components/brand/ShoopBrand";
 
-const HOME_PLACEHOLDER = "How can I help you shop today?";
+const HOME_PLACEHOLDERS = [
+  "Beach wedding in Sardinia in May — guest, under $400, polished but not overdressed…",
+  "Rebuild my work wardrobe — warm undertone, creative office, $600 total…",
+  "Find everyday sneakers for wide feet — lots of walking, minimal, under $180…",
+  "Anniversary gift for my wife — sculptural jewelry, gold, thoughtful, under $300…",
+] as const;
 
-export function ChatComposer({
-  adjacentMarquee = false,
-  homeBackdrop = false,
-}: {
-  adjacentMarquee?: boolean;
-  homeBackdrop?: boolean;
-}) {
+export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
   const input = useChatStore((s) => s.input);
   const setInput = useChatStore((s) => s.setInput);
   const isStreaming = useChatStore((s) => s.isStreaming);
@@ -30,13 +29,17 @@ export function ChatComposer({
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const composerFocusNonce = useChatStore((s) => s.composerFocusNonce);
   const composerReplyContext = useChatStore((s) => s.composerReplyContext);
-  const clearComposerReplyContext = useChatStore((s) => s.clearComposerReplyContext);
+  const clearComposerReplyContext = useChatStore(
+    (s) => s.clearComposerReplyContext,
+  );
   const selectedCategories = useChatStore((s) => s.selectedCategories);
   const removeHomeCategory = useChatStore((s) => s.removeHomeCategory);
+  const [homePlaceholderIndex, setHomePlaceholderIndex] = useState(0);
 
   const suggestedPlaceholder = useSuggestedPrompt();
   const isFirstMessage = messageCount === 0;
   const isHomeEmpty = !activeConversationId && messageCount === 0;
+  const isHeroComposer = isHomeEmpty && homeVariant === "hero";
 
   const ta = useRef<HTMLTextAreaElement | null>(null);
   const wasStreamingRef = useRef(false);
@@ -51,6 +54,23 @@ export function ChatComposer({
   useEffect(() => {
     resize();
   }, [input, resize]);
+
+  useEffect(() => {
+    if (!isHomeEmpty || isStreaming) return;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (reduceMotion) return;
+
+    const interval = window.setInterval(() => {
+      setHomePlaceholderIndex(
+        (current) => (current + 1) % HOME_PLACEHOLDERS.length,
+      );
+    }, 4500);
+
+    return () => window.clearInterval(interval);
+  }, [isHomeEmpty, isStreaming]);
 
   useEffect(() => {
     if (wasStreamingRef.current && !isStreaming) {
@@ -89,21 +109,29 @@ export function ChatComposer({
   const placeholder = isStreaming
     ? "Type your next message…"
     : isHomeEmpty
-      ? HOME_PLACEHOLDER
+      ? HOME_PLACEHOLDERS[homePlaceholderIndex]
       : suggestedPlaceholder;
 
   return (
     <div
       className={
-        homeBackdrop
-          ? "relative z-10 shrink-0 bg-transparent pb-[max(12px,env(safe-area-inset-bottom))] pt-0"
-          : adjacentMarquee
-            ? "shrink-0 bg-page pb-[max(12px,env(safe-area-inset-bottom))] pt-0"
-            : "shrink-0 bg-page pb-[max(12px,env(safe-area-inset-bottom))] pt-3"
+        isHeroComposer
+          ? "w-full"
+          : "shrink-0 bg-page pb-[max(12px,env(safe-area-inset-bottom))] pt-3"
       }
     >
-      <div className="mx-auto flex w-full max-w-page-narrow flex-col gap-3 shoop-page-x">
-        <div className="shoop-buybrief-box">
+      <div
+        className={
+          isHeroComposer
+            ? "shoop-hero-composer flex w-full flex-col gap-2 sm:gap-3"
+            : "mx-auto flex w-full max-w-page-narrow flex-col gap-3 shoop-page-x"
+        }
+      >
+        <div
+          className={`shoop-buybrief-box${
+            isHeroComposer ? " shoop-buybrief-box--hero" : ""
+          }`}
+        >
           {!isHomeEmpty ? (
             <ComposerBrandRow
               selectedCategories={selectedCategories}
@@ -124,25 +152,32 @@ export function ChatComposer({
               className="mb-2.5"
             />
           ) : null}
-          <textarea
-            ref={ta}
-            rows={isHomeEmpty ? 1 : 2}
-            placeholder={placeholder}
-            value={input}
-            aria-busy={isStreaming || undefined}
-            aria-label="Ask Shoop"
-            onChange={(e) => {
-              setInput(e.target.value);
-              resize();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                if (canSubmit) onSend();
-              }
-            }}
-            className="shoop-composer-textarea shoop-textarea-placeholder max-h-[200px] min-h-[28px] w-full resize-none overflow-hidden border-0 bg-transparent text-[16px] font-normal leading-[24px] text-ink outline-none md:text-[15px] md:leading-6"
-          />
+          {isHeroComposer ? (
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted sm:mb-3 sm:text-[11px]">
+              Start your search
+            </p>
+          ) : null}
+          <div>
+            <textarea
+              ref={ta}
+              rows={isHeroComposer ? 2 : isHomeEmpty ? 1 : 2}
+              placeholder={placeholder}
+              value={input}
+              aria-busy={isStreaming || undefined}
+              aria-label="Ask Shoop"
+              onChange={(e) => {
+                setInput(e.target.value);
+                resize();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (canSubmit) onSend();
+                }
+              }}
+              className="shoop-composer-textarea shoop-textarea-placeholder max-h-[200px] min-h-[28px] w-full resize-none overflow-hidden border-0 bg-transparent text-[16px] font-normal leading-[24px] text-ink outline-none md:text-[15px] md:leading-6"
+            />
+          </div>
           <div className="mt-2.5 flex h-11 items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
               <ReceiptPlusButton />
@@ -155,6 +190,13 @@ export function ChatComposer({
             )}
           </div>
         </div>
+
+        {isHeroComposer ? (
+          <p className="px-2 text-center text-[12px] leading-relaxed text-ink-secondary sm:text-[13px]">
+            Loyal to you, not the store — every pick explained, every price
+            checked.
+          </p>
+        ) : null}
 
         {queuedSendText ? (
           <p className="text-center text-[11px] font-medium text-ink-secondary">
@@ -230,11 +272,17 @@ function ComposerLegalFooter() {
   return (
     <p className="px-2 text-center text-[11px] leading-5 text-ink-muted">
       Shoop may make mistakes. Please review important details.{" "}
-      <Link href="/terms" className="underline underline-offset-2 hover:text-ink">
+      <Link
+        href="/terms"
+        className="underline underline-offset-2 hover:text-ink"
+      >
         Terms
       </Link>
       {" · "}
-      <Link href="/privacy" className="underline underline-offset-2 hover:text-ink">
+      <Link
+        href="/privacy"
+        className="underline underline-offset-2 hover:text-ink"
+      >
         Privacy
       </Link>
     </p>

@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const measurementSchema = z.object({
-  metric: z.enum(["neck", "chest", "waist", "hips", "inseam"]),
+  metric: z.enum(["height", "neck", "chest", "waist", "hips", "inseam"]),
   value: z.number().positive(),
   unit: z.enum(["cm", "in"]),
 });

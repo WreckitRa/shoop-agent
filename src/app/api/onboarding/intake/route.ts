@@ -1,6 +1,5 @@
 import { extractShoppingMemory } from "@/lib/ai-chat/shopping-memory/extractor";
 import { projectExtractionToTypedTables } from "@/lib/ai-chat/shopping-memory/projector";
-import { refreshShoppingProfileSummary } from "@/lib/ai-chat/shopping-memory/summary";
 import { writeMemoryFromExtraction } from "@/lib/ai-chat/shopping-memory/writer";
 import {
   buildOnboardingPatchFromPrefill,
@@ -10,9 +9,10 @@ import { getAuthContext } from "@/lib/auth/session";
 import {
   applyOnboardingPatch,
   getOnboardingStatus,
-  markOnboardingStarted,
   onboardingIntakeSchema,
 } from "@/lib/onboarding/status";
+import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
+import { after } from "next/server";
 
 const ONBOARDING_INTAKE_PREFIX = `The user pasted a structured shopping profile document (markdown headings are common).
 Extract EVERY fact into separate observations for onboarding. Include name, gender presentation if stated,
@@ -38,7 +38,6 @@ export async function POST(req: Request) {
     const auth = await getAuthContext();
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
-    await markOnboardingStarted(userId);
 
     const intakeText = parsed.data.text;
     const extraction = await extractShoppingMemory(
@@ -57,16 +56,14 @@ export async function POST(req: Request) {
 
     const prefill = mergeOnboardingPrefill(intakeText, extraction);
     const prefillPatch = buildOnboardingPatchFromPrefill(prefill);
-    if (Object.keys(prefillPatch).length > 0) {
-      await applyOnboardingPatch(prefillPatch, userId);
-    }
+    await applyOnboardingPatch(prefillPatch, userId);
 
     if (extraction) {
       await writeMemoryFromExtraction(userId, null, null, extraction);
       await projectExtractionToTypedTables({ userId, extraction });
-      await refreshShoppingProfileSummary(userId).catch(() => {});
     }
 
+    after(kickOnboardingJobWorker);
     return Response.json({
       prefill,
       extraction: extraction

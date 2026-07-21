@@ -146,6 +146,25 @@ export async function upsertStyleSignal(params: {
     .select("*")
     .single();
 
+  if (inserted.error?.code === "23505") {
+    const winner = await db
+      .from("style_signals")
+      .select("*")
+      .eq("user_id", params.userId)
+      .eq("person_id", params.personId)
+      .eq("context", context)
+      .eq("signal_type", params.signalType)
+      .eq("value", value)
+      .eq("polarity", polarity)
+      .in("status", ["active", "candidate"])
+      .single();
+    return assertFashionRow(
+      "upsertStyleSignal.concurrent",
+      winner.data as StyleSignalRow | null,
+      winner.error,
+    );
+  }
+
   return assertFashionRow(
     "upsertStyleSignal",
     inserted.data as StyleSignalRow | null,

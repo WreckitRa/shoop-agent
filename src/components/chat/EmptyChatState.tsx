@@ -1,73 +1,86 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronRight } from "lucide-react";
+import { ArrowDownRight } from "lucide-react";
+import { ChatComposer } from "@/components/chat/ChatComposer";
 import { WelcomeBackBanner } from "@/components/chat/WelcomeBackBanner";
-import { HomeQuickActions } from "@/components/chat/HomeQuickActions";
+import {
+  HomeHowItWorks,
+  HomeQuickActions,
+} from "@/components/chat/HomeQuickActions";
 import { useChatGreeting } from "@/components/chat/useChatGreeting";
 import { SHOOP_HERO_SHOPPING_SRC } from "@/lib/shared/brand-assets";
 
 export function EmptyChatState() {
   const greeting = useChatGreeting();
 
-  const startConversation = () => {
-    const el = document.querySelector<HTMLTextAreaElement>(
-      'textarea[aria-label="Ask Shoop"]',
-    );
-    el?.focus({ preventScroll: true });
-  };
-
   return (
-    <div className="mt-10 relative z-10 flex min-h-full w-full flex-col overflow-x-hidden pb-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pb-4">
+    <div className="relative z-10 flex h-full min-h-0 w-full flex-col overflow-hidden lg:pb-2">
       {/* Mobile + tablet — hero only; actions/recent sit above composer in ChatLayout */}
-      <div className="mx-auto w-full max-w-page-narrow pt-3 sm:pt-5 lg:hidden">
-        <div className="relative shrink-0 overflow-hidden rounded-[28px] border border-hairline bg-page shadow-soft">
-          <div className="relative z-10 flex min-h-[200px] flex-col justify-between gap-4 p-5 pr-[46%] sm:min-h-[220px] sm:p-6 sm:pr-[44%]">
-            <div className="space-y-2">
-              <h1 className="font-serif text-[1.55rem] font-semibold leading-[1.12] tracking-[-0.02em] text-ink sm:text-[1.85rem]">
-                Your AI Shopping Assistant
-              </h1>
-              <p className="max-w-[16rem] text-[13px] leading-relaxed text-ink-secondary sm:text-[14px]">
-                Find. Compare. Decide. I&apos;ll handle the rest.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={startConversation}
-              className="btn-primary h-10 w-fit gap-1 px-5 text-[13px]"
-            >
-              Start a conversation
-              <ChevronRight className="size-4" strokeWidth={1.75} aria-hidden />
-            </button>
-          </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-[52%] sm:w-[50%]">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-page-narrow items-center py-2 sm:py-4 lg:hidden">
+        <div className="relative w-full">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 opacity-25 sm:h-48 sm:w-48">
             <Image
               src={SHOOP_HERO_SHOPPING_SRC}
               alt=""
               fill
               priority
               unoptimized
-              sizes="(max-width: 1023px) 55vw, 0px"
-              className="origin-bottom-right translate-x-8 translate-y-10 scale-[1.56] object-contain object-right-bottom sm:translate-x-10 sm:translate-y-12 md:translate-y-14"
+              sizes="192px"
+              className="object-contain"
             />
+          </div>
+          <div className="relative z-10">
+            <p className="shoop-hero-eyebrow">AI Shopping Assistant</p>
+            <div className="mt-1.5 flex items-end gap-2 sm:mt-3">
+              <h1 className="font-serif text-[2rem] font-semibold leading-[0.98] tracking-[-0.035em] text-ink sm:text-[2.8rem]">
+                Find what&apos;s worth buying
+              </h1>
+              <ArrowDownRight
+                className="mb-1 size-7 shrink-0 text-brand"
+                strokeWidth={1.5}
+                aria-hidden
+              />
+            </div>
+            <p className="mt-2 max-w-[30rem] text-[13px] leading-snug text-ink-secondary sm:mt-3 sm:text-[15px] sm:leading-relaxed">
+              Tell me what you need. I&apos;ll search, compare, and cut the
+              noise.
+            </p>
+            <div className="mt-3 sm:mt-5">
+              <ChatComposer homeVariant="hero" />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Desktop — content floats above the centered background figure */}
       <div className="mx-auto hidden min-h-0 w-full max-w-page-wide flex-1 flex-col justify-center lg:flex">
-        <div className="w-full max-w-[min(40rem,56%)] space-y-5 xl:space-y-6">
-          <p className="shoop-hero-eyebrow">AI Fashion Assistant</p>
-          <div className="space-y-3">
+        <div className="shoop-home-desktop-content w-full max-w-[min(43rem,62%)]">
+          <div className="mt-5">
             <p className="text-sm font-medium text-ink-muted">{greeting}</p>
-            <h1 className="shoop-greeting-h1 text-ink">shop with taste</h1>
-            <p className="shoop-hero-copy">
+            <div className="mt-2 flex items-end gap-3">
+              <h1 className="shoop-greeting-h1 text-ink">shop with taste</h1>
+              <ArrowDownRight
+                className="mb-1 size-9 shrink-0 text-brand"
+                strokeWidth={1.35}
+                aria-hidden
+              />
+            </div>
+            <p className="shoop-hero-copy mt-3 max-w-[36rem]">
               Curated picks with taste — I search the stores that matter, cut
               the noise, and tell you what&apos;s worth buying.
             </p>
           </div>
+          <div className="mt-5 xl:mt-6">
+            <ChatComposer homeVariant="hero" />
+          </div>
           <WelcomeBackBanner />
-          <HomeQuickActions />
+          <div className="mt-5">
+            <HomeQuickActions />
+          </div>
+          <div className="mt-3">
+            <HomeHowItWorks />
+          </div>
         </div>
       </div>
     </div>

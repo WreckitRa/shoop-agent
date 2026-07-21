@@ -132,8 +132,7 @@ export function queryPlannerRunFromDto(
     run.metadata && typeof run.metadata === "object"
       ? (run.metadata as Record<string, unknown>)
       : null;
-  const step =
-    typeof meta?.step === "string" ? meta.step : run.kind;
+  const step = typeof meta?.step === "string" ? meta.step : run.kind;
 
   return {
     id: run.id,

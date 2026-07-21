@@ -288,6 +288,7 @@ export async function findCachedCompareTryon(params: {
 export async function findCachedSingleTryon(params: {
   avatarVersion: string;
   productRef: string;
+  userId: string;
 }): Promise<GenerationRow | null> {
   if (testGenStore) {
     for (const row of testGenStore.values()) {
@@ -296,6 +297,7 @@ export async function findCachedSingleTryon(params: {
         row.status === "completed" &&
         row.avatarVersion === params.avatarVersion &&
         row.productRef === params.productRef &&
+        row.userId === params.userId &&
         row.outputUrl &&
         row.provider !== "compare" &&
         !row.parentJobId
@@ -311,6 +313,7 @@ export async function findCachedSingleTryon(params: {
       status: "completed",
       avatarVersion: params.avatarVersion,
       productRef: params.productRef,
+      userId: params.userId,
       provider: { not: "compare" },
       parentJobId: null,
     },
@@ -322,6 +325,7 @@ export async function findCachedSingleTryon(params: {
 export async function findCachedOutfitTryon(params: {
   avatarVersion: string;
   cacheKey: string;
+  userId: string;
 }): Promise<GenerationRow | null> {
   if (testGenStore) {
     for (const row of testGenStore.values()) {
@@ -330,6 +334,7 @@ export async function findCachedOutfitTryon(params: {
         row.status === "completed" &&
         row.avatarVersion === params.avatarVersion &&
         row.productRef === params.cacheKey &&
+        row.userId === params.userId &&
         row.outputUrl &&
         row.provider !== "compare" &&
         !row.parentJobId
@@ -345,6 +350,7 @@ export async function findCachedOutfitTryon(params: {
       status: "completed",
       avatarVersion: params.avatarVersion,
       productRef: params.cacheKey,
+      userId: params.userId,
       provider: { not: "compare" },
       parentJobId: null,
     },

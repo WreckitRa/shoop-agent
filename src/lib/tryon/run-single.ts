@@ -239,6 +239,7 @@ export async function startSingleTryon(params: {
   const cached = await findCachedSingleTryon({
     avatarVersion: avatar.version,
     productRef: params.ref,
+    userId: params.userId,
   });
   if (cached?.outputUrl) {
     logTryonDress("info", "single_cache_hit", {

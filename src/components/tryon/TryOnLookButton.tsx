@@ -41,7 +41,6 @@ type TryOnLookButtonProps = {
 export function TryOnLookButton({
   look,
   searchId,
-  picksByRef,
 }: TryOnLookButtonProps) {
   const openLookTryOn = useTryOnDrawerStore((s) => s.openLookTryOn);
   const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
@@ -49,7 +48,7 @@ export function TryOnLookButton({
   const busy = useTryOnDrawerStore(
     (s) =>
       s.open &&
-      s.session?.lookId === look.name &&
+      s.previewLookId === look.name &&
       (s.status === "starting" ||
         s.status === "processing" ||
         s.status === "loading_avatar"),
@@ -89,15 +88,6 @@ export function TryOnLookButton({
             searchId,
             lookId: look.name,
             title: look.name,
-            items: look.item_refs.map((ref) => ({
-              ref,
-              title: picksByRef[ref]?.title ?? ref,
-              price: picksByRef[ref]?.price,
-              imageUrl: picksByRef[ref]?.imageUrl,
-              productId: picksByRef[ref]?.productId,
-              preferredOptions: picksByRef[ref]?.preferredOptions,
-              featuredVariant: picksByRef[ref]?.featuredVariant,
-            })),
           })
         }
       >

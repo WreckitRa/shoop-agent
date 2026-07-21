@@ -4,10 +4,15 @@ import { useEffect, useRef } from "react";
 import { cn } from "@/lib/ai-chat/cn";
 import { Loader2, Sparkles, X } from "lucide-react";
 import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
+import { MAX_FITTING_ROOM_ITEMS } from "@/lib/tryon/fitting-room-types";
+import {
+  findActiveSlotConflict,
+  replaceSameTypeLabel,
+} from "@/lib/tryon/fitting-room-slot-guard";
 import { TryOnComparePanel } from "./TryOnComparePanel";
 import {
   useTryOnDrawerStore,
-  type TryOnDrawerItem,
+  type FittingRoomItem,
 } from "./tryon-drawer-store";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
@@ -16,14 +21,7 @@ import { stashChatFocusReturn } from "@/lib/shared/chatFocus";
 
 const PANEL_WIDTH = "min(100vw, 28rem)";
 
-function formatPrice(price: { amount: number; currency: string }) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: price.currency,
-  }).format(price.amount / 100);
-}
-
-function GarmentShadows({ items }: { items: TryOnDrawerItem[] }) {
+function GarmentShadows({ items }: { items: FittingRoomItem[] }) {
   const shown = items.filter((i) => i.imageUrl).slice(0, 4);
   if (!shown.length) {
     return (
@@ -39,7 +37,7 @@ function GarmentShadows({ items }: { items: TryOnDrawerItem[] }) {
         const rotate = (index - (shown.length - 1) / 2) * 4;
         return (
           <div
-            key={item.ref}
+            key={item.id}
             className="absolute left-1/2 top-[18%] h-[58%] w-[38%] animate-pulse overflow-hidden rounded-2xl bg-white/25 shadow-[0_12px_40px_rgba(0,0,0,0.18)] ring-1 ring-white/50 backdrop-blur-[1px] motion-reduce:animate-none"
             style={{
               transform: `translateX(calc(-50% + ${offset}px)) rotate(${rotate}deg)`,
@@ -63,54 +61,141 @@ function GarmentShadows({ items }: { items: TryOnDrawerItem[] }) {
 
 function StageStatusLine() {
   const status = useTryOnDrawerStore((s) => s.status);
-  const session = useTryOnDrawerStore((s) => s.session);
   const lookSteps = useTryOnDrawerStore((s) => s.lookSteps);
+  const activeIds = useTryOnDrawerStore((s) => s.activeIds);
+  const previewLookTitle = useTryOnDrawerStore((s) => s.previewLookTitle);
 
   if (status === "loading_avatar") return <>Loading your avatar…</>;
   if (status === "starting") {
-    return (
-      <>
-        {session?.kind === "look"
-          ? "Starting outfit try-on…"
-          : "Starting try-on…"}
-      </>
-    );
+    return previewLookTitle ?
+        <>Starting {previewLookTitle}…</>
+      : <>Starting outfit try-on…</>;
   }
   if (status === "processing") {
     const completed = lookSteps.filter((s) => s.status === "completed").length;
     const total = lookSteps.length;
-    const allProcessing =
-      total > 1 &&
-      lookSteps.every(
-        (s) => s.status === "processing" || s.status === "pending",
-      ) &&
-      lookSteps.some((s) => s.status === "processing");
-    if (session?.kind === "look" && total > 0) {
-      if (allProcessing && completed === 0) {
-        return <>Dressing full look…</>;
-      }
+    if (total > 0) {
       const active = lookSteps.find((s) => s.status === "processing");
       return (
         <>
-          {`Dressing ${Math.min(completed + 1, total)} of ${total}${
-            active?.title ? ` · ${active.title}` : ""
-          }`}
+          {previewLookTitle ?
+            `Dressing ${previewLookTitle}${active?.title ? ` · ${active.title}` : ""}`
+          : `Dressing ${Math.min(completed + 1, total)} of ${total}${
+              active?.title ? ` · ${active.title}` : ""
+            }`}
         </>
       );
     }
-    return <>Rendering on your avatar…</>;
+    return previewLookTitle ?
+        <>Rendering {previewLookTitle} on you…</>
+      : <>Rendering {activeIds.length} piece{activeIds.length === 1 ? "" : "s"} on you…</>;
   }
   if (status === "completed") return <>Here's how it looks on you</>;
   if (status === "failed") return <>Couldn't finish this try-on</>;
-  if (status === "idle" && session?.title === "Your avatar") {
-    return <>Your avatar</>;
-  }
+  if (status === "idle") return <>Your fitting room</>;
   return null;
+}
+
+function RackSlot({
+  item,
+  isActive,
+  activeItems,
+  onTry,
+  onReplace,
+  onRemoveFromRack,
+  onRemoveFromAvatar,
+  onOpenProduct,
+}: {
+  item: FittingRoomItem | null;
+  isActive: boolean;
+  activeItems: FittingRoomItem[];
+  onTry: () => void;
+  onReplace: () => void;
+  onRemoveFromRack: () => void;
+  onRemoveFromAvatar: () => void;
+  onOpenProduct: () => void;
+}) {
+  if (!item) {
+    return (
+      <div className="flex aspect-[3/4] items-center justify-center rounded-xl border border-dashed border-hairline-soft bg-surface-tint/60 text-[10px] text-ink-muted">
+        Empty
+      </div>
+    );
+  }
+
+  const slotConflict =
+    item && !isActive ? findActiveSlotConflict(activeItems, item) : null;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-hairline-soft bg-white p-2">
+      <button
+        type="button"
+        className="relative aspect-[3/4] overflow-hidden rounded-lg bg-surface-tint"
+        onClick={onOpenProduct}
+        disabled={!item.productId}
+      >
+        {item.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.imageUrl}
+            alt={item.title}
+            className="size-full object-cover"
+          />
+        ) : null}
+        {isActive ? (
+          <span className="absolute left-1 top-1 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+            On you
+          </span>
+        ) : null}
+      </button>
+      <p className="line-clamp-2 min-h-[2rem] text-[11px] font-medium leading-snug text-ink">
+        {item.title}
+      </p>
+      <div className="flex flex-col gap-1">
+        {slotConflict ? (
+          <button
+            type="button"
+            className="rounded-full border border-brand bg-brand px-2 py-1 text-[10px] font-semibold text-white"
+            onClick={onReplace}
+          >
+            {replaceSameTypeLabel(slotConflict)}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="rounded-full border border-ink bg-ink px-2 py-1 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!item.tryonSupported || isActive}
+            onClick={onTry}
+          >
+            Try this on
+          </button>
+        )}
+        {isActive ? (
+          <button
+            type="button"
+            className="rounded-full border border-hairline-soft px-2 py-1 text-[10px] font-medium text-ink-secondary"
+            onClick={onRemoveFromAvatar}
+          >
+            Remove from avatar
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="rounded-full border border-hairline-soft px-2 py-1 text-[10px] font-medium text-ink-muted"
+          onClick={onRemoveFromRack}
+        >
+          Remove from rack
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function TryOnDrawer() {
   const open = useTryOnDrawerStore((s) => s.open);
-  const session = useTryOnDrawerStore((s) => s.session);
+  const rackIds = useTryOnDrawerStore((s) => s.rackIds);
+  const activeIds = useTryOnDrawerStore((s) => s.activeIds);
+  const itemsById = useTryOnDrawerStore((s) => s.itemsById);
   const avatarUrl = useTryOnDrawerStore((s) => s.avatarUrl);
   const status = useTryOnDrawerStore((s) => s.status);
   const resultUrl = useTryOnDrawerStore((s) => s.resultUrl);
@@ -118,15 +203,27 @@ export function TryOnDrawer() {
   const compare = useTryOnDrawerStore((s) => s.compare);
   const variants = useTryOnDrawerStore((s) => s.variants);
   const partialNote = useTryOnDrawerStore((s) => s.partialNote);
+  const previewLookTitle = useTryOnDrawerStore((s) => s.previewLookTitle);
   const close = useTryOnDrawerStore((s) => s.close);
+  const tryOnItem = useTryOnDrawerStore((s) => s.tryOnItem);
+  const removeFromRack = useTryOnDrawerStore((s) => s.removeFromRack);
+  const removeFromAvatar = useTryOnDrawerStore((s) => s.removeFromAvatar);
   const sendFeedback = useTryOnDrawerStore((s) => s.sendFeedback);
   const panelRef = useRef<HTMLElement>(null);
   const conversationId = useChatStore((s) => s.activeConversationId);
   const expandProduct = useInlineProductStore((s) => s.expand);
 
-  const openItemProduct = (item: TryOnDrawerItem) => {
+  const activeItems = activeIds
+    .map((id) => itemsById[id])
+    .filter(Boolean) as FittingRoomItem[];
+  const rackItems = rackIds.map((id) => itemsById[id] ?? null);
+  const rackSlots = Array.from({ length: MAX_FITTING_ROOM_ITEMS }, (_, index) =>
+    rackItems[index] ?? null,
+  );
+
+  const openItemProduct = (item: FittingRoomItem) => {
     const productId = item.productId;
-    const messageId = session?.searchId;
+    const messageId = item.messageSearchId;
     if (!productId || !messageId) return;
     close();
     if (conversationId) {
@@ -190,7 +287,7 @@ export function TryOnDrawer() {
     <aside
       ref={panelRef}
       role="dialog"
-      aria-label="Virtual try-on"
+      aria-label="Fitting room"
       aria-hidden={!open}
       style={{ width: open ? PANEL_WIDTH : "0px" }}
       className={cn(
@@ -208,20 +305,20 @@ export function TryOnDrawer() {
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-brand" aria-hidden />
               <h2 className="font-serif text-xl font-semibold tracking-tight text-ink">
-                Try on
+                Fitting room
               </h2>
             </div>
-            {session ? (
-              <p className="mt-0.5 truncate text-xs text-ink-muted">
-                {session.title}
-              </p>
-            ) : null}
+            <p className="mt-0.5 text-xs text-ink-muted">
+              {previewLookTitle ?
+                `Previewing ${previewLookTitle}`
+              : `${rackIds.length}/${MAX_FITTING_ROOM_ITEMS} saved · ${activeIds.length} on you`}
+            </p>
           </div>
           <button
             type="button"
             onClick={close}
             className="inline-flex size-9 items-center justify-center rounded-xl text-ink-soft transition hover:bg-surface-tint hover:text-ink"
-            aria-label="Close try-on"
+            aria-label="Close fitting room"
           >
             <X className="size-5" strokeWidth={1.75} />
           </button>
@@ -256,7 +353,7 @@ export function TryOnDrawer() {
             {busy && avatarUrl ? (
               <>
                 <div className="absolute inset-0 bg-ink/15 backdrop-brightness-95" />
-                <GarmentShadows items={session?.items ?? []} />
+                <GarmentShadows items={activeItems.length ? activeItems : rackItems.filter(Boolean) as FittingRoomItem[]} />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/55 via-ink/20 to-transparent px-4 pb-4 pt-16">
                   <div className="flex items-center gap-2 text-white">
                     <Loader2
@@ -268,21 +365,15 @@ export function TryOnDrawer() {
                 </div>
               </>
             ) : null}
-
-            {busy && !avatarUrl ? (
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/40 to-transparent px-4 pb-4 pt-10">
-                <p className="text-sm font-medium text-white">{statusLine}</p>
-              </div>
-            ) : null}
           </div>
 
           <p className="mt-2 text-[10px] text-ink-muted">{TRYON_DISCLAIMER}</p>
 
-          {status === "idle" && avatarUrl && !resultUrl ? (
+          {status === "idle" && avatarUrl && !resultUrl && !activeIds.length ? (
             <p className="mt-3 text-sm text-ink-secondary">
-              Your avatar is ready — tap{" "}
-              <span className="font-medium text-ink">See it on you</span> on a
-              pick to dress it.
+              Add pieces to your rack, then tap{" "}
+              <span className="font-medium text-ink">Try this on</span> to layer
+              them on your avatar.
             </p>
           ) : null}
 
@@ -321,14 +412,18 @@ export function TryOnDrawer() {
             <div className="mt-4">
               <TryOnComparePanel
                 variants={variants}
-                items={(session?.items ?? []).map((i) => ({
-                  ref: i.ref,
-                  title: i.title,
-                  price: i.price,
+                items={activeItems.map((item) => ({
+                  ref: item.id,
+                  title: item.title,
+                  price: item.price,
                 }))}
-                badgesByRef={session?.badgesByRef}
+                badgesByRef={Object.fromEntries(
+                  activeItems
+                    .filter((item) => item.badges?.length)
+                    .map((item) => [item.id, item.badges!]),
+                )}
                 onOpenProduct={(ref) => {
-                  const item = session?.items.find((i) => i.ref === ref);
+                  const item = itemsById[ref];
                   if (item) openItemProduct(item);
                 }}
                 onFeedback={(generationId, rating) =>
@@ -338,41 +433,64 @@ export function TryOnDrawer() {
             </div>
           ) : null}
 
-          {session?.items.length ? (
-            <ul className="mt-5 space-y-2 border-t border-hairline-soft pt-4">
-              {session.items.map((item) => (
-                <li key={item.ref}>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-xl border border-hairline-soft p-2 text-left transition hover:bg-surface-tint"
-                    onClick={() => openItemProduct(item)}
-                    disabled={!item.productId}
-                  >
-                    <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-surface-tint">
-                      {item.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={item.imageUrl}
-                          alt=""
-                          className="size-full object-cover"
-                        />
-                      ) : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-medium text-ink">
+          {activeItems.length ? (
+            <section className="mt-5 border-t border-hairline-soft pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+                On your avatar
+              </h3>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {activeItems.map((item) => (
+                  <li key={item.id}>
+                    <div className="flex items-center gap-2 rounded-full border border-brand/20 bg-brand/5 py-1 pl-1 pr-2">
+                      <div className="size-8 overflow-hidden rounded-full bg-surface-tint">
+                        {item.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={item.imageUrl}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <span className="max-w-[8rem] truncate text-[11px] font-medium text-ink">
                         {item.title}
-                      </p>
-                      {item.price ? (
-                        <p className="text-xs text-ink-muted">
-                          {formatPrice(item.price)}
-                        </p>
-                      ) : null}
+                      </span>
+                      <button
+                        type="button"
+                        className="text-[10px] font-medium text-ink-muted underline-offset-2 hover:underline"
+                        onClick={() => removeFromAvatar(item.id)}
+                      >
+                        Remove
+                      </button>
                     </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : null}
+
+          <section className="mt-5 border-t border-hairline-soft pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+              Candidate rack
+            </h3>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {rackSlots.map((item, index) => (
+                <RackSlot
+                  key={item?.id ?? `empty-${index}`}
+                  item={item}
+                  isActive={item ? activeIds.includes(item.id) : false}
+                  activeItems={activeItems}
+                  onTry={() => item && tryOnItem(item.id)}
+                  onReplace={() =>
+                    item && tryOnItem(item.id, { replaceSameType: true })
+                  }
+                  onRemoveFromRack={() => item && removeFromRack(item.id)}
+                  onRemoveFromAvatar={() => item && removeFromAvatar(item.id)}
+                  onOpenProduct={() => item && openItemProduct(item)}
+                />
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </aside>

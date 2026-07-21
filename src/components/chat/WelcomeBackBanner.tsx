@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, Info } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { conversationPath } from "@/lib/shared/chatRoutes";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { getClientIdentityScopeKey } from "@/lib/client/identity-sync";
@@ -49,7 +49,6 @@ export function WelcomeBackBanner() {
 
   useEffect(() => {
     if (accessMode === "anonymous" || accessMode === "loading") {
-      setHint(null);
       return;
     }
 
@@ -63,22 +62,19 @@ export function WelcomeBackBanner() {
     };
   }, [accessMode, authUserId, scopeKey]);
 
-  if (!hint) return null;
+  const visibleHint =
+    accessMode === "anonymous" || accessMode === "loading" ? null : hint;
+  if (!visibleHint) return null;
 
   return (
     <div className="mt-6 w-full md:mt-8">
       <Link
-        href={conversationPath(hint.conversationId)}
+        href={conversationPath(visibleHint.conversationId)}
         className="group flex w-full items-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3.5 text-left shadow-soft transition duration-150 ease-ios hover:border-ink/15 hover:shadow-card active:scale-[0.995]"
       >
-        <Info
-          className="size-[18px] shrink-0 text-ink-muted"
-          strokeWidth={1.75}
-          aria-hidden
-        />
         <p className="min-w-0 flex-1 text-sm leading-snug text-ink">
-          Welcome back. Last time you were looking at{" "}
-          <span className="font-semibold text-ink">{hint.label}</span>.
+          Welcome back… still hunting{" "}
+          <span className="font-semibold text-ink">{visibleHint.label}</span>?
         </p>
         <ArrowRight
           className="size-4 shrink-0 text-ink-muted transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-ink"

@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { prisma } from "@/lib/ai-chat/db";
-import { refreshTypedProfileIntoShoppingView } from "@/lib/onboarding/sync-profile-summary";
-import { seedOnboardingIntoFashionMemory } from "@/lib/onboarding/seed-fashion-memory";
+import {
+  enqueueOnboardingExtraNotes,
+  enqueueOnboardingProjection,
+} from "@/lib/onboarding/background-jobs";
 import { ownedProduct } from "@/lib/ai-chat/owned-product-db";
 import {
   brandPreferencePostSchema,
@@ -125,69 +127,66 @@ export async function getOnboardingStatus(userId: string) {
   };
 }
 
-export async function markOnboardingStarted(userId: string) {
-  await prisma.userProfile.upsert({
-    where: { userId },
-    create: {
-      userId,
-      onboardingStarted: true,
-      confidence: 0,
-      evidenceCount: 0,
-    },
-    update: { onboardingStarted: true },
-  });
-}
-
 export async function applyOnboardingPatch(
   input: z.infer<typeof onboardingPatchSchema>,
   userId: string,
+  options?: { extraNotes?: string; requestKey?: string; complete?: boolean },
 ) {
-  await markOnboardingStarted(userId);
+  const profileData = input.profile ? cleanObject(input.profile) : {};
+  if (typeof profileData.currency === "string") {
+    profileData.currency = profileData.currency.toUpperCase().slice(0, 6);
+  }
+  if (typeof profileData.birthDate === "string") {
+    const d = new Date(profileData.birthDate);
+    profileData.birthDate = Number.isNaN(d.getTime()) ? null : d;
+  }
 
-  if (input.profile) {
-    const data = cleanObject(input.profile);
-    if (typeof data.currency === "string") {
-      data.currency = data.currency.toUpperCase().slice(0, 6);
-    }
-    if (typeof data.birthDate === "string") {
-      const d = new Date(data.birthDate);
-      data.birthDate = Number.isNaN(d.getTime()) ? null : d;
-    }
+  const sizingData = input.sizing ? cleanObject(input.sizing) : null;
+  if (sizingData && input.sizing?.brandSizingNotes !== undefined) {
+    sizingData.brandSizingNotes = (input.sizing.brandSizingNotes ?? []) as InputJsonValue;
+  }
 
-    await prisma.userProfile.upsert({
+  await prisma.$transaction(async (tx) => {
+    const profile = await tx.userProfile.upsert({
       where: { userId },
       create: {
         userId,
-        ...data,
+        ...profileData,
         onboardingStarted: true,
-        confidence: 1,
-        evidenceCount: 1,
+        onboardingCompleted: options?.complete ?? false,
+        onboardingProjectionVersion: 1,
+        confidence: input.profile ? 1 : 0,
+        evidenceCount: input.profile ? 1 : 0,
       },
       update: {
-        ...data,
+        ...profileData,
         onboardingStarted: true,
-        confidence: 1,
-        evidenceCount: { increment: 1 },
+        ...(options?.complete ? { onboardingCompleted: true } : {}),
+        onboardingProjectionVersion: { increment: 1 },
+        ...(input.profile ? { confidence: 1 } : {}),
       },
     });
-  }
-
-  if (input.sizing) {
-    const data = cleanObject(input.sizing);
-    if (input.sizing.brandSizingNotes !== undefined) {
-      data.brandSizingNotes = (input.sizing.brandSizingNotes ?? []) as InputJsonValue;
+    if (
+      options?.complete &&
+      missingRequiredOnboardingFields(profile).length > 0
+    ) {
+      throw new Error("missing_required_onboarding_fields");
     }
 
-    await prisma.sizingProfile.upsert({
-      where: { userId },
-      create: { userId, ...data, confidence: 1, evidenceCount: 1 },
-      update: { ...data, confidence: 1, evidenceCount: { increment: 1 } },
-    });
-  }
+    const writes: Promise<unknown>[] = [];
+    if (sizingData) {
+      writes.push(
+        tx.sizingProfile.upsert({
+          where: { userId },
+          create: { userId, ...sizingData, confidence: 1, evidenceCount: 1 },
+          update: { ...sizingData, confidence: 1 },
+        }),
+      );
+    }
 
-  for (const b of input.brands ?? []) {
-    const category = b.category?.trim() ?? "";
-    await prisma.brandPreference.upsert({
+    for (const b of input.brands ?? []) {
+      const category = b.category?.trim() ?? "";
+      writes.push(tx.brandPreference.upsert({
       where: {
         userId_brand_category: { userId, brand: b.brand.trim(), category },
       },
@@ -210,14 +209,13 @@ export async function applyOnboardingPatch(
         ownsProducts: b.ownsProducts ?? undefined,
         aspirational: b.aspirational ?? undefined,
         confidence: 1,
-        evidenceCount: { increment: 1 },
       },
-    });
-  }
+      }));
+    }
 
-  for (const h of input.hardNegatives ?? []) {
-    const category = h.category?.trim() ?? "";
-    await prisma.hardNegative.upsert({
+    for (const h of input.hardNegatives ?? []) {
+      const category = h.category?.trim() ?? "";
+      writes.push(tx.hardNegative.upsert({
       where: {
         userId_scope_value_category: {
           userId,
@@ -238,15 +236,15 @@ export async function applyOnboardingPatch(
         reason: h.reason ?? undefined,
         note: h.note ?? undefined,
       },
-    });
-  }
+      }));
+    }
 
-  for (const p of input.ownedProducts ?? []) {
-    const category = p.category.trim();
-    const subcategory = p.subcategory?.trim() ?? "";
-    const brand = p.brand?.trim() ?? "";
-    const productName = p.productName.trim();
-    await ownedProduct.upsert({
+    for (const p of input.ownedProducts ?? []) {
+      const category = p.category.trim();
+      const subcategory = p.subcategory?.trim() ?? "";
+      const brand = p.brand?.trim() ?? "";
+      const productName = p.productName.trim();
+      writes.push(tx.ownedProduct.upsert({
       where: {
         userId_category_subcategory_brand_productName: {
           userId,
@@ -279,16 +277,15 @@ export async function applyOnboardingPatch(
         isCurrent: p.isCurrent ?? undefined,
         notes: p.notes ?? undefined,
         confidence: 1,
-        evidenceCount: { increment: 1 },
       },
-    });
-  }
+      }));
+    }
 
-  for (const t of input.tasteTags ?? []) {
-    const tag = t.tag.trim();
-    const category = t.category?.trim() ?? "";
-    const scope = category ? "category" : "global";
-    await prisma.tasteTag.upsert({
+    for (const t of input.tasteTags ?? []) {
+      const tag = t.tag.trim();
+      const category = t.category?.trim() ?? "";
+      const scope = category ? "category" : "global";
+      writes.push(tx.tasteTag.upsert({
       where: {
         userId_scope_category_tag_polarity: {
           userId,
@@ -309,44 +306,53 @@ export async function applyOnboardingPatch(
       },
       update: {
         score: 0.9,
-        evidenceCount: { increment: 1 },
       },
-    });
-  }
+      }));
+    }
 
-  await refreshTypedProfileIntoShoppingView(userId).catch(() => {});
-
-  // Keep fashion-memory warm as profile patches land (taste swipes, sizing, etc.).
-  await seedOnboardingIntoFashionMemory(userId).catch(() => {});
+    await Promise.all(writes);
+    await enqueueOnboardingProjection(
+      tx,
+      userId,
+      profile.onboardingProjectionVersion,
+    );
+    const extraNotes = options?.extraNotes?.trim();
+    if (extraNotes) {
+      await enqueueOnboardingExtraNotes(tx, {
+        userId,
+        requestKey: options?.requestKey ?? crypto.randomUUID(),
+        text: extraNotes,
+      });
+    }
+  });
 
   return getOnboardingStatus(userId);
 }
 
 export async function completeOnboarding(userId: string) {
-  const status = await getOnboardingStatus(userId);
-  if (status.onboarding.missingRequiredFields.length > 0) {
-    return { ok: false as const, status };
-  }
+  const completed = await prisma.$transaction(async (tx) => {
+    const current = await tx.userProfile.findUnique({ where: { userId } });
+    if (missingRequiredOnboardingFields(current).length > 0) return false;
+    if (current?.onboardingCompleted) return true;
 
-  await prisma.userProfile.upsert({
-    where: { userId },
-    create: {
+    const profile = await tx.userProfile.update({
+      where: { userId },
+      data: {
+        onboardingStarted: true,
+        onboardingCompleted: true,
+        onboardingProjectionVersion: { increment: 1 },
+      },
+    });
+    await enqueueOnboardingProjection(
+      tx,
       userId,
-      onboardingStarted: true,
-      onboardingCompleted: true,
-      confidence: 1,
-      evidenceCount: 1,
-    },
-    update: {
-      onboardingStarted: true,
-      onboardingCompleted: true,
-    },
+      profile.onboardingProjectionVersion,
+    );
+    return true;
   });
 
-  await refreshTypedProfileIntoShoppingView(userId).catch(() => {});
-
-  // Project into fashion-memory so search / hard-drops / curation see prefs.
-  await seedOnboardingIntoFashionMemory(userId).catch(() => {});
-
-  return { ok: true as const, status: await getOnboardingStatus(userId) };
+  const status = await getOnboardingStatus(userId);
+  return completed
+    ? { ok: true as const, status }
+    : { ok: false as const, status };
 }

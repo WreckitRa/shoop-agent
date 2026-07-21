@@ -38,14 +38,14 @@ export function HomeRecentConversations() {
 
   return (
     <section className="w-full">
-      <div className="mb-2.5 flex items-center justify-between gap-3 px-0.5">
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
+      <div className="mb-1.5 flex items-center justify-between gap-3 px-0.5 sm:mb-2.5">
+        <h2 className="text-[13px] font-semibold tracking-[-0.01em] text-ink sm:text-[15px]">
           Recent conversations
         </h2>
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="inline-flex items-center gap-0.5 text-[13px] font-medium text-ink-muted transition hover:text-ink"
+          className="inline-flex items-center gap-0.5 text-[11px] font-medium text-ink-muted transition hover:text-ink sm:text-[13px]"
         >
           View all
           <ChevronRight className="size-3.5" strokeWidth={1.75} aria-hidden />
@@ -55,29 +55,29 @@ export function HomeRecentConversations() {
       {loadingList && recent.length === 0 ? (
         <p className="px-0.5 py-4 text-sm text-ink-muted">Loading…</p>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className="grid grid-cols-3 gap-1.5 sm:gap-2">
           {recent.map((c) => (
             <li key={c.id}>
               <Link
                 href={conversationPath(c.id)}
-                className="flex items-center gap-3 rounded-2xl px-1.5 py-2.5 transition active:bg-surface-tint"
+                className="flex min-h-[64px] min-w-0 flex-col justify-center rounded-xl bg-white/60 px-2 py-1.5 text-center ring-1 ring-hairline/70 transition active:bg-surface-tint sm:min-h-[72px] sm:rounded-2xl sm:px-3 sm:py-2"
               >
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-surface-tint text-ink-muted ring-1 ring-hairline/80">
+                <span className="mx-auto mb-1 flex size-6 shrink-0 items-center justify-center rounded-lg bg-surface-tint text-ink-muted sm:size-7">
                   <MessageSquare
-                    className="size-4"
+                    className="size-3 sm:size-3.5"
                     strokeWidth={1.5}
                     aria-hidden
                   />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14px] font-semibold leading-snug tracking-[-0.01em] text-ink">
+                  <span className="block truncate text-[10px] font-semibold leading-tight tracking-[-0.01em] text-ink sm:text-[12px]">
                     {c.title}
                   </span>
-                  <span className="mt-0.5 block truncate text-[12px] leading-snug text-ink-muted">
+                  <span className="hidden">
                     Continue where you left off
                   </span>
                 </span>
-                <span className="shrink-0 text-[11px] tabular-nums text-ink-muted">
+                <span className="mt-0.5 shrink-0 text-[9px] tabular-nums text-ink-muted sm:text-[10px]">
                   {formatRelativeTime(c.updatedAt)}
                 </span>
               </Link>

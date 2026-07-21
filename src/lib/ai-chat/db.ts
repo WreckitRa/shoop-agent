@@ -208,6 +208,8 @@ function hasShoppingDelegates(c: PrismaClient): boolean {
     "hardNegative",
     "ownedProduct",
     "shoppingMemoryJob",
+    "onboardingProjectionJob",
+    "onboardingExtraNotesJob",
     "conversationContextSummary",
     "cartSession",
     "savedAddress",

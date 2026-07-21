@@ -8,8 +8,9 @@ import { getAuthContext } from "@/lib/auth/session";
 import {
   applyOnboardingPatch,
   getOnboardingStatus,
-  markOnboardingStarted,
 } from "@/lib/onboarding/status";
+import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
+import { after } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +43,8 @@ const swipeSchema = z
 
 const postSchema = z
   .object({
-    responses: z.array(swipeSchema).min(1).max(40),
+    responses: z.array(swipeSchema).max(40),
+    complete: z.boolean().optional(),
   })
   .strict();
 
@@ -95,13 +97,17 @@ export async function GET(req: Request) {
       topSize: url.searchParams.get("topSize") ?? undefined,
     });
 
-    const status = await getOnboardingStatus(userId);
-    const ctx = contextFromStatus(
-      parsedQuery.success ? parsedQuery.data : undefined,
-      status,
-    );
+    const suppliedContext =
+      parsedQuery.success &&
+      parsedQuery.data &&
+      Object.values(parsedQuery.data).some((value) => Boolean(value?.trim()))
+        ? parsedQuery.data
+        : undefined;
+    const ctx = suppliedContext
+      ? suppliedContext
+      : contextFromStatus(undefined, await getOnboardingStatus(userId));
 
-    const deck = await buildCatalogTasteDeck(ctx);
+    const deck = await buildCatalogTasteDeck(ctx, { signal: req.signal });
 
     return Response.json({
       source: "shopify_catalog",
@@ -134,18 +140,27 @@ export async function POST(req: Request) {
     const auth = await getAuthContext();
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
-    await markOnboardingStarted(userId);
 
     const patch = buildPatchFromTasteSwipes(parsed.data.responses);
-    if (Object.keys(patch).length > 0) {
-      await applyOnboardingPatch(patch, userId);
-    }
+    const status = await applyOnboardingPatch(patch, userId, {
+      complete: parsed.data.complete,
+    });
+    after(kickOnboardingJobWorker);
 
     return Response.json({
       saved: parsed.data.responses.filter((r) => r.swipe !== "neutral").length,
-      ...(await getOnboardingStatus(userId)),
+      ...status,
     });
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "missing_required_onboarding_fields"
+    ) {
+      return Response.json(
+        { error: "Required onboarding fields are missing." },
+        { status: 400 },
+      );
+    }
     return Response.json({ error: "Could not save taste swipes." }, { status: 500 });
   }
 }

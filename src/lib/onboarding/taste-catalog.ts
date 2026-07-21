@@ -326,34 +326,62 @@ function catalogContext(ctx: TasteDeckContext): CatalogSearchContext | undefined
   return Object.keys(ctxOut).length ? ctxOut : undefined;
 }
 
-async function pickProductForSlot(
+async function searchProductsForSlot(
   accessToken: string,
   slot: SearchSlot,
   filters: CatalogSearchFilters,
   context: CatalogSearchContext | undefined,
-  seen: Set<string>,
-): Promise<CatalogProductSummary | null> {
+  signal: AbortSignal,
+): Promise<CatalogProductSummary[]> {
   const run = async (query: string) => {
     const result = await searchCatalog(accessToken, query, filters, {
       context: { ...context, intent: slot.intent },
+      limit: 10,
+      signal,
     });
-    return (result.products ?? []).find((p) => {
-      if (seen.has(p.id)) return false;
-      return Boolean(extractCatalogImageUrl(p));
-    });
+    return (result.products ?? []).filter((p) =>
+      Boolean(extractCatalogImageUrl(p)),
+    );
   };
 
-  let product = await run(slot.query);
-  if (!product) {
+  let products = await run(slot.query);
+  if (products.length === 0 && !signal.aborted) {
     const short = slot.query.split(" ").slice(0, 8).join(" ");
-    if (short !== slot.query) product = await run(short);
+    if (short !== slot.query) products = await run(short);
   }
-  return product ?? null;
+  return products;
+}
+
+export async function mapWithConcurrency<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<Array<R | null>> {
+  const results: Array<R | null> = Array(values.length).fill(null);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < values.length) {
+      const index = cursor++;
+      try {
+        results[index] = await mapper(values[index]!);
+      } catch {
+        results[index] = null;
+      }
+    }
+  }
+  await Promise.all(
+    Array.from(
+      { length: Math.min(concurrency, values.length) },
+      () => worker(),
+    ),
+  );
+  return results;
 }
 
 /** Build swipe deck from live Shopify catalog searches personalized to onboarding answers. */
 export async function buildCatalogTasteDeck(
   ctx: TasteDeckContext,
+  options: { signal?: AbortSignal; deadlineMs?: number } = {},
 ): Promise<TasteCatalogCard[]> {
   const accessToken = await accessTokenForCatalogMcp();
   const filters = catalogFilters(ctx);
@@ -361,21 +389,43 @@ export async function buildCatalogTasteDeck(
   const plans = buildSearchSlots(ctx);
   const seen = new Set<string>();
   const deck: TasteCatalogCard[] = [];
+  const controller = new AbortController();
+  const onAbort = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) onAbort();
+  else options.signal?.addEventListener("abort", onAbort, { once: true });
+  const timeout = setTimeout(
+    () => controller.abort(new Error("taste_deck_deadline")),
+    options.deadlineMs ?? 8_000,
+  );
 
-  for (const plan of plans) {
-    for (const slot of plan.slots) {
-      const product = await pickProductForSlot(
-        accessToken,
-        slot,
-        filters,
-        context,
-        seen,
+  try {
+    for (const slotIndex of [0, 1]) {
+      if (controller.signal.aborted) break;
+      const wave = plans.map((plan) => ({
+        category: plan.category,
+        slot: plan.slots[slotIndex]!,
+      }));
+      const results = await mapWithConcurrency(wave, 3, ({ slot }) =>
+        searchProductsForSlot(
+          accessToken,
+          slot,
+          filters,
+          context,
+          controller.signal,
+        ),
       );
-      if (!product) continue;
-      seen.add(product.id);
-      const card = toCard(product, plan.category, slot);
-      if (card) deck.push(card);
+      for (let index = 0; index < wave.length; index++) {
+        const entry = wave[index]!;
+        const product = results[index]?.find((candidate) => !seen.has(candidate.id));
+        if (!product) continue;
+        seen.add(product.id);
+        const card = toCard(product, entry.category, entry.slot);
+        if (card) deck.push(card);
+      }
     }
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", onAbort);
   }
 
   return deck;

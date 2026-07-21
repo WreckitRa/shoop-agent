@@ -1,7 +1,10 @@
 import { loadSearchState } from "@/lib/fashion-memory/curation/search-context";
 import { getStoredAvatar } from "./avatar/service";
 import { aggregateCompareStatus } from "./compare-variants";
-import { isTryonOutfitsEnabledForUser } from "./feature-flags";
+import {
+  isTryonEnabledForUser,
+  isTryonOutfitsEnabledForUser,
+} from "./feature-flags";
 import { sortRefsForOutfitChain } from "./garment-type";
 import {
   createGeneration,
@@ -97,7 +100,12 @@ type OutfitChainContext = {
   }>;
   items: OutfitItem[];
   cacheKey: string;
-  state: NonNullable<Awaited<ReturnType<typeof loadSearchState>>>;
+  state?: NonNullable<Awaited<ReturnType<typeof loadSearchState>>>;
+};
+
+export type ResolvedOutfitItem = OutfitItem & {
+  productId?: string;
+  searchId?: string;
 };
 
 function outfitPlaceholderVariant(
@@ -318,6 +326,7 @@ export async function startOutfitTryon(params: {
   const cached = await findCachedOutfitTryon({
     avatarVersion: avatar.version,
     cacheKey,
+    userId: params.userId,
   });
   if (cached?.outputUrl) {
     logTryonDress("info", "outfit_cache_hit", {
@@ -561,20 +570,26 @@ async function processOutfitCollage(
 
     // Product context from the first piece — collage prompt carries the full look.
     const first = dressable[0]!;
-    const resolved = resolvePickFromSearch(params.state, first.step.ref);
-    const detail = resolved
-      ? await resolveTryonProductDetail(resolved.candidate)
-      : undefined;
-    const product = resolved
-      ? tryonProductContextFromCandidate({
-          candidate: resolved.candidate,
-          garmentType: first.step.type,
-          garmentImageUrl: collage.dataUrl,
-          detail,
-          pick: resolved.pick,
-          occasionContext: params.state.occasionContext,
-        })
-      : undefined;
+    let product: Awaited<
+      ReturnType<typeof tryonProductContextFromCandidate>
+    > | undefined;
+    if (params.state) {
+      const resolved = resolvePickFromSearch(params.state, first.step.ref);
+      const detail = resolved
+        ? await resolveTryonProductDetail(resolved.candidate)
+        : undefined;
+      product =
+        resolved ?
+          tryonProductContextFromCandidate({
+            candidate: resolved.candidate,
+            garmentType: first.step.type,
+            garmentImageUrl: collage.dataUrl,
+            detail,
+            pick: resolved.pick,
+            occasionContext: params.state.occasionContext,
+          })
+        : undefined;
+    }
 
     logTryonDress("info", "outfit_collage_processing", {
       job_id: stepGen.id,
@@ -729,17 +744,23 @@ async function processOutfitSequentialChain(
 
     const started = Date.now();
     try {
-      const resolved = resolvePickFromSearch(params.state, step.ref);
-      if (!resolved) throw new Error("Pick not found for outfit step");
-      const detail = await resolveTryonProductDetail(resolved.candidate);
-      const product = tryonProductContextFromCandidate({
-        candidate: resolved.candidate,
-        garmentType: step.type,
-        garmentImageUrl,
-        detail,
-        pick: resolved.pick,
-        occasionContext: params.state.occasionContext,
-      });
+      let product: Awaited<
+        ReturnType<typeof tryonProductContextFromCandidate>
+      > | undefined;
+      if (params.state) {
+        const resolved = resolvePickFromSearch(params.state, step.ref);
+        if (resolved) {
+          const detail = await resolveTryonProductDetail(resolved.candidate);
+          product = tryonProductContextFromCandidate({
+            candidate: resolved.candidate,
+            garmentType: step.type,
+            garmentImageUrl,
+            detail,
+            pick: resolved.pick,
+            occasionContext: params.state.occasionContext,
+          });
+        }
+      }
       const priorGarmentTitles = params.chain
         .slice(0, i)
         .map((s) => params.items.find((it) => it.ref === s.ref)?.title)
@@ -864,6 +885,144 @@ async function processOutfitSequentialChain(
       ms: totalMs,
     });
   }
+}
+
+export async function startResolvedOutfitTryon(params: {
+  userId: string;
+  personId: string;
+  lookId: string;
+  searchId: string;
+  items: ResolvedOutfitItem[];
+  state?: NonNullable<Awaited<ReturnType<typeof loadSearchState>>>;
+}): Promise<{
+  jobId: string;
+  compare?: boolean;
+  variants?: TryonCompareVariant[];
+  disclaimer: typeof TRYON_DISCLAIMER;
+}> {
+  if (!(await isTryonEnabledForUser(params.userId))) {
+    throw new Error("Try-on not enabled");
+  }
+
+  const avatar = await getStoredAvatar(params.userId, params.personId);
+  if (!avatar) throw new Error("Avatar required");
+
+  const outfitItems: OutfitItem[] = params.items
+    .filter((item) => item.imageUrl)
+    .map((item) => ({
+      ref: item.ref,
+      garment: item.garment,
+      imageUrl: item.imageUrl,
+      title: item.title,
+      displayPrice: item.displayPrice,
+    }));
+
+  const chain = sortRefsForOutfitChain(outfitItems);
+  if (!chain.length) throw new Error("No supported garments to try on");
+
+  const cacheKey = chain.map((c) => c.ref).join("|");
+  const providerKeys = resolveDressProviderKeys();
+  if (!providerKeys.length) throw new Error("No try-on provider configured");
+
+  const chainCtx: OutfitChainContext = {
+    userId: params.userId,
+    personId: params.personId,
+    avatarUrl: avatar.url,
+    avatarContentType: avatar.content_type,
+    avatarVersion: avatar.version,
+    searchId: params.searchId,
+    lookId: params.lookId,
+    chain,
+    items: outfitItems,
+    cacheKey,
+    state: params.state,
+  };
+
+  if (isDressCompareMode()) {
+    const cached = await findCachedOutfitCompareTryon({
+      avatarVersion: avatar.version,
+      cacheKey,
+      userId: params.userId,
+    });
+    if (cached) {
+      const variants = variantsFromOutfitChildren(cached.children);
+      return {
+        jobId: cached.parent.id,
+        compare: true,
+        variants,
+        disclaimer: TRYON_DISCLAIMER,
+      };
+    }
+
+    const parent = await createGeneration({
+      personId: params.personId,
+      userId: params.userId,
+      kind: "outfit",
+      provider: "compare",
+      inputRefs: {
+        refs: chain.map((c) => c.ref),
+        look_id: params.lookId,
+        provider_keys: providerKeys,
+      },
+      searchId: params.searchId,
+      productRef: cacheKey,
+      avatarVersion: avatar.version,
+      lookId: params.lookId,
+      skipCapCheck: true,
+    });
+
+    void processCompareOutfitJob({
+      compareParentId: parent.id,
+      providerKeys,
+      ...chainCtx,
+    });
+
+    return {
+      jobId: parent.id,
+      compare: true,
+      variants: providerKeys.map((key) => outfitPlaceholderVariant(key)),
+      disclaimer: TRYON_DISCLAIMER,
+    };
+  }
+
+  const cached = await findCachedOutfitTryon({
+    avatarVersion: avatar.version,
+    cacheKey,
+    userId: params.userId,
+  });
+  if (cached?.outputUrl) {
+    return { jobId: cached.id, disclaimer: TRYON_DISCLAIMER };
+  }
+
+  const providerKey = providerKeys[0]!;
+  const provider = getDressProvider(providerKey);
+  const parent = await createGeneration({
+    personId: params.personId,
+    userId: params.userId,
+    kind: "outfit",
+    provider: provider.name,
+    inputRefs: {
+      refs: chain.map((c) => c.ref),
+      look_id: params.lookId,
+      provider_key: providerKey,
+    },
+    searchId: params.searchId,
+    productRef: cacheKey,
+    avatarVersion: avatar.version,
+    lookId: params.lookId,
+  });
+
+  outfitProgress.set(parent.id, {
+    steps: buildOutfitProgressSteps(chain, outfitItems),
+  });
+
+  void processOutfitChain({
+    parentJobId: parent.id,
+    providerKey,
+    ...chainCtx,
+  });
+
+  return { jobId: parent.id, disclaimer: TRYON_DISCLAIMER };
 }
 
 export async function pollOutfitTryon(params: {

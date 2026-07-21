@@ -16,6 +16,8 @@ import {
 import { cartItemCount, useCartStore } from "@/components/cart/cart-store";
 import { friendlyStoreName } from "@/lib/commerce/friendly-store-name";
 import type { ActiveCartGroup, ActiveCartLine } from "@/lib/cart/types";
+import { FittingRoomAction } from "@/components/tryon/FittingRoomAction";
+import { fittingRoomItemFromCartLine } from "@/components/tryon/fitting-room-item-builders";
 
 function formatPrice(amount: number, currency: string): string {
   const value = amount / 100;
@@ -289,6 +291,7 @@ function MerchantCartCard({
       <ul className="divide-y divide-hairline-soft">
         {group.lineItems.map((line) => {
           const price = linePrice(line, group.currency);
+          const fittingRoomItem = fittingRoomItemFromCartLine(line);
           return (
             <li key={line.variantId} className="p-4 sm:px-5">
               <div className="grid grid-cols-[5.5rem_1fr_auto] gap-3 sm:grid-cols-[6rem_1fr_auto] sm:gap-4">
@@ -320,6 +323,11 @@ function MerchantCartCard({
                   >
                     Buy now
                   </button>
+                  {fittingRoomItem ? (
+                    <div className="mt-2">
+                      <FittingRoomAction item={fittingRoomItem} compact />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="text-right">
                   {price ? (

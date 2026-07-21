@@ -24,7 +24,6 @@ import type {
   BodyShapeBand,
   BuildBand,
   BustFullnessBand,
-  HeightBand,
   MuscularityBand,
 } from "@/lib/tryon/types";
 import type { FashionFactMeasurementMetric } from "@/lib/fashion-memory/types";
@@ -65,18 +64,6 @@ type FlowStep =
   | "generating"
   | "reveal"
   | "saved";
-
-const HEIGHT_OPTIONS: {
-  id: HeightBand;
-  label: string;
-  hint: string;
-}[] = [
-  { id: "under_160", label: "Under 5'3\"", hint: "Petite frame" },
-  { id: "160_170", label: "5'3\" – 5'7\"", hint: "Compact" },
-  { id: "170_180", label: "5'7\" – 5'11\"", hint: "Most common" },
-  { id: "180_190", label: "5'11\" – 6'3\"", hint: "Tall" },
-  { id: "over_190", label: "Over 6'3\"", hint: "Very tall" },
-];
 
 const BUILD_OPTIONS: {
   id: BuildBand;
@@ -140,8 +127,28 @@ const PHOTO_TIPS = [
 ] as const;
 
 type MeasurementDraft = Partial<
-  Record<FashionFactMeasurementMetric, string>
+  Record<
+    FashionFactMeasurementMetric,
+    { value: string; unit: MeasurementUnit }
+  >
 >;
+
+type MeasurementUnit = "cm" | "in";
+
+function heightBandFromInput(
+  raw: string,
+  unit: MeasurementUnit,
+): AvatarAttributes["height_band"] | undefined {
+  const value = Number.parseFloat(raw);
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  const cm = unit === "cm" ? value : value * 2.54;
+  if (cm < 90 || cm > 250) return undefined;
+  if (cm < 160) return "under_160";
+  if (cm < 170) return "160_170";
+  if (cm < 180) return "170_180";
+  if (cm < 190) return "180_190";
+  return "over_190";
+}
 
 type AvatarStepperProps = {
   personId: string;
@@ -306,7 +313,8 @@ export function AvatarStepper({
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [measurementsOpen, setMeasurementsOpen] = useState(false);
-  const [measureUnit, setMeasureUnit] = useState<"cm" | "in">("cm");
+  const [heightDraft, setHeightDraft] = useState("");
+  const [heightUnit, setHeightUnit] = useState<MeasurementUnit>("cm");
   const [measurementDraft, setMeasurementDraft] = useState<MeasurementDraft>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const startedRef = useRef(false);
@@ -514,17 +522,26 @@ export function AvatarStepper({
     const out: Array<{
       metric: FashionFactMeasurementMetric;
       value: number;
-      unit: "cm" | "in";
+      unit: MeasurementUnit;
     }> = [];
+    const height = Number.parseFloat(heightDraft.trim());
+    if (
+      heightBandFromInput(heightDraft, heightUnit) &&
+      Number.isFinite(height)
+    ) {
+      out.push({ metric: "height", value: height, unit: heightUnit });
+    }
     for (const { metric } of MEASUREMENT_FIELDS) {
-      const raw = measurementDraft[metric]?.trim();
+      const draft = measurementDraft[metric];
+      if (!draft) continue;
+      const raw = draft.value.trim();
       if (!raw) continue;
       const value = Number.parseFloat(raw);
       if (!Number.isFinite(value) || value <= 0) continue;
-      out.push({ metric, value, unit: measureUnit });
+      out.push({ metric, value, unit: draft.unit });
     }
     return out;
-  }, [measurementDraft, measureUnit]);
+  }, [heightDraft, heightUnit, measurementDraft]);
 
   const generate = async () => {
     if (!photoReady) {
@@ -552,8 +569,9 @@ export function AvatarStepper({
 
     await start();
 
-    // Shopping-side measurements — never sent to the image generator
-    if (path === "tailored" && filledMeasurements.length > 0) {
+    // Shopping-side measurements — never sent to the image generator.
+    // Exact height is stored on both paths; Tailored can add the remaining fields.
+    if (filledMeasurements.length > 0) {
       await guestFetch("/api/avatar/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -720,8 +738,9 @@ export function AvatarStepper({
     step !== "saved" &&
     (step === "reveal" || stepOrder.includes(step));
 
-  const heightLabel =
-    HEIGHT_OPTIONS.find((o) => o.id === attributes.height_band)?.label ?? "—";
+  const heightLabel = heightDraft.trim()
+    ? `${heightDraft.trim()} ${heightUnit}`
+    : "—";
   const buildLabel =
     BUILD_OPTIONS.find((o) => o.id === attributes.build)?.label ?? "—";
   const muscleLabel =
@@ -966,21 +985,61 @@ export function AvatarStepper({
           <p className="text-sm text-ink-secondary">
             Helps scale proportions so clothes sit right on you.
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {HEIGHT_OPTIONS.map((opt) => (
-              <ChoiceCard
-                key={opt.id}
-                selected={attributes.height_band === opt.id}
-                onClick={() => {
-                  setAttributes((a) => ({ ...a, height_band: opt.id }));
-                  window.setTimeout(() => setStep("build"), 180);
+          <div className="rounded-2xl border border-hairline bg-white p-4">
+            <label className="block text-xs font-medium text-ink-muted" htmlFor="avatar-height">
+              Your height
+            </label>
+            <div className="mt-2 flex gap-2">
+              <input
+                id="avatar-height"
+                type="number"
+                inputMode="decimal"
+                min={heightUnit === "cm" ? 90 : 36}
+                max={heightUnit === "cm" ? 250 : 98}
+                step="any"
+                placeholder={heightUnit === "cm" ? "175" : "69"}
+                value={heightDraft}
+                onChange={(event) => {
+                  setHeightDraft(event.target.value);
+                  setMessage(null);
                 }}
-                title={opt.label}
-                hint={opt.hint}
-                className="items-start px-4 py-3.5 text-left sm:col-span-1"
+                className="h-12 min-w-0 flex-1 rounded-xl border border-hairline bg-surface-subtle/50 px-3 text-base text-ink outline-none transition focus:border-ink/30 focus:bg-white"
               />
-            ))}
+              <select
+                aria-label="Height unit"
+                value={heightUnit}
+                onChange={(event) =>
+                  setHeightUnit(event.target.value as MeasurementUnit)
+                }
+                className="h-12 rounded-xl border border-hairline bg-white px-3 text-sm font-medium text-ink outline-none transition focus:border-ink/30"
+              >
+                <option value="cm">cm</option>
+                <option value="in">in</option>
+              </select>
+            </div>
+            <p className="mt-2 text-xs text-ink-muted">
+              Enter any value in centimeters or inches.
+            </p>
           </div>
+          <button
+            type="button"
+            className="btn-primary w-full"
+            disabled={!heightBandFromInput(heightDraft, heightUnit)}
+            onClick={() => {
+              const heightBand = heightBandFromInput(heightDraft, heightUnit);
+              if (!heightBand) {
+                setMessage("Enter a valid height.");
+                return;
+              }
+              setAttributes((current) => ({
+                ...current,
+                height_band: heightBand,
+              }));
+              setStep("build");
+            }}
+          >
+            Continue
+          </button>
         </div>
       ) : null}
 
@@ -1171,26 +1230,6 @@ export function AvatarStepper({
                   against brand size charts, so a find can say &apos;in this
                   brand you&apos;re an L&apos;.
                 </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-ink-muted">Unit</span>
-                  <div className="inline-flex rounded-full border border-hairline p-0.5">
-                    {(["cm", "in"] as const).map((u) => (
-                      <button
-                        key={u}
-                        type="button"
-                        onClick={() => setMeasureUnit(u)}
-                        className={cn(
-                          "rounded-full px-3 py-1 text-xs font-medium transition",
-                          measureUnit === u
-                            ? "bg-ink text-white"
-                            : "text-ink-muted hover:text-ink",
-                        )}
-                      >
-                        {u}
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 <div className="space-y-2">
                   {MEASUREMENT_FIELDS.map(({ metric, label }) => (
                     <label
@@ -1206,18 +1245,35 @@ export function AvatarStepper({
                         min={0}
                         step="any"
                         placeholder="—"
-                        value={measurementDraft[metric] ?? ""}
+                        value={measurementDraft[metric]?.value ?? ""}
                         onChange={(e) =>
                           setMeasurementDraft((d) => ({
                             ...d,
-                            [metric]: e.target.value,
+                            [metric]: {
+                              value: e.target.value,
+                              unit: d[metric]?.unit ?? "cm",
+                            },
                           }))
                         }
                         className="h-10 flex-1 rounded-xl border border-hairline bg-surface-subtle/50 px-3 text-ink outline-none transition focus:border-ink/30 focus:bg-white"
                       />
-                      <span className="w-6 text-xs text-ink-muted">
-                        {measureUnit}
-                      </span>
+                      <select
+                        aria-label={`${label} unit`}
+                        value={measurementDraft[metric]?.unit ?? "cm"}
+                        onChange={(event) =>
+                          setMeasurementDraft((draft) => ({
+                            ...draft,
+                            [metric]: {
+                              value: draft[metric]?.value ?? "",
+                              unit: event.target.value as MeasurementUnit,
+                            },
+                          }))
+                        }
+                        className="h-10 rounded-xl border border-hairline bg-white px-2 text-xs font-medium text-ink outline-none transition focus:border-ink/30"
+                      >
+                        <option value="cm">cm</option>
+                        <option value="in">in</option>
+                      </select>
                     </label>
                   ))}
                 </div>

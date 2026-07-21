@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   TasteSwipeStep,
   type TasteDeckCard,
@@ -20,7 +20,6 @@ import {
 } from "@/lib/onboarding/ai-transfer-prompts";
 import { normalizeAgeRange, normalizeGender } from "@/lib/onboarding/form-options";
 import { tagsFromFreeText, tasteTagsForPatch } from "@/lib/onboarding/taste-tags";
-import { guestFetch } from "@/lib/client/guest-fetch";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 
 type OnboardingPrefill = {
@@ -110,6 +109,9 @@ export function OnboardingGate() {
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const submissionLockRef = useRef(false);
+  const reviewRequestKeyRef = useRef<string | null>(null);
+  const tasteDeckPromiseRef = useRef<Promise<void> | null>(null);
 
   const [intakeText, setIntakeText] = useState("");
   const [intakePhase, setIntakePhase] = useState<AiTransferPhase>("select");
@@ -206,11 +208,6 @@ export function OnboardingGate() {
   const savePrimaryAi = useCallback((id: PrimaryAiAssistantId) => {
     setSelectedAi(id);
     setIntakePhase("paste");
-    void fetch("/api/onboarding", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile: { primaryAiAssistant: id } }),
-    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -370,31 +367,39 @@ export function OnboardingGate() {
   }
 
   const loadTasteDeck = useCallback(async () => {
-    setTasteDeckLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (styleLikes.trim()) params.set("styleLikes", styleLikes.trim());
-      if (styleAvoids.trim()) params.set("styleAvoids", styleAvoids.trim());
-      if (brandLikes.trim()) params.set("brandLikes", brandLikes.trim());
-      if (brandAvoids.trim()) params.set("brandAvoids", brandAvoids.trim());
-      if (genderPresentation.trim()) {
-        params.set("genderPresentation", genderPresentation.trim());
-      }
-      if (budgetPhilosophy.trim()) params.set("valuePhilosophy", budgetPhilosophy.trim());
-      if (shippingCountry.trim()) params.set("shippingCountry", shippingCountry.trim());
-      if (currency.trim()) params.set("currency", currency.trim());
-      if (topSize.trim()) params.set("topSize", topSize.trim());
-      const res = await fetch(`/api/onboarding/taste?${params.toString()}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error("deck");
-      const json = (await res.json()) as { deck: TasteDeckCard[] };
-      setTasteDeck(json.deck ?? []);
-    } catch {
-      setTasteDeck([]);
-    } finally {
-      setTasteDeckLoading(false);
+    if (tasteDeckPromiseRef.current) {
+      return tasteDeckPromiseRef.current;
     }
+    setTasteDeckLoading(true);
+    const request = (async () => {
+      try {
+        const params = new URLSearchParams();
+        if (styleLikes.trim()) params.set("styleLikes", styleLikes.trim());
+        if (styleAvoids.trim()) params.set("styleAvoids", styleAvoids.trim());
+        if (brandLikes.trim()) params.set("brandLikes", brandLikes.trim());
+        if (brandAvoids.trim()) params.set("brandAvoids", brandAvoids.trim());
+        if (genderPresentation.trim()) {
+          params.set("genderPresentation", genderPresentation.trim());
+        }
+        if (budgetPhilosophy.trim()) params.set("valuePhilosophy", budgetPhilosophy.trim());
+        if (shippingCountry.trim()) params.set("shippingCountry", shippingCountry.trim());
+        if (currency.trim()) params.set("currency", currency.trim());
+        if (topSize.trim()) params.set("topSize", topSize.trim());
+        const res = await fetch(`/api/onboarding/taste?${params.toString()}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("deck");
+        const json = (await res.json()) as { deck: TasteDeckCard[] };
+        setTasteDeck(json.deck ?? []);
+      } catch {
+        setTasteDeck([]);
+      } finally {
+        tasteDeckPromiseRef.current = null;
+        setTasteDeckLoading(false);
+      }
+    })();
+    tasteDeckPromiseRef.current = request;
+    return request;
   }, [
     styleLikes,
     styleAvoids,
@@ -407,28 +412,10 @@ export function OnboardingGate() {
     topSize,
   ]);
 
-  const resolveSelfPerson = useCallback(async (): Promise<{
-    id: string;
-    has_avatar: boolean;
-  } | null> => {
-    try {
-      const res = await guestFetch("/api/avatar/people", { cache: "no-store" });
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
-        people?: Array<{ id: string; relation: string; has_avatar: boolean }>;
-      };
-      const self =
-        json.people?.find((p) => p.relation === "self") ?? json.people?.[0];
-      return self ? { id: self.id, has_avatar: self.has_avatar } : null;
-    } catch {
-      return null;
-    }
-  }, []);
-
   const goToTaste = useCallback(async () => {
-    await loadTasteDeck();
+    if (tasteDeck.length === 0) await loadTasteDeck();
     setStep("taste");
-  }, [loadTasteDeck]);
+  }, [loadTasteDeck, tasteDeck.length]);
 
   const continueAfterAvatar = useCallback(async () => {
     setError(null);
@@ -443,36 +430,30 @@ export function OnboardingGate() {
     }
   }, [goToTaste]);
 
-  async function finishOnboarding() {
-    const done = await fetch("/api/onboarding", { method: "POST" });
-    const next = (await done.json()) as OnboardingStatus & { error?: string };
-    if (!done.ok) {
-      hydrateFromStatus(next);
-      throw new Error(next.error ?? "Required basics are missing.");
-    }
-    hydrateFromStatus(next);
-    useUserProfileStore.getState().setOnboardingCompleted(true);
-    void useUserProfileStore.getState().hydrate({ force: true });
-  }
-
   async function saveTasteSwipes(responses: TasteSwipeResult[]) {
+    if (submissionLockRef.current) return;
+    submissionLockRef.current = true;
     setTasteSaving(true);
     setBusy(true);
     setError(null);
     try {
-      if (responses.some((r) => r.swipe !== "neutral")) {
-        const res = await fetch("/api/onboarding/taste", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ responses }),
-        });
-        if (!res.ok) throw new Error("taste");
+      const res = await fetch("/api/onboarding/taste", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ responses, complete: true }),
+      });
+      const next = (await res.json()) as OnboardingStatus & { error?: string };
+      if (!res.ok) {
+        throw new Error(next.error ?? "Could not save your picks.");
       }
-      await finishOnboarding();
+      hydrateFromStatus(next);
+      useUserProfileStore.getState().setOnboardingCompleted(true);
+      void useUserProfileStore.getState().hydrate({ force: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your picks. Please try again.");
       setTasteSaving(false);
     } finally {
+      submissionLockRef.current = false;
       setBusy(false);
     }
   }
@@ -504,6 +485,7 @@ export function OnboardingGate() {
   }
 
   async function submitReview() {
+    if (submissionLockRef.current) return;
     const missing: string[] = [];
     if (!preferredName.trim()) missing.push("name");
     if (!genderPresentation.trim()) missing.push("clothing style");
@@ -513,8 +495,10 @@ export function OnboardingGate() {
       return;
     }
 
+    submissionLockRef.current = true;
     setBusy(true);
     setError(null);
+    const deckPromise = loadTasteDeck();
     try {
       const brands = [
         ...splitCsv(brandLikes).map((brand) => ({ brand, sentiment: "love" as const })),
@@ -531,53 +515,59 @@ export function OnboardingGate() {
       if (bottomSize.trim()) sizing.bottomUsualSize = bottomSize.trim();
       if (shoeEU.trim()) sizing.shoeEU = Number(shoeEU);
 
-      const patch = await fetch("/api/onboarding", {
-        method: "PATCH",
+      const requestKey =
+        reviewRequestKeyRef.current ??
+        (reviewRequestKeyRef.current = crypto.randomUUID());
+      const patch = await fetch("/api/onboarding/review", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          profile: {
-            preferredName: preferredName.trim(),
-            genderPresentation: genderPresentation.trim(),
-            ageRange: ageRange.trim(),
-            shippingCountry: shippingCountry.trim() || null,
-            currency: currency.trim() || null,
-            valuePhilosophy: budgetPhilosophy.trim() || null,
+          patch: {
+            profile: {
+              preferredName: preferredName.trim(),
+              genderPresentation: genderPresentation.trim(),
+              ageRange: ageRange.trim(),
+              shippingCountry: shippingCountry.trim() || null,
+              currency: currency.trim() || null,
+              valuePhilosophy: budgetPhilosophy.trim() || null,
+              ...(selectedAi ? { primaryAiAssistant: selectedAi } : {}),
+            },
+            ...(Object.keys(sizing).length ? { sizing } : {}),
+            ...(brands.length ? { brands } : {}),
+            ...(tasteTags.length ? { tasteTags } : {}),
+            ...(hardNegatives.length ? { hardNegatives } : {}),
           },
-          ...(Object.keys(sizing).length ? { sizing } : {}),
-          ...(brands.length ? { brands } : {}),
-          ...(tasteTags.length ? { tasteTags } : {}),
-          ...(hardNegatives.length ? { hardNegatives } : {}),
+          ...(extraNotes.trim() ? { extraNotes: extraNotes.trim() } : {}),
+          requestKey,
         }),
       });
-      const patchJson = (await patch.json()) as OnboardingStatus & { error?: string };
+      const patchJson = (await patch.json()) as OnboardingStatus & {
+        error?: string;
+        selfPerson?: { id: string; hasAvatar: boolean } | null;
+      };
       if (!patch.ok) {
         throw new Error(patchJson.error ?? "Could not save your profile.");
       }
       hydrateFromStatus(patchJson);
+      reviewRequestKeyRef.current = null;
 
-      if (extraNotes.trim()) {
-        await fetch("/api/onboarding/intake", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: extraNotes }),
-        }).catch(() => {});
-      }
-
-      setAvatarLoading(true);
-      const self = await resolveSelfPerson();
-      if (self?.has_avatar) {
+      const self = patchJson.selfPerson;
+      if (self?.hasAvatar) {
         setSelfPersonId(self.id);
-        await goToTaste();
+        await deckPromise;
+        setStep("taste");
       } else if (self?.id) {
         setSelfPersonId(self.id);
         setStep("avatar");
       } else {
         // Self person missing — don't block onboarding.
-        await goToTaste();
+        await deckPromise;
+        setStep("taste");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your profile.");
     } finally {
+      submissionLockRef.current = false;
       setAvatarLoading(false);
       setBusy(false);
     }
@@ -798,11 +788,6 @@ export function OnboardingGate() {
                 <button
                   type="button"
                   onClick={() => {
-                    void fetch("/api/onboarding", {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({}),
-                    }).catch(() => {});
                     setStep("review");
                   }}
                   disabled={busy}
@@ -823,11 +808,6 @@ export function OnboardingGate() {
               <button
                 type="button"
                 onClick={() => {
-                  void fetch("/api/onboarding", {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({}),
-                  }).catch(() => {});
                   setStep("review");
                 }}
                 disabled={busy}
