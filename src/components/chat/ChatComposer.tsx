@@ -153,14 +153,14 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
             />
           ) : null}
           {isHeroComposer ? (
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted sm:mb-3 sm:text-[11px]">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted sm:mb-2 sm:text-[11px]">
               Start your search
             </p>
           ) : null}
           <div>
             <textarea
               ref={ta}
-              rows={isHeroComposer ? 2 : isHomeEmpty ? 1 : 2}
+              rows={isHeroComposer ? 1 : isHomeEmpty ? 1 : 2}
               placeholder={placeholder}
               value={input}
               aria-busy={isStreaming || undefined}
@@ -178,7 +178,7 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
               className="shoop-composer-textarea shoop-textarea-placeholder max-h-[200px] min-h-[28px] w-full resize-none overflow-hidden border-0 bg-transparent text-[16px] font-normal leading-[24px] text-ink outline-none md:text-[15px] md:leading-6"
             />
           </div>
-          <div className="mt-2.5 flex h-11 items-center justify-between gap-2">
+          <div className="shoop-composer-actions mt-2.5 flex h-11 items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
               <ReceiptPlusButton />
               {!isHomeEmpty ? <FeelingMoodPicker /> : null}
@@ -190,13 +190,6 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
             )}
           </div>
         </div>
-
-        {isHeroComposer ? (
-          <p className="px-2 text-center text-[12px] leading-relaxed text-ink-secondary sm:text-[13px]">
-            Loyal to you, not the store — every pick explained, every price
-            checked.
-          </p>
-        ) : null}
 
         {queuedSendText ? (
           <p className="text-center text-[11px] font-medium text-ink-secondary">
@@ -261,7 +254,7 @@ function StopButton({ onStop }: { onStop: () => void }) {
       type="button"
       onClick={onStop}
       aria-label="Stop generating"
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-0 bg-ink"
+      className="shoop-composer-stop flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-0 bg-ink"
     >
       <span className="size-2.5 rounded-[2px] bg-white" />
     </button>

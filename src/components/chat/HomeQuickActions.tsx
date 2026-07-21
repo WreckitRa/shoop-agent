@@ -93,7 +93,7 @@ export function HomeQuickActions() {
           <button
             key={action.id}
             type="button"
-            className="shoop-home-quick-action group flex min-h-[132px] flex-col items-stretch rounded-[18px] bg-[#EFEDE9] px-4 pb-3.5 pt-4 text-left transition duration-150 hover:bg-[#E8E5E0] active:scale-[0.99]"
+            className="shoop-home-quick-action group flex min-h-[78px] flex-col items-stretch rounded-[16px] bg-[#F3F1EE] px-3 py-3 text-left transition duration-150 hover:bg-[#ECE9E5] active:scale-[0.99]"
             onClick={() => {
               setInput(action.prompt);
               requestComposerFocus();
@@ -101,19 +101,12 @@ export function HomeQuickActions() {
             }}
           >
             <Icon
-              className="size-[18px] text-ink"
+              className="size-4 text-ink-secondary"
               strokeWidth={1.5}
               aria-hidden
             />
-            <span className="mt-4 min-w-0 flex-1 text-[13px] font-medium leading-[1.35] tracking-[-0.01em] text-ink lowercase">
+            <span className="mt-2 min-w-0 flex-1 text-[12px] font-medium leading-[1.3] tracking-[-0.01em] text-ink lowercase">
               {action.label}
-            </span>
-            <span className="mt-3 flex justify-end">
-              <ArrowRight
-                className="size-3.5 text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-ink"
-                strokeWidth={1.5}
-                aria-hidden
-              />
             </span>
           </button>
         );

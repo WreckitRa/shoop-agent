@@ -4,10 +4,7 @@ import Image from "next/image";
 import { ArrowDownRight } from "lucide-react";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { WelcomeBackBanner } from "@/components/chat/WelcomeBackBanner";
-import {
-  HomeHowItWorks,
-  HomeQuickActions,
-} from "@/components/chat/HomeQuickActions";
+import { HomeQuickActions } from "@/components/chat/HomeQuickActions";
 import { useChatGreeting } from "@/components/chat/useChatGreeting";
 import { SHOOP_HERO_SHOPPING_SRC } from "@/lib/shared/brand-assets";
 
@@ -15,7 +12,7 @@ export function EmptyChatState() {
   const greeting = useChatGreeting();
 
   return (
-    <div className="relative z-10 flex h-full min-h-0 w-full flex-col overflow-hidden lg:pb-2">
+    <div className="relative z-10 flex h-full min-h-0 w-full flex-col overflow-hidden lg:overflow-x-hidden lg:overflow-y-auto lg:pb-10">
       {/* Mobile + tablet — hero only; actions/recent sit above composer in ChatLayout */}
       <div className="mx-auto flex h-full min-h-0 w-full max-w-page-narrow items-center py-2 sm:py-4 lg:hidden">
         <div className="relative w-full">
@@ -55,7 +52,7 @@ export function EmptyChatState() {
 
       {/* Desktop — content floats above the centered background figure */}
       <div className="mx-auto hidden min-h-0 w-full max-w-page-wide flex-1 flex-col justify-center lg:flex">
-        <div className="shoop-home-desktop-content w-full max-w-[min(43rem,62%)]">
+        <div className="shoop-home-desktop-content w-full max-w-[min(43rem,62%)] translate-y-8">
           <div className="mt-5">
             <p className="text-sm font-medium text-ink-muted">{greeting}</p>
             <div className="mt-2 flex items-end gap-3">
@@ -77,9 +74,6 @@ export function EmptyChatState() {
           <WelcomeBackBanner />
           <div className="mt-5">
             <HomeQuickActions />
-          </div>
-          <div className="mt-3">
-            <HomeHowItWorks />
           </div>
         </div>
       </div>

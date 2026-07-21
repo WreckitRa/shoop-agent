@@ -9,10 +9,7 @@ import { ChatComposer } from "@/components/chat/ChatComposer";
 import { MessageList } from "@/components/chat/MessageList";
 import { ScrollToBottomButton } from "@/components/chat/ScrollToBottomButton";
 import { EmptyChatState } from "@/components/chat/EmptyChatState";
-import {
-  HomeHowItWorks,
-  HomeMobileActionGrid,
-} from "@/components/chat/HomeQuickActions";
+import { HomeMobileActionGrid } from "@/components/chat/HomeQuickActions";
 import { HomeRecentConversations } from "@/components/chat/HomeRecentConversations";
 import { useChatScroll } from "@/components/chat/useChatScroll";
 import { ChatFocusHighlightProvider } from "@/components/chat/ChatFocusHighlightContext";
@@ -168,7 +165,6 @@ export const ChatLayout = memo(function ChatLayout() {
                 <div className="mx-auto w-full max-w-page-narrow shrink-0 shoop-page-x lg:hidden">
                   <div className="flex flex-col gap-2.5 pb-[max(8px,env(safe-area-inset-bottom))] sm:gap-4 sm:pb-4">
                     <HomeMobileActionGrid />
-                    <HomeHowItWorks />
                     <HomeRecentConversations />
                   </div>
                 </div>
