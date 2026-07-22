@@ -1,10 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { optionLabels } from "../router/clarification-defaults";
 import type {
   FashionClarificationQuestion,
   FashionIntakeQuestion,
 } from "../router/types";
-import { parseClarificationAnswersFromMessage, parseIntakeAnswersFromMessage } from "./apply-intake-reply";
+import {
+  flattenClarificationAnswers,
+  parseClarificationAnswersFromMessage,
+  parseIntakeAnswersFromMessage,
+} from "./apply-intake-reply";
 import { normalizeGarmentClarificationAnswer } from "./garment-answer";
 
 const questions: FashionIntakeQuestion[] = [
@@ -71,9 +76,51 @@ describe("garment clarification chip → concrete garments", () => {
     assert.deepEqual(
       normalizeGarmentClarificationAnswer(
         answers.garment!,
-        garmentQ.quick_options,
+        optionLabels(garmentQ.quick_options),
       ),
       ["bracelets"],
     );
+  });
+
+  it("flattens structured multi-select answers", () => {
+    const flat = flattenClarificationAnswers(
+      {
+        "What's the occasion?": {
+          selected: ["work", "weekend"],
+          customText: "brunch",
+        },
+      },
+      [
+        {
+          text: "What's the occasion?",
+          gap: "occasion",
+          allow_multiple: true,
+          quick_options: [
+            { id: "work", label: "Work" },
+            { id: "weekend", label: "Weekend" },
+          ],
+        },
+      ],
+    );
+    assert.equal(flat.occasion, "Work, Weekend, brunch");
+  });
+
+  it("takes first chip for exclusive size when multi arrives", () => {
+    const flat = flattenClarificationAnswers(
+      {
+        "Shoe size?": { selected: ["9", "10"] },
+      },
+      [
+        {
+          text: "Shoe size?",
+          gap: "size",
+          quick_options: [
+            { id: "9", label: "9" },
+            { id: "10", label: "10" },
+          ],
+        },
+      ],
+    );
+    assert.equal(flat.size, "9");
   });
 });

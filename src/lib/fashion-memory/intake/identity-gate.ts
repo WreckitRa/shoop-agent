@@ -3,6 +3,7 @@ import {
   departmentFromRelation,
   type PersonDepartment,
 } from "../department";
+import { optionLabels } from "../router/clarification-defaults";
 import { safeTrim } from "../safe-trim";
 import type {
   FashionClarificationQuestion,
@@ -181,7 +182,7 @@ function sizeQuestionForField(
   return {
     field,
     question: clar.text,
-    quick_options: clar.quick_options,
+    quick_options: optionLabels(clar.quick_options),
   };
 }
 
@@ -307,7 +308,7 @@ export function buildIntakePayload(params: {
       .map((q) => ({
         field: q.field!,
         question: q.text,
-        quick_options: q.quick_options,
+        quick_options: optionLabels(q.quick_options),
       })),
   };
 }

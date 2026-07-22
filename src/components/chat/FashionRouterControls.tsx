@@ -2,32 +2,45 @@
 
 import { memo, useMemo, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { ClarificationOptionCard } from "@/components/chat/ClarificationOptionCard";
+import { OptionPreviewCarousel } from "@/components/chat/OptionPreviewCarousel";
 import { useChatStore } from "@/components/chat/chat-store";
 import { cn } from "@/lib/ai-chat/cn";
 import {
+  asNormalizedOptions,
   CLARIFICATION_OTHER_OPTION,
+  CLARIFICATION_OTHER_OPTION_ID,
   ensureQuestionsHaveQuickOptions,
+  ensureRideAlongDefaults,
+  formatClarificationAnswerDisplay,
 } from "@/lib/fashion-memory/router/clarification-defaults";
 import type {
+  FashionClarificationAnswer,
   FashionClarificationQuestion,
   MessageFashionRouterMetaV1,
 } from "@/lib/fashion-memory/router/types";
 
 function formatBundledAnswers(
   questions: FashionClarificationQuestion[],
-  answers: Record<string, string>,
-  rideAlong?: { text: string },
-  rideAlongAnswer?: string,
+  answers: Record<string, FashionClarificationAnswer | string>,
+  rideAlong?: { text: string; quick_options?: FashionClarificationQuestion["quick_options"] },
 ): string {
   const parts = questions
     .map((q) => {
-      const answer = answers[q.text]?.trim();
-      if (!answer) return null;
-      return `${q.text} ${answer}`;
+      const display = formatClarificationAnswerDisplay(
+        answers[q.text],
+        q.quick_options,
+      );
+      if (!display) return null;
+      return `${q.text} ${display}`;
     })
     .filter(Boolean);
-  if (rideAlong && rideAlongAnswer?.trim()) {
-    parts.push(`${rideAlong.text} ${rideAlongAnswer.trim()}`);
+  if (rideAlong) {
+    const display = formatClarificationAnswerDisplay(
+      answers[rideAlong.text],
+      rideAlong.quick_options,
+    );
+    if (display) parts.push(`${rideAlong.text} ${display}`);
   }
   return parts.join(". ");
 }
@@ -37,11 +50,14 @@ function FashionQuizAnsweredBanner({
   answers,
 }: {
   questions: FashionClarificationQuestion[];
-  answers?: Record<string, string>;
+  answers?: Record<string, FashionClarificationAnswer | string>;
 }) {
   const bits = questions
     .map((q) => {
-      const a = answers?.[q.text]?.trim();
+      const a = formatClarificationAnswerDisplay(
+        answers?.[q.text],
+        q.quick_options,
+      );
       return a ? `${q.text} → ${a}` : null;
     })
     .filter(Boolean) as string[];
@@ -66,52 +82,100 @@ function FashionQuizAnsweredBanner({
   );
 }
 
+function resolveQuestionAnswer(
+  selectedIds: string[],
+  freeText: string,
+): FashionClarificationAnswer | null {
+  const otherSelected = selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID);
+  const chipIds = selectedIds.filter((id) => id !== CLARIFICATION_OTHER_OPTION_ID);
+  const custom = freeText.trim();
+  if (!chipIds.length && !(otherSelected && custom)) return null;
+  // If they typed free text without tapping Other, still accept it.
+  if (!chipIds.length && custom && !otherSelected) {
+    return { selected: [], customText: custom };
+  }
+  return {
+    selected: chipIds,
+    ...(otherSelected && custom ? { customText: custom } : {}),
+  };
+}
+
 function QuestionOptions({
   question,
-  value,
+  selectedIds,
   freeText,
   disabled,
-  onSelect,
+  onToggle,
   onFreeText,
 }: {
   question: FashionClarificationQuestion;
-  value: string;
+  selectedIds: string[];
   freeText: string;
   disabled: boolean;
-  onSelect: (option: string) => void;
+  onToggle: (optionId: string) => void;
   onFreeText: (text: string) => void;
 }) {
-  const options = question.quick_options ?? [CLARIFICATION_OTHER_OPTION];
-  const otherSelected =
-    value === CLARIFICATION_OTHER_OPTION ||
-    (Boolean(value) && !options.includes(value));
+  const options = asNormalizedOptions(
+    question.quick_options ?? [{ id: CLARIFICATION_OTHER_OPTION_ID, label: CLARIFICATION_OTHER_OPTION }],
+  );
+  const allowMultiple = Boolean(question.allow_multiple);
+  const cardOptions = options.filter(
+    (o) =>
+      o.previewQuery?.trim() &&
+      o.id !== CLARIFICATION_OTHER_OPTION_ID,
+  );
+  const chipOptions = options.filter(
+    (o) =>
+      !o.previewQuery?.trim() ||
+      o.id === CLARIFICATION_OTHER_OPTION_ID,
+  );
+  const otherSelected = selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID);
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        {options.map((option) => {
-          const selected =
-            option === CLARIFICATION_OTHER_OPTION
-              ? otherSelected
-              : value === option;
-          return (
-            <button
-              key={option}
-              type="button"
+      {cardOptions.length ? (
+        <OptionPreviewCarousel title="Explore ideas">
+          {cardOptions.map((o) => (
+            <ClarificationOptionCard
+              key={o.id}
+              optionId={o.id}
+              label={o.label}
+              selected={selectedIds.includes(o.id)}
               disabled={disabled}
-              onClick={() => onSelect(option)}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50",
-                selected
-                  ? "border-brand bg-brand/10 text-brand"
-                  : "border-hairline bg-surface text-ink hover:border-brand/40",
-              )}
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
+              previewQuery={o.previewQuery}
+              previewImages={o.previewImages}
+              onToggle={() => onToggle(o.id)}
+            />
+          ))}
+        </OptionPreviewCarousel>
+      ) : null}
+      {chipOptions.length ? (
+        <div className="flex flex-wrap gap-2">
+          {chipOptions.map((option) => {
+            const selected = selectedIds.includes(option.id);
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={disabled}
+                aria-pressed={selected}
+                onClick={() => onToggle(option.id)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50",
+                  selected
+                    ? "border-brand bg-brand/10 text-brand"
+                    : "border-hairline bg-surface text-ink hover:border-brand/40",
+                )}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {allowMultiple ? (
+        <p className="text-[11px] text-ink-muted">Choose any that apply</p>
+      ) : null}
       {otherSelected ? (
         <input
           type="text"
@@ -141,19 +205,20 @@ export const FashionRouterControls = memo(function FashionRouterControls({
   );
   const isStreaming = useChatStore((s) => s.isStreaming);
   const messages = useChatStore((s) => s.messages);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [freeTexts, setFreeTexts] = useState<Record<string, string>>({});
-  const [rideAlongAnswer, setRideAlongAnswer] = useState("");
-  const [rideAlongFree, setRideAlongFree] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const questions = useMemo(
     () => ensureQuestionsHaveQuickOptions(fashionRouter.questions ?? []),
     [fashionRouter.questions],
   );
+  const rideAlong = useMemo(
+    () => ensureRideAlongDefaults(fashionRouter.ride_along),
+    [fashionRouter.ride_along],
+  );
   const isClarification =
     fashionRouter.move === "ask_clarification" && questions.length > 0;
-  const rideAlong = fashionRouter.ride_along;
 
   const answeredByMeta = fashionRouter.status === "answered";
   const answeredByFollowUp = useMemo(() => {
@@ -167,40 +232,89 @@ export const FashionRouterControls = memo(function FashionRouterControls({
 
   const legacyOptions =
     fashionRouter.move === "ask_clarification" && !questions.length
-      ? (fashionRouter.quick_options ?? [])
+      ? asNormalizedOptions(fashionRouter.quick_options)
       : [];
 
+  const hasVisualCards = useMemo(
+    () =>
+      questions.some((q) =>
+        asNormalizedOptions(q.quick_options).some((o) => o.previewQuery?.trim()),
+      ) ||
+      Boolean(
+        rideAlong &&
+          asNormalizedOptions(rideAlong.quick_options).some((o) =>
+            o.previewQuery?.trim(),
+          ),
+      ),
+    [questions, rideAlong],
+  );
+
+  const hasMulti = useMemo(
+    () =>
+      questions.some((q) => q.allow_multiple) ||
+      Boolean(rideAlong?.allow_multiple),
+    [questions, rideAlong],
+  );
+
+  const needsContinue =
+    questions.length > 1 || Boolean(rideAlong) || hasMulti || hasVisualCards;
+
   const resolvedAnswers = useMemo(() => {
-    const out: Record<string, string> = {};
+    const out: Record<string, FashionClarificationAnswer> = {};
     for (const q of questions) {
-      const selected = answers[q.text];
-      if (!selected) continue;
-      if (selected === CLARIFICATION_OTHER_OPTION) {
-        const typed = freeTexts[q.text]?.trim();
-        if (typed) out[q.text] = typed;
-      } else {
-        out[q.text] = selected;
-      }
+      const answer = resolveQuestionAnswer(
+        selections[q.text] ?? [],
+        freeTexts[q.text] ?? "",
+      );
+      if (answer) out[q.text] = answer;
+    }
+    if (rideAlong) {
+      const answer = resolveQuestionAnswer(
+        selections[rideAlong.text] ?? [],
+        freeTexts[rideAlong.text] ?? "",
+      );
+      if (answer) out[rideAlong.text] = answer;
     }
     return out;
-  }, [answers, freeTexts, questions]);
+  }, [selections, freeTexts, questions, rideAlong]);
 
   const canSubmit = useMemo(() => {
     if (!isClarification) return false;
-    return questions.every((q) => resolvedAnswers[q.text]?.trim());
+    return questions.every((q) => Boolean(resolvedAnswers[q.text]));
   }, [isClarification, questions, resolvedAnswers]);
 
-  const submitAnswers = (finalAnswers: Record<string, string>) => {
+  const toggleOption = (
+    questionKey: string,
+    optionId: string,
+    allowMultiple: boolean,
+  ) => {
+    setSelections((prev) => {
+      const current = prev[questionKey] ?? [];
+      if (allowMultiple) {
+        const on = current.includes(optionId);
+        const next = on
+          ? current.filter((id) => id !== optionId)
+          : [...current, optionId];
+        return { ...prev, [questionKey]: next };
+      }
+      // Single-select: replace (keep Other free text if switching away from Other)
+      if (optionId !== CLARIFICATION_OTHER_OPTION_ID) {
+        setFreeTexts((ft) => {
+          const next = { ...ft };
+          delete next[questionKey];
+          return next;
+        });
+      }
+      return { ...prev, [questionKey]: [optionId] };
+    });
+  };
+
+  const submitAnswers = (
+    finalAnswers: Record<string, FashionClarificationAnswer | string>,
+  ) => {
     answerFashionClarification(messageId, finalAnswers);
     setSubmitted(true);
-    setInput(
-      formatBundledAnswers(
-        questions,
-        finalAnswers,
-        rideAlong,
-        finalAnswers[rideAlong?.text ?? ""],
-      ),
-    );
+    setInput(formatBundledAnswers(questions, finalAnswers, rideAlong));
     void sendMessage();
   };
 
@@ -220,46 +334,52 @@ export const FashionRouterControls = memo(function FashionRouterControls({
       <div className="mt-3 flex flex-wrap gap-2">
         {legacyOptions.map((option) => (
           <button
-            key={option}
+            key={option.id}
             type="button"
             disabled={isStreaming}
             onClick={() => {
-              answerFashionClarification(messageId, { [option]: option });
+              answerFashionClarification(messageId, {
+                [option.label]: {
+                  selected: [option.id],
+                },
+              });
               setSubmitted(true);
-              setInput(option);
+              setInput(option.label);
               void sendMessage();
             }}
             className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink transition hover:border-brand/40 hover:bg-surface-tint disabled:opacity-50"
           >
-            {option}
+            {option.label}
           </button>
         ))}
       </div>
     );
   }
 
-  // Single question: one-tap chips; Other reveals free-form + Continue.
-  if (questions.length === 1 && !rideAlong) {
+  // Single exclusive chip question with no visual cards: one-tap submit.
+  if (!needsContinue && questions.length === 1) {
     const q = questions[0]!;
-    const selected = answers[q.text] ?? "";
-    const otherOpen = selected === CLARIFICATION_OTHER_OPTION;
+    const selected = selections[q.text] ?? [];
+    const otherOpen = selected.includes(CLARIFICATION_OTHER_OPTION_ID);
     return (
       <div className="mt-3 space-y-2">
         <p className="text-sm text-ink">{q.text}</p>
         <QuestionOptions
           question={q}
-          value={selected}
+          selectedIds={selected}
           freeText={freeTexts[q.text] ?? ""}
           disabled={isStreaming || submitted}
-          onSelect={(option) => {
-            if (option === CLARIFICATION_OTHER_OPTION) {
-              setAnswers({ [q.text]: option });
+          onToggle={(optionId) => {
+            if (optionId === CLARIFICATION_OTHER_OPTION_ID) {
+              toggleOption(q.text, optionId, false);
               return;
             }
-            submitAnswers({ [q.text]: option });
+            submitAnswers({
+              [q.text]: { selected: [optionId] },
+            });
           }}
           onFreeText={(text) => {
-            setAnswers({ [q.text]: CLARIFICATION_OTHER_OPTION });
+            toggleOption(q.text, CLARIFICATION_OTHER_OPTION_ID, false);
             setFreeTexts({ [q.text]: text });
           }}
         />
@@ -272,7 +392,9 @@ export const FashionRouterControls = memo(function FashionRouterControls({
             onClick={() => {
               const typed = freeTexts[q.text]?.trim();
               if (!typed) return;
-              submitAnswers({ [q.text]: typed });
+              submitAnswers({
+                [q.text]: { selected: [], customText: typed },
+              });
             }}
             className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
           >
@@ -284,15 +406,6 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     );
   }
 
-  const rideAlongOptions = rideAlong
-    ? [
-        ...rideAlong.quick_options.filter(
-          (o) => o.toLowerCase() !== CLARIFICATION_OTHER_OPTION.toLowerCase(),
-        ),
-        CLARIFICATION_OTHER_OPTION,
-      ]
-    : [];
-
   return (
     <div className="mt-3 space-y-3 rounded-2xl border border-hairline bg-surface-tint/60 p-3">
       {questions.map((q) => (
@@ -300,24 +413,20 @@ export const FashionRouterControls = memo(function FashionRouterControls({
           <p className="text-sm text-ink">{q.text}</p>
           <QuestionOptions
             question={q}
-            value={answers[q.text] ?? ""}
+            selectedIds={selections[q.text] ?? []}
             freeText={freeTexts[q.text] ?? ""}
             disabled={isStreaming || submitted}
-            onSelect={(option) => {
-              setAnswers((prev) => ({ ...prev, [q.text]: option }));
-              if (option !== CLARIFICATION_OTHER_OPTION) {
-                setFreeTexts((prev) => {
-                  const next = { ...prev };
-                  delete next[q.text];
-                  return next;
-                });
-              }
-            }}
+            onToggle={(optionId) =>
+              toggleOption(q.text, optionId, Boolean(q.allow_multiple))
+            }
             onFreeText={(text) => {
-              setAnswers((prev) => ({
-                ...prev,
-                [q.text]: CLARIFICATION_OTHER_OPTION,
-              }));
+              setSelections((prev) => {
+                const cur = prev[q.text] ?? [];
+                const withOther = cur.includes(CLARIFICATION_OTHER_OPTION_ID)
+                  ? cur
+                  : [...cur, CLARIFICATION_OTHER_OPTION_ID];
+                return { ...prev, [q.text]: withOther };
+              });
               setFreeTexts((prev) => ({ ...prev, [q.text]: text }));
             }}
           />
@@ -330,18 +439,29 @@ export const FashionRouterControls = memo(function FashionRouterControls({
             question={{
               text: rideAlong.text,
               gap: "occasion",
-              quick_options: rideAlongOptions,
+              quick_options: rideAlong.quick_options,
+              allow_multiple: rideAlong.allow_multiple,
+              allow_other: rideAlong.allow_other,
             }}
-            value={rideAlongAnswer}
-            freeText={rideAlongFree}
+            selectedIds={selections[rideAlong.text] ?? []}
+            freeText={freeTexts[rideAlong.text] ?? ""}
             disabled={isStreaming || submitted}
-            onSelect={(option) => {
-              setRideAlongAnswer(option);
-              if (option !== CLARIFICATION_OTHER_OPTION) setRideAlongFree("");
-            }}
+            onToggle={(optionId) =>
+              toggleOption(
+                rideAlong.text,
+                optionId,
+                Boolean(rideAlong.allow_multiple),
+              )
+            }
             onFreeText={(text) => {
-              setRideAlongAnswer(CLARIFICATION_OTHER_OPTION);
-              setRideAlongFree(text);
+              setSelections((prev) => {
+                const cur = prev[rideAlong.text] ?? [];
+                const withOther = cur.includes(CLARIFICATION_OTHER_OPTION_ID)
+                  ? cur
+                  : [...cur, CLARIFICATION_OTHER_OPTION_ID];
+                return { ...prev, [rideAlong.text]: withOther };
+              });
+              setFreeTexts((prev) => ({ ...prev, [rideAlong.text]: text }));
             }}
           />
         </div>
@@ -350,16 +470,8 @@ export const FashionRouterControls = memo(function FashionRouterControls({
         type="button"
         disabled={!canSubmit || isStreaming || submitted}
         onClick={() => {
-          const rideResolved =
-            rideAlongAnswer === CLARIFICATION_OTHER_OPTION
-              ? rideAlongFree.trim()
-              : rideAlongAnswer.trim();
-          const finalAnswers = { ...resolvedAnswers };
-          if (rideAlong && rideResolved) {
-            finalAnswers[rideAlong.text] = rideResolved;
-          }
-          if (!Object.keys(finalAnswers).length) return;
-          submitAnswers(finalAnswers);
+          if (!Object.keys(resolvedAnswers).length) return;
+          submitAnswers(resolvedAnswers);
         }}
         className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
       >

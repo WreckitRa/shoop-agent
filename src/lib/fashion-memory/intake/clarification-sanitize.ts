@@ -8,7 +8,14 @@ import {
   PERSON_NAME_SKIP_OPTION,
 } from "../extraction/person-identity";
 import { recordPipelineEvent } from "../observability/trace";
-import type { FashionClarificationQuestion } from "../router/types";
+import {
+  asNormalizedOptions,
+  normalizeClarificationOption,
+} from "../router/clarification-defaults";
+import type {
+  FashionClarificationOption,
+  FashionClarificationQuestion,
+} from "../router/types";
 
 /** Matches internal bookkeeping questions that must never reach the user. */
 export const META_QUESTION_RE =
@@ -24,23 +31,30 @@ function stripRosterNamesFromPersonNameQuestion(
   traceId?: string | null,
 ): FashionClarificationQuestion {
   if (question.gap !== "person_name") return question;
-  const banned = new Set(rosterNames.map((n) => n.trim().toLowerCase()).filter(Boolean));
+  const banned = new Set(
+    rosterNames.map((n) => n.trim().toLowerCase()).filter(Boolean),
+  );
   if (!banned.size && !question.quick_options?.length) {
-    return { ...question, quick_options: [PERSON_NAME_SKIP_OPTION] };
+    return {
+      ...question,
+      quick_options: [{ id: "skip", label: PERSON_NAME_SKIP_OPTION }],
+    };
   }
 
-  const kept: string[] = [];
+  const kept: FashionClarificationOption[] = [];
   for (const raw of question.quick_options ?? []) {
-    const opt = raw.trim();
-    if (!opt) continue;
-    if (isSkipNameOption(opt)) {
-      if (!kept.some(isSkipNameOption)) kept.push(PERSON_NAME_SKIP_OPTION);
+    const opt = normalizeClarificationOption(raw);
+    if (!opt.label) continue;
+    if (isSkipNameOption(opt.label)) {
+      if (!kept.some((k) => isSkipNameOption(k.label))) {
+        kept.push({ id: "skip", label: PERSON_NAME_SKIP_OPTION });
+      }
       continue;
     }
-    if (banned.has(opt.toLowerCase())) {
+    if (banned.has(opt.label.toLowerCase())) {
       logAiChat("info", "roster_name_option_stripped", {
         traceId,
-        option: opt.slice(0, 80),
+        option: opt.label.slice(0, 80),
         gap: question.gap,
       });
       recordPipelineEvent({
@@ -48,7 +62,7 @@ function stripRosterNamesFromPersonNameQuestion(
         stage: "gate",
         payload: {
           decision: "roster_name_option_stripped",
-          option: opt.slice(0, 80),
+          option: opt.label.slice(0, 80),
           gap: question.gap,
         },
       });
@@ -57,7 +71,7 @@ function stripRosterNamesFromPersonNameQuestion(
     // Free-text name asks: drop every non-Skip chip (relation beats name).
     logAiChat("info", "roster_name_option_stripped", {
       traceId,
-      option: opt.slice(0, 80),
+      option: opt.label.slice(0, 80),
       gap: question.gap,
       reason: "person_name_non_skip",
     });
@@ -66,14 +80,16 @@ function stripRosterNamesFromPersonNameQuestion(
       stage: "gate",
       payload: {
         decision: "roster_name_option_stripped",
-        option: opt.slice(0, 80),
+        option: opt.label.slice(0, 80),
         gap: question.gap,
         reason: "person_name_non_skip",
       },
     });
   }
 
-  if (!kept.some(isSkipNameOption)) kept.push(PERSON_NAME_SKIP_OPTION);
+  if (!kept.some((k) => isSkipNameOption(k.label))) {
+    kept.push({ id: "skip", label: PERSON_NAME_SKIP_OPTION });
+  }
   return { ...question, quick_options: kept.slice(0, 1) };
 }
 
@@ -132,7 +148,13 @@ export function sanitizeClarificationQuestions(params: {
     seen.add(key);
     out.push(
       stripRosterNamesFromPersonNameQuestion(
-        { ...q, text },
+        {
+          ...q,
+          text,
+          quick_options: q.quick_options
+            ? asNormalizedOptions(q.quick_options)
+            : undefined,
+        },
         rosterNames,
         params.traceId,
       ),

@@ -142,9 +142,18 @@ export const chatPostBodySchema = z
     guestFashionMemory: guestFashionMemoryPayloadSchema.optional(),
     /** Assistant message id holding the mid-session fashion quiz just answered. */
     fashionClarificationMessageId: z.string().min(1).max(80).optional(),
-    /** question.text → selected answer for that fashion quiz. */
+    /** question.text → structured answer (or legacy plain string). */
     fashionClarificationAnswers: z
-      .record(z.string().max(500), z.string().max(500))
+      .record(
+        z.string().max(500),
+        z.union([
+          z.string().max(500),
+          z.object({
+            selected: z.array(z.string().max(200)).max(12),
+            customText: z.string().max(500).optional(),
+          }),
+        ]),
+      )
       .optional(),
   })
   .strict()

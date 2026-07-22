@@ -21,6 +21,7 @@ import { composerReplyFromPick } from "@/lib/ai-chat/composer-reply-context";
 import { applyIntentBranchSplitsToMessages } from "@/lib/ai-chat/intent-branch/apply-splits-to-messages";
 import { logIntentBranch } from "@/lib/ai-chat/intent-branch/debug-log";
 import { mergeOptionPreviewsIntoClarification } from "@/lib/ai-chat/search-clarification";
+import { mergeOptionPreviewsIntoFashionRouter } from "@/lib/fashion-memory/router/clarification-defaults";
 import { mergeOptionPreviewsIntoGiftDirections } from "@/lib/ai-chat/search/gift-directions";
 import {
   parseSidebarNodes,
@@ -490,6 +491,15 @@ function applyOptionPreviewsToMessage(
         ),
       };
     }
+    if (meta.fashionRouter) {
+      nextMeta = {
+        ...nextMeta,
+        fashionRouter: mergeOptionPreviewsIntoFashionRouter(
+          meta.fashionRouter,
+          previewMap,
+        ),
+      };
+    }
     return { ...m, metadata: nextMeta };
   });
 }
@@ -708,7 +718,11 @@ type ChatState = {
    */
   pendingFashionClarification: {
     messageId: string;
-    answers: Record<string, string>;
+    answers: Record<
+      string,
+      | string
+      | { selected: string[]; customText?: string }
+    >;
   } | null;
 
   /** Monotonic tokens — discard stale `loadConversation` / `fetchList` resolutions. */
@@ -731,7 +745,11 @@ type ChatState = {
   /** Mark a fashion mid-session quiz answered (optimistic) and queue persistence. */
   answerFashionClarification: (
     messageId: string,
-    answers: Record<string, string>,
+    answers: Record<
+      string,
+      | string
+      | { selected: string[]; customText?: string }
+    >,
   ) => void;
   requestComposerFocus: () => void;
   setSidebarOpen: (v: boolean) => void;

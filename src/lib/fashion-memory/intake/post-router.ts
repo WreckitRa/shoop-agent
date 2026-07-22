@@ -57,7 +57,10 @@ import {
   runFashionRouter,
   type RunFashionRouterDeps,
 } from "../router/llm-router";
-import { ensureQuestionsHaveQuickOptions } from "../router/clarification-defaults";
+import {
+  ensureQuestionsHaveQuickOptions,
+  ensureRideAlongDefaults,
+} from "../router/clarification-defaults";
 import { buildFashionRouterPrompt } from "../router/prompt";
 import type {
   FashionClarificationQuestion,
@@ -96,6 +99,7 @@ function withClarificationDefaults(
         stripPersonNameQuestions: opts?.stripPersonNameQuestions,
       }),
     ),
+    ride_along: ensureRideAlongDefaults(result.ride_along),
   };
 }
 

@@ -5,7 +5,13 @@ import { upsertFashionFact } from "../facts";
 import { FashionLocalStore } from "../local/store";
 import type { GuestFashionMemorySnapshot } from "../local/store";
 import { resolvePerson } from "../people";
+import {
+  formatClarificationAnswerDisplay,
+  optionLabels,
+} from "../router/clarification-defaults";
 import type {
+  FashionClarificationAnswer,
+  FashionClarificationOption,
   FashionClarificationQuestion,
   FashionIntakeQuestion,
   MessageFashionRouterMetaV1,
@@ -20,7 +26,8 @@ type ApplyQuestion = {
   field?: FashionIntakeQuestion["field"] | FashionClarificationQuestion["field"];
   gap?: FashionClarificationQuestion["gap"];
   garment_type?: string;
-  quick_options?: string[];
+  quick_options?: Array<string | FashionClarificationOption>;
+  allow_multiple?: boolean;
 };
 
 function asApplyQuestions(
@@ -34,6 +41,7 @@ function asApplyQuestions(
         gap: q.gap,
         garment_type: q.garment_type,
         quick_options: q.quick_options,
+        allow_multiple: q.allow_multiple,
       };
     }
     return {
@@ -42,6 +50,36 @@ function asApplyQuestions(
       quick_options: q.quick_options,
     };
   });
+}
+
+/** Flatten structured / legacy answers into field|gap|text → display string. */
+export function flattenClarificationAnswers(
+  answers: Record<string, FashionClarificationAnswer | string> | undefined,
+  questions: ApplyQuestion[],
+): Record<string, string> {
+  if (!answers) return {};
+  const out: Record<string, string> = {};
+  for (const q of questions) {
+    const raw = answers[q.text];
+    if (raw == null) continue;
+    let display = formatClarificationAnswerDisplay(raw, q.quick_options);
+    if (!display) continue;
+    // Exclusive gaps: if multi somehow arrives, take the first chip/label.
+    const exclusive =
+      q.gap === "size" ||
+      q.gap === "department" ||
+      q.gap === "recipient" ||
+      q.gap === "budget" ||
+      q.gap === "person_name" ||
+      (q.gap === "garment" && !q.allow_multiple);
+    if (exclusive && display.includes(",")) {
+      display = display.split(",")[0]!.trim();
+    }
+    const key = q.field ?? q.gap ?? q.text;
+    out[key] = display;
+    out[q.text] = display;
+  }
+  return out;
 }
 
 /**
@@ -149,7 +187,8 @@ export function parseClarificationAnswersFromMessage(
   if (questions.length === 1) {
     const q = questions[0]!;
     const key = q.field ?? q.gap ?? q.text;
-    const quick = q.quick_options?.find(
+    const labels = optionLabels(q.quick_options);
+    const quick = labels.find(
       (o) => o.trim().toLowerCase() === trimmed.toLowerCase(),
     );
     out[key] = quick ?? trimmed;
@@ -214,6 +253,7 @@ function inferRelationFromText(text: string): PersonRelation {
 export async function loadPriorClarificationTurn(conversationId: string): Promise<{
   targetPersonId: string | null;
   questions: ApplyQuestion[];
+  answers?: Record<string, FashionClarificationAnswer | string>;
 } | null> {
   const rows = await prisma.message.findMany({
     where: { conversationId, role: "assistant" },
@@ -230,6 +270,7 @@ export async function loadPriorClarificationTurn(conversationId: string): Promis
       return {
         targetPersonId: router.target_person_id ?? null,
         questions: asApplyQuestions(router.questions),
+        answers: router.answers,
       };
     }
 
@@ -280,10 +321,12 @@ export async function applyClarificationReplyFromMessage(params: {
   const prior = await loadPriorClarificationTurn(params.conversationId);
   if (!prior) return { facts: [], personId: null };
 
-  const answers = parseClarificationAnswersFromMessage(
+  const structured = flattenClarificationAnswers(prior.answers, prior.questions);
+  const echoed = parseClarificationAnswersFromMessage(
     params.userMessage,
     prior.questions,
   );
+  const answers = Object.keys(structured).length ? structured : echoed;
 
   const garmentQuestion = prior.questions.find((q) => q.gap === "garment");
   const garmentRaw =
@@ -291,16 +334,14 @@ export async function applyClarificationReplyFromMessage(params: {
     (garmentQuestion
       ? answers[garmentQuestion.field ?? ""] ?? answers[garmentQuestion.text]
       : undefined);
+  const garmentOptionLabels = optionLabels(garmentQuestion?.quick_options);
   const resolvedGarments =
     garmentRaw != null
-      ? normalizeGarmentClarificationAnswer(
-          garmentRaw,
-          garmentQuestion?.quick_options,
-        )
+      ? normalizeGarmentClarificationAnswer(garmentRaw, garmentOptionLabels)
       : prior.questions.some((q) => q.gap === "garment")
         ? normalizeGarmentClarificationAnswer(
             params.userMessage,
-            garmentQuestion?.quick_options,
+            garmentOptionLabels,
           )
         : [];
 

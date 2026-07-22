@@ -2,6 +2,10 @@
  * Backfill preview images for messages that have previewQuery but lost images
  * (e.g. race before persist merge). Safe to call on conversation load.
  */
+import {
+  collectFashionPreviewRequests,
+  mergeOptionPreviewsIntoFashionRouter,
+} from "@/lib/fashion-memory/router/clarification-defaults";
 import { prisma } from "@/lib/ai-chat/db";
 import { logOptionPreview } from "@/lib/ai-chat/option-preview-log";
 import { runOptionPreviews } from "@/lib/ai-chat/schedule-option-previews";
@@ -86,7 +90,9 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
         ? collectPreviewRequests(meta.clarification)
         : meta.giftDirections
           ? collectGiftDirectionPreviewRequests(meta.giftDirections)
-          : [];
+          : meta.fashionRouter
+            ? collectFashionPreviewRequests(meta.fashionRouter)
+            : [];
 
       if (!options.length) return;
 
@@ -111,6 +117,13 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
               previewMap,
             );
             return { giftDirections: merged };
+          }
+          if (meta.fashionRouter) {
+            const merged = mergeOptionPreviewsIntoFashionRouter(
+              meta.fashionRouter,
+              previewMap,
+            );
+            return { fashionRouter: merged };
           }
           return {};
         },

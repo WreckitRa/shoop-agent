@@ -110,18 +110,40 @@ export type FashionClarificationApplyField =
   | "person_name"
   | "budget_max";
 
+/** One tappable clarification option (chip or visual card). */
+export type FashionClarificationOption = {
+  id: string;
+  label: string;
+  /** Catalog search phrase → visual card collage (styles/directions only). */
+  previewQuery?: string;
+  previewImages?: import("@/lib/ai-chat/types").ClarificationOptionPreviewImage[];
+};
+
+/** Structured quiz answer — selected option ids (or legacy labels) + optional Other text. */
+export type FashionClarificationAnswer = {
+  selected: string[];
+  customText?: string;
+};
+
 export type FashionClarificationQuestion = {
   text: string;
   gap: FashionClarificationGap;
   garment_type?: string;
-  quick_options?: string[];
+  /** Prefer rich options; plain strings are accepted and normalized server-side. */
+  quick_options?: Array<string | FashionClarificationOption>;
   /** Present on gate templates so answers can be written as facts. */
   field?: FashionClarificationApplyField;
+  /** When true, user may pick more than one chip/card. */
+  allow_multiple?: boolean;
+  /** When false, no Other free-form path (person_name is Skip-only). Default true. */
+  allow_other?: boolean;
 };
 
 export type FashionClarificationRideAlong = {
   text: string;
-  quick_options: string[];
+  quick_options: Array<string | FashionClarificationOption>;
+  allow_multiple?: boolean;
+  allow_other?: boolean;
 };
 
 /** @deprecated Use FashionClarificationQuestion — kept for apply-path aliases. */
@@ -171,12 +193,16 @@ export type MessageFashionRouterMetaV1 = {
    * submits (or sends any follow-up). Survives page refresh.
    */
   status?: "pending" | "answered";
-  /** question.text → selected answer label (chip or free text). */
-  answers?: Record<string, string>;
+  /**
+   * question.text → structured answer (or legacy plain string).
+   */
+  answers?: Record<string, FashionClarificationAnswer | string>;
+  /** True when at least one option has previewQuery awaiting hydration. */
+  expectsOptionPreviews?: boolean;
   /** @deprecated Legacy flat clarification chips — prefer questions[]. */
   missing?: string[];
   /** @deprecated Legacy flat clarification chips — prefer questions[]. */
-  quick_options?: string[];
+  quick_options?: Array<string | FashionClarificationOption>;
   /** @deprecated Legacy intake metadata — prefer questions[]. */
   intake?: {
     target_person_id: string;

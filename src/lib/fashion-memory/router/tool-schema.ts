@@ -1,7 +1,16 @@
 import { z } from "zod";
 import { logAiChat } from "@/lib/ai-chat/observability";
-import { ensureQuestionsHaveQuickOptions } from "./clarification-defaults";
-import type { FashionSearchBrief } from "./types";
+import {
+  ensureQuestionsHaveQuickOptions,
+  ensureRideAlongDefaults,
+  normalizeClarificationOption,
+} from "./clarification-defaults";
+import type {
+  FashionClarificationOption,
+  FashionClarificationQuestion,
+  FashionClarificationRideAlong,
+  FashionSearchBrief,
+} from "./types";
 
 export const RESPOND_OFF_TOPIC_TOOL_NAME = "respond_off_topic";
 export const ASK_CLARIFICATION_TOOL_NAME = "ask_clarification";
@@ -139,12 +148,24 @@ export const clarificationGapSchema = z.enum([
   "budget",
 ]);
 
+const clarificationOptionInputSchema = z.union([
+  z.string().min(1).max(120),
+  z.object({
+    id: z.string().min(1).max(80).optional(),
+    label: z.string().min(1).max(120),
+    preview_query: z.string().min(1).max(300).optional(),
+    previewQuery: z.string().min(1).max(300).optional(),
+  }),
+]);
+
 export const clarificationQuestionSchema = z.object({
   text: z.string().min(1).max(500),
   gap: clarificationGapSchema,
   garment_type: z.string().min(1).max(80).optional(),
   // Preferred; if omitted the server fills defaults + Other.
-  quick_options: z.array(z.string().min(1).max(120)).min(2).max(6).optional(),
+  quick_options: z.array(clarificationOptionInputSchema).min(2).max(6).optional(),
+  allow_multiple: z.boolean().optional(),
+  allow_other: z.boolean().optional(),
 });
 
 export const askClarificationInputSchema = z.object({
@@ -153,7 +174,9 @@ export const askClarificationInputSchema = z.object({
   ride_along: z
     .object({
       text: z.string().min(1).max(500),
-      quick_options: z.array(z.string().min(1).max(120)).min(2).max(6),
+      quick_options: z.array(clarificationOptionInputSchema).min(2).max(6),
+      allow_multiple: z.boolean().optional(),
+      allow_other: z.boolean().optional(),
     })
     .optional(),
   stated_facts: statedFactsSchema,
@@ -180,7 +203,7 @@ export const RESPOND_OFF_TOPIC_TOOL = {
 export const ASK_CLARIFICATION_TOOL = {
   name: ASK_CLARIFICATION_TOOL_NAME,
   description:
-    "Ask 1–4 blocking clarifications in one turn. Bundle all currently-blocking gaps. Every question MUST include 2–5 short quick_options plus the user can always type Other. Optional ride_along for one nice-to-have with an opt-out. Copy any conversation-stated essentials into stated_facts even when still clarifying.",
+    "Ask 1–4 blocking clarifications in one turn. Bundle all currently-blocking gaps. Every question MUST include 2–5 short quick_options; the UI always adds Other for free-form. Set allow_multiple true for additive chips (occasions, colors, vibes, materials). For style/vibe/color directions use option objects with preview_query. Optional ride_along for one nice-to-have with an opt-out. Copy any conversation-stated essentials into stated_facts even when still clarifying.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -210,11 +233,38 @@ export const ASK_CLARIFICATION_TOOL = {
               ],
             },
             garment_type: { type: "string" },
+            allow_multiple: {
+              type: "boolean",
+              description:
+                "True when several answers can all apply (occasions, styles, colors). False for size/department/budget/recipient.",
+            },
+            allow_other: {
+              type: "boolean",
+              description:
+                "Default true. Set false only for closed sets (person_name uses Skip only).",
+            },
             quick_options: {
               type: "array",
-              items: { type: "string" },
               description:
-                "2–5 short tappable answers. Always include discrete sizes/sections when asking size or department.",
+                "2–5 short answers as strings, or objects {label, preview_query?} for shoppable style/direction cards. Never include Other — the UI injects it. Omit preview_query for size/budget/department/recipient.",
+              items: {
+                oneOf: [
+                  { type: "string" },
+                  {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      label: { type: "string" },
+                      preview_query: {
+                        type: "string",
+                        description:
+                          "Concrete product-noun catalog phrase for visual previews (styles/vibes/colors only).",
+                      },
+                    },
+                    required: ["label"],
+                  },
+                ],
+              },
             },
           },
           required: ["text", "gap", "quick_options"],
@@ -224,7 +274,25 @@ export const ASK_CLARIFICATION_TOOL = {
         type: "object",
         properties: {
           text: { type: "string" },
-          quick_options: { type: "array", items: { type: "string" } },
+          allow_multiple: { type: "boolean" },
+          allow_other: { type: "boolean" },
+          quick_options: {
+            type: "array",
+            items: {
+              oneOf: [
+                { type: "string" },
+                {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    label: { type: "string" },
+                    preview_query: { type: "string" },
+                  },
+                  required: ["label"],
+                },
+              ],
+            },
+          },
         },
         required: ["text", "quick_options"],
       },
@@ -345,6 +413,64 @@ function clampStr(value: unknown, max: number): unknown {
   return value.length > max ? value.slice(0, max) : value;
 }
 
+function coerceQuickOption(raw: unknown): unknown {
+  if (typeof raw === "string") return clampStr(raw, 120);
+  if (!raw || typeof raw !== "object") return raw;
+  const o = { ...(raw as Record<string, unknown>) };
+  o.id = clampStr(o.id, 80);
+  o.label = clampStr(o.label, 120);
+  if (typeof o.preview_query === "string") {
+    o.preview_query = clampStr(o.preview_query, 300);
+  }
+  if (typeof o.previewQuery === "string") {
+    o.previewQuery = clampStr(o.previewQuery, 300);
+  }
+  return o;
+}
+
+function normalizeParsedOption(
+  raw: z.infer<typeof clarificationOptionInputSchema>,
+): FashionClarificationOption {
+  if (typeof raw === "string") return normalizeClarificationOption(raw);
+  const preview =
+    (typeof raw.preview_query === "string" && raw.preview_query.trim()) ||
+    (typeof raw.previewQuery === "string" && raw.previewQuery.trim()) ||
+    undefined;
+  return normalizeClarificationOption({
+    id: raw.id?.trim() || "",
+    label: raw.label,
+    ...(preview ? { previewQuery: preview } : {}),
+  });
+}
+
+function normalizeParsedQuestion(
+  q: z.infer<typeof clarificationQuestionSchema>,
+): FashionClarificationQuestion {
+  return {
+    text: q.text,
+    gap: q.gap,
+    ...(q.garment_type ? { garment_type: q.garment_type } : {}),
+    ...(q.allow_multiple != null ? { allow_multiple: q.allow_multiple } : {}),
+    ...(q.allow_other != null ? { allow_other: q.allow_other } : {}),
+    ...(q.quick_options
+      ? { quick_options: q.quick_options.map(normalizeParsedOption) }
+      : {}),
+  };
+}
+
+function normalizeParsedRideAlong(
+  ride: NonNullable<z.infer<typeof askClarificationInputSchema>["ride_along"]>,
+): FashionClarificationRideAlong {
+  return {
+    text: ride.text,
+    quick_options: ride.quick_options.map(normalizeParsedOption),
+    ...(ride.allow_multiple != null
+      ? { allow_multiple: ride.allow_multiple }
+      : {}),
+    ...(ride.allow_other != null ? { allow_other: ride.allow_other } : {}),
+  };
+}
+
 function coerceRouterToolRaw(toolName: string, raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const obj = { ...(raw as Record<string, unknown>) };
@@ -363,12 +489,18 @@ function coerceRouterToolRaw(toolName: string, raw: unknown): unknown {
         question.text = clampStr(question.text, 500);
         question.garment_type = clampStr(question.garment_type, 80);
         if (Array.isArray(question.quick_options)) {
-          question.quick_options = question.quick_options.map((o) =>
-            clampStr(o, 120),
-          );
+          question.quick_options = question.quick_options.map(coerceQuickOption);
         }
         return question;
       });
+    }
+    if (obj.ride_along && typeof obj.ride_along === "object") {
+      const ride = { ...(obj.ride_along as Record<string, unknown>) };
+      ride.text = clampStr(ride.text, 500);
+      if (Array.isArray(ride.quick_options)) {
+        ride.quick_options = ride.quick_options.map(coerceQuickOption);
+      }
+      obj.ride_along = ride;
     }
     return obj;
   }
@@ -444,8 +576,14 @@ export function parseFashionRouterToolInput(
     return {
       move: "ask_clarification",
       reply: parsed.data.reply,
-      questions: ensureQuestionsHaveQuickOptions(parsed.data.questions),
-      ride_along: parsed.data.ride_along,
+      questions: ensureQuestionsHaveQuickOptions(
+        parsed.data.questions.map(normalizeParsedQuestion),
+      ),
+      ride_along: ensureRideAlongDefaults(
+        parsed.data.ride_along
+          ? normalizeParsedRideAlong(parsed.data.ride_along)
+          : undefined,
+      ),
       stated_facts: parsed.data.stated_facts,
     };
   }

@@ -33,7 +33,13 @@ import {
 } from "@/lib/fashion-memory/search-planner/plan-from-brief";
 import { resolveFashionRouterTurn } from "@/lib/fashion-memory/intake/post-router";
 import { isGapDeclined } from "@/lib/fashion-memory/intake/dodge-counter";
-import { ensureQuestionsHaveQuickOptions } from "@/lib/fashion-memory/router/clarification-defaults";
+import {
+  collectFashionPreviewRequests,
+  ensureQuestionsHaveQuickOptions,
+  fashionRouterExpectsOptionPreviews,
+  mergeOptionPreviewsIntoFashionRouter,
+  optionLabels,
+} from "@/lib/fashion-memory/router/clarification-defaults";
 import {
   fashionCatalogSearchToMetadata,
   loadFashionSearchProfile,
@@ -67,13 +73,20 @@ import type {
   FashionRouterResult,
   MessageFashionRouterMetaV1,
 } from "@/lib/fashion-memory/router/types";
+import { runOptionPreviews } from "./schedule-option-previews";
+import { loadBuyerCatalogContext } from "./shopping-memory/search-hints";
+import { mergeOptionPreviewMetadata } from "./merge-option-preview-metadata";
 
 export type FashionChatPostBody = {
   conversationId?: string;
   message: string;
   guestFashionMemory?: GuestFashionMemorySnapshot;
   fashionClarificationMessageId?: string;
-  fashionClarificationAnswers?: Record<string, string>;
+  fashionClarificationAnswers?: Record<
+    string,
+    | string
+    | { selected: string[]; customText?: string }
+  >;
 };
 
 function pushAgentDebug(
@@ -117,19 +130,24 @@ function routerMetadata(
     };
   }
   if (result.move === "ask_clarification") {
+    const questions = ensureQuestionsHaveQuickOptions(result.questions);
     return {
       version: 1,
       move: "ask_clarification",
       reply: result.reply,
-      questions: result.questions,
+      questions,
       ride_along: result.ride_along,
       stated_facts: result.stated_facts,
       target_person_id: result.target_person_id,
       declined_gaps: extras?.declinedGaps,
       status: "pending",
+      expectsOptionPreviews: fashionRouterExpectsOptionPreviews({
+        questions,
+        ride_along: result.ride_along,
+      }),
       // Legacy flat fields for older clients
-      missing: result.questions.map((q) => q.gap),
-      quick_options: result.questions[0]?.quick_options,
+      missing: questions.map((q) => q.gap),
+      quick_options: optionLabels(questions[0]?.quick_options),
       trace_id: extras?.traceId,
     };
   }
@@ -387,7 +405,7 @@ export function createFashionChatSseStream(params: {
           traceId: traceId ?? undefined,
           declinedGaps: resolved.declinedGaps,
         });
-        const metadata: MessageMetadata = {
+        let metadata: MessageMetadata = {
           shoppingMode,
           fashionRouter,
         };
@@ -670,6 +688,8 @@ export function createFashionChatSseStream(params: {
             quick_options: fashionRouterOut.quick_options,
             brief: fashionRouterOut.brief,
             target_person_id: fashionRouterOut.target_person_id,
+            expectsOptionPreviews:
+              fashionRouterOut.expectsOptionPreviews ?? false,
           }),
         );
 
@@ -687,6 +707,57 @@ export function createFashionChatSseStream(params: {
           metadata,
         });
         await touchConversationUpdatedAt(conv.id);
+
+        // Hydrate visual option cards for style/direction chips (same pipeline
+        // as product-search clarification).
+        if (
+          fashionRouterOut.move === "ask_clarification" &&
+          fashionRouterOut.expectsOptionPreviews
+        ) {
+          const previewOptions = collectFashionPreviewRequests(fashionRouterOut);
+          if (previewOptions.length) {
+            let fashionRouterState = fashionRouterOut;
+            await Promise.race([
+              runOptionPreviews({
+                messageId: assistantRow.id,
+                conversationId: conv.id,
+                options: previewOptions,
+                getBuyerContext: () =>
+                  loadBuyerCatalogContext(userId, "", conv.id).catch(() => null),
+                fallbackShippingCountry: conv.shippingCountry,
+                push,
+                applyPreviews: (previewMap) => {
+                  const merged = mergeOptionPreviewsIntoFashionRouter(
+                    fashionRouterState,
+                    previewMap,
+                  );
+                  fashionRouterState = merged;
+                  metadata.fashionRouter = merged;
+                  return { fashionRouter: merged };
+                },
+              }),
+              new Promise<void>((resolve) => {
+                setTimeout(resolve, 2800);
+              }),
+            ]);
+            try {
+              const previewRow = await prisma.message.findUnique({
+                where: { id: assistantRow.id },
+                select: { metadata: true },
+              });
+              const previewMeta = previewRow?.metadata as MessageMetadata | null;
+              if (previewMeta?.fashionRouter) {
+                metadata =
+                  (mergeOptionPreviewMetadata(
+                    previewMeta,
+                    metadata,
+                  ) as MessageMetadata | null) ?? metadata;
+              }
+            } catch {
+              /* best-effort */
+            }
+          }
+        }
 
         const isFirstTurn = !params.body.conversationId;
         if (isFirstTurn) kickConversationTitleRename(conv.id);

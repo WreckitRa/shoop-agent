@@ -262,8 +262,12 @@ export async function skipPendingClarificationsForConversation(
   opts?: {
     /** Fashion quiz message that was just answered via chips. */
     fashionClarificationMessageId?: string;
-    /** question.text → answer label. */
-    fashionClarificationAnswers?: Record<string, string>;
+    /** question.text → structured answer (or legacy plain string). */
+    fashionClarificationAnswers?: Record<
+      string,
+      | string
+      | { selected: string[]; customText?: string }
+    >;
   },
 ) {
   const rows: { id: string; metadata: unknown }[] = await prisma.message.findMany({
