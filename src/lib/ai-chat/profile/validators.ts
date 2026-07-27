@@ -16,12 +16,37 @@ const enumOrEmpty = (allowed: readonly string[]) =>
       `must be one of ${allowed.join(", ")} or empty`,
     );
 
+const birthDateString = z
+  .string()
+  .refine(
+    (v) =>
+      !Number.isNaN(Date.parse(v)) ||
+      /^\d{4}-\d{2}-\d{2}$/.test(v),
+    "must be an ISO date or datetime",
+  );
+
+export const styleMixSchema = z
+  .object({
+    axes: z
+      .array(
+        z.object({
+          label: z.string().min(1).max(40),
+          percent: z.number().min(0).max(100),
+        }),
+      )
+      .min(1)
+      .max(6),
+    headingToward: z.string().max(40).optional().nullable(),
+    headingPercent: z.number().min(0).max(100).optional().nullable(),
+  })
+  .strict();
+
 export const userProfilePatchSchema = z
   .object({
     preferredName: z.string().max(120).optional().nullable(),
     pronouns: z.string().max(40).optional().nullable(),
     ageRange: z.string().max(20).optional().nullable(),
-    birthDate: z.string().datetime().optional().nullable(),
+    birthDate: birthDateString.optional().nullable(),
     genderPresentation: z.string().max(40).optional().nullable(),
     country: z.string().max(80).optional().nullable(),
     city: z.string().max(120).optional().nullable(),
@@ -52,6 +77,14 @@ export const userProfilePatchSchema = z
       "meta_ai",
       "other",
     ]).optional().nullable(),
+    styleEra: z.string().max(40).optional().nullable(),
+    honestyPreference: enumOrEmpty([
+      "gentle",
+      "straight",
+      "no_mercy",
+    ]).optional().nullable(),
+    complimentPreferences: z.array(z.string().max(40)).max(4).optional(),
+    styleMix: styleMixSchema.optional().nullable(),
   })
   .strict();
 

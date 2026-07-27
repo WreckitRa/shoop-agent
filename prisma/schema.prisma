@@ -738,6 +738,18 @@ model UserProfile {
   /// Primary AI assistant the user relies on (onboarding capture).
   primaryAiAssistant String?
 
+  /// Style-life era chip from onboarding (e.g. "30s_prime"). Also maps to ageRange.
+  styleEra String?
+
+  /// How direct Shoop should be: gentle | straight | no_mercy
+  honestyPreference String?
+
+  /// Compliments the user wants to hear (max 2 in onboarding UI).
+  complimentPreferences String[] @default([])
+
+  /// Computed Shooping Cart style mix from onboarding picks.
+  styleMix Json?
+
   onboardingStarted   Boolean @default(false)
   onboardingCompleted Boolean @default(false)
   onboardingProjectionVersion Int @default(0)

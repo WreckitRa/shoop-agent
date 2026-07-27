@@ -24,6 +24,7 @@ import {
   CURATED_SHOP_IDS,
   isCuratedShopAllowlistEnabled,
 } from "@/lib/shopify/curated-shop-ids";
+import { createAbortScope } from "@/lib/ai-chat/abort-scope";
 
 /** Buyer localization / relevance signals (Global Catalog). */
 export type CatalogSearchContext = {
@@ -875,6 +876,9 @@ export async function searchCatalog(
   }
 
   const limit = resolvedSearchLimit(options);
+  // Fork per chunk so parallel fetches don't stack abort listeners on one signal
+  // (Node warns at 100+ listeners — full curated allowlist is ~5 chunks × retries).
+  const scope = createAbortScope(options.signal);
   const pages = await Promise.all(
     chunks.map((chunk) => {
       const catalog = buildSearchCatalogRequest(
@@ -887,7 +891,7 @@ export async function searchCatalog(
         "search_catalog",
         catalog,
         {
-          signal: options.signal,
+          signal: scope.fork(),
           onMcpExchange: options.onMcpExchange,
         },
       );

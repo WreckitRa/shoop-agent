@@ -15,16 +15,16 @@ import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { TagInput } from "@/components/ui/TagInput";
 import {
   AGE_RANGES,
-  BOTTOM_SIZES,
+  BOTTOM_SIZE_OPTIONS,
   BRAND_SUGGESTIONS,
   BUDGET_OPTIONS,
   COUNTRY_OPTIONS,
   CURRENCY_OPTIONS,
   GENDER_OPTIONS,
   HARD_AVOID_SUGGESTIONS,
-  SHOE_EU_SIZES,
+  SHOE_SIZE_OPTIONS,
   STYLE_SUGGESTIONS,
-  TOP_SIZES,
+  TOP_SIZE_OPTIONS,
   currencyHintForCountry,
 } from "@/lib/onboarding/form-options";
 
@@ -234,8 +234,8 @@ export function OnboardingProfileStep({ values, hasPrefill, onChange }: Props) {
             label="Usual top size"
             value={values.topSize}
             onChange={(v) => onChange("topSize", v)}
-            options={TOP_SIZES.map((s) => ({ value: s, label: s }))}
-            placeholder="e.g. M"
+            options={TOP_SIZE_OPTIONS}
+            placeholder="e.g. US - M, EU - 50"
             allowCustom
             optional
           />
@@ -243,17 +243,17 @@ export function OnboardingProfileStep({ values, hasPrefill, onChange }: Props) {
             label="Usual bottom size"
             value={values.bottomSize}
             onChange={(v) => onChange("bottomSize", v)}
-            options={BOTTOM_SIZES.map((s) => ({ value: s, label: s }))}
-            placeholder="e.g. 32x30"
+            options={BOTTOM_SIZE_OPTIONS}
+            placeholder="e.g. US - 32, MX - 40"
             allowCustom
             optional
           />
           <SearchableSelect
-            label="EU shoe size"
+            label="Shoe size"
             value={values.shoeEU}
             onChange={(v) => onChange("shoeEU", v)}
-            options={SHOE_EU_SIZES.map((s) => ({ value: s, label: s }))}
-            placeholder="e.g. 42"
+            options={SHOE_SIZE_OPTIONS}
+            placeholder="e.g. US - 10, EU - 43"
             allowCustom
             optional
           />

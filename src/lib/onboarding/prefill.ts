@@ -87,11 +87,26 @@ function normalizeTopSize(raw: string): string {
 
 function mapValuePhilosophy(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
-  const t = raw.toLowerCase();
-  if (t.includes("luxury") || t.includes("premium") || t.includes("herm")) return "premium";
-  if (t.includes("deal") || t.includes("cheap")) return "deal_hunter";
-  if (t.includes("design")) return "design_first";
-  if (t.includes("value") || t.includes("flexible")) return "best_value";
+  const t = raw.trim().toLowerCase();
+  const known = [
+    "best_value",
+    "premium",
+    "luxury",
+    "deal_hunter",
+    "design_first",
+  ] as const;
+  if ((known as readonly string[]).includes(t)) return t;
+  if (t.includes("luxury") || t.includes("designer") || t.includes("herm")) {
+    return "luxury";
+  }
+  if (t.includes("premium") || t.includes("quality")) return "premium";
+  if (t.includes("deal") || t.includes("cheap") || t.includes("sale")) {
+    return "deal_hunter";
+  }
+  if (t.includes("design") || t.includes("aesthetic")) return "design_first";
+  if (t.includes("value") || t.includes("flexible") || t.includes("smart")) {
+    return "best_value";
+  }
   return undefined;
 }
 

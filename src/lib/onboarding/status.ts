@@ -140,13 +140,26 @@ export async function applyOnboardingPatch(
     const d = new Date(profileData.birthDate);
     profileData.birthDate = Number.isNaN(d.getTime()) ? null : d;
   }
+  if (input.profile?.styleMix !== undefined) {
+    profileData.styleMix =
+      input.profile.styleMix === null
+        ? null
+        : (input.profile.styleMix as InputJsonValue);
+  }
+  if (input.profile?.complimentPreferences !== undefined) {
+    profileData.complimentPreferences = input.profile.complimentPreferences;
+  }
+  if (input.profile?.lifestyleTags !== undefined) {
+    profileData.lifestyleTags = input.profile.lifestyleTags;
+  }
 
   const sizingData = input.sizing ? cleanObject(input.sizing) : null;
   if (sizingData && input.sizing?.brandSizingNotes !== undefined) {
     sizingData.brandSizingNotes = (input.sizing.brandSizingNotes ?? []) as InputJsonValue;
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(
+    async (tx) => {
     const profile = await tx.userProfile.upsert({
       where: { userId },
       create: {
@@ -173,9 +186,11 @@ export async function applyOnboardingPatch(
       throw new Error("missing_required_onboarding_fields");
     }
 
-    const writes: Promise<unknown>[] = [];
+    // Lazy ops — don't start queries until the batch runs (avoids stampeding
+    // the interactive transaction and hitting the default 5s timeout).
+    const writes: Array<() => Promise<unknown>> = [];
     if (sizingData) {
-      writes.push(
+      writes.push(() =>
         tx.sizingProfile.upsert({
           where: { userId },
           create: { userId, ...sizingData, confidence: 1, evidenceCount: 1 },
@@ -186,57 +201,61 @@ export async function applyOnboardingPatch(
 
     for (const b of input.brands ?? []) {
       const category = b.category?.trim() ?? "";
-      writes.push(tx.brandPreference.upsert({
-      where: {
-        userId_brand_category: { userId, brand: b.brand.trim(), category },
-      },
-      create: {
-        userId,
-        brand: b.brand.trim(),
-        category,
-        sentiment: b.sentiment,
-        strength: b.strength ?? 0.75,
-        reasons: b.reasons ?? [],
-        ownsProducts: b.ownsProducts ?? false,
-        aspirational: b.aspirational ?? false,
-        confidence: 1,
-        evidenceCount: 1,
-      },
-      update: {
-        sentiment: b.sentiment,
-        strength: b.strength ?? undefined,
-        reasons: b.reasons ?? undefined,
-        ownsProducts: b.ownsProducts ?? undefined,
-        aspirational: b.aspirational ?? undefined,
-        confidence: 1,
-      },
-      }));
+      writes.push(() =>
+        tx.brandPreference.upsert({
+          where: {
+            userId_brand_category: { userId, brand: b.brand.trim(), category },
+          },
+          create: {
+            userId,
+            brand: b.brand.trim(),
+            category,
+            sentiment: b.sentiment,
+            strength: b.strength ?? 0.75,
+            reasons: b.reasons ?? [],
+            ownsProducts: b.ownsProducts ?? false,
+            aspirational: b.aspirational ?? false,
+            confidence: 1,
+            evidenceCount: 1,
+          },
+          update: {
+            sentiment: b.sentiment,
+            strength: b.strength ?? undefined,
+            reasons: b.reasons ?? undefined,
+            ownsProducts: b.ownsProducts ?? undefined,
+            aspirational: b.aspirational ?? undefined,
+            confidence: 1,
+          },
+        }),
+      );
     }
 
     for (const h of input.hardNegatives ?? []) {
       const category = h.category?.trim() ?? "";
-      writes.push(tx.hardNegative.upsert({
-      where: {
-        userId_scope_value_category: {
-          userId,
-          scope: h.scope,
-          value: h.value.trim(),
-          category,
-        },
-      },
-      create: {
-        userId,
-        scope: h.scope,
-        value: h.value.trim(),
-        category,
-        reason: h.reason ?? null,
-        note: h.note ?? null,
-      },
-      update: {
-        reason: h.reason ?? undefined,
-        note: h.note ?? undefined,
-      },
-      }));
+      writes.push(() =>
+        tx.hardNegative.upsert({
+          where: {
+            userId_scope_value_category: {
+              userId,
+              scope: h.scope,
+              value: h.value.trim(),
+              category,
+            },
+          },
+          create: {
+            userId,
+            scope: h.scope,
+            value: h.value.trim(),
+            category,
+            reason: h.reason ?? null,
+            note: h.note ?? null,
+          },
+          update: {
+            reason: h.reason ?? undefined,
+            note: h.note ?? undefined,
+          },
+        }),
+      );
     }
 
     for (const p of input.ownedProducts ?? []) {
@@ -244,73 +263,81 @@ export async function applyOnboardingPatch(
       const subcategory = p.subcategory?.trim() ?? "";
       const brand = p.brand?.trim() ?? "";
       const productName = p.productName.trim();
-      writes.push(tx.ownedProduct.upsert({
-      where: {
-        userId_category_subcategory_brand_productName: {
-          userId,
-          category,
-          subcategory,
-          brand,
-          productName,
-        },
-      },
-      create: {
-        userId,
-        category,
-        subcategory,
-        brand,
-        productName,
-        model: p.model?.trim() ?? "",
-        attributes: (p.attributes ?? {}) as object,
-        acquiredAt: p.acquiredAt ? new Date(p.acquiredAt) : null,
-        acquiredNote: p.acquiredNote ?? null,
-        isCurrent: p.isCurrent ?? true,
-        notes: p.notes ?? null,
-        confidence: 1,
-        evidenceCount: 1,
-      },
-      update: {
-        model: p.model?.trim() ?? undefined,
-        attributes: p.attributes as object | undefined,
-        acquiredAt: p.acquiredAt ? new Date(p.acquiredAt) : undefined,
-        acquiredNote: p.acquiredNote ?? undefined,
-        isCurrent: p.isCurrent ?? undefined,
-        notes: p.notes ?? undefined,
-        confidence: 1,
-      },
-      }));
+      writes.push(() =>
+        tx.ownedProduct.upsert({
+          where: {
+            userId_category_subcategory_brand_productName: {
+              userId,
+              category,
+              subcategory,
+              brand,
+              productName,
+            },
+          },
+          create: {
+            userId,
+            category,
+            subcategory,
+            brand,
+            productName,
+            model: p.model?.trim() ?? "",
+            attributes: (p.attributes ?? {}) as object,
+            acquiredAt: p.acquiredAt ? new Date(p.acquiredAt) : null,
+            acquiredNote: p.acquiredNote ?? null,
+            isCurrent: p.isCurrent ?? true,
+            notes: p.notes ?? null,
+            confidence: 1,
+            evidenceCount: 1,
+          },
+          update: {
+            model: p.model?.trim() ?? undefined,
+            attributes: p.attributes as object | undefined,
+            acquiredAt: p.acquiredAt ? new Date(p.acquiredAt) : undefined,
+            acquiredNote: p.acquiredNote ?? undefined,
+            isCurrent: p.isCurrent ?? undefined,
+            notes: p.notes ?? undefined,
+            confidence: 1,
+          },
+        }),
+      );
     }
 
     for (const t of input.tasteTags ?? []) {
       const tag = t.tag.trim();
       const category = t.category?.trim() ?? "";
       const scope = category ? "category" : "global";
-      writes.push(tx.tasteTag.upsert({
-      where: {
-        userId_scope_category_tag_polarity: {
-          userId,
-          scope,
-          category,
-          tag,
-          polarity: t.polarity,
-        },
-      },
-      create: {
-        userId,
-        scope,
-        category,
-        tag,
-        polarity: t.polarity,
-        score: 0.8,
-        evidenceCount: 1,
-      },
-      update: {
-        score: 0.9,
-      },
-      }));
+      writes.push(() =>
+        tx.tasteTag.upsert({
+          where: {
+            userId_scope_category_tag_polarity: {
+              userId,
+              scope,
+              category,
+              tag,
+              polarity: t.polarity,
+            },
+          },
+          create: {
+            userId,
+            scope,
+            category,
+            tag,
+            polarity: t.polarity,
+            score: 0.8,
+            evidenceCount: 1,
+          },
+          update: {
+            score: 0.9,
+          },
+        }),
+      );
     }
 
-    await Promise.all(writes);
+    const WRITE_BATCH = 8;
+    for (let i = 0; i < writes.length; i += WRITE_BATCH) {
+      const slice = writes.slice(i, i + WRITE_BATCH);
+      await Promise.all(slice.map((run) => run()));
+    }
     await enqueueOnboardingProjection(
       tx,
       userId,
@@ -324,13 +351,16 @@ export async function applyOnboardingPatch(
         text: extraNotes,
       });
     }
-  });
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
 
   return getOnboardingStatus(userId);
 }
 
 export async function completeOnboarding(userId: string) {
-  const completed = await prisma.$transaction(async (tx) => {
+  const completed = await prisma.$transaction(
+    async (tx) => {
     const current = await tx.userProfile.findUnique({ where: { userId } });
     if (missingRequiredOnboardingFields(current).length > 0) return false;
     if (current?.onboardingCompleted) return true;
@@ -349,8 +379,9 @@ export async function completeOnboarding(userId: string) {
       profile.onboardingProjectionVersion,
     );
     return true;
-  });
-
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
   const status = await getOnboardingStatus(userId);
   return completed
     ? { ok: true as const, status }

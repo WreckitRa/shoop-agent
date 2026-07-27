@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildPatchFromTasteSwipes } from "./taste-persist";
+import {
+  buildPatchFromTastePicks,
+  buildPatchFromTasteSwipes,
+} from "./taste-persist";
 
 describe("buildPatchFromTasteSwipes", () => {
   it("ignores neutral swipes and deduplicates normalized tags", () => {
@@ -55,5 +58,38 @@ describe("buildPatchFromTasteSwipes", () => {
 
   it("returns an empty patch for skip", () => {
     assert.deepEqual(buildPatchFromTasteSwipes([]), {});
+  });
+});
+
+describe("buildPatchFromTastePicks", () => {
+  it("maps worn/aspirational picks, brands, vetoes, and style mix", () => {
+    const patch = buildPatchFromTastePicks({
+      wornPicks: [
+        { id: "1", label: "jeans + knit", tasteTags: ["casual", "knit"] },
+        { id: "2", label: "all black", tasteTags: ["minimal"] },
+      ],
+      aspirationalPicks: [
+        { id: "3", label: "quiet-luxury airport", tasteTags: ["quiet-luxury"] },
+      ],
+      brandLikes: ["COS", "Zara"],
+      brandAvoids: ["FastBrand"],
+      hardAvoids: ["loud logos", "neon"],
+      compliments: ["Polished", "Expensive"],
+      honestyPreference: "straight",
+      valuePhilosophy: "premium",
+    });
+
+    assert.ok(patch.tasteTags?.some((t) => t.category === "worn"));
+    assert.ok(patch.tasteTags?.some((t) => t.category === "aspirational"));
+    assert.ok(patch.tasteTags?.some((t) => t.category === "compliment"));
+    assert.deepEqual(
+      patch.brands?.map((b) => b.brand).sort(),
+      ["COS", "FastBrand", "Zara"],
+    );
+    assert.equal(patch.hardNegatives?.length, 2);
+    assert.equal(patch.profile?.honestyPreference, "straight");
+    assert.equal(patch.profile?.valuePhilosophy, "premium");
+    assert.ok(patch.profile?.styleMix);
+    assert.equal(patch.profile?.complimentPreferences?.length, 2);
   });
 });

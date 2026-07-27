@@ -161,6 +161,10 @@ type AvatarStepperProps = {
   onSkip?: () => void;
   /** When true, show bust fullness on Tailored path. */
   womensDepartment?: boolean;
+  /** Override photo-step title (onboarding rebrand). */
+  photoTitle?: string;
+  /** Override photo-step subtitle (onboarding rebrand). */
+  photoSubtitle?: string;
 };
 
 type AvatarApiBody = {
@@ -300,6 +304,8 @@ export function AvatarStepper({
   startAtPhoto = false,
   onSkip,
   womensDepartment: womensProp,
+  photoTitle,
+  photoSubtitle,
 }: AvatarStepperProps) {
   const [step, setStep] = useState<FlowStep>(startAtPhoto ? "photo" : "intro");
   const [path, setPath] = useState<FlowPath | null>(null);
@@ -686,7 +692,7 @@ export function AvatarStepper({
       case "intro":
         return "Your digital twin";
       case "photo":
-        return "Start with your face";
+        return photoTitle ?? "Start with your face";
       case "path":
         return "How detailed?";
       case "height":
@@ -712,7 +718,7 @@ export function AvatarStepper({
       default:
         return "";
     }
-  }, [step]);
+  }, [step, photoTitle]);
 
   const stepOrder = useMemo((): FlowStep[] => {
     const base: FlowStep[] = ["intro", "photo", "path", "height", "build"];
@@ -840,8 +846,8 @@ export function AvatarStepper({
       {step === "photo" ? (
         <div className="space-y-4">
           <p className="text-sm leading-relaxed text-ink-secondary">
-            A clear selfie is the #1 ingredient. Face, hair, and skin tone come
-            from the photo — next we only ask about body shape.
+            {photoSubtitle ??
+              "A clear selfie is the #1 ingredient. Face, hair, and skin tone come from the photo — next we only ask about body shape."}
           </p>
 
           <input

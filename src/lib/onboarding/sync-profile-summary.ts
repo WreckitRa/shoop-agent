@@ -36,14 +36,26 @@ export async function refreshTypedProfileIntoShoppingView(
     identityLines.push(`Presents as: ${profile.genderPresentation}`);
   }
   if (profile?.ageRange) identityLines.push(`Age range: ${profile.ageRange}`);
+  if (profile?.styleEra) identityLines.push(`Style era: ${profile.styleEra}`);
+  if (profile?.lifestyleTags?.length) {
+    identityLines.push(`World: ${profile.lifestyleTags.join(", ")}`);
+  }
   if (profile?.shippingCountry || profile?.country) {
     identityLines.push(
-      `Location/shipping: ${profile.shippingCountry ?? profile.country}`,
+      `Location/shipping: ${[profile.city, profile.shippingCountry ?? profile.country].filter(Boolean).join(", ")}`,
     );
   }
   if (profile?.currency) identityLines.push(`Currency: ${profile.currency}`);
   if (profile?.valuePhilosophy) {
     identityLines.push(`Value style: ${profile.valuePhilosophy}`);
+  }
+  if (profile?.honestyPreference) {
+    identityLines.push(`Honesty: ${profile.honestyPreference}`);
+  }
+  if (profile?.complimentPreferences?.length) {
+    identityLines.push(
+      `Compliments: ${profile.complimentPreferences.join(", ")}`,
+    );
   }
 
   const sizingLines: string[] = [];

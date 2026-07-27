@@ -71,7 +71,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loginDataLossAcknowledged, setLoginDataLossAcknowledged] =
@@ -184,10 +183,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     setBusy(true);
     try {
       const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
-      const body =
-        mode === "signup"
-          ? { email, password, confirmPassword }
-          : { email, password };
+      const body = { email, password };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -217,7 +213,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setShowAuthModal(false);
       setLoginDataLossAcknowledged(false);
       setPassword("");
-      setConfirmPassword("");
       window.dispatchEvent(new Event("shoop-auth-changed"));
     } catch {
       setError("Network error. Try again.");
@@ -264,10 +259,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               onModeChange={handleAuthModeChange}
               email={email}
               password={password}
-              confirmPassword={confirmPassword}
               onEmailChange={setEmail}
               onPasswordChange={setPassword}
-              onConfirmPasswordChange={setConfirmPassword}
               error={error}
               busy={busy}
               onSubmit={submit}
@@ -291,10 +284,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         onModeChange={setMode}
         email={email}
         password={password}
-        confirmPassword={confirmPassword}
         onEmailChange={setEmail}
         onPasswordChange={setPassword}
-        onConfirmPasswordChange={setConfirmPassword}
         error={error}
         busy={busy}
         onSubmit={submit}
@@ -338,10 +329,8 @@ type AuthModalProps = {
   onModeChange: (mode: AuthMode) => void;
   email: string;
   password: string;
-  confirmPassword: string;
   onEmailChange: (v: string) => void;
   onPasswordChange: (v: string) => void;
-  onConfirmPasswordChange: (v: string) => void;
   error: string | null;
   busy: boolean;
   onSubmit: (e: React.FormEvent) => void;
@@ -359,10 +348,8 @@ function AuthModal({
   onModeChange,
   email,
   password,
-  confirmPassword,
   onEmailChange,
   onPasswordChange,
-  onConfirmPasswordChange,
   error,
   busy,
   onSubmit,
@@ -424,21 +411,6 @@ function AuthModal({
             placeholder="At least 8 characters"
           />
         </label>
-        {mode === "signup" ? (
-          <label className="block space-y-2 text-sm">
-            <span className="font-medium text-ink">Confirm password</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              value={confirmPassword}
-              onChange={(e) => onConfirmPasswordChange(e.target.value)}
-              className={inputClassName}
-              placeholder="Repeat your password"
-            />
-          </label>
-        ) : null}
         {showLoginDataLossGuard ? (
           <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/60 px-3.5 py-3 text-sm leading-snug text-amber-950">
             <input

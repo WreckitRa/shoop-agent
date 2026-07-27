@@ -159,7 +159,15 @@ function shouldSeedTasteCategory(category: string | null | undefined): boolean {
   if (!category?.trim()) return true;
   const c = category.trim().toLowerCase();
   // Fashion funnel only — drop home/tech/lifestyle noise from swipe deck.
-  return c === "fashion" || c === "outfit" || c === "style" || c === "personality";
+  return (
+    c === "fashion" ||
+    c === "outfit" ||
+    c === "style" ||
+    c === "personality" ||
+    c === "worn" ||
+    c === "aspirational" ||
+    c === "compliment"
+  );
 }
 
 function noGoGarmentKey(kind: FashionFactNoGoKind, value: string): string {
@@ -232,7 +240,12 @@ export async function seedOnboardingIntoFashionMemory(
       }));
     }
 
-    if (profile.ageRange?.trim() || profile.valuePhilosophy?.trim()) {
+    if (
+      profile.ageRange?.trim() ||
+      profile.valuePhilosophy?.trim() ||
+      profile.styleEra?.trim() ||
+      profile.honestyPreference?.trim()
+    ) {
       writes.push(upsertFashionFact({
         userId,
         personId: person.id,
@@ -244,6 +257,21 @@ export async function seedOnboardingIntoFashionMemory(
             : {}),
           ...(profile.valuePhilosophy?.trim()
             ? { value_philosophy: profile.valuePhilosophy.trim() }
+            : {}),
+          ...(profile.styleEra?.trim()
+            ? { style_era: profile.styleEra.trim() }
+            : {}),
+          ...(profile.honestyPreference?.trim()
+            ? { honesty_preference: profile.honestyPreference.trim() }
+            : {}),
+          ...(profile.complimentPreferences?.length
+            ? { compliment_preferences: profile.complimentPreferences }
+            : {}),
+          ...(profile.lifestyleTags?.length
+            ? { lifestyle_tags: profile.lifestyleTags }
+            : {}),
+          ...(profile.styleMix
+            ? { style_mix: profile.styleMix }
             : {}),
         },
         sourceQuote: "onboarding:profile-meta",
