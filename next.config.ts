@@ -29,15 +29,17 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              // Next.js inline scripts + eval in dev; Stripe.js for Rye payments
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
+              // Next.js inline scripts + eval in dev; Stripe.js for Rye payments;
+              // onnxruntime-web needs wasm eval for IMG.LY bg-removal
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://js.stripe.com",
               // Tailwind inline styles
               "style-src 'self' 'unsafe-inline'",
               // Shopify catalog images + Unsplash + common merchant CDNs
               "img-src 'self' data: blob: https: http:",
-              // SSE + API calls; Stripe tokenization + fraud signals (Rye)
-              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://m.stripe.com https://m.stripe.network",
+              // SSE + API calls; Stripe; IMG.LY model/wasm CDN for card cutouts
+              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://m.stripe.com https://m.stripe.network https://staticimgly.com https://*.staticimgly.com blob: data:",
               "font-src 'self'",
+              "worker-src 'self' blob:",
               // Embedded merchant storefront checkouts + Stripe Elements iframes
               "frame-src https:",
               "object-src 'none'",

@@ -122,18 +122,24 @@ function contextTokens(ctx: LovesVetoesContext): Set<string> {
   for (const t of ctx.aspirationalTasteTags ?? []) add(t);
 
   // Soft expansions from spend / era
-  const vp = ctx.valuePhilosophy?.toLowerCase() ?? "";
-  if (vp === "luxury") {
+  const vpSet = new Set(
+    (ctx.valuePhilosophy ?? "")
+      .toLowerCase()
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean),
+  );
+  if (vpSet.has("luxury")) {
     tokens.add("luxury");
     tokens.add("premium");
     tokens.add("quiet-luxury");
   }
-  if (vp === "premium") tokens.add("premium");
-  if (vp === "best_value" || vp === "deal_hunter") {
+  if (vpSet.has("premium")) tokens.add("premium");
+  if (vpSet.has("best_value") || vpSet.has("deal_hunter")) {
     tokens.add("best_value");
     tokens.add("deal_hunter");
   }
-  if (vp === "design_first") tokens.add("design_first");
+  if (vpSet.has("design_first")) tokens.add("design_first");
 
   const g = ctx.genderPresentation?.toLowerCase() ?? "";
   if (g === "masculine") tokens.add("masculine");

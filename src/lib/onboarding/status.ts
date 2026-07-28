@@ -160,200 +160,205 @@ export async function applyOnboardingPatch(
 
   await prisma.$transaction(
     async (tx) => {
-    const profile = await tx.userProfile.upsert({
-      where: { userId },
-      create: {
-        userId,
-        ...profileData,
-        onboardingStarted: true,
-        onboardingCompleted: options?.complete ?? false,
-        onboardingProjectionVersion: 1,
-        confidence: input.profile ? 1 : 0,
-        evidenceCount: input.profile ? 1 : 0,
-      },
-      update: {
-        ...profileData,
-        onboardingStarted: true,
-        ...(options?.complete ? { onboardingCompleted: true } : {}),
-        onboardingProjectionVersion: { increment: 1 },
-        ...(input.profile ? { confidence: 1 } : {}),
-      },
-    });
-    if (
-      options?.complete &&
-      missingRequiredOnboardingFields(profile).length > 0
-    ) {
-      throw new Error("missing_required_onboarding_fields");
-    }
+      const profile = await tx.userProfile.upsert({
+        where: { userId },
+        create: {
+          userId,
+          ...profileData,
+          onboardingStarted: true,
+          onboardingCompleted: options?.complete ?? false,
+          onboardingProjectionVersion: 1,
+          confidence: input.profile ? 1 : 0,
+          evidenceCount: input.profile ? 1 : 0,
+        },
+        update: {
+          ...profileData,
+          onboardingStarted: true,
+          ...(options?.complete ? { onboardingCompleted: true } : {}),
+          onboardingProjectionVersion: { increment: 1 },
+          ...(input.profile ? { confidence: 1 } : {}),
+        },
+      });
+      if (
+        options?.complete &&
+        missingRequiredOnboardingFields(profile).length > 0
+      ) {
+        throw new Error("missing_required_onboarding_fields");
+      }
 
-    // Lazy ops — don't start queries until the batch runs (avoids stampeding
-    // the interactive transaction and hitting the default 5s timeout).
-    const writes: Array<() => Promise<unknown>> = [];
-    if (sizingData) {
-      writes.push(() =>
-        tx.sizingProfile.upsert({
+      if (sizingData) {
+        await tx.sizingProfile.upsert({
           where: { userId },
           create: { userId, ...sizingData, confidence: 1, evidenceCount: 1 },
           update: { ...sizingData, confidence: 1 },
-        }),
-      );
-    }
+        });
+      }
 
-    for (const b of input.brands ?? []) {
-      const category = b.category?.trim() ?? "";
-      writes.push(() =>
-        tx.brandPreference.upsert({
-          where: {
-            userId_brand_category: { userId, brand: b.brand.trim(), category },
-          },
-          create: {
-            userId,
-            brand: b.brand.trim(),
-            category,
-            sentiment: b.sentiment,
-            strength: b.strength ?? 0.75,
-            reasons: b.reasons ?? [],
-            ownsProducts: b.ownsProducts ?? false,
-            aspirational: b.aspirational ?? false,
-            confidence: 1,
-            evidenceCount: 1,
-          },
-          update: {
-            sentiment: b.sentiment,
-            strength: b.strength ?? undefined,
-            reasons: b.reasons ?? undefined,
-            ownsProducts: b.ownsProducts ?? undefined,
-            aspirational: b.aspirational ?? undefined,
-            confidence: 1,
-          },
-        }),
+      await enqueueOnboardingProjection(
+        tx,
+        userId,
+        profile.onboardingProjectionVersion,
       );
-    }
+      const extraNotes = options?.extraNotes?.trim();
+      if (extraNotes) {
+        await enqueueOnboardingExtraNotes(tx, {
+          userId,
+          requestKey: options?.requestKey ?? crypto.randomUUID(),
+          text: extraNotes,
+        });
+      }
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
 
-    for (const h of input.hardNegatives ?? []) {
-      const category = h.category?.trim() ?? "";
-      writes.push(() =>
-        tx.hardNegative.upsert({
-          where: {
-            userId_scope_value_category: {
-              userId,
-              scope: h.scope,
-              value: h.value.trim(),
-              category,
-            },
-          },
-          create: {
+  // Preference rows are idempotent upserts — keep them outside the interactive
+  // transaction so a slow DB / many tags can't expire the profile write (20s).
+  const preferenceWrites: Array<() => Promise<unknown>> = [];
+
+  for (const b of input.brands ?? []) {
+    const category = b.category?.trim() ?? "";
+    preferenceWrites.push(() =>
+      prisma.brandPreference.upsert({
+        where: {
+          userId_brand_category: { userId, brand: b.brand.trim(), category },
+        },
+        create: {
+          userId,
+          brand: b.brand.trim(),
+          category,
+          sentiment: b.sentiment,
+          strength: b.strength ?? 0.75,
+          reasons: b.reasons ?? [],
+          ownsProducts: b.ownsProducts ?? false,
+          aspirational: b.aspirational ?? false,
+          confidence: 1,
+          evidenceCount: 1,
+        },
+        update: {
+          sentiment: b.sentiment,
+          strength: b.strength ?? undefined,
+          reasons: b.reasons ?? undefined,
+          ownsProducts: b.ownsProducts ?? undefined,
+          aspirational: b.aspirational ?? undefined,
+          confidence: 1,
+        },
+      }),
+    );
+  }
+
+  for (const h of input.hardNegatives ?? []) {
+    const category = h.category?.trim() ?? "";
+    preferenceWrites.push(() =>
+      prisma.hardNegative.upsert({
+        where: {
+          userId_scope_value_category: {
             userId,
             scope: h.scope,
             value: h.value.trim(),
             category,
-            reason: h.reason ?? null,
-            note: h.note ?? null,
           },
-          update: {
-            reason: h.reason ?? undefined,
-            note: h.note ?? undefined,
-          },
-        }),
-      );
-    }
+        },
+        create: {
+          userId,
+          scope: h.scope,
+          value: h.value.trim(),
+          category,
+          reason: h.reason ?? null,
+          note: h.note ?? null,
+        },
+        update: {
+          reason: h.reason ?? undefined,
+          note: h.note ?? undefined,
+        },
+      }),
+    );
+  }
 
-    for (const p of input.ownedProducts ?? []) {
-      const category = p.category.trim();
-      const subcategory = p.subcategory?.trim() ?? "";
-      const brand = p.brand?.trim() ?? "";
-      const productName = p.productName.trim();
-      writes.push(() =>
-        tx.ownedProduct.upsert({
-          where: {
-            userId_category_subcategory_brand_productName: {
-              userId,
-              category,
-              subcategory,
-              brand,
-              productName,
-            },
-          },
-          create: {
+  for (const p of input.ownedProducts ?? []) {
+    const category = p.category.trim();
+    const subcategory = p.subcategory?.trim() ?? "";
+    const brand = p.brand?.trim() ?? "";
+    const productName = p.productName.trim();
+    preferenceWrites.push(() =>
+      ownedProduct.upsert({
+        where: {
+          userId_category_subcategory_brand_productName: {
             userId,
             category,
             subcategory,
             brand,
             productName,
-            model: p.model?.trim() ?? "",
-            attributes: (p.attributes ?? {}) as object,
-            acquiredAt: p.acquiredAt ? new Date(p.acquiredAt) : null,
-            acquiredNote: p.acquiredNote ?? null,
-            isCurrent: p.isCurrent ?? true,
-            notes: p.notes ?? null,
-            confidence: 1,
-            evidenceCount: 1,
           },
-          update: {
-            model: p.model?.trim() ?? undefined,
-            attributes: p.attributes as object | undefined,
-            acquiredAt: p.acquiredAt ? new Date(p.acquiredAt) : undefined,
-            acquiredNote: p.acquiredNote ?? undefined,
-            isCurrent: p.isCurrent ?? undefined,
-            notes: p.notes ?? undefined,
-            confidence: 1,
-          },
-        }),
-      );
-    }
+        },
+        create: {
+          userId,
+          category,
+          subcategory,
+          brand,
+          productName,
+          model: p.model?.trim() ?? "",
+          attributes: (p.attributes ?? {}) as object,
+          acquiredAt: p.acquiredAt ? new Date(p.acquiredAt) : null,
+          acquiredNote: p.acquiredNote ?? null,
+          isCurrent: p.isCurrent ?? true,
+          notes: p.notes ?? null,
+          confidence: 1,
+          evidenceCount: 1,
+        },
+        update: {
+          model: p.model?.trim() ?? undefined,
+          attributes: p.attributes as object | undefined,
+          acquiredAt: p.acquiredAt ? new Date(p.acquiredAt) : undefined,
+          acquiredNote: p.acquiredNote ?? undefined,
+          isCurrent: p.isCurrent ?? undefined,
+          notes: p.notes ?? undefined,
+          confidence: 1,
+        },
+      }),
+    );
+  }
 
-    for (const t of input.tasteTags ?? []) {
-      const tag = t.tag.trim();
-      const category = t.category?.trim() ?? "";
-      const scope = category ? "category" : "global";
-      writes.push(() =>
-        tx.tasteTag.upsert({
-          where: {
-            userId_scope_category_tag_polarity: {
-              userId,
-              scope,
-              category,
-              tag,
-              polarity: t.polarity,
-            },
-          },
-          create: {
+  const seenTaste = new Set<string>();
+  for (const t of input.tasteTags ?? []) {
+    const tag = t.tag.trim();
+    if (!tag) continue;
+    const category = t.category?.trim() ?? "";
+    const scope = category ? "category" : "global";
+    const dedupeKey = `${scope}|${category}|${tag}|${t.polarity}`;
+    if (seenTaste.has(dedupeKey)) continue;
+    seenTaste.add(dedupeKey);
+    preferenceWrites.push(() =>
+      prisma.tasteTag.upsert({
+        where: {
+          userId_scope_category_tag_polarity: {
             userId,
             scope,
             category,
             tag,
             polarity: t.polarity,
-            score: 0.8,
-            evidenceCount: 1,
           },
-          update: {
-            score: 0.9,
-          },
-        }),
-      );
-    }
-
-    const WRITE_BATCH = 8;
-    for (let i = 0; i < writes.length; i += WRITE_BATCH) {
-      const slice = writes.slice(i, i + WRITE_BATCH);
-      await Promise.all(slice.map((run) => run()));
-    }
-    await enqueueOnboardingProjection(
-      tx,
-      userId,
-      profile.onboardingProjectionVersion,
+        },
+        create: {
+          userId,
+          scope,
+          category,
+          tag,
+          polarity: t.polarity,
+          score: 0.8,
+          evidenceCount: 1,
+        },
+        update: {
+          score: 0.9,
+        },
+      }),
     );
-    const extraNotes = options?.extraNotes?.trim();
-    if (extraNotes) {
-      await enqueueOnboardingExtraNotes(tx, {
-        userId,
-        requestKey: options?.requestKey ?? crypto.randomUUID(),
-        text: extraNotes,
-      });
-    }
-    },
-    { maxWait: 10_000, timeout: 20_000 },
-  );
+  }
+
+  const WRITE_BATCH = 8;
+  for (let i = 0; i < preferenceWrites.length; i += WRITE_BATCH) {
+    const slice = preferenceWrites.slice(i, i + WRITE_BATCH);
+    await Promise.all(slice.map((run) => run()));
+  }
 
   return getOnboardingStatus(userId);
 }

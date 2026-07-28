@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { AvatarStepper } from "@/components/tryon/AvatarStepper";
+import { CardForgeStep } from "@/components/onboarding/CardForgeStep";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
+import { useUserProfileStore } from "@/lib/client/user-profile-store";
+import { guestFetch } from "@/lib/client/guest-fetch";
+import type { StyleMix } from "@/lib/onboarding/style-mix";
 
 /**
- * Boots self-avatar readiness for the session and hosts the create/update
- * stepper so curation CTAs can flip after the user finishes an avatar.
+ * Boots self-avatar readiness for the session and hosts Card Forge so
+ * curation CTAs can flip after the user finishes minting.
  */
 export function SelfAvatarHost() {
   const status = useSelfAvatarStore((s) => s.status);
@@ -17,15 +20,45 @@ export function SelfAvatarHost() {
   const refresh = useSelfAvatarStore((s) => s.refresh);
   const closeCreateFlow = useSelfAvatarStore((s) => s.closeCreateFlow);
   const markReady = useSelfAvatarStore((s) => s.markReady);
+  const preferredName = useUserProfileStore(
+    (s) => s.identity?.preferredName ?? "",
+  );
 
   const [mounted, setMounted] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [styleEra, setStyleEra] = useState<string | null>(null);
+  const [styleMix, setStyleMix] = useState<StyleMix | null>(null);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (status === "unknown") void refresh();
   }, [status, refresh]);
+
+  useEffect(() => {
+    if (!createFlowOpen) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await guestFetch("/api/onboarding", { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as {
+          profile?: {
+            styleEra?: string | null;
+            styleMix?: StyleMix | null;
+          } | null;
+        };
+        if (cancelled) return;
+        setStyleEra(json.profile?.styleEra ?? null);
+        setStyleMix(json.profile?.styleMix ?? null);
+      } catch {
+        /* optional context */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [createFlowOpen]);
 
   useEffect(() => {
     if (!createFlowOpen) return;
@@ -57,14 +90,14 @@ export function SelfAvatarHost() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="self-avatar-flow-title"
-        className="relative z-10 flex max-h-[min(92vh,760px)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-hairline bg-white shadow-[0_24px_64px_rgba(12,12,12,0.18)]"
+        className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-hairline bg-white shadow-[0_24px_64px_rgba(12,12,12,0.18)]"
       >
         <div className="flex items-center justify-between border-b border-hairline-soft px-5 py-4 sm:px-6">
           <h2
             id="self-avatar-flow-title"
             className="font-serif text-lg font-semibold text-ink"
           >
-            Create your avatar
+            Complete your card
           </h2>
           <button
             type="button"
@@ -82,18 +115,24 @@ export function SelfAvatarHost() {
         <div className="overflow-y-auto px-5 py-5 sm:px-6">
           {avatarBusy ? (
             <p className="mb-3 text-xs text-ink-muted">
-              Hang tight — closing now would interrupt your avatar.
+              Hang tight — closing now would interrupt your card mint.
             </p>
           ) : null}
 
-          <AvatarStepper
+          <CardForgeStep
             key={personId}
             personId={personId}
-            personLabel="You"
+            preferredName={preferredName}
+            styleEra={styleEra}
+            styleMix={styleMix}
+            showStepTag
             onBusyChange={setAvatarBusy}
             onComplete={() => {
               markReady();
               void refresh();
+              closeCreateFlow();
+            }}
+            onSkipAll={() => {
               closeCreateFlow();
             }}
           />

@@ -83,20 +83,25 @@ function readSignals(ctx: TasteDeckContext) {
     .join(" ")
     .toLowerCase();
 
-  const vp = ctx.valuePhilosophy?.toLowerCase() ?? "";
+  const vpParts = (ctx.valuePhilosophy ?? "")
+    .toLowerCase()
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const vpSet = new Set(vpParts);
   return {
     blob,
     sporty: /sport|athletic|nike|gym|sneaker|running|workout/.test(blob),
     minimal: /minimal|clean|modern|neutral|sleek|apple|simple/.test(blob),
     luxury:
       /luxury|premium|hermes|chanel|elegant|refined|designer|quiet/.test(blob) ||
-      vp === "premium" ||
-      vp === "luxury" ||
-      vp === "design_first",
+      vpSet.has("premium") ||
+      vpSet.has("luxury") ||
+      vpSet.has("design_first"),
     cozy: /cozy|warm|comfort|soft|homey/.test(blob),
     techy: /tech|gadget|apple|dyson|smart|electronics/.test(blob),
     outdoor: /outdoor|hike|active|travel|adventure/.test(blob),
-    deal: vp === "deal_hunter" || /affordable|budget|value/.test(blob),
+    deal: vpSet.has("deal_hunter") || /affordable|budget|value/.test(blob),
   };
 }
 

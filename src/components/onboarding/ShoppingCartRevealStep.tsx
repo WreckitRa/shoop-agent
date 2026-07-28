@@ -60,7 +60,7 @@ export function ShoppingCartRevealStep({
             type="button"
             disabled={busy}
             onClick={onContinue}
-            className="rounded-full bg-[#3B6F9E] px-5 py-2.5 text-[13px] font-bold text-white hover:bg-[#335f88] disabled:opacity-50"
+            className="text-sm font-semibold text-[#007AFF] transition hover:underline disabled:opacity-50"
           >
             {busy ? "Saving…" : "Let's find you something →"}
           </button>

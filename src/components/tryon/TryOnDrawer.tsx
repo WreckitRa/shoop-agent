@@ -325,8 +325,9 @@ export function TryOnDrawer() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
+          {/* shrink-0 + min-h: aspect-ratio alone collapses to 0px in flex scroll parents */}
           <div
-            className="relative flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-2xl bg-surface-tint ring-1 ring-hairline"
+            className="relative flex w-full shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-surface-tint ring-1 ring-hairline aspect-[3/4] min-h-[min(52vh,420px)]"
             aria-busy={busy}
           >
             {showResult ? (
@@ -341,12 +342,71 @@ export function TryOnDrawer() {
               <img
                 src={avatarUrl}
                 alt="Your avatar"
-                className="max-h-full max-w-full object-contain"
+                className="absolute inset-0 size-full object-contain object-bottom"
+                onError={() => {
+                  // Signed URL expired — clear and refetch without closing the drawer
+                  const gen = useTryOnDrawerStore.getState().renderGeneration;
+                  useTryOnDrawerStore.setState({
+                    avatarUrl: null,
+                    status: "loading_avatar",
+                    error: null,
+                  });
+                  void fetch("/api/tryon/latest", { cache: "no-store" })
+                    .then(async (res) => {
+                      if (!res.ok) throw new Error("reload");
+                      const body = (await res.json()) as {
+                        avatar_url?: string | null;
+                      };
+                      if (
+                        useTryOnDrawerStore.getState().renderGeneration !== gen
+                      ) {
+                        return;
+                      }
+                      const url = body.avatar_url ?? null;
+                      useTryOnDrawerStore.setState({
+                        avatarUrl: url,
+                        status: url ? "idle" : "failed",
+                        error: url
+                          ? null
+                          : "Couldn't load your avatar — try again.",
+                      });
+                    })
+                    .catch(() => {
+                      if (
+                        useTryOnDrawerStore.getState().renderGeneration !== gen
+                      ) {
+                        return;
+                      }
+                      useTryOnDrawerStore.setState({
+                        status: "failed",
+                        error: "Couldn't load your avatar — try again.",
+                      });
+                    });
+                }}
               />
-            ) : (
+            ) : status === "loading_avatar" ? (
               <div className="flex size-full flex-col items-center justify-center gap-2 text-ink-muted">
                 <Loader2 className="size-5 animate-spin" aria-hidden />
                 <p className="text-xs">Loading avatar…</p>
+              </div>
+            ) : (
+              <div className="flex size-full flex-col items-center justify-center gap-2 px-6 text-center text-ink-muted">
+                <p className="text-sm text-ink-secondary">
+                  Your avatar will show up here once your card is minted.
+                </p>
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-[#007AFF] transition hover:underline"
+                  onClick={() => {
+                    void import("@/components/tryon/self-avatar-store").then(
+                      ({ useSelfAvatarStore }) => {
+                        useSelfAvatarStore.getState().openCreateFlow();
+                      },
+                    );
+                  }}
+                >
+                  Complete your card
+                </button>
               </div>
             )}
 

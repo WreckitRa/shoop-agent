@@ -11,6 +11,7 @@ import {
 } from "@/lib/tryon/client-poll";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useCartStore } from "@/components/cart/cart-store";
+import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import {
   findActiveSlotConflict,
   fittingRoomGarmentType,
@@ -103,6 +104,16 @@ function clearPollTimer() {
 
 async function fetchSelfAvatarUrl(): Promise<string | null> {
   try {
+    // Prefer tryon/latest — same source the hanger button uses.
+    const latestRes = await fetch("/api/tryon/latest", { cache: "no-store" });
+    if (latestRes.ok) {
+      const latest = (await latestRes.json()) as {
+        avatar_url?: string | null;
+        has_avatar?: boolean;
+      };
+      if (latest.avatar_url) return latest.avatar_url;
+    }
+
     const res = await fetch("/api/avatar/people", { cache: "no-store" });
     if (!res.ok) return null;
     const body = (await res.json()) as {
@@ -120,16 +131,44 @@ async function fetchSelfAvatarUrl(): Promise<string | null> {
   }
 }
 
+function readWarmAvatarUrl(): string | null {
+  const self = useSelfAvatarStore.getState();
+  if (self.status === "ready" && self.avatarUrl) return self.avatarUrl;
+  return null;
+}
+
 function ensureAvatarLoaded(generation: number) {
   const state = useTryOnDrawerStore.getState();
-  if (state.avatarUrl) return Promise.resolve(state.avatarUrl);
-  useTryOnDrawerStore.setState({ status: "loading_avatar" });
+  if (state.avatarUrl) {
+    if (state.status === "loading_avatar") {
+      useTryOnDrawerStore.setState({ status: "idle", error: null });
+    }
+    return Promise.resolve(state.avatarUrl);
+  }
+
+  const warm = readWarmAvatarUrl();
+  if (warm) {
+    useTryOnDrawerStore.setState({
+      avatarUrl: warm,
+      status: "idle",
+      error: null,
+    });
+    return Promise.resolve(warm);
+  }
+
+  useTryOnDrawerStore.setState({ status: "loading_avatar", error: null });
   return fetchSelfAvatarUrl().then((avatarUrl) => {
     if (useTryOnDrawerStore.getState().renderGeneration !== generation) {
       return avatarUrl;
     }
-    useTryOnDrawerStore.setState({ avatarUrl });
-    return avatarUrl;
+    const current = useTryOnDrawerStore.getState().avatarUrl;
+    const nextUrl = current ?? avatarUrl ?? readWarmAvatarUrl();
+    useTryOnDrawerStore.setState({
+      avatarUrl: nextUrl,
+      status: nextUrl ? "idle" : "failed",
+      error: nextUrl ? null : "Couldn't load your avatar — try again.",
+    });
+    return nextUrl;
   });
 }
 
@@ -465,6 +504,8 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
     set({ open: true });
     if (!get().avatarUrl) {
       void ensureAvatarLoaded(get().renderGeneration);
+    } else if (get().status === "loading_avatar") {
+      set({ status: "idle", error: null });
     }
   },
 
@@ -482,6 +523,8 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
 
     if (!get().avatarUrl) {
       void ensureAvatarLoaded(get().renderGeneration);
+    } else if (get().status === "loading_avatar") {
+      set({ status: "idle", error: null });
     }
     return "added";
   },
@@ -659,17 +702,24 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
 
     clearPollTimer();
     const generation = get().renderGeneration + 1;
+    const warm = current.avatarUrl ?? readWarmAvatarUrl();
     syncChromeForTryOnDrawer(true);
     set({
       open: true,
       renderGeneration: generation,
-      status: "loading_avatar",
+      status: warm ? "idle" : "loading_avatar",
+      avatarUrl: warm,
       error: null,
       compare: false,
       variants: [],
       lookSteps: [],
       partialNote: null,
+      resultUrl: null,
+      jobId: null,
     });
+
+    // Keep self-store warm for the edge peek
+    void useSelfAvatarStore.getState().refresh();
 
     try {
       const res = await fetch("/api/tryon/latest", { cache: "no-store" });
@@ -677,17 +727,18 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
 
       if (res.status === 401) {
         set({ open: false, status: "idle" });
-        const { useSelfAvatarStore } = await import(
-          "@/components/tryon/self-avatar-store"
-        );
         useSelfAvatarStore.getState().openCreateFlow();
         return;
       }
 
       if (!res.ok) {
+        const fallback = get().avatarUrl ?? readWarmAvatarUrl();
         set({
-          status: "failed",
-          error: "Couldn't load your avatar — try again.",
+          avatarUrl: fallback,
+          status: fallback ? "idle" : "failed",
+          error: fallback
+            ? null
+            : "Couldn't load your avatar — try again.",
         });
         return;
       }
@@ -706,19 +757,28 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
         } | null;
       };
 
-      if (!body.has_avatar) {
-        set({ open: false, status: "idle", avatarUrl: null });
-        const { useSelfAvatarStore } = await import(
-          "@/components/tryon/self-avatar-store"
-        );
+      const resolvedUrl =
+        body.avatar_url ?? get().avatarUrl ?? readWarmAvatarUrl();
+
+      if (!body.has_avatar && !resolvedUrl) {
+        // Stay open with a clear empty state — don't bounce the drawer closed.
+        set({
+          status: "failed",
+          avatarUrl: null,
+          error: "Create your Shoop card to see yourself here.",
+        });
         useSelfAvatarStore.getState().openCreateFlow();
         return;
+      }
+
+      if (resolvedUrl) {
+        useSelfAvatarStore.getState().markReady(resolvedUrl);
       }
 
       const tryon = body.tryon;
       if (tryon?.image_url) {
         set({
-          avatarUrl: body.avatar_url ?? null,
+          avatarUrl: resolvedUrl,
           resultUrl: tryon.image_url,
           jobId: tryon.job_id,
           status: "completed",
@@ -728,17 +788,23 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
       }
 
       set({
-        avatarUrl: body.avatar_url ?? null,
+        avatarUrl: resolvedUrl,
         resultUrl: null,
         jobId: null,
-        status: "idle",
-        error: null,
+        status: resolvedUrl ? "idle" : "failed",
+        error: resolvedUrl
+          ? null
+          : "Couldn't load your avatar — try again.",
       });
     } catch {
       if (get().renderGeneration !== generation) return;
+      const fallback = get().avatarUrl ?? readWarmAvatarUrl();
       set({
-        status: "failed",
-        error: "Couldn't load your avatar — try again.",
+        avatarUrl: fallback,
+        status: fallback ? "idle" : "failed",
+        error: fallback
+          ? null
+          : "Couldn't load your avatar — try again.",
       });
     }
   },

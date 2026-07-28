@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { CardForgeStep } from "@/components/onboarding/CardForgeStep";
 import {
   SettingsActionRow,
   SettingsCard,
   SettingsCardHeader,
 } from "@/components/profile/profile-settings-ui";
-import { AvatarStepper } from "@/components/tryon/AvatarStepper";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { useAppSessionStore } from "@/lib/client/app-session";
+import { useUserProfileStore } from "@/lib/client/user-profile-store";
+import type { StyleMix } from "@/lib/onboarding/style-mix";
 
 type AvatarPerson = {
   id: string;
@@ -22,10 +24,17 @@ type AvatarPerson = {
   avatar_url: string | null;
 };
 
+type CardContext = {
+  preferredName: string;
+  styleEra: string | null;
+  styleMix: StyleMix | null;
+};
+
 type AvatarFlowModalProps = {
   open: boolean;
   personId: string;
   avatarBusy: boolean;
+  cardContext: CardContext;
   onBusyChange: (busy: boolean) => void;
   onClose: () => void;
   onComplete: () => void;
@@ -35,6 +44,7 @@ function AvatarFlowModal({
   open,
   personId,
   avatarBusy,
+  cardContext,
   onBusyChange,
   onClose,
   onComplete,
@@ -69,15 +79,20 @@ function AvatarFlowModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="avatar-flow-title"
-        className="relative z-10 flex max-h-[min(92vh,760px)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-hairline bg-white shadow-[0_24px_64px_rgba(12,12,12,0.18)]"
+        className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-hairline bg-white shadow-[0_24px_64px_rgba(12,12,12,0.18)]"
       >
         <div className="flex items-center justify-between border-b border-hairline-soft px-5 py-4 sm:px-6">
-          <h2
-            id="avatar-flow-title"
-            className="font-serif text-lg font-semibold text-ink"
-          >
-            Create your avatar
-          </h2>
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-neutral-400">
+              Your card
+            </p>
+            <h2
+              id="avatar-flow-title"
+              className="mt-1 text-[18px] font-extrabold tracking-tight text-ink sm:text-[20px]"
+            >
+              Complete your card
+            </h2>
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -94,16 +109,24 @@ function AvatarFlowModal({
         <div className="overflow-y-auto px-5 py-5 sm:px-6">
           {avatarBusy ? (
             <p className="mb-3 text-xs text-ink-muted">
-              Hang tight — closing now would interrupt your avatar.
+              Hang tight — closing now would interrupt your card mint.
             </p>
           ) : null}
 
-          <AvatarStepper
+          <CardForgeStep
             key={personId}
             personId={personId}
-            personLabel="You"
+            preferredName={cardContext.preferredName}
+            styleEra={cardContext.styleEra}
+            styleMix={cardContext.styleMix}
+            showStepTag
             onBusyChange={onBusyChange}
             onComplete={onComplete}
+            onWelcomeDone={onClose}
+            onSkipAll={() => {
+              void onComplete();
+              onClose();
+            }}
           />
         </div>
       </div>
@@ -117,12 +140,18 @@ export function ProfileAvatarSettings() {
   const isGuest = accessMode === "guest";
   const isAnonymous = accessMode === "anonymous";
   const needsSignIn = isGuest || isAnonymous;
+  const storeName = useUserProfileStore((s) => s.identity?.preferredName ?? "");
 
   const [selfPerson, setSelfPerson] = useState<AvatarPerson | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [cardContext, setCardContext] = useState<CardContext>({
+    preferredName: storeName,
+    styleEra: null,
+    styleMix: null,
+  });
 
   const loadSelf = useCallback(async () => {
     if (needsSignIn) {
@@ -137,12 +166,36 @@ export function ProfileAvatarSettings() {
       const rows = json.people ?? [];
       const self = rows.find((p) => p.relation === "self") ?? rows[0] ?? null;
       setSelfPerson(self);
-      // Keep curation try-on CTAs in sync with profile-side avatar changes.
       void useSelfAvatarStore.getState().refresh();
     } finally {
       setLoading(false);
     }
   }, [needsSignIn]);
+
+  const loadCardContext = useCallback(async () => {
+    try {
+      const res = await guestFetch("/api/onboarding", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = (await res.json()) as {
+        profile?: {
+          preferredName?: string | null;
+          styleEra?: string | null;
+          styleMix?: StyleMix | null;
+        } | null;
+      };
+      setCardContext({
+        preferredName:
+          json.profile?.preferredName?.trim() || storeName || "",
+        styleEra: json.profile?.styleEra ?? null,
+        styleMix: json.profile?.styleMix ?? null,
+      });
+    } catch {
+      setCardContext((c) => ({
+        ...c,
+        preferredName: storeName || c.preferredName,
+      }));
+    }
+  }, [storeName]);
 
   useEffect(() => {
     void loadSelf();
@@ -156,8 +209,8 @@ export function ProfileAvatarSettings() {
     <>
       <SettingsCard>
         <SettingsCardHeader
-          title="Your try-on avatar"
-          description="Build a digital twin of you — then preview how pieces look before you buy."
+          title="Your Shoop card"
+          description="Mint a card of you — then preview how pieces look on your body before you buy."
         />
         {loading ? (
           <div className="px-5 py-6 sm:px-6">
@@ -165,11 +218,11 @@ export function ProfileAvatarSettings() {
           </div>
         ) : needsSignIn ? (
           <div className="px-5 py-4 text-sm text-ink-muted sm:px-6">
-            Sign in to create your try-on avatar.
+            Sign in to complete your card.
           </div>
         ) : !selfPerson ? (
           <div className="px-5 py-4 text-sm text-ink-muted sm:px-6">
-            Finish setting up your profile first, then come back for your avatar.
+            Finish setting up your profile first, then come back for your card.
           </div>
         ) : (
           <div className="divide-y divide-hairline-soft">
@@ -178,11 +231,11 @@ export function ProfileAvatarSettings() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={selfPerson.avatar_url}
-                  alt="Your avatar"
+                  alt="Your card portrait"
                   className="size-16 rounded-2xl object-cover ring-1 ring-hairline"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-ink">Avatar ready</p>
+                  <p className="text-sm font-medium text-ink">Card minted</p>
                   <p className="mt-0.5 text-xs text-ink-muted">
                     Outfits in search can preview on you. Update anytime.
                   </p>
@@ -192,15 +245,18 @@ export function ProfileAvatarSettings() {
             <SettingsActionRow
               title={
                 selfPerson.has_avatar
-                  ? "Update your avatar"
-                  : "Create your avatar"
+                  ? "Update your card"
+                  : "Complete your card"
               }
               subtitle={
                 selfPerson.has_avatar
-                  ? "New photo or shape tweak — takes about a minute."
-                  : "Clear selfie + a few quick picks. Fun, fast, honest."
+                  ? "New photo or shape tweak — clarity resets, then remint."
+                  : "Photo + height + build. Fog clears as you go."
               }
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                void loadCardContext();
+                setOpen(true);
+              }}
             />
           </div>
         )}
@@ -211,11 +267,13 @@ export function ProfileAvatarSettings() {
           open={open}
           personId={selfPerson.id}
           avatarBusy={avatarBusy}
+          cardContext={cardContext}
           onBusyChange={setAvatarBusy}
           onClose={closeFlow}
-          onComplete={() => {
-            closeFlow();
-            void loadSelf();
+          onComplete={async () => {
+            useSelfAvatarStore.getState().markReady();
+            void useSelfAvatarStore.getState().refresh();
+            await loadSelf();
           }}
         />
       ) : null}

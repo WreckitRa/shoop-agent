@@ -7,19 +7,27 @@ import {
 } from "@/components/onboarding/onboarding-ui";
 
 type Props = {
-  value: string;
-  onChange: (value: string) => void;
+  values: string[];
+  onChange: (values: string[]) => void;
 };
 
-export function TasteSpendStep({ value, onChange }: Props) {
+export function TasteSpendStep({ values, onChange }: Props) {
+  function toggle(value: string) {
+    const set = new Set(values);
+    if (set.has(value)) set.delete(value);
+    else set.add(value);
+    onChange([...set]);
+  }
+
   return (
     <section>
+      <p className="mb-2 text-xs text-neutral-400">Pick all that fit</p>
       <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {BUDGET_OPTIONS.map((opt) => (
           <OnboardingTile
             key={opt.value}
-            selected={value === opt.value}
-            onClick={() => onChange(opt.value)}
+            selected={values.includes(opt.value)}
+            onClick={() => toggle(opt.value)}
             title={opt.label}
             hint={opt.hint}
           />

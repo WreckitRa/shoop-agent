@@ -60,7 +60,7 @@ export const userProfilePatchSchema = z
     occupation: z.string().max(120).optional().nullable(),
     workEnvironment: z.string().max(80).optional().nullable(),
     lifestyleTags: z.array(z.string().max(60)).max(24).optional(),
-    valuePhilosophy: z.string().max(40).optional().nullable(),
+    valuePhilosophy: z.string().max(120).optional().nullable(),
     decisionStyle: z.string().max(40).optional().nullable(),
     riskTolerance: z.string().max(40).optional().nullable(),
     dealSensitivity: z.string().max(40).optional().nullable(),
@@ -77,7 +77,7 @@ export const userProfilePatchSchema = z
       "meta_ai",
       "other",
     ]).optional().nullable(),
-    styleEra: z.string().max(40).optional().nullable(),
+    styleEra: z.string().max(120).optional().nullable(),
     honestyPreference: enumOrEmpty([
       "gentle",
       "straight",

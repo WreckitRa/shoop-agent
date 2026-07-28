@@ -44,7 +44,7 @@ const postSchema = z
     hardAvoids: z.array(z.string().max(120)).max(20).optional(),
     compliments: z.array(z.string().max(40)).max(4).optional(),
     honestyPreference: z.enum(["gentle", "straight", "no_mercy"]).optional().nullable(),
-    valuePhilosophy: z.string().max(40).optional().nullable(),
+    valuePhilosophy: z.string().max(120).optional().nullable(),
     /** When true, marks onboarding complete (cart reveal CTA). */
     complete: z.boolean().optional(),
   })

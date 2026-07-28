@@ -7,6 +7,7 @@ import {
   formatTopSizeLabel,
   styleEraFromAge,
   styleEraToAgeRange,
+  styleErasForAge,
 } from "./form-options";
 
 describe("styleEraToAgeRange", () => {
@@ -18,6 +19,10 @@ describe("styleEraToAgeRange", () => {
     assert.equal(styleEraToAgeRange("65_plus"), "65+");
     assert.equal(styleEraToAgeRange(""), "");
   });
+
+  it("uses the first recognized era in a CSV multi-select", () => {
+    assert.equal(styleEraToAgeRange("30s,40s"), "25-34");
+  });
 });
 
 describe("styleEraFromAge", () => {
@@ -26,6 +31,24 @@ describe("styleEraFromAge", () => {
     assert.equal(styleEraFromAge(28), "23_29");
     assert.equal(styleEraFromAge(33), "30s");
     assert.equal(styleEraFromAge(70), "65_plus");
+  });
+});
+
+describe("styleErasForAge", () => {
+  it("returns the full list when age is unknown", () => {
+    assert.equal(styleErasForAge(null).length, 8);
+  });
+
+  it("narrows to a window around the user's age", () => {
+    const mid = styleErasForAge(28).map((e) => e.value);
+    assert.ok(mid.includes("23_29"));
+    assert.ok(mid.includes("30s"));
+    assert.ok(!mid.includes("65_plus"));
+    assert.ok(mid.length >= 4 && mid.length <= 6);
+
+    const teen = styleErasForAge(16).map((e) => e.value);
+    assert.ok(teen.includes("15_17"));
+    assert.ok(!teen.includes("50s_60s"));
   });
 });
 

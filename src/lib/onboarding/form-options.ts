@@ -336,10 +336,25 @@ export function normalizeAgeRange(raw: string | null | undefined): string {
   return t;
 }
 
+export function parseCsvValues(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+export function joinCsvValues(values: readonly string[]): string {
+  return values.map((v) => v.trim()).filter(Boolean).join(",");
+}
+
 export function styleEraToAgeRange(era: string | null | undefined): string {
   if (!era?.trim()) return "";
-  const match = STYLE_ERAS.find((e) => e.value === era.trim());
-  return match?.ageRange ?? "";
+  for (const part of parseCsvValues(era)) {
+    const match = STYLE_ERAS.find((e) => e.value === part);
+    if (match) return match.ageRange;
+  }
+  return "";
 }
 
 /** Guess a style era from age in years (birthday → chip). */
@@ -354,6 +369,29 @@ export function styleEraFromAge(ageYears: number): StyleEraValue {
   return "65_plus";
 }
 
+/**
+ * Slightly narrow / recenter era chips around the user's age.
+ * No DOB → full list. With DOB → a short window around their era.
+ */
+export function styleErasForAge(
+  ageYears: number | null,
+): readonly (typeof STYLE_ERAS)[number][] {
+  if (ageYears == null) return STYLE_ERAS;
+  const primary = styleEraFromAge(ageYears);
+  const primaryIdx = STYLE_ERAS.findIndex((e) => e.value === primary);
+  if (primaryIdx < 0) return STYLE_ERAS;
+
+  let start = Math.max(0, primaryIdx - 1);
+  let end = Math.min(STYLE_ERAS.length, primaryIdx + 3);
+  while (end - start < 4 && (start > 0 || end < STYLE_ERAS.length)) {
+    if (start > 0) start -= 1;
+    else end += 1;
+  }
+  while (end - start < 5 && end < STYLE_ERAS.length) end += 1;
+  while (end - start < 5 && start > 0) start -= 1;
+  return STYLE_ERAS.slice(start, end);
+}
+
 export function ageYearsFromBirthDate(isoOrDate: string | Date): number | null {
   const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
   if (Number.isNaN(d.getTime())) return null;
@@ -365,10 +403,39 @@ export function ageYearsFromBirthDate(isoOrDate: string | Date): number | null {
   return age;
 }
 
+/** Latest YYYY-MM-DD allowed so the person is at least `minAge` years old. */
+export function maxBirthDateIso(minAge = 13): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - minAge);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function isAtLeastAge(
+  isoOrDate: string | Date,
+  minAge = 13,
+): boolean {
+  const age = ageYearsFromBirthDate(isoOrDate);
+  return age != null && age >= minAge;
+}
+
 export function genderLabel(value: string): string {
   return GENDER_OPTIONS.find((g) => g.value === value)?.label ?? value;
 }
 
 export function styleEraLabel(value: string): string {
-  return STYLE_ERAS.find((e) => e.value === value)?.label ?? value;
+  const parts = parseCsvValues(value);
+  if (parts.length <= 1) {
+    const single = parts[0] ?? value;
+    return STYLE_ERAS.find((e) => e.value === single)?.label ?? single;
+  }
+  return parts
+    .map((p) => STYLE_ERAS.find((e) => e.value === p)?.label ?? p)
+    .join(", ");
 }
+
+export const DEFAULT_SHIPPING_COUNTRY = "United States";
+export const DEFAULT_CITY = "New York";
+export const DEFAULT_CURRENCY = "USD";

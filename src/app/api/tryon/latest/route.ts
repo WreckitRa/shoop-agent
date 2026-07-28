@@ -28,7 +28,7 @@ export async function GET() {
     return Response.json({
       ok: true,
       avatar_url: avatar?.url ?? null,
-      has_avatar: Boolean(avatar),
+      has_avatar: Boolean(avatar?.url || avatar?.storage_path),
       tryon: latest?.outputUrl
         ? {
             job_id: latest.id,

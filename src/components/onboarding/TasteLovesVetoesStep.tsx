@@ -29,6 +29,16 @@ function toggle(list: string[], value: string): string[] {
   return [...set];
 }
 
+function withoutBrand(list: string[], brand: string): string[] {
+  const key = brand.trim().toLowerCase();
+  return list.filter((b) => b.trim().toLowerCase() !== key);
+}
+
+function hasBrand(list: string[], brand: string): boolean {
+  const key = brand.trim().toLowerCase();
+  return list.some((b) => b.trim().toLowerCase() === key);
+}
+
 export function TasteLovesVetoesStep({
   context,
   brandLikes,
@@ -44,7 +54,9 @@ export function TasteLovesVetoesStep({
 
   const brandSuggestions = suggestBrandLikes(context, 8);
   const vetoSuggestions = suggestStyleVetoes(context, 8);
-  const avoidBrandSuggestions = suggestBrandAvoids(context, 6);
+  const avoidBrandSuggestions = suggestBrandAvoids(context, 6).filter(
+    (brand) => !hasBrand(brandLikes, brand),
+  );
 
   const brandSuggestionSet = new Set(
     brandSuggestions.map((b) => b.toLowerCase()),
@@ -55,6 +67,26 @@ export function TasteLovesVetoesStep({
   const avoidSuggestionSet = new Set(
     avoidBrandSuggestions.map((b) => b.toLowerCase()),
   );
+
+  function toggleBrandLike(brand: string) {
+    const next = toggle(brandLikes, brand);
+    onChangeBrandLikes(next);
+    if (hasBrand(next, brand)) {
+      onChangeBrandAvoids(withoutBrand(brandAvoids, brand));
+    }
+  }
+
+  function toggleBrandAvoid(brand: string) {
+    if (!hasBrand(brandAvoids, brand) && hasBrand(brandLikes, brand)) {
+      // Loved brands can't move to avoid — deselect from loves first.
+      return;
+    }
+    const next = toggle(brandAvoids, brand);
+    onChangeBrandAvoids(next);
+    if (hasBrand(next, brand)) {
+      onChangeBrandLikes(withoutBrand(brandLikes, brand));
+    }
+  }
 
   return (
     <section className="space-y-4">
@@ -70,8 +102,8 @@ export function TasteLovesVetoesStep({
             {brandSuggestions.map((brand) => (
               <OnboardingChip
                 key={brand}
-                selected={brandLikes.includes(brand)}
-                onClick={() => onChangeBrandLikes(toggle(brandLikes, brand))}
+                selected={hasBrand(brandLikes, brand)}
+                onClick={() => toggleBrandLike(brand)}
               >
                 {brand}
               </OnboardingChip>
@@ -82,7 +114,7 @@ export function TasteLovesVetoesStep({
                 <OnboardingChip
                   key={brand}
                   selected
-                  onClick={() => onChangeBrandLikes(toggle(brandLikes, brand))}
+                  onClick={() => toggleBrandLike(brand)}
                 >
                   {brand}
                 </OnboardingChip>
@@ -94,7 +126,7 @@ export function TasteLovesVetoesStep({
               e.preventDefault();
               const v = customBrand.trim();
               if (!v) return;
-              onChangeBrandLikes(toggle(brandLikes, v));
+              toggleBrandLike(v);
               setCustomBrand("");
             }}
           >
@@ -161,23 +193,23 @@ export function TasteLovesVetoesStep({
             {avoidBrandSuggestions.map((brand) => (
               <OnboardingChip
                 key={brand}
-                selected={brandAvoids.includes(brand)}
-                onClick={() =>
-                  onChangeBrandAvoids(toggle(brandAvoids, brand))
-                }
+                selected={hasBrand(brandAvoids, brand)}
+                onClick={() => toggleBrandAvoid(brand)}
               >
                 {brand}
               </OnboardingChip>
             ))}
             {brandAvoids
-              .filter((b) => !avoidSuggestionSet.has(b.toLowerCase()))
+              .filter(
+                (b) =>
+                  !avoidSuggestionSet.has(b.toLowerCase()) &&
+                  !hasBrand(brandLikes, b),
+              )
               .map((brand) => (
                 <OnboardingChip
                   key={brand}
                   selected
-                  onClick={() =>
-                    onChangeBrandAvoids(toggle(brandAvoids, brand))
-                  }
+                  onClick={() => toggleBrandAvoid(brand)}
                 >
                   {brand}
                 </OnboardingChip>
@@ -188,8 +220,8 @@ export function TasteLovesVetoesStep({
             onSubmit={(e) => {
               e.preventDefault();
               const v = customAvoidBrand.trim();
-              if (!v) return;
-              onChangeBrandAvoids(toggle(brandAvoids, v));
+              if (!v || hasBrand(brandLikes, v)) return;
+              toggleBrandAvoid(v);
               setCustomAvoidBrand("");
             }}
           >

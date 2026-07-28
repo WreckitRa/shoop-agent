@@ -331,18 +331,19 @@ export async function seedOnboardingIntoFashionMemory(
 
     // Soft aesthetic from budget philosophy — never invent a numeric budget_band.
     if (profile.valuePhilosophy?.trim()) {
-      const vp = profile.valuePhilosophy.trim().toLowerCase();
-      const aesthetic =
-        vp === "luxury"
-          ? "quiet luxury"
-          : vp === "premium"
-            ? "quality first"
-            : vp === "best_value" || vp === "deal_hunter"
-              ? "value conscious"
-              : vp === "design_first"
-                ? "design led"
-                : null;
-      if (aesthetic) {
+      const vps = profile.valuePhilosophy
+        .split(",")
+        .map((v) => v.trim().toLowerCase())
+        .filter(Boolean);
+      const aesthetics = new Set<string>();
+      for (const vp of vps) {
+        if (vp === "luxury") aesthetics.add("quiet luxury");
+        else if (vp === "premium") aesthetics.add("quality first");
+        else if (vp === "best_value" || vp === "deal_hunter") {
+          aesthetics.add("value conscious");
+        } else if (vp === "design_first") aesthetics.add("design led");
+      }
+      for (const aesthetic of aesthetics) {
         writes.push(upsertStyleSignal({
           userId,
           personId: person.id,
@@ -352,7 +353,7 @@ export async function seedOnboardingIntoFashionMemory(
           polarity: 1,
           source: "inferred",
           confidence: 0.55,
-          sourceQuote: `onboarding:valuePhilosophy:${vp}`,
+          sourceQuote: `onboarding:valuePhilosophy:${aesthetic}`,
           incrementEvidence: false,
         }));
       }

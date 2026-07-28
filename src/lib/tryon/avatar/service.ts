@@ -674,13 +674,21 @@ export async function getStoredAvatar(
   const person = await getPersonById(userId, resolved);
   if (!person) return null;
   const avatar = (person as PersonRow & { avatar?: StoredAvatar }).avatar;
-  if (!avatar?.storage_path) return avatar ?? null;
-  const signed = await createSignedUrl(avatar.storage_path);
-  const content_type = resolveAvatarContentType(
-    avatar.content_type,
-    avatar.storage_path,
-  );
-  return { ...avatar, url: signed, content_type };
+  if (!avatar) return null;
+  if (!avatar.storage_path) {
+    return avatar.url ? avatar : null;
+  }
+  try {
+    const signed = await createSignedUrl(avatar.storage_path);
+    const content_type = resolveAvatarContentType(
+      avatar.content_type,
+      avatar.storage_path,
+    );
+    return { ...avatar, url: signed, content_type };
+  } catch {
+    // Fall back to any previously stored URL rather than failing the whole room.
+    return avatar.url ? avatar : null;
+  }
 }
 
 async function collectOldAvatarPaths(person: PersonRow): Promise<string[]> {

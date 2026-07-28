@@ -52,7 +52,7 @@ export async function GET() {
           relation: person.relation,
           name: person.name,
           label: personLabel(person.relation, person.name),
-          has_avatar: Boolean(avatar),
+          has_avatar: Boolean(avatar?.url || avatar?.storage_path),
           avatar_url: avatar?.url ?? null,
           department,
           measurements_on_file,
