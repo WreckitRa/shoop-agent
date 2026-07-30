@@ -45,23 +45,52 @@ function scoreText(scores: Map<AxisKey, number>, text: string, weight: number) {
   }
 }
 
+function bumpArchetype(
+  scores: Map<AxisKey, number>,
+  archetype: string | undefined,
+  weight: number,
+): boolean {
+  if (!archetype?.trim()) return false;
+  const key = archetype.trim() as AxisKey;
+  if (!(key in AXIS_KEYWORDS)) return false;
+  bump(scores, key, weight);
+  return true;
+}
+
 /**
- * Deterministic Shooping Cart mix from worn + aspirational labels and compliments.
- * Worn picks weigh more (who you are); aspirational + compliments steer headingToward.
+ * Deterministic Shooping Cart mix from worn + aspirational picks and compliments.
+ * Casting-matrix archetypes vote 1:1 onto axes (worn ×3, aspirational ×2).
+ * Labels/tags remain a soft fallback when archetype is missing.
  */
 export function computeStyleMix(input: {
   wornLabels?: string[];
   aspirationalLabels?: string[];
+  /** Casting-matrix axes from worn picks (preferred over keyword scoring). */
+  wornArchetypes?: string[];
+  aspirationalArchetypes?: string[];
   compliments?: string[];
   tasteTags?: string[];
 }): StyleMix {
   const scores = new Map<AxisKey, number>();
 
-  for (const label of input.wornLabels ?? []) {
-    scoreText(scores, label, 3);
+  const wornArch = input.wornArchetypes ?? [];
+  const aspArch = input.aspirationalArchetypes ?? [];
+  let archetypeVotes = 0;
+  for (const a of wornArch) {
+    if (bumpArchetype(scores, a, 3)) archetypeVotes += 1;
   }
-  for (const label of input.aspirationalLabels ?? []) {
-    scoreText(scores, label, 2);
+  for (const a of aspArch) {
+    if (bumpArchetype(scores, a, 2)) archetypeVotes += 1;
+  }
+
+  // Keyword fallback only when we lack clean archetype votes (legacy / partial).
+  if (archetypeVotes === 0) {
+    for (const label of input.wornLabels ?? []) {
+      scoreText(scores, label, 3);
+    }
+    for (const label of input.aspirationalLabels ?? []) {
+      scoreText(scores, label, 2);
+    }
   }
   for (const tag of input.tasteTags ?? []) {
     scoreText(scores, tag, 1);

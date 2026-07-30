@@ -23,6 +23,7 @@ const deckQuerySchema = z.object({
   shippingCountry: z.string().optional(),
   currency: z.string().optional(),
   wornLabels: z.string().optional(),
+  wornTasteTags: z.string().optional(),
 });
 
 const outfitPickSchema = z
@@ -32,6 +33,7 @@ const outfitPickSchema = z
     tasteTags: z.array(z.string().max(80)).max(16).optional(),
     productTitle: z.string().max(280).optional(),
     productId: z.string().max(256).optional(),
+    archetype: z.string().max(40).optional(),
   })
   .strict();
 
@@ -75,6 +77,7 @@ export async function GET(req: Request) {
       shippingCountry: url.searchParams.get("shippingCountry") ?? undefined,
       currency: url.searchParams.get("currency") ?? undefined,
       wornLabels: url.searchParams.get("wornLabels") ?? undefined,
+      wornTasteTags: url.searchParams.get("wornTasteTags") ?? undefined,
     });
 
     if (!parsedQuery.success) {
@@ -124,6 +127,7 @@ export async function GET(req: Request) {
         undefined,
       currency: q.currency?.trim() || profile?.currency || undefined,
       wornLabels: splitCsv(q.wornLabels),
+      wornTasteTags: splitCsv(q.wornTasteTags),
     };
 
     const deck = await buildOutfitGridDeck(ctx, { signal: req.signal });
@@ -139,6 +143,8 @@ export async function GET(req: Request) {
         imageUrl: c.imageUrl,
         tasteTags: c.tasteTags,
         mode: c.mode,
+        archetype: c.archetype,
+        cell: c.cell,
       })),
       contextUsed: ctx,
     });

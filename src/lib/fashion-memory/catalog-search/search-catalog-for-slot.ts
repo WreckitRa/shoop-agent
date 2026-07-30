@@ -19,6 +19,7 @@ import {
 } from "./dedupe";
 import { summarizeCatalogFieldCoverage } from "./normalize-hit";
 import { buildReformulationQueryVariants } from "./reformulation";
+import { CATALOG_QUERY_HEDGE_MS } from "../pipeline-cutoffs";
 import { runCatalogQueryWithTimeout } from "./query-runner";
 import { CATALOG_PRIMARY_QUERY_COUNT } from "../search-planner/query-rules";
 import { buildSlotCatalogFilters } from "./slot-filters";
@@ -85,7 +86,73 @@ export async function searchCatalogForSlot(
     liftedMax: params.liftedMax,
   });
 
-  let hits = await fanOutQueryVariants({
+  /** Race first spare at hedge tripwire while primary is still in flight. */
+  let hedgePromise: Promise<{
+    hits: VariantQueryHit[];
+    plans: ReturnType<typeof buildVariantFilterPlans>;
+    hedgeLogs: FashionCatalogQueryLog[];
+    hedgeCatalog: Record<string, Record<string, unknown>>;
+  }> | null = null;
+  let hedgeStarted = false;
+
+  const fireFirstSpareHedge = (): Promise<{
+    hits: VariantQueryHit[];
+    plans: ReturnType<typeof buildVariantFilterPlans>;
+    hedgeLogs: FashionCatalogQueryLog[];
+    hedgeCatalog: Record<string, Record<string, unknown>>;
+  }> => {
+    if (hedgeStarted || params.liftRetryOnly || !spareVariants[0]) {
+      return Promise.resolve({
+        hits: [],
+        plans: [],
+        hedgeLogs: [],
+        hedgeCatalog: {},
+      });
+    }
+    hedgeStarted = true;
+    const spareQuery = spareVariants[0]!;
+    const sparePlans = buildVariantFilterPlans({
+      garment: params.slot.garment,
+      brief: params.brief,
+      profile: params.profile,
+      queries: [spareQuery],
+      mode: params.mode,
+      slotId: params.slot.slot_id,
+      allocation: params.allocation,
+      liftedMax: params.liftedMax,
+    });
+    logAiChat("info", "fashion_catalog_hedge_spare", {
+      slot_id: params.slot.slot_id,
+      hedge_ms: CATALOG_QUERY_HEDGE_MS,
+      raced: true,
+    });
+    const hedgeLogs: FashionCatalogQueryLog[] = [];
+    const hedgeCatalog: Record<string, Record<string, unknown>> = {};
+    return fanOutQueryVariants({
+      accessToken: params.accessToken,
+      slotId: params.slot.slot_id,
+      garment: params.slot.garment,
+      variantPlans: sparePlans,
+      buyerContext,
+      intent,
+      signal: params.signal,
+      abortScope: params.abortScope,
+      queryLogs: hedgeLogs,
+      catalogById: hedgeCatalog,
+      reformulation: false,
+      variantIndexOffset: CATALOG_PRIMARY_QUERY_COUNT,
+      traceId: params.traceId,
+      slotBudgetMeta,
+      onVariantHit: params.onVariantHit,
+    }).then((hits) => ({
+      hits,
+      plans: sparePlans,
+      hedgeLogs,
+      hedgeCatalog,
+    }));
+  };
+
+  const primaryPromise = fanOutQueryVariants({
     accessToken: params.accessToken,
     slotId: params.slot.slot_id,
     garment: params.slot.garment,
@@ -101,6 +168,20 @@ export async function searchCatalogForSlot(
     slotBudgetMeta,
     onVariantHit: params.onVariantHit,
   });
+
+  const hedgeTimer =
+    !params.liftRetryOnly && spareVariants.length > 0
+      ? setTimeout(() => {
+          hedgePromise = fireFirstSpareHedge();
+        }, CATALOG_QUERY_HEDGE_MS)
+      : null;
+
+  let hits: VariantQueryHit[];
+  try {
+    hits = await primaryPromise;
+  } finally {
+    if (hedgeTimer) clearTimeout(hedgeTimer);
+  }
 
   let queryVariantsUsed: FashionQueryVariantUsed[] = primaryPlans.map((plan) => ({
     query: plan.query,
@@ -125,8 +206,41 @@ export async function searchCatalogForSlot(
     );
   };
 
-  if (!params.liftRetryOnly && spareVariants.length > 0 && primaryThin()) {
-    for (let i = 0; i < spareVariants.length; i++) {
+  // Merge raced hedge if it already started; else fire first spare when thin.
+  if (!params.liftRetryOnly && spareVariants.length > 0) {
+    if (!hedgePromise && primaryThin()) {
+      hedgePromise = fireFirstSpareHedge();
+    }
+    if (hedgePromise) {
+      const {
+        hits: spareHits,
+        plans: sparePlans,
+        hedgeLogs,
+        hedgeCatalog,
+      } = await hedgePromise;
+      queryLogs.push(...hedgeLogs);
+      Object.assign(catalogById, hedgeCatalog);
+      hits = [...hits, ...spareHits];
+      if (sparePlans.length) {
+        spareIndicesFired.push(CATALOG_PRIMARY_QUERY_COUNT);
+        queryVariantsUsed = [
+          ...queryVariantsUsed,
+          ...sparePlans.map((plan) => ({
+            query: plan.query,
+            category_filtered: plan.category_filtered,
+            lane: plan.lane,
+          })),
+        ];
+      }
+      logAiChat("info", "fashion_catalog_hedge_merged", {
+        slot_id: params.slot.slot_id,
+        unique_after: dedupeSlotCatalogHits(hits).length,
+        raced: hedgeStarted,
+      });
+    }
+
+    // Additional spares while still thin (skip index 0 — already hedged).
+    for (let i = 1; i < spareVariants.length; i++) {
       if (!primaryThin()) break;
       const spareQuery = spareVariants[i]!;
       const sparePlans = buildVariantFilterPlans({

@@ -27,10 +27,19 @@ import {
   FASHION_CURATION_MODEL,
   CURATION_TOOL_NAME,
   CURATION_LLM_TIMEOUT_MS,
+  CURATION_LATENCY_TRIPWIRE_MS,
 } from "./config";
+import {
+  CURATION_HARD_MS,
+  CURATION_SHRINK_RETRY_MS,
+  CURATION_STAGE_A_HARD_MS,
+  CURATION_STAGE_A_SHRINK_MS,
+  FASHION_CURATION_SPLIT_ENABLED,
+} from "../pipeline-cutoffs";
 import { buildFashionCurationDebug } from "./fashion-curation-debug";
 import { recordCurationLatencyMs, recordCurationLlmCallMs, curationLlmCallLatencySnapshot } from "./latency-metrics";
 import { sanitizeCurationNarration } from "./narration-sanitize";
+import { fillCurationVoice } from "./voice";
 import type {
   DeliverCurationInput,
   DeliverCurationVeto,
@@ -132,6 +141,19 @@ async function callCurationModel(params: {
     timeoutController?.signal,
   );
 
+  let tripwireFired = false;
+  const tripwireTimer =
+    CURATION_LATENCY_TRIPWIRE_MS > 0
+      ? setTimeout(() => {
+          tripwireFired = true;
+          logAiChat("warn", "fashion_curation_tripwire", {
+            traceId: params.traceId,
+            attempt: params.attempt ?? "primary",
+            tripwire_ms: CURATION_LATENCY_TRIPWIRE_MS,
+          });
+        }, CURATION_LATENCY_TRIPWIRE_MS)
+      : null;
+
   const logLlmTiming = (timedOut: boolean) => {
     const latencyMs = Date.now() - started;
     recordCurationLlmCallMs(latencyMs);
@@ -142,6 +164,7 @@ async function callCurationModel(params: {
       latency_ms: latencyMs,
       timed_out: timedOut,
       timeout_ms: timeoutMs,
+      tripwire_fired: tripwireFired,
       sample_count: stats.count,
       p50_ms: stats.p50_ms,
       p90_ms: stats.p90_ms,
@@ -150,35 +173,69 @@ async function callCurationModel(params: {
     });
   };
 
+  const thinkingEffort: "low" | "medium" | "high" | null =
+    FASHION_CURATION_EFFORT === "low" ||
+    FASHION_CURATION_EFFORT === "medium" ||
+    FASHION_CURATION_EFFORT === "high"
+      ? FASHION_CURATION_EFFORT
+      : null;
+  const useThinking = thinkingEffort != null;
+
   try {
-    // Non-streaming create() rejects max_tokens that imply >10min wall time
-    // (~21k+). Stream + finalMessage keeps 32k headroom for thinking + tool JSON.
-    // Adaptive thinking forbids forced tool_choice — audit via withTracedLlmCall.
-    const response = await withTracedLlmCall({
+    const response = await withTracedLlmCall<Message>({
       traceId: params.traceId,
       stage: "curation",
       model: FASHION_CURATION_MODEL,
       systemPrompt: params.systemPrompt,
       inputMessages: messages,
-      toolChoice: null,
+      toolChoice: useThinking
+        ? null
+        : { type: "tool", name: CURATION_TOOL_NAME },
       execute: async () => {
-        const stream = client.messages.stream(
-          {
-            model: FASHION_CURATION_MODEL,
-            max_tokens: FASHION_CURATION_MAX_TOKENS,
-            system: params.systemPrompt,
-            messages,
-            tools: [DELIVER_CURATION_TOOL],
-            thinking: {
-              type: "adaptive",
+        const base = {
+          model: FASHION_CURATION_MODEL,
+          max_tokens: FASHION_CURATION_MAX_TOKENS,
+          system: [
+            {
+              type: "text" as const,
+              text: params.systemPrompt,
+              // 5-min ephemeral cache — house rules + mode sections reuse in-session.
+              cache_control: { type: "ephemeral" as const },
             },
-            output_config: {
-              effort: FASHION_CURATION_EFFORT,
+          ],
+          messages,
+          tools: [DELIVER_CURATION_TOOL],
+        };
+
+        // Stream only when thinking needs headroom; otherwise plain create is faster.
+        if (useThinking && thinkingEffort) {
+          const stream = client.messages.stream(
+            {
+              ...base,
+              thinking: { type: "adaptive" as const },
+              output_config: { effort: thinkingEffort },
+            },
+            { signal },
+          );
+          const msg = await stream.finalMessage();
+          return {
+            value: msg,
+            rawOutput: msg,
+            inputTokens: msg.usage?.input_tokens,
+            outputTokens: msg.usage?.output_tokens,
+          };
+        }
+
+        const msg = await client.messages.create(
+          {
+            ...base,
+            tool_choice: {
+              type: "tool" as const,
+              name: CURATION_TOOL_NAME,
             },
           },
           { signal },
         );
-        const msg = await stream.finalMessage();
         return {
           value: msg,
           rawOutput: msg,
@@ -188,17 +245,27 @@ async function callCurationModel(params: {
       },
     });
 
+    const usage = response.usage;
+
     logAiChat("info", "fashion_curation_llm_response", {
       traceId: params.traceId,
       stop_reason: response.stop_reason,
       latency_ms: Date.now() - started,
-      input_tokens: response.usage?.input_tokens,
-      output_tokens: response.usage?.output_tokens,
+      input_tokens: usage?.input_tokens,
+      output_tokens: usage?.output_tokens,
+      cache_read_input_tokens: (
+        usage as { cache_read_input_tokens?: number } | undefined
+      )?.cache_read_input_tokens,
+      cache_creation_input_tokens: (
+        usage as { cache_creation_input_tokens?: number } | undefined
+      )?.cache_creation_input_tokens,
       block_types: response.content.map((b) => b.type),
       tool_names: response.content
         .filter((b) => b.type === "tool_use")
         .map((b) => (b.type === "tool_use" ? b.name : "")),
       timed_out: false,
+      tripwire_fired: tripwireFired,
+      thinking: useThinking,
       attempt: params.attempt ?? "primary",
     });
 
@@ -223,6 +290,7 @@ async function callCurationModel(params: {
       : error;
   } finally {
     if (timer) clearTimeout(timer);
+    if (tripwireTimer) clearTimeout(tripwireTimer);
   }
 }
 
@@ -407,7 +475,7 @@ export async function runFashionCuration(
     params.plan.brief.department_scope ??
     "mixed";
 
-  const systemPrompt = buildCurationSystemPrompt({
+  const systemPromptBase = buildCurationSystemPrompt({
     mode: params.plan.mode,
     department,
     occasion_context: params.plan.brief.occasion_context,
@@ -417,6 +485,109 @@ export async function runFashionCuration(
     per_slot_counts: perSlotCountsLabel(params.plan),
     palette_source: params.plan.slots[0]?.palette_source,
   });
+
+  const systemPrompt = FASHION_CURATION_SPLIT_ENABLED
+    ? `${systemPromptBase}
+
+PHASE PICK (Stage A): Spend tokens on correct refs, roles, looks, and vetoes.
+Set every stylist_line to exactly "See card." and narration.opening to
+"Fitting room ready." — a later voice pass fills real prose. Do not write
+long narration here.`
+    : systemPromptBase;
+
+  if (params.deterministicOnly) {
+    // Rung 4 — no LLM; deterministic looks synthesis.
+    const inputBundle = await buildCurationInput({
+      plan: params.plan,
+      slots: params.slots,
+      tasteSignals: params.tasteSignals,
+      budget_assembly: params.budget_assembly,
+      budget_tension: params.budget_tension,
+      budget_interpretation: params.budget_interpretation,
+      recipientRelation: params.recipientRelation,
+      department,
+      recipientProfile: params.recipientProfile,
+      excludedRefs: [...excludedRefs],
+      omitImages: true,
+      signal: params.signal,
+    });
+    imageCount = 0;
+    fallback = true;
+    const brandNote = brandFallbackNote(params.slots);
+    const budgetNote = budgetFallbackNote({
+      ...params,
+      budget_max: params.plan.brief.budget_context.max,
+    });
+    const thinSlots = [
+      ...params.slots.filter((s) => s.thin_slot).map((s) => s.slot_id),
+      ...(isDegradedOutfitPlan(params.plan)
+        ? params.plan.slots.map((s) => s.slot_id)
+        : []),
+    ].filter((id, i, arr) => arr.indexOf(id) === i);
+    const rawFallback = buildDeterministicFallback({
+      plan: params.plan,
+      registry: inputBundle.registry,
+      pools: params.pools,
+      vetoedRefs: appliedVetoRefs,
+      harvestedVetoes,
+      thinSlots,
+      brandNote,
+      budgetNote,
+      traceId: params.traceId,
+    });
+    const repaired = validateAndRepairFallback({
+      output: rawFallback,
+      registry: inputBundle.registry,
+      plan: params.plan,
+      slots: params.slots,
+      excludedRefs: [...excludedRefs],
+      budget_assembly: params.budget_assembly,
+      budget_tension: params.budget_tension,
+      budget_interpretation: params.budget_interpretation,
+      brandNote,
+      budgetNote,
+      thinNote: rawFallback.narration.thin_note,
+      traceId: params.traceId,
+    });
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "curation_fallback",
+      payload: {
+        reasons: ["deterministic_rung"],
+        looks_delivered: repaired.output.looks?.length ?? 0,
+      },
+    });
+    recordCurationLatencyMs(Date.now() - started);
+    const curationMs = Date.now() - started;
+    const presentation = buildPresentationContract({
+      output: repaired.output,
+      registry: inputBundle.registry,
+      plan: params.plan,
+      slots: params.slots,
+      vetoedRefs: appliedVetoRefs,
+      lookMembership: lookMembershipFromOutput(repaired.output),
+      fallback: true,
+    });
+    const debug = buildFashionCurationDebug({
+      plan: params.plan,
+      registry: inputBundle.registry,
+      presentation,
+      input_text: inputBundle.textBlock,
+      image_count: 0,
+      curation_ms: curationMs,
+      fallback: true,
+      retries: 0,
+      validation_issues: repaired.issues,
+      raw_llm_output: null,
+      ts: started,
+    });
+    return {
+      presentation,
+      curation_ms: curationMs,
+      registry: inputBundle.registry,
+      debug,
+    };
+  }
 
   const inputBundle = await buildCurationInput({
     plan: params.plan,
@@ -429,6 +600,8 @@ export async function runFashionCuration(
     department,
     recipientProfile: params.recipientProfile,
     excludedRefs: [...excludedRefs],
+    omitImages: params.omitImages,
+    imageBudgetScale: params.imageBudgetScale,
     signal: params.signal,
   });
 
@@ -447,12 +620,41 @@ export async function runFashionCuration(
   let llmError: string | null = null;
   let parseError: string | null = null;
   let lastToolContent: Message["content"] | undefined;
+  /** Law: never retry the same oversized call — at most ONE shrink/parse retry. */
+  let usedRetry = false;
+
+  const rebuildInput = async (opts: {
+    omitImages?: boolean;
+    imageBudgetScale?: number;
+  }) => {
+    const next = await buildCurationInput({
+      plan: params.plan,
+      slots: params.slots,
+      tasteSignals: params.tasteSignals,
+      budget_assembly: params.budget_assembly,
+      budget_tension: params.budget_tension,
+      budget_interpretation: params.budget_interpretation,
+      recipientRelation: params.recipientRelation,
+      department,
+      recipientProfile: params.recipientProfile,
+      excludedRefs: [...excludedRefs],
+      omitImages: opts.omitImages,
+      imageBudgetScale: opts.imageBudgetScale,
+      signal: params.signal,
+    });
+    inputBundle.userMessages = next.userMessages;
+    inputBundle.imageBlocks = next.imageBlocks;
+    inputBundle.textBlock = next.textBlock;
+    // Keep original registry for ref stability; image_shown already decided.
+    imageCount = next.imageBlocks.length;
+    return next;
+  };
 
   const runAttempt = async (opts: {
     userMessages: typeof inputBundle.userMessages;
     correctiveHint?: string;
-    omitImagesRebuild?: boolean;
     attempt?: string;
+    timeoutMs?: number;
   }) => {
     if (params.resolveCurationMessage && !opts.correctiveHint) {
       const response = await params.resolveCurationMessage({
@@ -506,6 +708,7 @@ export async function runFashionCuration(
       signal: params.signal,
       correctiveHint: opts.correctiveHint,
       attempt: opts.attempt,
+      timeoutMs: opts.timeoutMs,
       createMessage: params.createMessage,
     });
     lastToolContent = response.content;
@@ -523,93 +726,58 @@ export async function runFashionCuration(
     return extracted;
   };
 
+  const primaryTimeoutMs =
+    params.timeoutMs ??
+    (FASHION_CURATION_SPLIT_ENABLED
+      ? CURATION_STAGE_A_HARD_MS
+      : CURATION_HARD_MS);
+  const shrinkTimeoutMs = FASHION_CURATION_SPLIT_ENABLED
+    ? CURATION_STAGE_A_SHRINK_MS
+    : CURATION_SHRINK_RETRY_MS;
+
   try {
     const extracted = await runAttempt({
       userMessages: inputBundle.userMessages,
       attempt: "primary",
+      timeoutMs: primaryTimeoutMs,
     });
     rawOutput = extracted.output;
     parseError = extracted.parseError;
-    if (!rawOutput) {
-      logAiChat("warn", "fashion_curation_missing_tool_use", {
-        traceId: params.traceId,
-        stop_reason: undefined,
-        block_types: lastToolContent?.map((b) => b.type),
-        tool_name: extracted.toolName,
-        had_tool_use: extracted.hadToolUse,
-        parse_error: extracted.parseError,
-      });
-
-      if (extracted.hadToolUse) {
-        retries += 1;
-        // Corrective retry is image-free — images were seen once.
-        const textOnly = await buildCurationInput({
-          plan: params.plan,
-          slots: params.slots,
-          tasteSignals: params.tasteSignals,
-          budget_assembly: params.budget_assembly,
-          budget_tension: params.budget_tension,
-          budget_interpretation: params.budget_interpretation,
-          recipientRelation: params.recipientRelation,
-          department,
-          recipientProfile: params.recipientProfile,
-          excludedRefs: [...excludedRefs],
-          omitImages: true,
-          signal: params.signal,
+    if (!rawOutput && extracted.hadToolUse && !usedRetry) {
+      usedRetry = true;
+      retries += 1;
+      // Parse fail → ONE retry, text-only (half images → zero).
+      await rebuildInput({ omitImages: true });
+      try {
+        const retryExtracted = await runAttempt({
+          userMessages: inputBundle.userMessages,
+          attempt: "parse_retry",
+          timeoutMs: shrinkTimeoutMs,
+          correctiveHint: [
+            `Your previous ${CURATION_TOOL_NAME} call failed to parse:`,
+            extracted.parseError ?? "unknown schema error",
+            `Excluded refs (already vetoed — do not pick): ${[...excludedRefs].join(", ") || "(none)"}`,
+            `Call ${CURATION_TOOL_NAME} exactly once with valid slots, vetoes, and narration.opening.`,
+            "Images were already reviewed — curate from the text listing.",
+          ].join("\n"),
         });
-        inputBundle.userMessages = textOnly.userMessages;
-        inputBundle.imageBlocks = [];
-        inputBundle.textBlock = textOnly.textBlock;
-        imageCount = 0;
-        try {
-          const priorToolJson = lastToolContent
-            ? JSON.stringify(
-                harvestVetoesFromToolContent(lastToolContent).length
-                  ? {
-                      note: "prior tool output (partial)",
-                      vetoes: harvestVetoesFromToolContent(lastToolContent),
-                    }
-                  : { parse_error: extracted.parseError },
-              )
-            : "";
-          const retryExtracted = await runAttempt({
-            userMessages: inputBundle.userMessages,
-            attempt: "parse_retry",
-            correctiveHint: [
-              `Your previous ${CURATION_TOOL_NAME} call failed to parse:`,
-              extracted.parseError ?? "unknown schema error",
-              priorToolJson ? `Prior vetoes/partial: ${priorToolJson}` : "",
-              `Excluded refs (already vetoed — do not pick): ${[...excludedRefs].join(", ") || "(none)"}`,
-              `Call ${CURATION_TOOL_NAME} exactly once with valid slots, vetoes (array, may be empty), and narration.opening.`,
-              "Images were already reviewed — curate from the text listing. Keep thinking brief.",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          });
-          rawOutput = retryExtracted.output;
-          parseError = retryExtracted.parseError;
-          if (rawOutput) {
-            logAiChat("info", "fashion_curation_parse_retry_recovered", {
-              traceId: params.traceId,
-            });
-          } else {
-            logAiChat("warn", "fashion_curation_parse_retry_failed", {
-              traceId: params.traceId,
-              parse_error: retryExtracted.parseError,
-              tool_name: retryExtracted.toolName,
-            });
-          }
-        } catch (retryError) {
-          logAiChat("warn", "fashion_curation_parse_retry_error", {
+        rawOutput = retryExtracted.output;
+        parseError = retryExtracted.parseError;
+        if (rawOutput) {
+          logAiChat("info", "fashion_curation_parse_retry_recovered", {
             traceId: params.traceId,
-            error: String(retryError).slice(0, 240),
           });
         }
+      } catch (retryError) {
+        logAiChat("warn", "fashion_curation_parse_retry_error", {
+          traceId: params.traceId,
+          error: String(retryError).slice(0, 240),
+        });
       }
     }
   } catch (error) {
     llmError = String(error).slice(0, 400);
-    // Timeout / hard fail: still try to harvest from any partial if present.
+    const timedOut = /curation_llm_timeout/i.test(llmError);
     if (lastToolContent) {
       await harvestAttemptVetoes({
         content: lastToolContent,
@@ -623,40 +791,36 @@ export async function runFashionCuration(
       for (const ref of appliedVetoRefs) excludedRefs.add(ref);
     }
 
-    // Anthropic many-image 400: retry once text-only so curation still runs.
-    if (/image dimensions exceed|many-image/i.test(llmError)) {
+    // Latency law: never retry the SAME call — shrink images once, shorter budget.
+    if (!usedRetry && (timedOut || /image dimensions exceed|many-image/i.test(llmError))) {
+      usedRetry = true;
       retries += 1;
-      const textOnly = await buildCurationInput({
-        plan: params.plan,
-        slots: params.slots,
-        tasteSignals: params.tasteSignals,
-        budget_assembly: params.budget_assembly,
-        budget_tension: params.budget_tension,
-        budget_interpretation: params.budget_interpretation,
-        recipientRelation: params.recipientRelation,
-        department,
-        recipientProfile: params.recipientProfile,
-        excludedRefs: [...excludedRefs],
-        omitImages: true,
-        signal: params.signal,
+      const shrinkScale = timedOut ? 0.5 : undefined;
+      await rebuildInput({
+        omitImages: !timedOut,
+        imageBudgetScale: shrinkScale,
       });
-      inputBundle.userMessages = textOnly.userMessages;
-      inputBundle.imageBlocks = [];
-      inputBundle.textBlock = textOnly.textBlock;
-      imageCount = 0;
       try {
         const retryExtracted = await runAttempt({
           userMessages: inputBundle.userMessages,
-          attempt: "image_size_retry",
-          correctiveHint:
-            "Images were omitted due to an upstream size limit. Curate from titles, prices, colors, and scores. Call deliver_curation exactly once.",
+          attempt: timedOut ? "shrink_retry" : "image_size_retry",
+          timeoutMs: shrinkTimeoutMs,
+          correctiveHint: timedOut
+            ? `Prior call timed out. Call ${CURATION_TOOL_NAME} once with fewer/terser picks. Images halved.`
+            : "Images omitted due to size limit. Curate from titles, prices, colors, and scores.",
         });
         rawOutput = retryExtracted.output;
         parseError = retryExtracted.parseError;
         if (rawOutput) llmError = null;
+        logAiChat("info", "fashion_curation_shrink_retry", {
+          traceId: params.traceId,
+          timed_out: timedOut,
+          recovered: Boolean(rawOutput),
+          images: imageCount,
+        });
       } catch (retryError) {
         llmError = String(retryError).slice(0, 400);
-        logAiChat("warn", "fashion_curation_text_only_retry_failed", {
+        logAiChat("warn", "fashion_curation_shrink_retry_failed", {
           traceId: params.traceId,
           error: llmError,
         });
@@ -701,31 +865,17 @@ export async function runFashionCuration(
         ],
       };
 
-  if (!validated.ok && validated.output) {
+  if (!validated.ok && validated.output && !usedRetry) {
+    usedRetry = true;
     retries += 1;
     const reasons = validated.issues.map((i) => i.message).join("; ");
-    // Image-free corrective retry with prior vetoes excluded.
-    const textOnly = await buildCurationInput({
-      plan: params.plan,
-      slots: params.slots,
-      tasteSignals: params.tasteSignals,
-      budget_assembly: params.budget_assembly,
-      budget_tension: params.budget_tension,
-      budget_interpretation: params.budget_interpretation,
-      recipientRelation: params.recipientRelation,
-      department,
-      recipientProfile: params.recipientProfile,
-      excludedRefs: [...excludedRefs],
-      omitImages: true,
-      signal: params.signal,
-    });
-    inputBundle.userMessages = textOnly.userMessages;
-    inputBundle.imageBlocks = [];
-    imageCount = 0;
+    // ONE validation retry — text-only, shrink budget.
+    await rebuildInput({ omitImages: true });
     try {
       const retryExtracted = await runAttempt({
         userMessages: inputBundle.userMessages,
         attempt: "validation_retry",
+        timeoutMs: shrinkTimeoutMs,
         correctiveHint: [
           `Your previous output failed validation: ${reasons}.`,
           `Excluded refs (already vetoed — do not pick): ${[...excludedRefs].join(", ") || "(none)"}`,
@@ -838,6 +988,19 @@ export async function runFashionCuration(
         return [...byRef.values()];
       })(),
     };
+  }
+
+  // Phase 1 Stage B: fill voice onto already-chosen picks (text-only, cheap model).
+  if (FASHION_CURATION_SPLIT_ENABLED && finalOutput && !fallback) {
+    finalOutput = await fillCurationVoice({
+      output: finalOutput,
+      registry: inputBundle.registry,
+      recipientProfile: params.recipientProfile,
+      occasion: params.plan.brief.occasion_context,
+      styleDirection: params.plan.brief.style_direction,
+      signal: params.signal,
+      traceId: params.traceId,
+    });
   }
 
   validationIssues = validated.issues.map((i) => i.code);

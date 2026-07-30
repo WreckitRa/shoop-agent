@@ -1,30 +1,58 @@
 export { FASHION_CURATION_MODEL } from "../models";
+import {
+  CURATION_HARD_MS,
+  CURATION_TRIPWIRE_MS,
+  CURATION_STAGE_A_HARD_MS,
+  CURATION_STAGE_A_TRIPWIRE_MS,
+  FASHION_CURATION_SPLIT_ENABLED,
+} from "../pipeline-cutoffs";
 
 /**
- * Thinking + tool JSON share this budget. Adaptive thinking at high effort
- * can burn most of a small cap and truncate deliver_curation — keep headroom.
+ * Tool JSON + short stylist lines. Phase 0 shrink from 32k — thinking is OFF,
+ * so we no longer need headroom for invisible tokens.
  */
-export const FASHION_CURATION_MAX_TOKENS = 32_000;
-
-/** Soft guidance for Opus 4.8 adaptive thinking — medium leaves room for the tool call. */
-export const FASHION_CURATION_EFFORT = "medium" as const;
-
-/**
- * Hard wall-clock cap for a single curation LLM call. 0 = disabled (collect
- * samples via fashion_curation_llm_timing logs / health before setting a limit).
- */
-export const CURATION_LLM_TIMEOUT_MS = Number(
-  process.env.CURATION_LLM_TIMEOUT_MS ?? "0",
+export const FASHION_CURATION_MAX_TOKENS = Number(
+  process.env.FASHION_CURATION_MAX_TOKENS ?? "2000",
 );
 
-/** /health tripwire when p90 curation_ms exceeds this. */
-export const CURATION_LATENCY_TRIPWIRE_MS = 90_000;
+/**
+ * Thinking / effort OFF — thinking tokens were silent latency + cost.
+ * Set FASHION_CURATION_EFFORT=medium|high only if quality gate demands it.
+ */
+export const FASHION_CURATION_EFFORT = (
+  process.env.FASHION_CURATION_EFFORT?.trim() || "off"
+) as "off" | "low" | "medium" | "high";
 
 /**
- * Max edge for curator product photos. Anthropic many-image requests reject
- * any dimension > 2000px — stay well under via Shopify CDN width params.
+ * Hard wall-clock for a single curation LLM call.
+ * Stage A (split): 25s; Phase 0 single call: 55s.
  */
-export const CURATION_IMAGE_MAX_PX = 768;
+export const CURATION_LLM_TIMEOUT_MS = Number(
+  process.env.CURATION_LLM_TIMEOUT_MS ??
+    String(
+      FASHION_CURATION_SPLIT_ENABLED
+        ? CURATION_STAGE_A_HARD_MS
+        : CURATION_HARD_MS,
+    ),
+);
+
+/** Soft tripwire — log + degrade signal; call continues until hard cutoff. */
+export const CURATION_LATENCY_TRIPWIRE_MS = Number(
+  process.env.CURATION_LATENCY_TRIPWIRE_MS ??
+    String(
+      FASHION_CURATION_SPLIT_ENABLED
+        ? CURATION_STAGE_A_TRIPWIRE_MS
+        : CURATION_TRIPWIRE_MS,
+    ),
+);
+
+/**
+ * Max edge for curator product photos. Phase 0: 512px (~350 tok each)
+ * vs prior 768 (~800 tok).
+ */
+export const CURATION_IMAGE_MAX_PX = Number(
+  process.env.CURATION_IMAGE_MAX_PX ?? "512",
+);
 
 export {
   CURATION_IMAGE_BUDGET,
@@ -39,3 +67,14 @@ export {
 export const CURATION_VETO_TRIPWIRE_RATIO = 0.2;
 
 export const CURATION_TOOL_NAME = "deliver_curation";
+
+/** Stage A pick-only tool (Phase 1 split). */
+export const CURATION_PICK_TOOL_NAME = "deliver_curation_picks";
+
+/** Stage B voice tool (Phase 1 split). */
+export const CURATION_VOICE_TOOL_NAME = "deliver_curation_voice";
+
+/** Cap on Stage B voice generation (~300 tokens for opening + lines). */
+export const FASHION_CURATION_VOICE_MAX_TOKENS = Number(
+  process.env.FASHION_CURATION_VOICE_MAX_TOKENS ?? "300",
+);

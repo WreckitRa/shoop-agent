@@ -17,17 +17,18 @@ export const CURATION_UNVERIFIED_OVERFLOW = 10;
 
 /**
  * How many product images to attach for the curator LLM call.
- * Capsule is the wardrobe case — largest budget.
+ * Phase 0: scorer already ranked — trust it; images only for visual veto/pick.
+ * Bench + overflow remain text refs only (image_shown=false beyond budget).
  */
 export const CURATION_IMAGE_BUDGET = {
-  /** Single / multi — enough to find 3 confident wow picks, then stop. */
-  single_item: 12,
-  /** Outfit — form 3 looks; more images than single. */
-  outfit_anchor: 18,
-  outfit_support: 14,
-  /** Capsule / wardrobe — largest spend to mix a set + 3 rotations. */
-  capsule_anchor: 28,
-  capsule_support: 22,
+  /** Single / multi — top 6 imaged. */
+  single_item: 6,
+  /** Outfit — top 4 per slot. */
+  outfit_anchor: 4,
+  outfit_support: 4,
+  /** Capsule — still lean; previously 22–28. */
+  capsule_anchor: 6,
+  capsule_support: 4,
 } as const;
 
 export function imageBudgetForSlot(params: {

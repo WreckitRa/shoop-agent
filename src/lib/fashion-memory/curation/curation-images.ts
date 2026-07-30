@@ -21,13 +21,24 @@ export type CurationImageBlock = {
 const FETCH_MAX_BYTES = 2_500_000;
 const JPEG_QUALITY = 82;
 
-export async function fetchAndResizeCurationImage(
-  imageUrl: string,
+/** In-flight / completed prep keyed by original URL — overlaps hydration → curation. */
+const prefetchCache = new Map<string, Promise<CurationImageBlock | null>>();
+
+export function prefetchCurationImageUrls(
+  urls: string[],
+  signal?: AbortSignal,
+): void {
+  for (const url of urls) {
+    const raw = url.trim();
+    if (!raw || prefetchCache.has(raw)) continue;
+    prefetchCache.set(raw, fetchAndResizeCurationImageUncached(raw, signal));
+  }
+}
+
+async function fetchAndResizeCurationImageUncached(
+  raw: string,
   signal?: AbortSignal,
 ): Promise<CurationImageBlock | null> {
-  const raw = imageUrl.trim();
-  if (!raw || !/^https?:\/\//i.test(raw)) return null;
-
   // Prefer CDN-resized source when available (smaller download); sharp still
   // enforces the dimension cap for every host.
   const fetchUrl = catalogDisplayImageUrl(raw, CURATION_IMAGE_MAX_PX, {
@@ -72,6 +83,21 @@ export async function fetchAndResizeCurationImage(
     });
     return null;
   }
+}
+
+export async function fetchAndResizeCurationImage(
+  imageUrl: string,
+  signal?: AbortSignal,
+): Promise<CurationImageBlock | null> {
+  const raw = imageUrl.trim();
+  if (!raw || !/^https?:\/\//i.test(raw)) return null;
+
+  const cached = prefetchCache.get(raw);
+  if (cached) return cached;
+
+  const pending = fetchAndResizeCurationImageUncached(raw, signal);
+  prefetchCache.set(raw, pending);
+  return pending;
 }
 
 export async function prepareCurationImages(params: {

@@ -24,7 +24,9 @@ function fashionCatalogHasResults(
   catalogSearch: MessageFashionCatalogSearchMetaV1 | undefined,
 ): boolean {
   return Boolean(
-    catalogSearch?.slots?.some((slot) => (slot.verified_pool?.length ?? 0) > 0),
+    catalogSearch?.curation ||
+      catalogSearch?.render ||
+      catalogSearch?.slots?.some((slot) => (slot.verified_pool?.length ?? 0) > 0),
   );
 }
 

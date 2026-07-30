@@ -7,12 +7,16 @@ import type { AbortScope } from "@/lib/ai-chat/abort-scope";
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { recipientSizeForGarment } from "../hard-drops/size-match";
 import {
-  hydrationInitialWaveSize,
-  hydrationTargetCount,
   HYDRATION_CALL_TIMEOUT_MS,
   HYDRATION_DEFAULT_OVERFLOW,
   HYDRATION_MAX_CONCURRENCY,
+  hydrationInitialWaveSize,
+  hydrationTargetCount,
 } from "./config";
+import {
+  HYDRATION_WAVE_HARD_MS,
+  HYDRATION_WAVE_TRIPWIRE_MS,
+} from "../pipeline-cutoffs";
 import type { ConcurrencyGate } from "./concurrency-gate";
 import { hydrateCandidate, type HydrateCandidateParams } from "./hydrate-candidate";
 import type {
@@ -168,6 +172,8 @@ class SlotPoolImpl implements SlotPool {
     }
   }
 
+  private hardCutoff = false;
+
   private async hydrateWave(batch: FashionSlotCatalogProduct[]): Promise<WaveStats> {
     if (!batch.length) return { attempted: 0, killed: 0, hydration_failed: 0 };
     this.waves += 1;
@@ -176,9 +182,44 @@ class SlotPoolImpl implements SlotPool {
     const beforeVerified = this.verified.length;
     const started = Date.now();
 
-    await mapWithConcurrency(batch, HYDRATION_MAX_CONCURRENCY, (p) =>
+    let tripwireFired = false;
+    const tripwireTimer =
+      HYDRATION_WAVE_TRIPWIRE_MS > 0
+        ? setTimeout(() => {
+            tripwireFired = true;
+            logAiChat("warn", "fashion_hydration_wave_tripwire", {
+              traceId: this.params.traceId,
+              slot_id: this.params.slot.slot_id,
+              wave,
+              tripwire_ms: HYDRATION_WAVE_TRIPWIRE_MS,
+            });
+          }, HYDRATION_WAVE_TRIPWIRE_MS)
+        : null;
+
+    const waveWork = mapWithConcurrency(batch, HYDRATION_MAX_CONCURRENCY, (p) =>
       this.hydrateOne(p),
     );
+    void waveWork.catch(() => undefined);
+    const cutoff = new Promise<"cutoff">((resolve) => {
+      setTimeout(() => resolve("cutoff"), HYDRATION_WAVE_HARD_MS);
+    });
+    const raced = await Promise.race([
+      waveWork.then(() => "done" as const),
+      cutoff,
+    ]);
+    if (tripwireTimer) clearTimeout(tripwireTimer);
+    if (raced === "cutoff") {
+      this.thin = true;
+      this.hardCutoff = true;
+      logAiChat("warn", "fashion_hydration_wave_hard_cutoff", {
+        traceId: this.params.traceId,
+        slot_id: this.params.slot.slot_id,
+        wave,
+        hard_ms: HYDRATION_WAVE_HARD_MS,
+        tripwire_fired: tripwireFired,
+        verified_so_far: this.verified.length,
+      });
+    }
 
     const killed = this.dead.length - beforeDead;
     const added = this.verified.slice(beforeVerified);
@@ -206,6 +247,8 @@ class SlotPoolImpl implements SlotPool {
       reserve_left: this.reserve.length,
       verified_total: this.verified.length,
       target: this.target,
+      tripwire_fired: tripwireFired,
+      hard_cutoff: raced === "cutoff",
     });
 
     return { attempted: batch.length, killed, hydration_failed };
@@ -218,7 +261,11 @@ class SlotPoolImpl implements SlotPool {
       const stats1 = await this.hydrateWave(wave1);
       this.waveStats.push(stats1);
 
-      while (this.verified.length < this.target && this.reserve.length > 0) {
+      while (
+        !this.hardCutoff &&
+        this.verified.length < this.target &&
+        this.reserve.length > 0
+      ) {
         const deficit = this.target - this.verified.length;
         const wave = this.popBatch(deficit);
         if (!wave.length) break;

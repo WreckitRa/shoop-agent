@@ -232,6 +232,34 @@ export function buildQaDebugCriteria(params: {
       rows: [
         row("curation_vetoes", curationVetoes(events, params.curationDebug)),
         row("degradation_kind", degradationKind(catalog, plan, events)),
+        row(
+          "curation_ms",
+          catalog?.curation?.meta &&
+            "curation_ms" in (catalog.curation.meta as object)
+            ? (catalog.curation.meta as { curation_ms?: number }).curation_ms
+            : events.find((e) => e.stage === "curation")?.payload?.ms ?? null,
+        ),
+        row(
+          "looks_delivered",
+          catalog?.curation?.looks?.length ??
+            events.find((e) => e.stage === "curation")?.payload?.looks_delivered ??
+            null,
+        ),
+        row(
+          "outfit_looks_missing",
+          plan?.mode === "outfit"
+            ? (catalog?.curation?.looks?.length ?? 0) === 0
+            : null,
+        ),
+        row(
+          "turn_budget_rung",
+          events.find((e) => e.stage === "turn_budget")?.payload?.rung ?? null,
+        ),
+        row(
+          "pre_curation_elapsed_ms",
+          events.find((e) => e.stage === "turn_budget")?.payload
+            ?.pre_curation_elapsed_ms ?? null,
+        ),
         row("signals_written", signalsWritten(events)),
       ],
     },

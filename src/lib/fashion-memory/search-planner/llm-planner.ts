@@ -13,6 +13,7 @@ import {
   type PlanSearchInput,
 } from "./tool-schema";
 import { FASHION_SEARCH_PLANNER_MODEL } from "../models";
+import { PLANNER_HARD_MS } from "../pipeline-cutoffs";
 import type { FashionSearchBrief } from "../router/types";
 
 const SEARCH_PLANNER_TEMPERATURE = Number(
@@ -63,8 +64,13 @@ export async function runSearchPlanner(
     currentDate: params.currentDate,
   });
 
-  const call = (stage: string) =>
-    createMessage({
+  const call = (stage: string) => {
+    const hard = AbortSignal.timeout(PLANNER_HARD_MS);
+    const signal =
+      params.signal && typeof AbortSignal.any === "function"
+        ? AbortSignal.any([params.signal, hard])
+        : params.signal ?? hard;
+    return createMessage({
       traceId: params.traceId,
       stage,
       model: FASHION_SEARCH_PLANNER_MODEL,
@@ -76,15 +82,17 @@ export async function runSearchPlanner(
       inputMessages: [{ role: "user", content: userContent }],
       tools: [PLAN_SEARCH_TOOL],
       toolChoice: { type: "tool", name: PLAN_SEARCH_TOOL_NAME },
-      signal: params.signal,
+      signal,
     });
+  };
 
   let response = await call("planner");
   if (messageHasTextWithoutPlanTool(response)) {
-    logAiChat("warn", "fashion_search_planner_text_without_tool_retry", {
+    // v1.1: ONE live planner call — do not burn a second LLM on tool repair.
+    // Deterministic fallback plan is applied upstream when parse fails.
+    logAiChat("warn", "fashion_search_planner_text_without_tool_no_retry", {
       stopReason: response.stop_reason,
     });
-    response = await call("planner_retry");
   }
 
   const parsed = parsePlanSearchMessage(response);

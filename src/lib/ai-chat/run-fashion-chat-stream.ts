@@ -45,6 +45,7 @@ import {
   loadFashionSearchProfile,
   searchFashionCatalogPlan,
 } from "@/lib/fashion-memory/catalog-search";
+import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
 import { accessTokenForCatalogMcp } from "@/lib/shopify/catalog-auth";
 import { safeTrim } from "@/lib/fashion-memory/safe-trim";
 import { buildFashionCatalogDebug } from "@/lib/fashion-memory/catalog-search/fashion-catalog-debug";
@@ -519,6 +520,42 @@ export function createFashionChatSseStream(params: {
                   phase.previewImages,
                   phase.droppedImages,
                 ),
+              onProvisional: async ({ curation }) => {
+                try {
+                  const render = await buildRenderContractWithTryon({
+                    presentation: curation,
+                    plan: searchPlan,
+                    userId,
+                  });
+                  const provisionalMeta: MessageFashionCatalogSearchMetaV1 = {
+                    version: 1,
+                    slots: [],
+                    timing_ms: Date.now() - turnStarted,
+                    curation: {
+                      version: 1 as const,
+                      ...curation,
+                      trace_id: traceId ?? undefined,
+                    },
+                    render,
+                    provisional: true,
+                    trace_id: traceId ?? undefined,
+                  };
+                  metadata.fashionCatalogSearch = provisionalMeta;
+                  push(
+                    formatSse("fashion_catalog_search", {
+                      version: 1,
+                      conversationId: conv.id,
+                      catalogSearch: provisionalMeta,
+                      provisional: true,
+                    }),
+                  );
+                } catch (err) {
+                  logAiChat("warn", "fashion_provisional_render_failed", {
+                    error: String(err).slice(0, 200),
+                    conversationId: conv.id,
+                  });
+                }
+              },
               createMessage: params.testHooks?.createMessage,
               resolveCurationMessage: params.testHooks?.resolveCurationMessage,
             });

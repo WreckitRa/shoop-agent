@@ -65,11 +65,26 @@ describe("buildPatchFromTastePicks", () => {
   it("maps worn/aspirational picks, brands, vetoes, and style mix", () => {
     const patch = buildPatchFromTastePicks({
       wornPicks: [
-        { id: "1", label: "jeans + knit", tasteTags: ["casual", "knit"] },
-        { id: "2", label: "all black", tasteTags: ["minimal"] },
+        {
+          id: "1",
+          label: "jeans + knit",
+          tasteTags: ["casual", "knit"],
+          archetype: "Sporty",
+        },
+        {
+          id: "2",
+          label: "all black",
+          tasteTags: ["minimal"],
+          archetype: "Minimal",
+        },
       ],
       aspirationalPicks: [
-        { id: "3", label: "quiet-luxury airport", tasteTags: ["quiet-luxury"] },
+        {
+          id: "3",
+          label: "quiet-luxury airport",
+          tasteTags: ["quiet-luxury"],
+          archetype: "Parisian",
+        },
       ],
       brandLikes: ["COS", "Zara"],
       brandAvoids: ["FastBrand"],
@@ -91,5 +106,7 @@ describe("buildPatchFromTastePicks", () => {
     assert.equal(patch.profile?.valuePhilosophy, "premium");
     assert.ok(patch.profile?.styleMix);
     assert.equal(patch.profile?.complimentPreferences?.length, 2);
+    const axisLabels = patch.profile?.styleMix?.axes.map((a) => a.label) ?? [];
+    assert.ok(axisLabels.includes("Sporty") || axisLabels.includes("Minimal"));
   });
 });

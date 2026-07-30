@@ -508,6 +508,7 @@ export function OnboardingGate() {
   const aspirationalDeckInFlightRef = useRef(false);
   /** Labels only — avoids recreating loadOutfitDeck when picks change. */
   const wornPickLabelsRef = useRef<string[]>([]);
+  const wornPickTasteTagsRef = useRef<string[]>([]);
 
   const [intakeText, setIntakeText] = useState("");
   const [intakePhase, setIntakePhase] = useState<AiTransferPhase>("select");
@@ -544,6 +545,7 @@ export function OnboardingGate() {
 
   useEffect(() => {
     wornPickLabelsRef.current = wornPicks.map((p) => p.label);
+    wornPickTasteTagsRef.current = wornPicks.flatMap((p) => p.tasteTags ?? []);
   }, [wornPicks]);
   const [brandLikes, setBrandLikes] = useState<string[]>([]);
   const [brandAvoids, setBrandAvoids] = useState<string[]>([]);
@@ -827,6 +829,9 @@ export function OnboardingGate() {
         if (mode === "aspirational" && wornPickLabelsRef.current.length) {
           params.set("wornLabels", wornPickLabelsRef.current.join(","));
         }
+        if (mode === "aspirational" && wornPickTasteTagsRef.current.length) {
+          params.set("wornTasteTags", wornPickTasteTagsRef.current.join(","));
+        }
         const res = await fetch(`/api/onboarding/taste?${params}`, {
           cache: "no-store",
         });
@@ -986,6 +991,7 @@ export function OnboardingGate() {
             tasteTags: p.tasteTags,
             productTitle: p.title,
             productId: p.productId,
+            archetype: p.archetype,
           })),
           aspirationalPicks: aspirationalPicks.map((p) => ({
             id: p.id,
@@ -993,6 +999,7 @@ export function OnboardingGate() {
             tasteTags: p.tasteTags,
             productTitle: p.title,
             productId: p.productId,
+            archetype: p.archetype,
           })),
           brandLikes,
           brandAvoids,
@@ -1061,11 +1068,13 @@ export function OnboardingGate() {
               id: p.id,
               label: p.label,
               tasteTags: p.tasteTags,
+              archetype: p.archetype,
             })),
             aspirationalPicks: aspirationalPicks.map((p) => ({
               id: p.id,
               label: p.label,
               tasteTags: p.tasteTags,
+              archetype: p.archetype,
             })),
             brandLikes,
             brandAvoids,

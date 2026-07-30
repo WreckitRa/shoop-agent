@@ -18,6 +18,20 @@ describe("computeStyleMix", () => {
     assert.equal(mix.headingPercent, 25);
   });
 
+  it("votes casting-matrix archetypes 1:1 without keyword mush", () => {
+    const mix = computeStyleMix({
+      wornArchetypes: ["Sporty", "Minimal", "Parisian"],
+      aspirationalArchetypes: ["Bold", "Classic"],
+      // Labels that would otherwise pull Street/Boho via keywords — ignored when archetypes present.
+      wornLabels: ["denim festival linen"],
+      aspirationalLabels: ["neon boho street"],
+    });
+    const labels = mix.axes.map((a) => a.label);
+    assert.ok(labels.includes("Sporty") || labels.includes("Minimal") || labels.includes("Parisian"));
+    assert.ok(!labels.includes("Boho"));
+    assert.ok(!labels.includes("Street"));
+  });
+
   it("falls back to Minimal/Classic/Parisian when empty", () => {
     const mix = computeStyleMix({});
     assert.deepEqual(

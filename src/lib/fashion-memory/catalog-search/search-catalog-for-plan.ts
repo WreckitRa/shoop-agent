@@ -29,12 +29,23 @@ import type {
 } from "./types";
 import type { FashionSearchPlan } from "../search-planner/types";
 import type { FashionFactRow } from "../types";
-import { statedBrands } from "../brand/brand-handling";
+import { statedBrands, translateBrandStyle } from "../brand/brand-handling";
 import type { HardDropMetrics } from "../hard-drops/types";
 import { runFashionCuration } from "../curation/run-curation";
+import { buildProvisionalPresentation } from "../curation/provisional-rack";
 import type { SlotPool } from "../hydration/types";
 import { persistAllSlotPools } from "../hydration/pool-persistence";
 import { buildCatalogCallContext } from "@/lib/shopify/catalog";
+import {
+  FASHION_PROVISIONAL_RACK_ENABLED,
+  FASHION_CURATION_SPLIT_ENABLED,
+  STAGE_A_EARMARK_MS,
+  PRE_CURATION_POCKET_MS,
+  CURATION_STAGE_A_HARD_MS,
+  CURATION_STAGE_A_SHRINK_MS,
+  CURATION_STAGE_A_TEXT_ONLY_MS,
+  chooseStageARung,
+} from "../pipeline-cutoffs";
 
 const LOADER_PREVIEW_LIMIT = 8;
 const LOADER_DROP_LIMIT = 8;
@@ -448,6 +459,40 @@ export async function searchFashionCatalogPlan(
       params.plan.budget_allocation,
   };
 
+  // Pocket budgeting (v1.1): Stage A earmark is reserved at t=0 and never
+  // skipped. Pre-curation overruns are logged; they do not delete curation.
+  const stageAEarmarkMs = STAGE_A_EARMARK_MS;
+  const preCurationPocketMs = FASHION_CURATION_SPLIT_ENABLED
+    ? PRE_CURATION_POCKET_MS
+    : PRE_CURATION_POCKET_MS + STAGE_A_EARMARK_MS;
+
+  const brandsListed = statedBrands(plan.brief);
+  const brandTranslatePromise =
+    brandsListed.length > 0
+      ? Promise.all(
+          plan.slots.map(async (slot) => {
+            const translation = await translateBrandStyle({
+              brand: brandsListed[0]!,
+              garment: slot.garment,
+              brief: plan.brief,
+              signal: params.signal,
+              traceId: params.traceId,
+              createMessage: params.createMessage,
+            });
+            return { slot_id: slot.slot_id, translation };
+          }),
+        ).catch((error) => {
+          logAiChat("warn", "fashion_brand_prefetch_failed", {
+            traceId: params.traceId,
+            error: String(error).slice(0, 200),
+          });
+          return [] as Array<{
+            slot_id: string;
+            translation: Awaited<ReturnType<typeof translateBrandStyle>>;
+          }>;
+        })
+      : null;
+
   const settled = await Promise.allSettled(
     plan.slots.map(async (slot) => {
       const result = await searchCatalogForSlot({
@@ -517,7 +562,13 @@ export async function searchFashionCatalogPlan(
 
   let brandNarration: string | null = null;
 
-  if (statedBrands(plan.brief).length) {
+  if (brandsListed.length) {
+    const prefetched = brandTranslatePromise
+      ? await brandTranslatePromise
+      : [];
+    const preTranslations = new Map(
+      prefetched.map((row) => [row.slot_id, row.translation]),
+    );
     const resolved = await resolveBrandForCatalogSlots({
       plan,
       slots,
@@ -527,6 +578,7 @@ export async function searchFashionCatalogPlan(
       abortScope,
       traceId: params.traceId,
       createMessage: params.createMessage,
+      preTranslations,
     });
     plan = resolved.plan;
     slots = resolved.slots;
@@ -687,6 +739,48 @@ export async function searchFashionCatalogPlan(
       };
     });
 
+    if (FASHION_PROVISIONAL_RACK_ENABLED && params.onProvisional) {
+      const provisional = buildProvisionalPresentation({
+        plan,
+        slots,
+        pools,
+      });
+      if (provisional) {
+        params.onPhase?.({
+          line: "Showing verified options while I finish styling",
+          previewImages: verifiedUrlsFromSlots(slots),
+        });
+        params.onProvisional({ curation: provisional });
+      }
+    }
+
+    // Prefetch/resize finalist images while provisional renders + profile loads.
+    try {
+      const { prefetchCurationImageUrls } = await import(
+        "../curation/curation-images"
+      );
+      const { imageBudgetForSlot } = await import("../curation/deliverables");
+      const prefetchUrls: string[] = [];
+      for (const slot of slots) {
+        const planSlot = plan.slots.find((p) => p.slot_id === slot.slot_id);
+        if (!planSlot) continue;
+        const budget = imageBudgetForSlot({
+          mode: plan.mode,
+          role: planSlot.role,
+        });
+        const ranked = [...(slot.verified_pool ?? [])].sort(
+          (a, b) => (b.score?.final ?? 0) - (a.score?.final ?? 0),
+        );
+        for (const c of ranked.slice(0, budget)) {
+          const url = c.media_urls?.[0] ?? c.image_urls?.[0];
+          if (url) prefetchUrls.push(url);
+        }
+      }
+      prefetchCurationImageUrls(prefetchUrls, params.signal);
+    } catch {
+      /* non-fatal */
+    }
+
     const tasteSignals =
       params.tasteSignals ??
       params.profile.positiveSignals.map((s) => ({
@@ -717,6 +811,45 @@ export async function searchFashionCatalogPlan(
       droppedImages: droppedUrlsFromSlots(slots),
     });
     const curationStarted = Date.now();
+    const preCurationElapsed = curationStarted - started;
+    // Unused pre-curation pocket rolls into Stage A; earmark is the floor.
+    const unusedPreCuration = Math.max(
+      0,
+      preCurationPocketMs - preCurationElapsed,
+    );
+    const earmarkRemainingMs = stageAEarmarkMs + unusedPreCuration;
+    const rung = chooseStageARung(earmarkRemainingMs);
+
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "turn_budget",
+      payload: {
+        pre_curation_elapsed_ms: preCurationElapsed,
+        pre_curation_pocket_ms: preCurationPocketMs,
+        pre_curation_overrun: preCurationElapsed > preCurationPocketMs,
+        stage_a_earmark_ms: stageAEarmarkMs,
+        earmark_remaining_ms: earmarkRemainingMs,
+        rung,
+        // Never "skip" — skip deleted from vocabulary (v1.1).
+        skip_reason: null,
+      },
+    });
+    if (preCurationElapsed > preCurationPocketMs) {
+      logAiChat("warn", "fashion_pre_curation_pocket_overrun", {
+        traceId: params.traceId,
+        elapsed_ms: preCurationElapsed,
+        pocket_ms: preCurationPocketMs,
+        rung,
+      });
+    }
+
+    const rungTimeoutMs =
+      rung === "text_only"
+        ? CURATION_STAGE_A_TEXT_ONLY_MS
+        : rung === "half_images"
+          ? CURATION_STAGE_A_SHRINK_MS
+          : CURATION_STAGE_A_HARD_MS;
+
     const curationResult = await runFashionCuration({
       traceId: params.traceId,
       plan,
@@ -743,6 +876,10 @@ export async function searchFashionCatalogPlan(
       recipientProfile,
       excludedRefs: params.excludedRefs,
       signal: params.signal,
+      imageBudgetScale: rung === "half_images" ? 0.5 : undefined,
+      omitImages: rung === "text_only",
+      timeoutMs: rung === "deterministic" ? undefined : rungTimeoutMs,
+      deterministicOnly: rung === "deterministic",
       createMessage: params.createMessage
         ? async (curationParams) =>
             params.createMessage!({
@@ -759,6 +896,19 @@ export async function searchFashionCatalogPlan(
     curation = curationResult.presentation;
     curation_ms = Date.now() - curationStarted;
     curation_debug = curationResult.debug;
+
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "curation",
+      payload: {
+        ms: curation_ms,
+        fallback: curation?.meta?.fallback ?? false,
+        looks_delivered: curation?.looks?.length ?? 0,
+        rung,
+        outfit_looks_missing:
+          plan.mode === "outfit" && (curation?.looks?.length ?? 0) === 0,
+      },
+    });
 
     if (params.searchId && params.userId && pools) {
       const catalogContext = buildCatalogCallContext(

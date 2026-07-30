@@ -395,6 +395,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
         productId: v.id,
         preferredOptions: v.preferredOptions,
         featuredVariant: v.featuredVariant,
+        garment: v.garment,
       })),
       ...render.tiers.picks.map((p) => ({
         ref: p.ref,
@@ -404,6 +405,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
         productId: p.id,
         preferredOptions: p.preferredOptions,
         featuredVariant: p.featuredVariant,
+        garment: p.garment,
       })),
     ].map((row) => [row.ref, row]),
   );

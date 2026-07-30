@@ -73,6 +73,8 @@ type TryOnDrawerState = {
     searchId: string;
     lookId: string;
     title: string;
+    /** Look pieces — seed the candidate rack when opening. */
+    items?: FittingRoomItem[];
   }) => void;
   openAvatarViewer: () => Promise<void>;
   close: () => void;
@@ -631,11 +633,32 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
     clearPollTimer();
     const generation = get().renderGeneration + 1;
     syncChromeForTryOnDrawer(true);
+
+    const lookItems = params.items ?? [];
+    const itemsById = { ...get().itemsById };
+    const rackIds: string[] = [];
+    for (const item of lookItems) {
+      itemsById[item.id] = item;
+      if (
+        !rackIds.includes(item.id) &&
+        rackIds.length < MAX_FITTING_ROOM_ITEMS
+      ) {
+        rackIds.push(item.id);
+      }
+    }
+
     set({
       open: true,
       renderGeneration: generation,
       previewLookId: params.lookId,
       previewLookTitle: params.title,
+      // Seed candidate rack with this look's pieces (replace so the rack matches the look).
+      ...(lookItems.length
+        ? {
+            itemsById,
+            rackIds,
+          }
+        : {}),
       status: "loading_avatar",
       error: null,
       jobId: null,

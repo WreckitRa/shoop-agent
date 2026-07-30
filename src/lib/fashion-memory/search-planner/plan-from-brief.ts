@@ -21,6 +21,7 @@ import type {
   PlanSource,
 } from "./types";
 import { validateSlotQueryVariants } from "./validator";
+import { sanitizeBriefGarments, isStylePhraseGarment } from "../router/sanitize-garments";
 
 function annotateUnknownFamilies(plan: FashionSearchPlan): FashionSearchPlan {
   return {
@@ -102,30 +103,20 @@ async function finalizeResolvedPlan(params: {
     });
 
     if (!params.retriedPlanner && planSource !== "fallback") {
-      logAiChat("warn", "fashion_search_planner_outfit_slot_retry", {
+      // v1.1: ONE live planner call. Slot underflow → deterministic expand, not a second LLM.
+      logAiChat("warn", "fashion_search_planner_outfit_slot_deterministic_expand", {
         mode: working.mode,
         slotCount: working.slots.length,
       });
-      const retryInput = await runSearchPlanner({
-        brief: params.brief,
-        recipientProfile: params.recipientProfile,
-        currentDate: params.currentDate,
-        signal: params.signal,
+      recordPipelineEvent({
         traceId: params.traceId,
+        stage: "clamp",
+        payload: {
+          kind: "outfit_slot_deterministic_expand",
+          mode: working.mode,
+          slot_count: working.slots.length,
+        },
       });
-      if (retryInput) {
-        const retried = toFashionSearchPlan({
-          input: retryInput,
-          brief: params.brief,
-          currentDate: params.currentDate,
-        });
-        return finalizeResolvedPlan({
-          ...params,
-          plan: retried,
-          planSource: "clamped",
-          retriedPlanner: true,
-        });
-      }
     }
 
     working = reconcileOutfitCoverage(working);
@@ -150,6 +141,27 @@ async function finalizeResolvedPlan(params: {
   }
 
   working = annotateUnknownFamilies({ ...working, plan_source: planSource });
+
+  // Drop any style-phrase slots the planner still emitted.
+  const beforeSlots = working.slots.length;
+  working = {
+    ...working,
+    slots: working.slots.filter((s) => !isStylePhraseGarment(s.garment)),
+  };
+  if (working.slots.length < beforeSlots) {
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "clamp",
+      payload: {
+        kind: "dropped_style_phrase_slots",
+        before: beforeSlots,
+        after: working.slots.length,
+      },
+    });
+    if (working.slots.length < 2 && (working.mode === "outfit" || working.mode === "capsule")) {
+      working = reconcileOutfitCoverage(working);
+    }
+  }
 
   checkPlanInvariants({
     traceId: params.traceId,
@@ -205,10 +217,25 @@ export async function planSearchFromBrief(params: {
   traceId?: string | null;
   plannerDeps?: import("./llm-planner").RunSearchPlannerDeps;
 }): Promise<FashionSearchPlan> {
-  const brief = {
+  const sanitized = sanitizeBriefGarments({
     ...params.brief,
     recipient_person_id: params.recipientPersonId,
-  };
+  });
+  if (
+    sanitized.garments.join("|") !==
+    (params.brief.garments ?? []).join("|")
+  ) {
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "clamp",
+      payload: {
+        kind: "garment_style_phrase_sanitized",
+        before: params.brief.garments,
+        after: sanitized.garments,
+      },
+    });
+  }
+  const brief = sanitized;
 
   const recipientProfile = await buildRecipientProfileBlockForPlanner({
     userId: params.userId,

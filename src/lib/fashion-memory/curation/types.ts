@@ -192,6 +192,12 @@ export type RunFashionCurationParams = {
   recipientProfile?: string;
   excludedRefs?: string[];
   signal?: AbortSignal;
+  /** Stage A rung overrides — shrink image budget / omit images / hard timeout. */
+  imageBudgetScale?: number;
+  omitImages?: boolean;
+  timeoutMs?: number;
+  /** Skip LLM entirely — deterministic looks synthesis only (rung 4). */
+  deterministicOnly?: boolean;
   /** E2E/test — mock curation LLM without patching Anthropic client. */
   createMessage?: (params: {
     traceId?: string | null;

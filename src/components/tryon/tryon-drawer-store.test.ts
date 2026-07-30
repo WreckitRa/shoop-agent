@@ -137,4 +137,24 @@ describe("fitting room store", () => {
     assert.equal(replaced.error, null);
     assert.deepEqual(replaced.activeIds, [chinos.id]);
   });
+
+  it("seeds candidate rack when opening a look try-on", () => {
+    const items = [
+      sampleItem("shirt-1", true, "shirt"),
+      sampleItem("pants-1", true, "pants"),
+      sampleItem("shoes-1", true, "shoes"),
+    ];
+    useTryOnDrawerStore.getState().openLookTryOn({
+      searchId: "search-1",
+      lookId: "Look 1",
+      title: "Look 1",
+      items,
+    });
+    const state = useTryOnDrawerStore.getState();
+    assert.equal(state.open, true);
+    assert.equal(state.previewLookId, "Look 1");
+    assert.deepEqual(state.rackIds, ["shirt-1", "pants-1", "shoes-1"]);
+    assert.equal(state.itemsById["shirt-1"]?.title, "Item shirt-1");
+    assert.equal(state.itemsById["pants-1"]?.garment, "pants");
+  });
 });

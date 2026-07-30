@@ -123,6 +123,8 @@ export async function buildCurationInput(params: {
   excludedRefs?: string[];
   /** When true, omit all image blocks (retry after Anthropic image 400). */
   omitImages?: boolean;
+  /** Scale image budget (0.5 = shrink-retry with half the photos). */
+  imageBudgetScale?: number;
   signal?: AbortSignal;
 }): Promise<CurationInputBundle> {
   const brief = params.plan.brief;
@@ -137,6 +139,7 @@ export async function buildCurationInput(params: {
   const registry = buildRefRegistry({
     slots: slotData.filter((s) => s.planSlot),
     mode: params.plan.mode,
+    imageBudgetScale: params.imageBudgetScale,
   });
 
   const excluded = new Set(params.excludedRefs ?? []);

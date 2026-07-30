@@ -20,6 +20,8 @@ export type OutfitPick = {
   tasteTags?: string[];
   productTitle?: string;
   productId?: string;
+  /** Casting-matrix archetype for 1:1 styleMix axis votes. */
+  archetype?: string;
 };
 
 type OnboardingPatch = z.infer<typeof onboardingPatchSchema>;
@@ -152,6 +154,12 @@ export function buildPatchFromTastePicks(input: {
   const styleMix = computeStyleMix({
     wornLabels: (input.wornPicks ?? []).map((p) => p.label),
     aspirationalLabels: (input.aspirationalPicks ?? []).map((p) => p.label),
+    wornArchetypes: (input.wornPicks ?? [])
+      .map((p) => p.archetype)
+      .filter((a): a is string => Boolean(a?.trim())),
+    aspirationalArchetypes: (input.aspirationalPicks ?? [])
+      .map((p) => p.archetype)
+      .filter((a): a is string => Boolean(a?.trim())),
     compliments: input.compliments ?? [],
     tasteTags: tasteTags.map((t) => t.tag),
   });

@@ -13,7 +13,7 @@ import { refsForSlot } from "./refs";
 import { sanitizeCurationNarration } from "./narration-sanitize";
 import type { BudgetAssembly } from "../budget/budgetAllocation";
 import type { FashionSlotBrandStatus } from "../router/types";
-import { curationPickCap } from "./deliverables";
+import { CURATION_LOOKS_TARGET, curationPickCap } from "./deliverables";
 
 const ROLE_CYCLE: PickRole[] = ["safe", "stretch", "value", "reach", "safe"];
 
@@ -181,12 +181,70 @@ export function buildDeterministicFallback(params: {
     if (outfits.length) capsule_outfits = outfits.slice(0, 8);
   }
 
+  // Outfit looks — always emit named combos (rung 4). Outfit mode may degrade
+  // in polish, never in structure (looks.length === 0 is a contract failure).
+  const looks =
+    params.plan.mode === "outfit"
+      ? synthesizeOutfitLooks({
+          slots,
+          registry: params.registry,
+          target: CURATION_LOOKS_TARGET,
+        })
+      : undefined;
+
   return {
     slots,
     vetoes: params.harvestedVetoes ?? [],
     narration,
     ...(capsule_outfits ? { capsule_outfits } : {}),
+    ...(looks?.length ? { looks } : {}),
   };
+}
+
+/**
+ * Compose named looks from top picks across slots (anchor + supports).
+ * Look N uses the Nth pick from each slot that has one.
+ */
+export function synthesizeOutfitLooks(params: {
+  slots: Array<{ slot_id: string; picks: Array<{ ref: string }> }>;
+  registry: CurationRefRegistry;
+  target?: number;
+}): NonNullable<DeliverCurationInput["looks"]> {
+  const target = params.target ?? CURATION_LOOKS_TARGET;
+  const withPicks = params.slots.filter((s) => s.picks.length > 0);
+  if (withPicks.length < 2) return [];
+
+  const maxDepth = Math.min(
+    target,
+    Math.max(...withPicks.map((s) => s.picks.length)),
+  );
+  const looks: NonNullable<DeliverCurationInput["looks"]> = [];
+
+  for (let i = 0; i < maxDepth; i++) {
+    const item_refs: string[] = [];
+    for (const slot of withPicks) {
+      const pick = slot.picks[i] ?? slot.picks[0];
+      if (pick && !item_refs.includes(pick.ref)) item_refs.push(pick.ref);
+    }
+    if (item_refs.length < 2) continue;
+    let total = 0;
+    for (const ref of item_refs) {
+      const entry = params.registry.get(ref);
+      if (!entry) continue;
+      const c = entry.candidate;
+      const amount =
+        c.final_price?.amount ?? c.price?.amount ?? 0;
+      total += amount / 100;
+    }
+    looks.push({
+      name: `Look ${i + 1}`,
+      item_refs,
+      total: Math.round(total * 100) / 100,
+      note: "Verified combination from the hydrated rack",
+    });
+  }
+
+  return looks;
 }
 
 function repairFallbackNarration(params: {

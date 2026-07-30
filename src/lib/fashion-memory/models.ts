@@ -48,6 +48,12 @@ export const FASHION_BRAND_TRANSLATE_MODEL =
   envModel("FASHION_ROUTER_MODEL") ??
   AI_CHAT_LIGHTWEIGHT_MODEL;
 
-/** Opus-class visual curation (images + deliver_curation). */
+/** Sonnet-class visual curation (pick-and-justify). Was Opus — too slow/expensive. */
 export const FASHION_CURATION_MODEL =
-  envModel("FASHION_CURATION_MODEL") ?? AI_CHAT_DEFAULT_MODEL;
+  envModel("FASHION_CURATION_MODEL") ?? "claude-sonnet-5";
+
+/** Voice / opening prose after picks — Haiku default (never Opus). */
+export const FASHION_CURATION_VOICE_MODEL =
+  envModel("FASHION_CURATION_VOICE_MODEL") ??
+  envModel("FASHION_ROUTER_MODEL") ??
+  AI_CHAT_LIGHTWEIGHT_MODEL;

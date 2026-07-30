@@ -14,18 +14,22 @@ export function buildRefRegistry(params: {
     verified: HydratedCandidate[];
   }>;
   mode: import("../search-planner/types").SearchPlanMode;
+  /** Multiply per-slot image budget (e.g. 0.5 for shrink-retry). */
+  imageBudgetScale?: number;
 }): CurationRefRegistry {
   const registry: CurationRefRegistry = new Map();
+  const scale = Math.max(0, Math.min(1, params.imageBudgetScale ?? 1));
 
   for (const slot of params.slots) {
     const sorted = [...slot.verified].sort(
       (a, b) => (b.score?.final ?? 0) - (a.score?.final ?? 0),
     );
 
-    const imageBudget = imageBudgetForSlot({
+    const baseBudget = imageBudgetForSlot({
       mode: params.mode,
       role: slot.planSlot.role,
     });
+    const imageBudget = Math.max(1, Math.ceil(baseBudget * scale));
 
     sorted.forEach((candidate, idx) => {
       const ref = `${slotPrefix(slot.slot_id)}_${idx + 1}`;

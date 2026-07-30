@@ -263,11 +263,57 @@ export async function normalizeCatalogSearchSlots<T extends SlotNormalizeInput>(
 
   if (unresolvedColors.length || unresolvedSizes.length) {
     const classify = params.classifyLabels ?? classifyLabelsWithLlm;
-    const llm = await classify({
-      batch: { colors: unresolvedColors, sizes: unresolvedSizes },
-      traceId: params.traceId,
-      signal: params.signal,
-    });
+    const { NORMALIZE_HARD_MS, NORMALIZE_TRIPWIRE_MS } = await import(
+      "../pipeline-cutoffs"
+    );
+    let normalizeTripwire = false;
+    const tripwireTimer =
+      NORMALIZE_TRIPWIRE_MS > 0
+        ? setTimeout(() => {
+            normalizeTripwire = true;
+            logAiChat("warn", "fashion_normalize_tripwire", {
+              traceId: params.traceId,
+              tripwire_ms: NORMALIZE_TRIPWIRE_MS,
+            });
+          }, NORMALIZE_TRIPWIRE_MS)
+        : null;
+
+    const llmStarted = Date.now();
+    let llm: ClassifyLabelsResult | null = null;
+    try {
+      // Fail-open must be instantaneous at the hard cutoff — Promise.race so we
+      // never bill 2× wall when the SDK abort is slow (incident 0e1c21fa).
+      const classifyPromise = classify({
+        batch: { colors: unresolvedColors, sizes: unresolvedSizes },
+        traceId: params.traceId,
+        signal: params.signal,
+      }).catch(() => null);
+
+      llm = await Promise.race([
+        classifyPromise,
+        new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), NORMALIZE_HARD_MS);
+        }),
+      ]);
+
+      if (llm == null && Date.now() - llmStarted >= NORMALIZE_HARD_MS - 50) {
+        logAiChat("warn", "fashion_normalize_hard_cutoff", {
+          traceId: params.traceId,
+          tripwire_fired: normalizeTripwire,
+          hard_ms: NORMALIZE_HARD_MS,
+          wall_ms: Date.now() - llmStarted,
+        });
+      }
+    } catch (error) {
+      logAiChat("warn", "fashion_normalize_hard_cutoff", {
+        traceId: params.traceId,
+        tripwire_fired: normalizeTripwire,
+        error: String(error).slice(0, 200),
+      });
+      llm = null;
+    } finally {
+      if (tripwireTimer) clearTimeout(tripwireTimer);
+    }
 
     if (llm) {
       const { colorWrites, sizeWrites } = applyLlmResults({

@@ -196,6 +196,8 @@ export type MessageFashionCatalogSearchMetaV1 = {
   curation?: import("../curation/types").MessageFashionCurationMetaV1;
   /** Frozen UI contract with try-on availability — preferred chat render surface. */
   render?: import("../types/render-contract").RenderContract;
+  /** True while hydration rack is shown before final curation upgrades it. */
+  provisional?: boolean;
 };
 
 import type { AbortScope } from "@/lib/ai-chat/abort-scope";
@@ -253,6 +255,13 @@ export type SearchFashionCatalogPlanParams = {
   userId?: string;
   /** Live progress for chat UI — per-slot catalog hits and phase narration. */
   onPhase?: (phase: FashionCatalogPlanPhase) => void;
+  /**
+   * Provisional rack after hydration (zero LLM) — UI mounts heroes early;
+   * final curation upgrades in place.
+   */
+  onProvisional?: (payload: {
+    curation: import("../curation/types").FashionCurationPresentation;
+  }) => void;
   /** E2E/test — mock LLM stages (brand translate, curation). */
   createMessage?: typeof import("../observability/traced-llm-call").tracedLLMCall;
   /** E2E/test — ref-aligned curation without static LLM recording. */

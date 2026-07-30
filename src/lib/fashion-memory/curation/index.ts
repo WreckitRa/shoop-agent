@@ -29,7 +29,14 @@ export {
   CURATION_UNVERIFIED_OVERFLOW,
   CURATION_LLM_TIMEOUT_MS,
   CURATION_LATENCY_TRIPWIRE_MS,
+  CURATION_IMAGE_MAX_PX,
+  FASHION_CURATION_MAX_TOKENS,
+  FASHION_CURATION_EFFORT,
 } from "./config";
+
+export { buildProvisionalPresentation } from "./provisional-rack";
+export { fillCurationVoice } from "./voice";
+export { synthesizeOutfitLooks } from "./fallback";
 
 export { buildCurationInput } from "./build-input";
 export { buildCurationSystemPrompt, CURATION_PROMPT_SKELETON } from "./prompt";

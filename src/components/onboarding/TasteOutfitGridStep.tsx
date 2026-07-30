@@ -12,6 +12,8 @@ export type OutfitGridCard = {
   title?: string;
   imageUrl: string;
   tasteTags?: string[];
+  archetype?: string;
+  cell?: number;
 };
 
 type Props = {

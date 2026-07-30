@@ -53,6 +53,8 @@ export async function resolveBrandForCatalogSlots(params: {
   abortScope?: AbortScope;
   traceId?: string | null;
   createMessage?: Parameters<typeof translateBrandStyle>[0]["createMessage"];
+  /** Prefetched during catalog fan-out so brand LLM overlaps retrieval. */
+  preTranslations?: Map<string, BrandTranslation>;
 }): Promise<{
   plan: FashionSearchPlan;
   slots: FashionSlotCatalogResult[];
@@ -84,14 +86,16 @@ export async function resolveBrandForCatalogSlots(params: {
     let translation: BrandTranslation | null = null;
 
     if (status !== "confirmed") {
-      translation = await translateBrandStyle({
-        brand: brands[0]!,
-        garment: planSlot.garment,
-        brief: params.plan.brief,
-        signal: params.signal,
-        traceId: params.traceId,
-        createMessage: params.createMessage,
-      });
+      translation =
+        params.preTranslations?.get(planSlot.slot_id) ??
+        (await translateBrandStyle({
+          brand: brands[0]!,
+          garment: planSlot.garment,
+          brief: params.plan.brief,
+          signal: params.signal,
+          traceId: params.traceId,
+          createMessage: params.createMessage,
+        }));
       primaryTranslation = primaryTranslation ?? translation;
 
       const translatedVariants = buildTranslatedQueryVariants({

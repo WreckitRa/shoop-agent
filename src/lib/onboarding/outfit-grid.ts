@@ -15,8 +15,24 @@ import {
   isCuratedShopAllowlistEnabled,
 } from "@/lib/shopify/curated-shop-ids";
 import { mapWithConcurrency } from "@/lib/onboarding/taste-catalog";
+import {
+  buildCastingMatrix,
+  fallbackSlotsForMatrix,
+  isCastingArchetype,
+  isPhotoIntentQuery,
+  slotOverlapsWornPicks,
+  type CastingArchetype,
+  type CastingCell,
+  type OutfitGridMode,
+  type OutfitGridSlot,
+} from "@/lib/onboarding/outfit-grid-matrix";
+import {
+  CANDIDATES_PER_SLOT,
+  judgeOutfitGridPhotos,
+} from "@/lib/onboarding/outfit-grid-vision";
 
-export type OutfitGridMode = "worn" | "aspirational";
+export type { OutfitGridMode, OutfitGridSlot, CastingArchetype };
+export type { CastingCell } from "@/lib/onboarding/outfit-grid-matrix";
 
 export type OutfitDeckContext = {
   mode: OutfitGridMode;
@@ -28,14 +44,10 @@ export type OutfitDeckContext = {
   brandAvoids?: string;
   shippingCountry?: string;
   currency?: string;
-  /** Labels already picked on worn screen — steer aspirational away from duplicates. */
+  /** Labels already picked on worn screen — banned territory for aspirational. */
   wornLabels?: string[];
-};
-
-export type OutfitGridSlot = {
-  label: string;
-  searchQuery: string;
-  tasteTags: string[];
+  /** Taste tags from worn picks — hard overlap filter for aspirational. */
+  wornTasteTags?: string[];
 };
 
 export type OutfitGridCard = {
@@ -47,10 +59,13 @@ export type OutfitGridCard = {
   tasteTags: string[];
   searchQuery: string;
   mode: OutfitGridMode;
+  /** Locked casting-matrix archetype — 1:1 styleMix vote. */
+  archetype: CastingArchetype;
+  cell: number;
 };
 
-/** Cap shops so onboarding does one MCP call per query instead of ~5 parallel chunks. */
 const ONBOARDING_SHOP_LIMIT = 100;
+const ARCHETYPE_SHOP_LIMIT = 40;
 
 const COUNTRY_CODES: Record<string, string> = {
   lebanon: "LB",
@@ -81,182 +96,58 @@ function audiencePhrase(gender?: string): string {
       return "men's";
     case "androgynous":
     case "nonbinary":
+    case "prefer not to say":
       return "gender-neutral";
     default:
       return "";
   }
 }
 
-const WORN_FALLBACK_FEMININE: OutfitGridSlot[] = [
-  { label: "jeans + knit", searchQuery: "women's jeans knit sweater casual outfit", tasteTags: ["jeans", "knit", "casual"] },
-  { label: "blazer day", searchQuery: "women's blazer smart casual outfit", tasteTags: ["blazer", "smart-casual"] },
-  { label: "slip skirt", searchQuery: "women's slip skirt satin outfit", tasteTags: ["slip-skirt", "satin"] },
-  { label: "all black", searchQuery: "women's all black outfit minimal", tasteTags: ["all-black", "minimal"] },
-  { label: "athleisure", searchQuery: "women's athleisure matching set", tasteTags: ["athleisure", "sporty"] },
-  { label: "shirt dress", searchQuery: "women's shirt dress casual", tasteTags: ["shirt-dress"] },
-  { label: "linen set", searchQuery: "women's linen set summer outfit", tasteTags: ["linen", "relaxed"] },
-  { label: "denim on denim", searchQuery: "women's denim jacket jeans outfit", tasteTags: ["denim", "casual"] },
-  { label: "romantic blouse", searchQuery: "women's romantic blouse soft outfit", tasteTags: ["romantic", "blouse"] },
-];
+export const OUTFIT_GRID_SLOT_SYSTEM = `You fill a 9-cell casting matrix for a fashion onboarding grid. You receive cells as {"cell":n,"archetype":"...","mode":"worn|aspirational","context":{...}}. For EACH cell return {"cell":n,"label":"2-4 words, lowercase-friendly, in the archetype voice","searchQuery":"...","tasteTags":["..."]}. searchQuery RULES: must include the audience (AUD), a COMBINATION of 2+ garment words (outfit energy, never one noun), and one of: outfit, look, co-ord, set, styled, model. LABEL RULES: no two labels may share their first word; labels must read as nine visibly different lives. WORN cells: everyday reality inside the given lifestyleTags... include the unglamorous truth (knitwear, denim, comfort). ASPIRATIONAL cells: one elevation step above worn (occasion, fabric, tailoring)... never a costume leap; banned territory: the wornLabels provided. Respect brandAvoids as aesthetic signals. Formality + color: no two adjacent cells same formality band; at least 4 distinct color families across the deck. Return ONLY JSON {"slots":[...]}. No markdown.`;
 
-const WORN_FALLBACK_MASCULINE: OutfitGridSlot[] = [
-  { label: "jeans + knit", searchQuery: "men's jeans knit sweater casual outfit", tasteTags: ["jeans", "knit", "casual"] },
-  { label: "blazer day", searchQuery: "men's blazer chinos smart casual", tasteTags: ["blazer", "smart-casual"] },
-  { label: "tee + chino", searchQuery: "men's t-shirt chinos casual outfit", tasteTags: ["tee", "chinos"] },
-  { label: "all black", searchQuery: "men's all black outfit minimal", tasteTags: ["all-black", "minimal"] },
-  { label: "athleisure", searchQuery: "men's athleisure joggers hoodie", tasteTags: ["athleisure", "sporty"] },
-  { label: "oxford shirt", searchQuery: "men's oxford shirt casual friday", tasteTags: ["oxford", "classic"] },
-  { label: "linen set", searchQuery: "men's linen shirt shorts summer", tasteTags: ["linen", "relaxed"] },
-  { label: "denim on denim", searchQuery: "men's denim jacket jeans outfit", tasteTags: ["denim", "casual"] },
-  { label: "tailored trousers", searchQuery: "men's tailored trousers knit polo", tasteTags: ["tailored", "polished"] },
-];
-
-const ASPIRATIONAL_FALLBACK_FEMININE: OutfitGridSlot[] = [
-  { label: "quiet-luxury airport", searchQuery: "women's quiet luxury travel outfit cashmere", tasteTags: ["quiet-luxury", "travel"] },
-  { label: "French-girl café", searchQuery: "women's french girl chic café outfit", tasteTags: ["parisian", "french"] },
-  { label: "sequin party", searchQuery: "women's sequin party dress evening", tasteTags: ["sequin", "party"] },
-  { label: "minimalist gallery", searchQuery: "women's minimalist gallery outfit black", tasteTags: ["minimal", "gallery"] },
-  { label: "boho festival", searchQuery: "women's boho festival outfit", tasteTags: ["boho", "festival"] },
-  { label: "street-sharp", searchQuery: "women's street style sharp outfit", tasteTags: ["street", "sharp"] },
-  { label: "classic tailored", searchQuery: "women's classic tailored suit", tasteTags: ["classic", "tailored"] },
-  { label: "athleisure-clean", searchQuery: "women's clean athleisure elevated", tasteTags: ["athleisure", "clean"] },
-  { label: "romantic garden", searchQuery: "women's romantic garden party dress", tasteTags: ["romantic", "garden"] },
-];
-
-const ASPIRATIONAL_FALLBACK_MASCULINE: OutfitGridSlot[] = [
-  { label: "quiet-luxury airport", searchQuery: "men's quiet luxury travel outfit cashmere", tasteTags: ["quiet-luxury", "travel"] },
-  { label: "Italian café", searchQuery: "men's italian smart casual café outfit", tasteTags: ["italian", "smart-casual"] },
-  { label: "black-tie adjacent", searchQuery: "men's tuxedo dinner jacket formal", tasteTags: ["formal", "evening"] },
-  { label: "minimalist gallery", searchQuery: "men's minimalist black outfit gallery", tasteTags: ["minimal", "gallery"] },
-  { label: "festival weekend", searchQuery: "men's festival casual outfit", tasteTags: ["festival", "casual"] },
-  { label: "street-sharp", searchQuery: "men's streetwear sharp outfit", tasteTags: ["street", "sharp"] },
-  { label: "classic tailored", searchQuery: "men's classic tailored suit", tasteTags: ["classic", "tailored"] },
-  { label: "athleisure-clean", searchQuery: "men's clean elevated athleisure", tasteTags: ["athleisure", "clean"] },
-  { label: "coastal linen", searchQuery: "men's coastal linen summer outfit", tasteTags: ["linen", "coastal"] },
-];
-
-function fallbackSlots(ctx: OutfitDeckContext): OutfitGridSlot[] {
-  const g = ctx.genderPresentation?.trim().toLowerCase() ?? "";
-  const masculine = g === "masculine";
-  if (ctx.mode === "aspirational") {
-    return masculine ? ASPIRATIONAL_FALLBACK_MASCULINE : ASPIRATIONAL_FALLBACK_FEMININE;
-  }
-  return masculine ? WORN_FALLBACK_MASCULINE : WORN_FALLBACK_FEMININE;
-}
-
-function parseSlotsJson(raw: string): OutfitGridSlot[] | null {
-  try {
-    const parsed = JSON.parse(stripJsonFence(raw)) as unknown;
-    const list = Array.isArray(parsed)
-      ? parsed
-      : parsed && typeof parsed === "object" && Array.isArray((parsed as { slots?: unknown }).slots)
-        ? (parsed as { slots: unknown[] }).slots
-        : null;
-    if (!list) return null;
-    const slots: OutfitGridSlot[] = [];
-    for (const item of list) {
-      if (!item || typeof item !== "object") continue;
-      const row = item as Record<string, unknown>;
-      const label = typeof row.label === "string" ? row.label.trim().slice(0, 48) : "";
-      const searchQuery =
-        typeof row.searchQuery === "string"
-          ? row.searchQuery.trim().slice(0, 160)
-          : typeof row.query === "string"
-            ? row.query.trim().slice(0, 160)
-            : "";
-      if (!label || !searchQuery) continue;
-      const tasteTags = Array.isArray(row.tasteTags)
-        ? row.tasteTags
-            .filter((t): t is string => typeof t === "string")
-            .map((t) => t.trim().toLowerCase().slice(0, 40))
-            .filter(Boolean)
-            .slice(0, 6)
-        : [];
-      slots.push({ label, searchQuery, tasteTags });
-      if (slots.length >= 9) break;
-    }
-    return slots.length >= 6 ? slots.slice(0, 9) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function llmOutfitSlots(
-  ctx: OutfitDeckContext,
-  signal?: AbortSignal,
-): Promise<OutfitGridSlot[] | null> {
-  const aud = audiencePhrase(ctx.genderPresentation) || "unisex";
-  const purpose =
-    ctx.mode === "worn"
-      ? "real outfits they actually wear most days — everyday reality, not fantasy"
-      : "aspirational closet looks they would steal — elevated, dream wardrobe";
-
-  const system = `You generate fashion outfit search slots for a shopping onboarding grid.
-Return ONLY JSON: {"slots":[{"label":"short vibe label","searchQuery":"catalog search query","tasteTags":["tag"]}]}.
-Exactly 9 slots. Labels are 2–4 words, lowercase-friendly. searchQuery must include audience (${aud}) and garment words Shopify can match.
-No markdown.`;
-
-  const userPayload = {
-    mode: ctx.mode,
-    purpose,
-    audience: aud,
-    genderPresentation: ctx.genderPresentation ?? null,
-    styleEra: ctx.styleEra ?? null,
-    lifestyleTags: ctx.lifestyleTags ?? [],
-    valuePhilosophy: ctx.valuePhilosophy ?? null,
-    brandLikes: ctx.brandLikes ?? null,
-    brandAvoids: ctx.brandAvoids ?? null,
-    avoidDuplicateLabels: ctx.wornLabels ?? [],
-  };
-
-  try {
-    const msg = await createLightweightMessage(
-      {
-        model: AI_CHAT_LIGHTWEIGHT_MODEL,
-        max_tokens: 900,
-        temperature: 0.4,
-        system,
-        messages: [{ role: "user", content: JSON.stringify(userPayload) }],
-      },
-      { signal },
-    );
-    const text = msg.content
-      .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
-      .map((b) => b.text)
-      .join("\n");
-    return parseSlotsJson(text);
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    logAiChat("warn", "onboarding_outfit_slots_failed", {
-      mode: ctx.mode,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
-}
-
-function sampleCuratedShopIds(limit: number): string[] {
+function sampleCuratedShopIds(limit: number, offset = 0): string[] {
   if (CURATED_SHOP_IDS.length <= limit) return [...CURATED_SHOP_IDS];
   const stride = Math.ceil(CURATED_SHOP_IDS.length / limit);
   const out: string[] = [];
-  for (let i = 0; i < CURATED_SHOP_IDS.length && out.length < limit; i += stride) {
-    out.push(CURATED_SHOP_IDS[i]!);
+  const start = offset % CURATED_SHOP_IDS.length;
+  for (
+    let i = 0;
+    i < CURATED_SHOP_IDS.length && out.length < limit;
+    i += stride
+  ) {
+    out.push(CURATED_SHOP_IDS[(start + i) % CURATED_SHOP_IDS.length]!);
   }
   return out;
 }
 
-function catalogFilters(ctx: OutfitDeckContext): CatalogSearchFilters {
+/** Per-archetype shop cohort — structural diversity until affinity tags exist. */
+function shopIdsForArchetype(archetype: CastingArchetype): string[] | undefined {
+  if (!isCuratedShopAllowlistEnabled()) return undefined;
+  let hash = 0;
+  for (let i = 0; i < archetype.length; i++) {
+    hash = (hash * 31 + archetype.charCodeAt(i)) >>> 0;
+  }
+  return sampleCuratedShopIds(ARCHETYPE_SHOP_LIMIT, hash % CURATED_SHOP_IDS.length);
+}
+
+function catalogFilters(
+  ctx: OutfitDeckContext,
+  archetype?: CastingArchetype,
+): CatalogSearchFilters {
   const filters: CatalogSearchFilters = { available: true };
   const country = guessCountryCode(ctx.shippingCountry);
   if (country) filters.ships_to = { country };
-  // Prefer a single MCP request per query when curated allowlist is large.
   if (isCuratedShopAllowlistEnabled()) {
-    filters.shop_ids = sampleCuratedShopIds(ONBOARDING_SHOP_LIMIT);
+    filters.shop_ids =
+      (archetype ? shopIdsForArchetype(archetype) : undefined) ??
+      sampleCuratedShopIds(ONBOARDING_SHOP_LIMIT);
   }
   return filters;
 }
 
-function catalogContext(ctx: OutfitDeckContext): CatalogSearchContext | undefined {
+function catalogContext(
+  ctx: OutfitDeckContext,
+): CatalogSearchContext | undefined {
   const country = guessCountryCode(ctx.shippingCountry);
   const ctxOut: CatalogSearchContext = {};
   if (country) ctxOut.address_country = country;
@@ -270,6 +161,206 @@ function productsWithImages(
   products: CatalogProductSummary[] | undefined,
 ): CatalogProductSummary[] {
   return (products ?? []).filter((p) => Boolean(extractCatalogImageUrl(p)));
+}
+
+function parseMatrixSlotsJson(
+  raw: string,
+  matrix: CastingCell[],
+): OutfitGridSlot[] | null {
+  try {
+    const parsed = JSON.parse(stripJsonFence(raw)) as unknown;
+    const list = Array.isArray(parsed)
+      ? parsed
+      : parsed &&
+          typeof parsed === "object" &&
+          Array.isArray((parsed as { slots?: unknown }).slots)
+        ? (parsed as { slots: unknown[] }).slots
+        : null;
+    if (!list) return null;
+
+    const byCell = new Map<number, OutfitGridSlot>();
+    for (const item of list) {
+      if (!item || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      const cellNum =
+        typeof row.cell === "number" ? row.cell : Number(row.cell);
+      if (!Number.isFinite(cellNum)) continue;
+      const matrixCell = matrix.find((c) => c.cell === Math.round(cellNum));
+      if (!matrixCell) continue;
+
+      const label =
+        typeof row.label === "string" ? row.label.trim().slice(0, 48) : "";
+      const searchQuery =
+        typeof row.searchQuery === "string"
+          ? row.searchQuery.trim().slice(0, 160)
+          : typeof row.query === "string"
+            ? row.query.trim().slice(0, 160)
+            : "";
+      if (!label || !searchQuery) continue;
+      if (!isPhotoIntentQuery(searchQuery)) continue;
+
+      const tasteTags = Array.isArray(row.tasteTags)
+        ? row.tasteTags
+            .filter((t): t is string => typeof t === "string")
+            .map((t) => t.trim().toLowerCase().slice(0, 40))
+            .filter(Boolean)
+            .slice(0, 6)
+        : [];
+
+      const archetypeFromRow =
+        typeof row.archetype === "string" && isCastingArchetype(row.archetype)
+          ? row.archetype
+          : matrixCell.archetype;
+
+      byCell.set(matrixCell.cell, {
+        cell: matrixCell.cell,
+        archetype: archetypeFromRow,
+        label,
+        searchQuery,
+        tasteTags,
+      });
+    }
+
+    if (byCell.size < 6) return null;
+    return matrix.map((c) => byCell.get(c.cell)).filter(Boolean) as OutfitGridSlot[];
+  } catch {
+    return null;
+  }
+}
+
+async function llmFillMatrixCells(
+  ctx: OutfitDeckContext,
+  cells: CastingCell[],
+  aud: string,
+  signal?: AbortSignal,
+): Promise<OutfitGridSlot[] | null> {
+  if (!cells.length) return [];
+
+  const userPayload = {
+    audience: aud,
+    AUD: aud,
+    mode: ctx.mode,
+    cells: cells.map((c) => ({
+      cell: c.cell,
+      archetype: c.archetype,
+      mode: ctx.mode,
+      context: {
+        lifestyleHint: c.lifestyleHint ?? null,
+        lifestyleTags: ctx.lifestyleTags ?? [],
+        genderPresentation: ctx.genderPresentation ?? null,
+        styleEra: ctx.styleEra ?? null,
+        valuePhilosophy: ctx.valuePhilosophy ?? null,
+        brandLikes: ctx.brandLikes ?? null,
+        brandAvoids: ctx.brandAvoids ?? null,
+        wornLabels: ctx.wornLabels ?? [],
+        wornTasteTags: ctx.wornTasteTags ?? [],
+        constraint:
+          c.archetype === "Wildcard"
+            ? ctx.mode === "worn"
+              ? "comfort-truth slot — the hoodie is safe here"
+              : "stretch slot — boldest plausible reach given brandLikes"
+            : ctx.mode === "worn"
+              ? "everyday reality in the lifestyleHint context"
+              : "one elevation step up — occasion/energy, richer fabric, sharper tailoring",
+      },
+    })),
+  };
+
+  const system = OUTFIT_GRID_SLOT_SYSTEM.replace(/\(AUD\)/g, `(${aud})`);
+
+  try {
+    const msg = await createLightweightMessage(
+      {
+        model: AI_CHAT_LIGHTWEIGHT_MODEL,
+        max_tokens: 1100,
+        temperature: 0.7,
+        system,
+        messages: [{ role: "user", content: JSON.stringify(userPayload) }],
+      },
+      { signal },
+    );
+    const text = msg.content
+      .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
+      .map((b) => b.text)
+      .join("\n");
+    return parseMatrixSlotsJson(text, cells);
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    logAiChat("warn", "onboarding_outfit_slots_failed", {
+      mode: ctx.mode,
+      cells: cells.map((c) => c.cell),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+function mergeSlotsOntoMatrix(
+  matrix: CastingCell[],
+  filled: OutfitGridSlot[] | null,
+  fallback: OutfitGridSlot[],
+): OutfitGridSlot[] {
+  const byCell = new Map(filled?.map((s) => [s.cell, s]));
+  const fb = new Map(fallback.map((s) => [s.cell, s]));
+  return matrix.map((cell) => {
+    const slot = byCell.get(cell.cell) ?? fb.get(cell.cell);
+    if (slot) {
+      return { ...slot, cell: cell.cell, archetype: cell.archetype };
+    }
+    return fb.get(cell.cell)!;
+  });
+}
+
+async function resolveSlots(
+  ctx: OutfitDeckContext,
+  signal?: AbortSignal,
+): Promise<OutfitGridSlot[]> {
+  const matrix = buildCastingMatrix(ctx.lifestyleTags);
+  const fallback = fallbackSlotsForMatrix(ctx);
+  const aud = audiencePhrase(ctx.genderPresentation) || "unisex";
+
+  const llmSlots = await llmFillMatrixCells(ctx, matrix, aud, signal);
+  let slots = mergeSlotsOntoMatrix(matrix, llmSlots, fallback);
+
+  // Hard aspirational dedupe — regenerate overlapping cells once.
+  if (ctx.mode === "aspirational") {
+    const wornLabels = ctx.wornLabels ?? [];
+    const wornTasteTags = ctx.wornTasteTags ?? [];
+    const rejected = slots.filter((s) =>
+      slotOverlapsWornPicks(s, wornLabels, wornTasteTags),
+    );
+    if (rejected.length) {
+      const regenCells = matrix.filter((c) =>
+        rejected.some((r) => r.cell === c.cell),
+      );
+      const regenerated = await llmFillMatrixCells(
+        ctx,
+        regenCells,
+        aud,
+        signal,
+      );
+      const regenByCell = new Map(regenerated?.map((s) => [s.cell, s]));
+      slots = slots.map((s) => {
+        if (!rejected.some((r) => r.cell === s.cell)) return s;
+        const next = regenByCell.get(s.cell);
+        if (
+          next &&
+          !slotOverlapsWornPicks(next, wornLabels, wornTasteTags) &&
+          isPhotoIntentQuery(next.searchQuery)
+        ) {
+          return { ...next, cell: s.cell, archetype: s.archetype };
+        }
+        // Fall back to matrix fallback for that cell if still overlapping.
+        const fb = fallback.find((f) => f.cell === s.cell)!;
+        return { ...fb, cell: s.cell, archetype: s.archetype };
+      });
+      logAiChat("info", "onboarding_outfit_aspirational_dedupe", {
+        regenerated: rejected.map((r) => r.cell),
+      });
+    }
+  }
+
+  return slots;
 }
 
 async function searchCandidates(
@@ -296,25 +387,49 @@ async function searchCandidates(
 async function searchSlotCandidates(
   accessToken: string,
   slot: OutfitGridSlot,
-  filters: CatalogSearchFilters,
+  ctx: OutfitDeckContext,
   context: CatalogSearchContext | undefined,
   signal?: AbortSignal,
 ): Promise<CatalogProductSummary[]> {
+  let filters = catalogFilters(ctx, slot.archetype);
   let products = await searchCandidates(
     accessToken,
     slot.searchQuery,
     filters,
     context,
-    `onboarding outfit grid — ${slot.label}`,
+    `onboarding outfit grid — ${slot.archetype} — ${slot.label}`,
     signal,
   );
+
+  // Thin archetype cohort → widen to full onboarding sample.
+  if (
+    products.length < CANDIDATES_PER_SLOT &&
+    isCuratedShopAllowlistEnabled() &&
+    !signal?.aborted
+  ) {
+    filters = catalogFilters(ctx);
+    const wider = await searchCandidates(
+      accessToken,
+      slot.searchQuery,
+      filters,
+      context,
+      `onboarding outfit grid widen — ${slot.label}`,
+      signal,
+    );
+    const byId = new Map(products.map((p) => [p.id, p]));
+    for (const p of wider) {
+      if (!byId.has(p.id)) byId.set(p.id, p);
+    }
+    products = [...byId.values()];
+  }
+
   if (products.length === 0 && !signal?.aborted) {
-    const short = slot.searchQuery.split(/\s+/).slice(0, 5).join(" ");
+    const short = slot.searchQuery.split(/\s+/).slice(0, 6).join(" ");
     if (short && short !== slot.searchQuery) {
       products = await searchCandidates(
         accessToken,
         short,
-        filters,
+        catalogFilters(ctx),
         context,
         `onboarding outfit grid fallback — ${slot.label}`,
         signal,
@@ -327,10 +442,9 @@ async function searchSlotCandidates(
 function placeholderCard(
   ctx: OutfitDeckContext,
   slot: OutfitGridSlot,
-  index: number,
 ): OutfitGridCard {
   return {
-    id: `slot:${ctx.mode}:${index}:${slot.label}`,
+    id: `slot:${ctx.mode}:${slot.cell}:${slot.label}`,
     productId: "",
     label: slot.label,
     title: slot.label,
@@ -338,6 +452,8 @@ function placeholderCard(
     tasteTags: slot.tasteTags,
     searchQuery: slot.searchQuery,
     mode: ctx.mode,
+    archetype: slot.archetype,
+    cell: slot.cell,
   };
 }
 
@@ -355,86 +471,119 @@ function cardFromProduct(
     tasteTags: slot.tasteTags,
     searchQuery: slot.searchQuery,
     mode: ctx.mode,
+    archetype: slot.archetype,
+    cell: slot.cell,
   };
 }
 
-function simplifiedSlotQuery(slot: OutfitGridSlot, ctx: OutfitDeckContext): string {
-  const aud = audiencePhrase(ctx.genderPresentation);
+function simplifiedSlotQuery(
+  slot: OutfitGridSlot,
+  ctx: OutfitDeckContext,
+): string {
+  const aud = audiencePhrase(ctx.genderPresentation) || "unisex";
   const tags = slot.tasteTags.filter(Boolean).slice(0, 2).join(" ");
   const base = tags || slot.label;
-  return [aud, base].filter(Boolean).join(" ").trim() || slot.searchQuery;
+  // Keep photo-intent words so refill stays outfit-energy.
+  return `${aud} ${base} outfit look`.replace(/\s+/g, " ").trim();
 }
 
-/** LLM-proposed outfit slots → Shopify catalog images for worn/aspirational grids. */
+/** Matrix-filled slots → catalog candidates → vision-judged photos. */
 export async function buildOutfitGridDeck(
   ctx: OutfitDeckContext,
   options: { signal?: AbortSignal } = {},
 ): Promise<OutfitGridCard[]> {
   const signal = options.signal;
-  const [llmSlots, accessToken] = await Promise.all([
-    llmOutfitSlots(ctx, signal),
+  const [slots, accessToken] = await Promise.all([
+    resolveSlots(ctx, signal),
     accessTokenForCatalogMcp(),
   ]);
-  const slots = (llmSlots ?? fallbackSlots(ctx)).slice(0, 9);
 
-  const filters = catalogFilters(ctx);
   const context = catalogContext(ctx);
-
   const seen = new Set<string>();
-  const deck: OutfitGridCard[] = [];
 
   const candidateLists = await mapWithConcurrency(slots, 3, (slot) =>
-    searchSlotCandidates(accessToken, slot, filters, context, signal),
+    searchSlotCandidates(accessToken, slot, ctx, context, signal),
   );
 
-  const leftovers: CatalogProductSummary[] = [];
-  for (let i = 0; i < slots.length; i++) {
-    const slot = slots[i]!;
-    const list = candidateLists[i] ?? [];
-    const product = list.find((p) => !seen.has(p.id));
-    if (!product) {
-      deck.push(placeholderCard(ctx, slot, i));
-      continue;
+  // Dedupe across slots before judging — keep first occurrence order.
+  const judgeInputs = slots.map((slot, i) => {
+    const list = (candidateLists[i] ?? []).filter((p) => {
+      if (seen.has(p.id)) return false;
+      return true;
+    });
+    // Soft-reserve so other slots prefer different products; judge may still pick.
+    for (const p of list.slice(0, CANDIDATES_PER_SLOT)) {
+      seen.add(p.id);
     }
-    seen.add(product.id);
-    deck.push(cardFromProduct(ctx, slot, product));
-    for (const extra of list) {
-      if (!seen.has(extra.id)) leftovers.push(extra);
-    }
-  }
+    return {
+      slot: slot.cell,
+      label: slot.label,
+      candidates: list.slice(0, 10),
+    };
+  });
 
-  // Fill image-less slots from unused search hits (keep the slot's vibe label).
-  for (let i = 0; i < deck.length; i++) {
-    if (deck[i]!.imageUrl) continue;
-    const nextIdx = leftovers.findIndex((p) => !seen.has(p.id));
-    if (nextIdx < 0) break;
-    const next = leftovers.splice(nextIdx, 1)[0]!;
-    seen.add(next.id);
-    deck[i] = cardFromProduct(ctx, slots[i]!, next);
-  }
+  const judged = await judgeOutfitGridPhotos(judgeInputs, { signal });
 
-  // Last resort: simpler queries for any remaining empties.
+  const deck: OutfitGridCard[] = slots.map((slot) => {
+    const product = judged.winners.get(slot.cell);
+    if (!product) return placeholderCard(ctx, slot);
+    return cardFromProduct(ctx, slot, product);
+  });
+
+  // Refill + re-judge only null / empty slots.
   const emptyIndexes = deck
     .map((card, i) => (card.imageUrl ? -1 : i))
     .filter((i) => i >= 0);
+
   if (emptyIndexes.length > 0 && !signal?.aborted) {
-    await mapWithConcurrency(emptyIndexes, 3, async (index) => {
-      const slot = slots[index]!;
-      const products = await searchCandidates(
-        accessToken,
-        simplifiedSlotQuery(slot, ctx),
-        filters,
-        context,
-        `onboarding outfit grid refill — ${slot.label}`,
-        signal,
-      );
-      const product = products.find((p) => !seen.has(p.id));
-      if (!product) return null;
-      seen.add(product.id);
+    const refillSeen = new Set(
+      deck.filter((c) => c.productId).map((c) => c.productId),
+    );
+    const refillCandidates = (
+      await mapWithConcurrency(emptyIndexes, 3, async (index) => {
+        const slot = slots[index]!;
+        const products = await searchCandidates(
+          accessToken,
+          simplifiedSlotQuery(slot, ctx),
+          catalogFilters(ctx),
+          context,
+          `onboarding outfit grid refill — ${slot.label}`,
+          signal,
+        );
+        return {
+          index,
+          slot,
+          products: products.filter((p) => !refillSeen.has(p.id)),
+        };
+      })
+    ).filter(
+      (row): row is { index: number; slot: OutfitGridSlot; products: CatalogProductSummary[] } =>
+        row != null,
+    );
+
+    const rejudge = await judgeOutfitGridPhotos(
+      refillCandidates.map(({ slot, products }) => ({
+        slot: slot.cell,
+        label: slot.label,
+        candidates: products,
+      })),
+      { signal },
+    );
+
+    for (const { index, slot } of refillCandidates) {
+      const product = rejudge.winners.get(slot.cell);
+      if (!product) continue;
+      refillSeen.add(product.id);
       deck[index] = cardFromProduct(ctx, slot, product);
-      return product.id;
-    });
+    }
   }
+
+  logAiChat("info", "onboarding_outfit_deck_built", {
+    mode: ctx.mode,
+    judged: judged.judged,
+    killed: judged.killed,
+    filled: deck.filter((c) => c.imageUrl).length,
+  });
 
   return deck.slice(0, 9);
 }

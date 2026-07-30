@@ -20,10 +20,9 @@ import type { FashionCatalogPageCall } from "./fashion-catalog-debug";
 import type { FashionCatalogQueryLog } from "./types";
 
 function parseFashionCatalogQueryTimeoutMs(raw: string | undefined): number {
-  // Observed healthy `search_catalog` latency on catalog.shopify.com is often
-  // 15–20s under load; 12s was aborting successful-but-slow calls.
-  const n = Number(raw ?? "25000");
-  if (!Number.isFinite(n) || n < 2_000) return 25_000;
+  // Phase 0 cutoff table: hard 10s (was 25s). Override via env when needed.
+  const n = Number(raw ?? process.env.FASHION_CATALOG_QUERY_HARD_MS ?? "10000");
+  if (!Number.isFinite(n) || n < 2_000) return 10_000;
   return Math.min(Math.round(n), 60_000);
 }
 
