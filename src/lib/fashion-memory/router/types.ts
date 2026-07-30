@@ -79,6 +79,15 @@ export type FashionSearchBrief = {
   stated_facts?: FashionStatedFacts;
   /** Filled by code in identity-gate — never by the LLM. */
   knowledge_state?: FashionBriefKnowledgeState;
+  /**
+   * Shopper voice tint for Stage B — filled by CODE in finalizeBriefForSearch
+   * from self onboarding meta. Recipient≠self still uses the shopper's honesty
+   * (they read the words); value_philosophy only when shopping for self.
+   */
+  voice_context?: {
+    honesty?: "gentle" | "balanced" | "blunt";
+    value_philosophy?: string;
+  };
 };
 
 export type FashionRouterContext = {

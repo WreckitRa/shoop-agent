@@ -1,6 +1,7 @@
 # Onboarding outfit grids: “wear most” → “closet you’d steal”
 
 > **Audience:** another AI / engineer reviewing this system for improvements.  
+> **Full onboarding field inventory:** [`onboarding-flow.md`](./onboarding-flow.md).  
 > **Source of truth:** `src/lib/onboarding/outfit-grid.ts`, `src/app/api/onboarding/taste/route.ts`, `src/components/onboarding/OnboardingGate.tsx`, `src/components/onboarding/TasteOutfitGridStep.tsx`, `src/lib/onboarding/taste-persist.ts`, `src/lib/onboarding/style-mix.ts`.  
 > **Date of capture:** 2026-07-29.
 

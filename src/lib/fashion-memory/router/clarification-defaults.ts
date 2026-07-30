@@ -12,6 +12,147 @@ import type { ClarificationOptionPreviewImage } from "@/lib/ai-chat/types";
 const OTHER = "Other";
 const OTHER_ID = "other";
 
+const GENERIC_STYLE_LABELS = [
+  "Minimal",
+  "Classic",
+  "Streetwear",
+  "Relaxed",
+] as const;
+
+/**
+ * Taste-derived style/vibe chips from positive style signals.
+ * Cold profile → null (caller keeps generic archetype chips).
+ */
+export function personalizedStyleOptions(params: {
+  signals: Array<{
+    signal_type: string;
+    value: string;
+    polarity: number;
+  }>;
+  departmentLabel?: string;
+  limit?: number;
+}): FashionClarificationOption[] | null {
+  const positives = params.signals
+    .filter(
+      (s) =>
+        s.polarity === 1 &&
+        (s.signal_type === "style" ||
+          s.signal_type === "aesthetic" ||
+          s.signal_type === "silhouette"),
+    )
+    .map((s) => s.value.trim())
+    .filter(Boolean);
+  const unique: string[] = [];
+  for (const v of positives) {
+    const key = v.toLowerCase();
+    if (unique.some((u) => u.toLowerCase() === key)) continue;
+    unique.push(v);
+    if (unique.length >= (params.limit ?? 3)) break;
+  }
+  if (!unique.length) return null;
+
+  const dept = params.departmentLabel?.trim() || "clothing";
+  const opts: FashionClarificationOption[] = unique.map((label) => ({
+    id: slugifyOptionId(label),
+    label: label.charAt(0).toUpperCase() + label.slice(1),
+    previewQuery: `${label.toLowerCase()} ${dept} outfit clothing`,
+  }));
+
+  const contrast =
+    GENERIC_STYLE_LABELS.find(
+      (g) => !unique.some((u) => u.toLowerCase().includes(g.toLowerCase())),
+    ) ?? "Bold";
+  opts.push({
+    id: slugifyOptionId(contrast),
+    label: contrast,
+    previewQuery: `${contrast.toLowerCase()} ${dept} outfit clothing`,
+  });
+  opts.push({ id: "surprise_me", label: "Surprise me" });
+  return opts;
+}
+
+/** Color ride-along chips from positive color signals. */
+export function personalizedColorOptions(params: {
+  signals: Array<{
+    signal_type: string;
+    value: string;
+    polarity: number;
+  }>;
+  limit?: number;
+}): FashionClarificationOption[] | null {
+  const positives = params.signals
+    .filter((s) => s.polarity === 1 && s.signal_type === "color")
+    .map((s) => s.value.trim())
+    .filter(Boolean);
+  const unique: string[] = [];
+  for (const v of positives) {
+    const key = v.toLowerCase();
+    if (unique.some((u) => u.toLowerCase() === key)) continue;
+    unique.push(v);
+    if (unique.length >= (params.limit ?? 3)) break;
+  }
+  if (!unique.length) return null;
+  const opts: FashionClarificationOption[] = unique.map((label) => ({
+    id: slugifyOptionId(label),
+    label: label.charAt(0).toUpperCase() + label.slice(1),
+    previewQuery: `${label.toLowerCase()} clothing`,
+  }));
+  opts.push({ id: "surprise_me", label: "Surprise me" });
+  return opts;
+}
+
+function looksLikeStyleRideAlong(text: string): boolean {
+  return /\b(style|vibe|aesthetic|look|direction)\b/i.test(text);
+}
+
+function looksLikeColorRideAlong(text: string): boolean {
+  return /\b(color|palette|shade)\b/i.test(text);
+}
+
+/** Prefer profile aesthetics over generic archetype chips when signals exist. */
+export function personalizeClarificationOptions(params: {
+  questions: FashionClarificationQuestion[];
+  rideAlong?: FashionClarificationRideAlong;
+  signals?: Array<{
+    signal_type: string;
+    value: string;
+    polarity: number;
+  }>;
+  departmentLabel?: string;
+}): {
+  questions: FashionClarificationQuestion[];
+  ride_along?: FashionClarificationRideAlong;
+} {
+  const signals = params.signals ?? [];
+  const styleOpts = personalizedStyleOptions({
+    signals,
+    departmentLabel: params.departmentLabel,
+  });
+  const colorOpts = personalizedColorOptions({ signals });
+
+  const questions = params.questions.map((q) => {
+    if (q.gap === "occasion") return q;
+    if (looksLikeStyleRideAlong(q.text) && styleOpts) {
+      return { ...q, quick_options: styleOpts };
+    }
+    if (looksLikeColorRideAlong(q.text) && colorOpts) {
+      return { ...q, quick_options: colorOpts };
+    }
+    return q;
+  });
+
+  let ride_along = params.rideAlong;
+  if (ride_along) {
+    if (looksLikeStyleRideAlong(ride_along.text) && styleOpts) {
+      ride_along = { ...ride_along, quick_options: styleOpts };
+    } else if (looksLikeColorRideAlong(ride_along.text) && colorOpts) {
+      ride_along = { ...ride_along, quick_options: colorOpts };
+    }
+  }
+
+  return { questions, ride_along };
+}
+
 /** Default chips when the LLM omits quick_options for a known gap. */
 export function defaultQuickOptionsForGap(
   gap: FashionClarificationGap,

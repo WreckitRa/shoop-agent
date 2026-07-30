@@ -53,6 +53,8 @@ export function buildPresentationContract(params: {
   budget_tension?: BudgetTension;
   budget_interpretation?: BudgetInterpretation;
   fallback: boolean;
+  /** Stage B used deterministic stylist templates. */
+  voice_fallback?: boolean;
 }): FashionCurationPresentation {
   const pickedRefs = new Set<string>();
   const picks: FashionCuratedPick[] = [];
@@ -189,6 +191,7 @@ export function buildPresentationContract(params: {
       budget_interpretation: params.budget_interpretation,
       ...(set_total != null ? { set_total } : {}),
       fallback: params.fallback,
+      ...(params.voice_fallback ? { voice_fallback: true } : {}),
     },
   };
 }

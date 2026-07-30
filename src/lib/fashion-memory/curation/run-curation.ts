@@ -19,6 +19,7 @@ import {
 import {
   buildDeterministicFallback,
   validateAndRepairFallback,
+  synthesizeOutfitLooks,
 } from "./fallback";
 import { buildPresentationContract } from "./presentation";
 import {
@@ -28,6 +29,8 @@ import {
   CURATION_TOOL_NAME,
   CURATION_LLM_TIMEOUT_MS,
   CURATION_LATENCY_TRIPWIRE_MS,
+  STAGE_A_PLACEHOLDER_OPENING,
+  STAGE_A_PLACEHOLDER_STYLIST_LINE,
 } from "./config";
 import {
   CURATION_HARD_MS,
@@ -490,9 +493,12 @@ export async function runFashionCuration(
     ? `${systemPromptBase}
 
 PHASE PICK (Stage A): Spend tokens on correct refs, roles, looks, and vetoes.
-Set every stylist_line to exactly "See card." and narration.opening to
-"Fitting room ready." — a later voice pass fills real prose. Do not write
-long narration here.`
+Set every stylist_line to exactly "${STAGE_A_PLACEHOLDER_STYLIST_LINE}" and narration.opening to
+"${STAGE_A_PLACEHOLDER_OPENING}" — a later voice pass fills real prose. Do not write
+long narration here.
+OUTFIT MODE (required): include looks[] with exactly the named looks the mode
+section asks for. Each look needs item_refs spanning the slots. Omitting looks
+is a contract failure — never return slots without looks in outfit mode.`
     : systemPromptBase;
 
   if (params.deterministicOnly) {
@@ -990,20 +996,55 @@ long narration here.`
     };
   }
 
+  // Outfit contract: looks.length === 0 is a structure failure. Stage A sometimes
+  // returns picks-only (trace 2ace97ce) — synthesize named combos from the rack.
+  let looksSynthesized = false;
+  if (
+    finalOutput &&
+    params.plan.mode === "outfit" &&
+    !(finalOutput.looks?.length)
+  ) {
+    const synthesized = synthesizeOutfitLooks({
+      slots: finalOutput.slots,
+      registry: inputBundle.registry,
+    });
+    if (synthesized.length > 0) {
+      finalOutput = { ...finalOutput, looks: synthesized };
+      looksSynthesized = true;
+      recordPipelineEvent({
+        traceId: params.traceId,
+        stage: "looks_synthesized",
+        payload: {
+          count: synthesized.length,
+          reason: "outfit_looks_missing_after_stage_a",
+        },
+      });
+      logAiChat("warn", "fashion_curation_looks_synthesized", {
+        traceId: params.traceId,
+        count: synthesized.length,
+      });
+    }
+  }
+
   // Phase 1 Stage B: fill voice onto already-chosen picks (text-only, cheap model).
+  let voiceFallback = false;
   if (FASHION_CURATION_SPLIT_ENABLED && finalOutput && !fallback) {
-    finalOutput = await fillCurationVoice({
+    const voiceResult = await fillCurationVoice({
       output: finalOutput,
       registry: inputBundle.registry,
       recipientProfile: params.recipientProfile,
       occasion: params.plan.brief.occasion_context,
       styleDirection: params.plan.brief.style_direction,
+      voiceContext: params.plan.brief.voice_context,
       signal: params.signal,
       traceId: params.traceId,
     });
+    finalOutput = voiceResult.output;
+    voiceFallback = voiceResult.voiceFallback;
   }
 
   validationIssues = validated.issues.map((i) => i.code);
+  if (looksSynthesized) validationIssues.push("looks_synthesized");
 
   for (const slotOutput of finalOutput.slots) {
     const warnings = nearIdenticalPickWarning(
@@ -1106,6 +1147,7 @@ long narration here.`
     budget_tension: params.budget_tension,
     budget_interpretation: params.budget_interpretation,
     fallback,
+    voice_fallback: voiceFallback,
   });
 
   const debug = buildFashionCurationDebug({

@@ -6,7 +6,13 @@ export {
   beginTurnPipelineBuffer,
   drainTurnPipelineBuffer,
 } from "./trace";
-export { tracedLLMCall, withTracedLlmCall } from "./traced-llm-call";
+export { tracedLLMCall, withTracedLlmCall, buildCachedSystemBlocks } from "./traced-llm-call";
+export { promptCacheSnapshot, recordPromptCacheUsage } from "./prompt-cache-metrics";
+export {
+  preSearchMetricsSnapshot,
+  recordReadyToSearchOutcome,
+  noteClarificationEmitted,
+} from "./pre-search-metrics";
 export type {
   HydrationPipelinePayload,
   HardDropsPipelinePayload,

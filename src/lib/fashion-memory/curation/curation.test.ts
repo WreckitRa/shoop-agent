@@ -5,6 +5,7 @@ import { validateCurationOutput } from "./validate";
 import {
   buildDeterministicFallback,
   validateAndRepairFallback,
+  synthesizeOutfitLooks,
 } from "./fallback";
 import { buildPresentationContract } from "./presentation";
 import { buildCurationSystemPrompt } from "./prompt";
@@ -1135,3 +1136,171 @@ function recomputeSetTotal(
   }
   return Math.round(total * 100) / 100;
 }
+
+describe("outfit_looks_synthesized_when_stage_a_omits", () => {
+  it("builds named looks from picks across slots (trace 2ace97ce shape)", () => {
+    const outfitPlan: FashionSearchPlan = {
+      ...plan,
+      mode: "outfit",
+      brief: {
+        ...plan.brief,
+        request_type: "outfit",
+        garments: ["linen blazer", "dress pants", "shirt", "shoes"],
+        occasion_context: "beach wedding",
+      },
+      slots: [
+        {
+          ...plan.slots[0]!,
+          slot_id: "linen_blazer",
+          garment: "linen blazer",
+          role: "anchor",
+          options_wanted: 3,
+        },
+        {
+          ...plan.slots[0]!,
+          slot_id: "dress_pants",
+          garment: "dress pants",
+          role: "support",
+          options_wanted: 3,
+        },
+        {
+          ...plan.slots[0]!,
+          slot_id: "shirt",
+          garment: "shirt",
+          role: "support",
+          options_wanted: 2,
+        },
+        {
+          ...plan.slots[0]!,
+          slot_id: "shoes",
+          garment: "shoes",
+          role: "support",
+          options_wanted: 2,
+        },
+      ],
+    };
+
+    const registry = buildRefRegistry({
+      mode: "outfit",
+      slots: [
+        {
+          slot_id: "linen_blazer",
+          planSlot: outfitPlan.slots[0]!,
+          verified: [
+            candidate("lb1", "linen_blazer", 120),
+            candidate("lb2", "linen_blazer", 140),
+            candidate("lb3", "linen_blazer", 100),
+          ],
+        },
+        {
+          slot_id: "dress_pants",
+          planSlot: outfitPlan.slots[1]!,
+          verified: [
+            candidate("dp1", "dress_pants", 80),
+            candidate("dp2", "dress_pants", 90),
+            candidate("dp3", "dress_pants", 70),
+          ],
+        },
+        {
+          slot_id: "shirt",
+          planSlot: outfitPlan.slots[2]!,
+          verified: [
+            candidate("sh1", "shirt", 50),
+            candidate("sh2", "shirt", 55),
+          ],
+        },
+        {
+          slot_id: "shoes",
+          planSlot: outfitPlan.slots[3]!,
+          verified: [
+            candidate("shoe1", "shoes", 100),
+            candidate("shoe2", "shoes", 110),
+          ],
+        },
+      ],
+    });
+
+    const bySlot = (slotId: string) =>
+      [...registry.entries()]
+        .filter(([, e]) => e.slot_id === slotId)
+        .map(([ref]) => ref);
+
+    const lb = bySlot("linen_blazer");
+    const dp = bySlot("dress_pants");
+    const sh = bySlot("shirt");
+    const shoe = bySlot("shoes");
+
+    // Stage A returned slots but no looks — same as 2ace97ce.
+    const stageA: DeliverCurationInput = {
+      slots: [
+        {
+          slot_id: "linen_blazer",
+          picks: lb.slice(0, 3).map((ref, i) => ({
+            ref,
+            role: i === 0 ? "anchor" : "safe",
+            stylist_line: "See card.",
+          })),
+        },
+        {
+          slot_id: "dress_pants",
+          picks: dp.slice(0, 3).map((ref) => ({
+            ref,
+            role: "support",
+            stylist_line: "See card.",
+          })),
+        },
+        {
+          slot_id: "shirt",
+          picks: sh.slice(0, 2).map((ref) => ({
+            ref,
+            role: "support",
+            stylist_line: "See card.",
+          })),
+        },
+        {
+          slot_id: "shoes",
+          picks: shoe.slice(0, 2).map((ref) => ({
+            ref,
+            role: "support",
+            stylist_line: "See card.",
+          })),
+        },
+      ],
+      vetoes: [],
+      narration: { opening: "Fitting room ready." },
+    };
+
+    assert.equal(stageA.looks?.length ?? 0, 0);
+
+    const looks = synthesizeOutfitLooks({
+      slots: stageA.slots,
+      registry,
+    });
+    assert.ok(looks.length >= 2, `expected ≥2 looks, got ${looks.length}`);
+    for (const look of looks) {
+      assert.ok(look.item_refs.length >= 2);
+      assert.ok(look.total > 0);
+      assert.match(look.name, /^Look \d+$/);
+    }
+
+    const presentation = buildPresentationContract({
+      output: { ...stageA, looks },
+      registry,
+      plan: outfitPlan,
+      slots: outfitPlan.slots.map((s) => ({
+        slot_id: s.slot_id,
+        garment: s.garment,
+      })),
+      vetoedRefs: new Set(),
+      lookMembership: new Map(
+        looks.flatMap((l) =>
+          l.item_refs.map((ref) => [ref, [l.name]] as [string, string[]]),
+        ),
+      ),
+      fallback: false,
+    });
+
+    assert.equal(presentation.looks?.length, looks.length);
+    assert.ok((presentation.looks?.length ?? 0) > 0);
+  });
+});

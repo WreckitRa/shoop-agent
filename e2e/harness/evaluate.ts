@@ -247,6 +247,19 @@ export function evaluateExpectations(
     }
   }
 
+  if (expect.events?.routerCacheReadOnTurn2) {
+    const reads = artifacts.llmCounter?.routerCacheReads ?? [];
+    if (reads.length < 2) {
+      failures.push(
+        `events.routerCacheReadOnTurn2: need ≥2 router calls, got ${reads.length}`,
+      );
+    } else if (!(reads[1]! > 0)) {
+      failures.push(
+        `events.routerCacheReadOnTurn2: second router cache_read_input_tokens expected >0, got ${reads[1]}`,
+      );
+    }
+  }
+
   return failures;
 }
 

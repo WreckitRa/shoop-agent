@@ -1,10 +1,10 @@
-import { filterSignalsByEffectiveConfidence } from "../signal-confidence";
 import { safeTrim } from "../safe-trim";
 import type {
   FashionFactRow,
   FashionFactBudgetBandValue,
   FashionFactSizeValue,
   PersonRow,
+  RequestEventRow,
   StyleSignalRow,
 } from "../types";
 import {
@@ -14,6 +14,15 @@ import {
   personMentionedInText,
   selectSnapshotPersonIds,
 } from "../extraction/context-format";
+import {
+  composeAspiresLine,
+  composeContextLine,
+  formatLastSearchLine,
+  honestyToneLine,
+  inferOccasionFamilyHint,
+  parseOnboardingMetaFromFacts,
+  rankSignalsForRouter,
+} from "./profile-context-format";
 
 const MAX_ROUTER_SIGNALS = 8;
 
@@ -84,6 +93,10 @@ export function formatRouterPersonProfile(params: {
   now?: Date;
   /** Account onboarding — merged into self profile when fashion_facts are thin. */
   accountHints?: RouterAccountHints | null;
+  /** Last user message / pending occasion — ranks signals by relevance. */
+  occasionHintText?: string | null;
+  /** Latest request_event for continuity line (self / sticky). */
+  lastRequestEvent?: RequestEventRow | null;
 }): string {
   const displayPerson =
     params.person.relation === "self" &&
@@ -134,22 +147,33 @@ export function formatRouterPersonProfile(params: {
     );
   }
 
-  const topSignals = filterSignalsByEffectiveConfidence(
-    params.signals,
-    undefined,
-    params.now,
-  )
-    .sort(
-      (a, b) =>
-        b.confidence - a.confidence ||
-        b.last_seen_at.localeCompare(a.last_seen_at),
-    )
-    .slice(0, MAX_ROUTER_SIGNALS);
+  const occasionFamily = inferOccasionFamilyHint(
+    params.occasionHintText ?? undefined,
+  );
+  const topSignals = rankSignalsForRouter({
+    signals: params.signals,
+    occasionHint: occasionFamily,
+    now: params.now,
+    limit: MAX_ROUTER_SIGNALS,
+  });
 
   const lines: string[] = [header];
   if (department.length) lines.push(`department: ${department.join(", ")}`);
   if (sizes.length) lines.push(`sizes: ${sizes.join(", ")}`);
   if (fits.length) lines.push(`fit: ${fits.join(", ")}`);
+
+  if (params.person.relation === "self") {
+    const meta = parseOnboardingMetaFromFacts(params.facts);
+    if (meta) {
+      const contextLine = composeContextLine(meta);
+      if (contextLine) lines.push(contextLine);
+      const tone = honestyToneLine(meta.honesty_preference);
+      if (tone) lines.push(tone);
+      const aspires = composeAspiresLine(meta);
+      if (aspires) lines.push(aspires);
+    }
+  }
+
   if (noGos.length) lines.push(`no_gos: ${noGos.join(", ")}`);
   if (budgets.length) lines.push(`budget_hints: ${budgets.join(", ")}`);
   if (topSignals.length) {
@@ -157,6 +181,14 @@ export function formatRouterPersonProfile(params: {
       `signals: ${topSignals.map(formatRouterSignalToken).join(" | ")}`,
     );
   }
+
+  const continuity = formatLastSearchLine({
+    event: params.lastRequestEvent,
+    personRelation: params.person.relation,
+    now: params.now,
+  });
+  if (continuity) lines.push(continuity);
+
   if (lines.length === 1) {
     lines.push("(no recorded facts or signals yet)");
   }
@@ -171,6 +203,9 @@ export function buildRouterContextFromData(params: {
   stickyPersonIds: string[];
   now?: Date;
   accountHints?: RouterAccountHints | null;
+  /** Latest request event per person id (continuity). */
+  lastRequestEventByPersonId?: Map<string, RequestEventRow>;
+  pendingOccasionContext?: string | null;
 }): import("./types").FashionRouterContext {
   const peopleForDisplay = params.people.map((person) => {
     if (
@@ -187,6 +222,13 @@ export function buildRouterContextFromData(params: {
   const messageWindowText = params.conversationMessages
     .map((m) => m.content)
     .join("\n");
+  const lastUser =
+    [...params.conversationMessages]
+      .reverse()
+      .find((m) => m.role === "user")?.content ?? "";
+  const occasionHintText =
+    params.pendingOccasionContext?.trim() || lastUser || messageWindowText;
+
   const profilePersonIds = selectSnapshotPersonIds({
     people: peopleForDisplay,
     messageWindowText,
@@ -205,6 +247,9 @@ export function buildRouterContextFromData(params: {
         now: params.now,
         accountHints:
           person.relation === "self" ? params.accountHints : null,
+        occasionHintText,
+        lastRequestEvent:
+          params.lastRequestEventByPersonId?.get(personId) ?? null,
       });
     })
     .filter(Boolean)

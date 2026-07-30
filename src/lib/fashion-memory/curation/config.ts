@@ -74,7 +74,17 @@ export const CURATION_PICK_TOOL_NAME = "deliver_curation_picks";
 /** Stage B voice tool (Phase 1 split). */
 export const CURATION_VOICE_TOOL_NAME = "deliver_curation_voice";
 
-/** Cap on Stage B voice generation (~300 tokens for opening + lines). */
+/**
+ * Cap on Stage B voice generation.
+ * Was 300 — too tight for opening + N stylist lines (trace 0562bba7 truncated
+ * mid-tool → empty parse → placeholder shipped). 500 covers 5–6 picks.
+ */
 export const FASHION_CURATION_VOICE_MAX_TOKENS = Number(
-  process.env.FASHION_CURATION_VOICE_MAX_TOKENS ?? "300",
+  process.env.FASHION_CURATION_VOICE_MAX_TOKENS ?? "500",
 );
+
+/** Stage A placeholder opening — Stage B must replace; never ship to user. */
+export const STAGE_A_PLACEHOLDER_OPENING = "Fitting room ready.";
+
+/** Stage A placeholder stylist line — Stage B must replace. */
+export const STAGE_A_PLACEHOLDER_STYLIST_LINE = "See card.";

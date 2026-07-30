@@ -67,7 +67,8 @@ export function isCommonUnmappedFamily(garment: string): boolean {
 export type RouterEscalationReason =
   | "accessories_coerced"
   | "unknown_family_common"
-  | "validation_retry";
+  | "validation_retry"
+  | "reask_after_answer";
 
 export function assessRouterEscalation(params: {
   userText: string;
@@ -76,6 +77,8 @@ export function assessRouterEscalation(params: {
   askedClothingSizesForAccessories?: boolean;
   /** True for gate_retry / router_retry stages. */
   validationRetry?: boolean;
+  /** True when clarification-dedup warns we re-asked an answered gap. */
+  reaskAfterAnswer?: boolean;
 }): RouterEscalationReason[] {
   const reasons: RouterEscalationReason[] = [];
   const garments = params.garments ?? [];
@@ -93,6 +96,9 @@ export function assessRouterEscalation(params: {
   }
   if (params.validationRetry) {
     reasons.push("validation_retry");
+  }
+  if (params.reaskAfterAnswer) {
+    reasons.push("reask_after_answer");
   }
   return reasons;
 }

@@ -23,8 +23,8 @@ export function routerEscalationSnapshot(): {
     escalated,
     rate: samples.length ? escalated / samples.length : 0,
     enabled:
-      process.env.FASHION_ROUTER_ESCALATION_ENABLED === "1" ||
-      process.env.FASHION_ROUTER_ESCALATION_ENABLED === "true",
+      process.env.FASHION_ROUTER_ESCALATION_ENABLED !== "0" &&
+      process.env.FASHION_ROUTER_ESCALATION_ENABLED !== "false",
   };
 }
 

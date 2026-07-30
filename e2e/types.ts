@@ -64,6 +64,8 @@ export type StageMatchers = {
   hasMarketPrices?: boolean;
   noBudgetLiftRetry?: boolean;
   sseEvents?: string[];
+  /** Second (or later) router call must show cache_read_input_tokens > 0. */
+  routerCacheReadOnTurn2?: boolean;
 };
 
 export type StageExpectations = {

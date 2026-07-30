@@ -6,7 +6,8 @@ export type DegradationKind =
   | "none"
   | "curation_fallback"
   | "partial_slots"
-  | "heavy_unverified";
+  | "heavy_unverified"
+  | "voice_fallback";
 
 export type DegradationInfo = {
   kind: DegradationKind;
@@ -43,6 +44,11 @@ export function computeDegradation(params: {
       user_line: CURATION_FALLBACK_LINE,
       action: "recurate",
     };
+  }
+
+  // Voice fallback: picks are fine; copy is plainer. No user-facing confession.
+  if (params.presentation.meta.voice_fallback) {
+    return { kind: "voice_fallback", user_line: "" };
   }
 
   const garmentCount = params.plan.brief.garments.length;

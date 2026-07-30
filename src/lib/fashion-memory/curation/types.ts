@@ -140,6 +140,11 @@ export type FashionCurationPresentation = {
     /** Capsule: sum of all picked pieces (major units). */
     set_total?: number;
     fallback: boolean;
+    /**
+     * Stage B LLM voice failed → deterministic stylist templates.
+     * Picks are fine; render contract carries degradation.kind=voice_fallback.
+     */
+    voice_fallback?: boolean;
     weights_version?: string;
   };
 };

@@ -111,7 +111,12 @@ export type RenderUnverifiedItem = {
 
 /** Honest degradation surfaced to the user — never confess invisible turbulence. */
 export type RenderDegradation = {
-  kind: "none" | "curation_fallback" | "partial_slots" | "heavy_unverified";
+  kind:
+    | "none"
+    | "curation_fallback"
+    | "partial_slots"
+    | "heavy_unverified"
+    | "voice_fallback";
   user_line: string;
   action?: "recurate";
 };

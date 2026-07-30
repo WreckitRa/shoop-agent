@@ -17,12 +17,12 @@ export const FASHION_ROUTER_MODEL =
 
 /**
  * Opus-class router escalation — paid only when brief invariants trip
- * (accessories coercion, unknown common family, validation retry).
- * Env: FASHION_ROUTER_ESCALATION_ENABLED=1 (default off).
+ * (accessories coercion, unknown common family, validation retry, reask).
+ * Default ON. Disable with FASHION_ROUTER_ESCALATION_ENABLED=0.
  */
 export const FASHION_ROUTER_ESCALATION_ENABLED =
-  process.env.FASHION_ROUTER_ESCALATION_ENABLED === "1" ||
-  process.env.FASHION_ROUTER_ESCALATION_ENABLED === "true";
+  process.env.FASHION_ROUTER_ESCALATION_ENABLED !== "0" &&
+  process.env.FASHION_ROUTER_ESCALATION_ENABLED !== "false";
 
 export const FASHION_ROUTER_ESCALATION_MODEL =
   envModel("FASHION_ROUTER_ESCALATION_MODEL") ?? AI_CHAT_DEFAULT_MODEL;

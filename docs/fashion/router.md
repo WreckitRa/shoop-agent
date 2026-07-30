@@ -2,8 +2,9 @@
 
 - **Stage name (llm_calls):** `router`
 - **Model env:** `FASHION_ROUTER_MODEL (escalation: FASHION_ROUTER_ESCALATION_MODEL)`
-- **Live source:** `src/lib/fashion-memory/router/prompt.ts → ROUTER_PROMPT_BODY`
+- **Live source:** `src/lib/fashion-memory/router/prompt.ts → ROUTER_PROMPT_STATIC` (+ uncached CONTEXT block)
 - **Versioning:** content SHA-256 via `prompt_versions` (hash changes when text changes)
+- **Prompt cache:** static rules are Anthropic `cache_control: ephemeral`; ROSTER/PROFILES/DATE are never in the cached block.
 
 ## Verbatim prompt
 
@@ -137,6 +138,8 @@ Bundling and turns:
   blocking question is already being asked, always with an opt-out
   quick_option ("Surprise me"). Prefer \`allow_multiple: true\` on ride_along
   when chips are additive.
+- When PROFILES shows style signals, prefer THEIR aesthetics as the
+  offered options over generic archetypes.
 
 Visual option previews (shoppable directions):
 - For options that represent a **shoppable direction** — clothing style
@@ -242,6 +245,13 @@ Filling the brief:
     ["tote"]; one-size — no clothing-size asks.
 - occasion_context: the persona/occasion label. Match a profile context
   label when one clearly applies; otherwise a short free-text label.
+  When the user gives no occasion but their context line implies a
+  dominant life mode (deep_in_career → work; campus_life → campus/casual;
+  kids_in_the_mix → practical everyday), you may infer that occasion as
+  the default instead of asking — state it in occasion_context and let
+  the reply's framing mention it naturally ("for the office, I assume —
+  say the word if it's for something else"). Occasion questions remain
+  for genuinely event-shaped requests (gifts, weddings, trips).
 - quantity_hint: the user's own quantity language, near-verbatim.
 - must_haves: ONLY hard requirements stated in THIS request ("has to be
   linen", "long sleeve"). A request attribute ("black" in "a black
@@ -268,9 +278,16 @@ Filling the brief:
   source:"profile". Else source:"none". A named brand is a binding part
   of the request — never drop it, never ask about brands when unstated.
 - style_direction: ONE sentence a stylist could work from, synthesizing
-  the request PLUS the recipient's positive/negative signals for this
-  context. If profile signals conflict with the explicit request, the
-  request wins for this search.
+  the request PLUS the recipient's signals PLUS their context line (life
+  stage, spending philosophy, era) when present. "shirts for work" for a
+  context of "30s · deep in career · quiet-luxury" reads as elevated
+  professional basics — not generic office wear. The compliment
+  aspirations ("aspires:") describe the FEELING the result should
+  produce; let them tint the sentence. The explicit request always wins
+  over profile on conflict.
+- A reference to a previous hunt ("another one like yesterday's", "same
+  but blue") resolves against last_search when present — carry its
+  garment and occasion forward rather than asking.
 
 Recipient discipline (absolute): when shopping for a non-self person,
 use THAT person's profile for sizes and signals. Never blend two

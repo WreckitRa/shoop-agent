@@ -10,7 +10,10 @@ import {
   latestUserText,
   userMentionsAccessories,
 } from "./garment-family";
-import { buildFashionRouterPrompt } from "./prompt";
+import {
+  buildFashionRouterPrompt,
+  buildFashionRouterSystemParts,
+} from "./prompt";
 import {
   FASHION_ROUTER_TOOLS,
   FASHION_ROUTER_TOOL_NAMES,
@@ -117,7 +120,16 @@ export async function runFashionRouter(
   deps: RunFashionRouterDeps = {},
 ): Promise<FashionRouterResult> {
   const createMessage = deps.createMessage ?? tracedLLMCall;
-  const system = params.systemOverride ?? buildFashionRouterPrompt(params.context);
+  const parts = params.systemOverride
+    ? null
+    : buildFashionRouterSystemParts(params.context);
+  const system =
+    params.systemOverride ?? parts?.full ?? buildFashionRouterPrompt(params.context);
+  /** Gate/system overrides stay uncached (dynamic); happy path caches static rules. */
+  const systemCachedPrefix = parts?.cachedPrefix;
+  const systemUncachedSuffix = params.systemOverride
+    ? params.systemOverride
+    : parts?.uncachedSuffix;
   const messages = buildAnthropicMessages(params.context);
   const stage = params.stage ?? "router";
   const temperature = Number.isFinite(FASHION_ROUTER_TEMPERATURE)
@@ -137,6 +149,8 @@ export async function runFashionRouter(
       model: opts.model,
       temperature,
       system_prompt: system,
+      system_cached_prefix_chars: systemCachedPrefix?.length ?? 0,
+      system_uncached_suffix_chars: systemUncachedSuffix?.length ?? 0,
       input_messages: messages,
       tool_names: FASHION_ROUTER_TOOL_NAMES,
       tool_choice: { type: "any" },
@@ -150,6 +164,14 @@ export async function runFashionRouter(
         maxTokens: 2048,
         temperature,
         systemPrompt: system,
+        ...(params.systemOverride
+          ? { disablePromptCache: true }
+          : systemCachedPrefix
+            ? {
+                systemCachedPrefix,
+                systemUncachedSuffix: systemUncachedSuffix ?? "",
+              }
+            : {}),
         inputMessages: messages,
         tools: FASHION_ROUTER_TOOLS,
         toolChoice: { type: "any" },
@@ -267,7 +289,12 @@ export async function runFashionRouter(
       userText,
       garments,
       askedClothingSizesForAccessories,
-      validationRetry: isValidationRetry,
+      // gate_retry no longer uses LLM by default; keep validation_retry for
+      // text-without-tool router_retry only.
+      validationRetry: isValidationRetry && stage !== "gate_retry",
+      reaskAfterAnswer:
+        result.move === "ask_clarification" &&
+        /\b(again|still need|already told)\b/i.test(userText),
     });
     if (reasons.length) {
       recordRouterEscalation(true);

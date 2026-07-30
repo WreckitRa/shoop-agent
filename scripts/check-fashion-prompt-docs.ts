@@ -43,8 +43,21 @@ const SPECS: Spec[] = [
   {
     doc: "docs/fashion/router.md",
     source: "src/lib/fashion-memory/router/prompt.ts",
-    extract: (s) =>
-      extractBetween(s, /const ROUTER_PROMPT_BODY = `/, "`;\n\nexport"),
+    extract: (s) => {
+      const staticBody = extractBetween(
+        s,
+        /export const ROUTER_PROMPT_STATIC = `/,
+        "`;\n\n/** @deprecated",
+      );
+      return `${staticBody}
+
+--- CONTEXT ---
+{ROSTER}
+
+{PROFILES}
+
+CURRENT DATE: {DATE}`;
+    },
   },
   {
     doc: "docs/fashion/planner.md",

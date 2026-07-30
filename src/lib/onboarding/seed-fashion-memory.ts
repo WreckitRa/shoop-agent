@@ -15,6 +15,7 @@ import type {
   StyleSignalType,
 } from "@/lib/fashion-memory/types";
 import type { PersonDepartment } from "@/lib/fashion-memory/department";
+import { contextForTasteCategory } from "@/lib/fashion-memory/router/profile-context-format";
 import {
   loadOnboardingProjectionSnapshot,
   type OnboardingProjectionSnapshot,
@@ -318,7 +319,7 @@ export async function seedOnboardingIntoFashionMemory(
       writes.push(upsertStyleSignal({
         userId,
         personId: person.id,
-        context: "general",
+        context: contextForTasteCategory(t.category),
         signalType: classifyTasteSignalType(tag),
         value: tag,
         polarity: t.polarity === "negative" ? -1 : 1,

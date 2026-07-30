@@ -5,12 +5,51 @@ import { anthropicTemperatureForModel } from "@/lib/ai-chat/constants";
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { fashionMemoryDb } from "../db";
 import { hashSystemPrompt, upsertPromptVersion } from "./prompt-hash";
+import { recordPromptCacheUsage } from "./prompt-cache-metrics";
+
+export type AnthropicSystemBlock = {
+  type: "text";
+  text: string;
+  cache_control?: { type: "ephemeral" };
+};
+
+/**
+ * Build Anthropic system content with an ephemeral cache breakpoint on the
+ * STATIC prefix. Variable user data must go in `uncachedSuffix` (or messages).
+ */
+export function buildCachedSystemBlocks(params: {
+  cachedPrefix: string;
+  uncachedSuffix?: string;
+}): AnthropicSystemBlock[] {
+  const blocks: AnthropicSystemBlock[] = [
+    {
+      type: "text",
+      text: params.cachedPrefix,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+  const suffix = params.uncachedSuffix?.trim();
+  if (suffix) {
+    blocks.push({ type: "text", text: suffix });
+  }
+  return blocks;
+}
 
 export type TracedLlmCallParams = {
   traceId?: string | null;
   stage: string;
   model: string;
+  /**
+   * Full system text for hashing/audit. Prefer also passing
+   * `systemCachedPrefix` (+ optional uncached suffix) so Anthropic can cache.
+   */
   systemPrompt: string;
+  /** Static prefix — marked cache_control ephemeral. Must NOT contain user PII. */
+  systemCachedPrefix?: string;
+  /** Dynamic suffix (ROSTER/PROFILES/DATE, voice tint, …) — never cached. */
+  systemUncachedSuffix?: string;
+  /** When true, send system as a plain string with no cache_control. */
+  disablePromptCache?: boolean;
   inputMessages: MessageCreateParamsNonStreaming["messages"];
   tools?: MessageCreateParamsNonStreaming["tools"];
   toolChoice?: MessageCreateParamsNonStreaming["tool_choice"];
@@ -25,6 +64,8 @@ export type TracedLlmExecuteResult<T> = {
   rawOutput: unknown;
   inputTokens?: number | null;
   outputTokens?: number | null;
+  cacheReadInputTokens?: number | null;
+  cacheCreationInputTokens?: number | null;
 };
 
 function isTraceId(value: string | null | undefined): value is string {
@@ -34,6 +75,30 @@ function isTraceId(value: string | null | undefined): value is string {
         value,
       ),
   );
+}
+
+type UsageLike = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+};
+
+function readCacheUsage(usage: UsageLike | undefined | null): {
+  cacheRead: number | null;
+  cacheCreation: number | null;
+} {
+  if (!usage) return { cacheRead: null, cacheCreation: null };
+  return {
+    cacheRead:
+      typeof usage.cache_read_input_tokens === "number"
+        ? usage.cache_read_input_tokens
+        : null,
+    cacheCreation:
+      typeof usage.cache_creation_input_tokens === "number"
+        ? usage.cache_creation_input_tokens
+        : null,
+  };
 }
 
 function persistLlmCall(params: {
@@ -97,8 +162,32 @@ export async function withTracedLlmCall<T>(params: {
 
   const started = Date.now();
   try {
-    const { value, rawOutput, inputTokens, outputTokens } =
-      await params.execute();
+    const {
+      value,
+      rawOutput,
+      inputTokens,
+      outputTokens,
+      cacheReadInputTokens,
+      cacheCreationInputTokens,
+    } = await params.execute();
+    recordPromptCacheUsage({
+      stage: params.stage,
+      cacheReadInputTokens,
+      cacheCreationInputTokens,
+      inputTokens,
+    });
+    if (
+      cacheReadInputTokens != null ||
+      cacheCreationInputTokens != null
+    ) {
+      logAiChat("info", "fashion_prompt_cache_usage", {
+        traceId: params.traceId,
+        stage: params.stage,
+        cache_read_input_tokens: cacheReadInputTokens,
+        cache_creation_input_tokens: cacheCreationInputTokens,
+        input_tokens: inputTokens,
+      });
+    }
     if (isTraceId(params.traceId)) {
       persistLlmCall({
         traceId: params.traceId,
@@ -136,6 +225,11 @@ export async function withTracedLlmCall<T>(params: {
 /**
  * Wraps createLightweightMessage with verbatim input/output audit to llm_calls.
  * Observability writes are fire-and-forget; failures never throw to callers.
+ *
+ * Prompt caching: pass `systemCachedPrefix` (static rules) and optional
+ * `systemUncachedSuffix` (ROSTER/PROFILES/DATE). When only `systemPrompt` is
+ * set, the whole system string is cached as one ephemeral block (safe for
+ * stages whose system has no per-user data — planner, normalize, extraction).
  */
 export async function tracedLLMCall(
   params: TracedLlmCallParams,
@@ -148,11 +242,24 @@ export async function tracedLLMCall(
     params.temperature ?? 0.2,
   );
 
+  const cachedPrefix =
+    params.systemCachedPrefix?.trim() || params.systemPrompt;
+  const uncachedSuffix = params.systemCachedPrefix
+    ? params.systemUncachedSuffix
+    : undefined;
+  const system: MessageCreateParamsNonStreaming["system"] =
+    params.disablePromptCache
+      ? params.systemPrompt
+      : buildCachedSystemBlocks({
+          cachedPrefix,
+          uncachedSuffix,
+        });
+
   const request: MessageCreateParamsNonStreaming = {
     model: params.model,
     max_tokens: params.maxTokens ?? 2048,
     ...(temperature !== undefined ? { temperature } : {}),
-    system: params.systemPrompt,
+    system,
     messages: params.inputMessages,
     ...(params.tools ? { tools: params.tools } : {}),
     ...(params.toolChoice ? { tool_choice: params.toolChoice } : {}),
@@ -167,11 +274,15 @@ export async function tracedLLMCall(
     toolChoice: params.toolChoice ?? null,
     execute: async () => {
       const response = await createMessage(request, { signal: params.signal });
+      const usage = response.usage as UsageLike | undefined;
+      const { cacheRead, cacheCreation } = readCacheUsage(usage);
       return {
         value: response,
         rawOutput: response,
         inputTokens: response.usage?.input_tokens,
         outputTokens: response.usage?.output_tokens,
+        cacheReadInputTokens: cacheRead,
+        cacheCreationInputTokens: cacheCreation,
       };
     },
   });

@@ -70,6 +70,57 @@ async function resolveStickyRecipientPersonIds(params: {
   return personId ? [personId] : [];
 }
 
+async function loadLatestRequestEventsByPerson(params: {
+  userId: string;
+  personIds: string[];
+  guestSnapshot?: GuestFashionMemorySnapshot;
+  now?: Date;
+}): Promise<Map<string, RequestEventRow>> {
+  const out = new Map<string, RequestEventRow>();
+  if (!params.personIds.length) return out;
+  const cutoff = new Date(
+    (params.now ?? new Date()).getTime() - 14 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  if (params.guestSnapshot) {
+    const events = params.guestSnapshot.request_events
+      .filter(
+        (e) =>
+          e.user_id === params.userId &&
+          params.personIds.includes(e.person_id) &&
+          e.created_at >= cutoff,
+      )
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    for (const e of events) {
+      if (!out.has(e.person_id)) out.set(e.person_id, e);
+    }
+    return out;
+  }
+
+  if (!isSupabaseAuthUserId(params.userId)) return out;
+
+  const db = fashionMemoryDb();
+  const row = await db
+    .from("request_events")
+    .select("*")
+    .eq("user_id", params.userId)
+    .in("person_id", params.personIds)
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: false })
+    .limit(Math.max(24, params.personIds.length * 3));
+
+  if (row.error) {
+    logAiChat("warn", "fashion_last_request_events_load_failed", {
+      error: row.error.message,
+    });
+    return out;
+  }
+  for (const e of (row.data ?? []) as RequestEventRow[]) {
+    if (!out.has(e.person_id)) out.set(e.person_id, e);
+  }
+  return out;
+}
+
 function loadGuestMemory(params: {
   userId: string;
   guestSnapshot?: GuestFashionMemorySnapshot;
@@ -172,7 +223,8 @@ export async function assembleRouterContext(params: {
   if (isAuth) {
     await ensureSelfPerson(params.userId);
     // Backfill fashion facts/signals from completed onboarding (idempotent).
-    // Await so the first search turn already has sizes/gender/taste in memory.
+    // Bound inline wait so the first chat turn never stalls on projection;
+    // account hints already cover department+sizes for the identity gate.
     try {
       const { prisma } = await import("@/lib/ai-chat/db");
       const profile = await prisma.userProfile.findUnique({
@@ -195,7 +247,21 @@ export async function assembleRouterContext(params: {
           const { seedOnboardingIntoFashionMemory } = await import(
             "@/lib/onboarding/seed-fashion-memory"
           );
-          await seedOnboardingIntoFashionMemory(params.userId);
+          const SEED_INLINE_CAP_MS = 1_500;
+          const seedPromise = seedOnboardingIntoFashionMemory(params.userId);
+          const raced = await Promise.race([
+            seedPromise.then(() => "done" as const),
+            new Promise<"timeout">((resolve) =>
+              setTimeout(() => resolve("timeout"), SEED_INLINE_CAP_MS),
+            ),
+          ]);
+          if (raced === "timeout") {
+            logAiChat("warn", "fashion_onboarding_seed_inline_timeout", {
+              userId: params.userId,
+              cap_ms: SEED_INLINE_CAP_MS,
+            });
+            void seedPromise.catch(() => null);
+          }
         }
       }
     } catch {
@@ -253,6 +319,20 @@ export async function assembleRouterContext(params: {
     personShortIds,
   );
 
+  const profileCandidateIds = [
+    ...new Set([
+      ...stickyPersonIds,
+      ...memory.people.filter((p) => p.relation === "self").map((p) => p.id),
+    ]),
+  ];
+
+  const lastRequestEventByPersonId = await loadLatestRequestEventsByPerson({
+    userId: params.userId,
+    personIds: profileCandidateIds,
+    guestSnapshot: params.guestSnapshot,
+    now: params.now,
+  });
+
   const context = buildRouterContextFromData({
     people: memory.people,
     factsByPersonId: memory.factsByPersonId,
@@ -278,6 +358,7 @@ export async function assembleRouterContext(params: {
           sizeLines: accountHints.sizeLines,
         }
       : null,
+    lastRequestEventByPersonId,
   });
 
   logAiChat("info", "fashion_assemble_router_context", {

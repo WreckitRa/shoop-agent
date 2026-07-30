@@ -8,13 +8,17 @@ import {
 
 export const e2eFullSseTurn: E2eScenario = {
   name: "e2e_full_sse_turn",
-  description: "Full SSE path via createFashionChatSseStream with in-memory Prisma.",
+  description:
+    "Full SSE path via createFashionChatSseStream; turn-2 router shows prompt-cache reads.",
   seed: {},
   catalog: baseMensCatalog,
   use_sse: true,
   llm_recordings: {
-    router: [joeRouterRecording()],
-    planner: [outfitPlannerRecording(["shirt", "trousers", "shoes"])],
+    router: [joeRouterRecording(), joeRouterRecording()],
+    planner: [
+      outfitPlannerRecording(["shirt", "trousers", "shoes"]),
+      outfitPlannerRecording(["shirt", "trousers", "shoes"]),
+    ],
   },
   steps: [
     {
@@ -32,6 +36,13 @@ export const e2eFullSseTurn: E2eScenario = {
           ],
         },
         events: { invariantWarningsEmpty: true },
+      },
+    },
+    {
+      user: "another formal look for Joe under $100",
+      expect: {
+        route: { move: "ready_to_search" },
+        events: { routerCacheReadOnTurn2: true },
       },
     },
   ],

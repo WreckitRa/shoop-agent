@@ -35,7 +35,7 @@ export {
 } from "./config";
 
 export { buildProvisionalPresentation } from "./provisional-rack";
-export { fillCurationVoice } from "./voice";
+export { fillCurationVoice, voiceToneAppendix, isUsableVoice } from "./voice";
 export { synthesizeOutfitLooks } from "./fallback";
 
 export { buildCurationInput } from "./build-input";
