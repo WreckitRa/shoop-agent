@@ -9,6 +9,14 @@ export type FittingRoomProvenance =
       productId: string;
       variantId?: string;
       preferredOptions?: Array<{ name: string; label: string }>;
+    }
+  /** Direct garment/look image (e.g. onboarding style photo) — not Shopify. */
+  | {
+      kind: "image";
+      imageUrl: string;
+      title?: string;
+      garment?: string;
+      styleId?: string;
     };
 
 export type FittingRoomItem = {
@@ -39,6 +47,10 @@ export type FittingRoomItemDescriptor = {
 export function buildFittingRoomItemId(provenance: FittingRoomProvenance): string {
   if (provenance.kind === "search") {
     return `search:${provenance.searchId}:${provenance.ref}`;
+  }
+  if (provenance.kind === "image") {
+    const sid = provenance.styleId?.trim() || provenance.imageUrl.slice(0, 80);
+    return `image:${sid}`;
   }
   const variant = provenance.variantId ? `:${provenance.variantId}` : "";
   const options =

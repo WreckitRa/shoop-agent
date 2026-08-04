@@ -776,7 +776,7 @@ export function AvatarStepper({
               <span className="size-8" />
             )}
             <div className="min-w-0 flex-1">
-              <p className="font-serif text-lg font-semibold leading-tight text-ink">
+              <p className="font-display text-lg font-extrabold leading-tight tracking-tight text-ink">
                 {stepTitle}
               </p>
               {personLabel ? (
@@ -802,7 +802,7 @@ export function AvatarStepper({
             <Sparkles className="size-7 text-ink" />
           </div>
           <div className="space-y-2">
-            <h3 className="font-serif text-2xl font-semibold tracking-tight text-ink">
+            <h3 className="font-display text-2xl font-extrabold tracking-tight text-ink">
               Your digital twin
             </h3>
             <p className="mx-auto max-w-sm text-sm leading-relaxed text-ink-secondary">
@@ -1230,7 +1230,7 @@ export function AvatarStepper({
             </button>
 
             {measurementsOpen ? (
-              <div className="space-y-3 border-t border-hairline-soft px-4 pb-4 pt-3">
+              <div className="space-y-3 border-t border-hairline px-4 pb-4 pt-3">
                 <p className="text-xs leading-relaxed text-ink-secondary">
                   These never change your avatar — they let Shoop match you
                   against brand size charts, so a find can say &apos;in this
@@ -1349,7 +1349,7 @@ export function AvatarStepper({
               </dl>
             </div>
 
-            <div className="border-t border-hairline-soft pt-3">
+            <div className="border-t border-hairline pt-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink">
                 Shopping fit
               </p>
@@ -1435,7 +1435,7 @@ export function AvatarStepper({
             />
           </div>
           <div>
-            <p className="font-serif text-xl font-semibold text-ink">
+            <p className="font-display text-xl font-extrabold tracking-tight text-ink">
               Avatar locked in
             </p>
             <p className="mt-1 text-sm text-ink-muted">

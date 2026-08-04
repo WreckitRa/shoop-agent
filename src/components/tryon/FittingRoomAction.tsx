@@ -44,7 +44,7 @@ export function FittingRoomAction({
         type="button"
         data-tryon-trigger
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border border-hairline-soft px-3 py-1 text-xs font-medium text-ink transition hover:bg-surface-tint",
+          "inline-flex items-center gap-1.5 rounded-full border border-hairline px-3 py-1 text-xs font-medium text-ink transition hover:bg-surface-tint",
           compact && "px-2.5 py-0.5 text-[11px]",
           className,
         )}
@@ -72,7 +72,7 @@ export function FittingRoomAction({
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition disabled:cursor-default disabled:opacity-60",
         isInRack
           ? "border-success/30 bg-success-tint text-success-dark"
-          : "border-hairline-soft text-ink hover:bg-surface-tint",
+          : "border-hairline text-ink hover:bg-surface-tint",
         compact && "px-2.5 py-0.5 text-[11px]",
         className,
       )}

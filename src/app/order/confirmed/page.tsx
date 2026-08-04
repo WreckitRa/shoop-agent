@@ -15,7 +15,7 @@ export default async function OrderConfirmedPage({ searchParams }: Props) {
       <div className="flex flex-1 items-center justify-center shoop-page-x py-12">
         <div className="max-w-md rounded-[28px] border border-hairline bg-white p-8 text-center shadow-card">
           <CheckCircle2 className="mx-auto size-12 text-success" />
-          <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight text-ink">
+          <h1 className="mt-4 font-display text-3xl font-extrabold tracking-tight text-ink">
             Order confirmed
           </h1>
           <p className="mt-2 text-sm leading-6 text-ink-secondary">

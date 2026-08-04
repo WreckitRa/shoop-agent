@@ -26,6 +26,13 @@ const provenanceSchema = z.discriminatedUnion("kind", [
       )
       .optional(),
   }),
+  z.object({
+    kind: z.literal("image"),
+    imageUrl: z.string().min(1).max(2000),
+    title: z.string().max(200).optional(),
+    garment: z.string().max(200).optional(),
+    styleId: z.string().max(120).optional(),
+  }),
 ]);
 
 const bodySchema = z.object({

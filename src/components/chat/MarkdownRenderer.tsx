@@ -109,7 +109,7 @@ const components: Components = {
     </th>
   ),
   td: ({ children }) => (
-    <td className="border-b border-hairline-soft px-3 py-2 align-top text-ink">
+    <td className="border-b border-hairline px-3 py-2 align-top text-ink">
       {children}
     </td>
   ),

@@ -113,11 +113,11 @@ function CuratedPickCard({
   return (
     <article
       className={cn(
-        "flex shrink-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_2px_12px_rgba(12,12,12,0.04)]",
+        "flex shrink-0 flex-col overflow-hidden rounded-[14px] border bg-white shadow-[0_12px_28px_-20px_rgba(14,14,17,0.28)] transition-transform duration-150 hover:-translate-y-0.5",
         compact ? "w-[11rem]" : "w-[14rem]",
         selected
-          ? "border-ink ring-1 ring-ink/15"
-          : "border-hairline-soft",
+          ? "border-ink ring-1 ring-ink/20"
+          : "border-hairline",
       )}
     >
       <button
@@ -230,7 +230,7 @@ function BenchCard({
         "flex w-[8.5rem] shrink-0 flex-col overflow-hidden rounded-xl border bg-white",
         unverified
           ? "border-dashed border-hairline opacity-80"
-          : "border-hairline-soft",
+          : "border-hairline",
         selected && "ring-1 ring-ink/15",
       )}
     >
@@ -450,15 +450,19 @@ export const FashionCurationResults = memo(function FashionCurationResults({
 
       {isOutfit ? (
         <div className="space-y-5">
-          <h3 className="text-sm font-medium text-ink">Three looks</h3>
+          <h3 className="font-display text-xs font-extrabold tracking-[0.06em] text-ink">
+            THREE LOOKS
+          </h3>
           {render.looks!.map((look) => (
             <section
               key={look.name}
-              className="rounded-2xl border border-hairline-soft bg-surface/50 p-4"
+              className="rounded-[14px] border border-hairline bg-white p-4 shadow-[0_12px_28px_-22px_rgba(14,14,17,0.22)]"
             >
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <h3 className="font-medium text-ink">{look.name}</h3>
+                  <h3 className="font-display text-sm font-extrabold tracking-tight text-ink">
+                    {look.name}
+                  </h3>
                   {look.note ? (
                     <p className="mt-0.5 text-xs text-ink-muted">{look.note}</p>
                   ) : null}
@@ -500,7 +504,9 @@ export const FashionCurationResults = memo(function FashionCurationResults({
       {isCapsule ? (
         <div className="space-y-5">
           <div>
-            <h3 className="text-sm font-medium text-ink">Capsule rotations</h3>
+            <h3 className="font-display text-xs font-extrabold tracking-[0.06em] text-ink">
+              CAPSULE ROTATIONS
+            </h3>
             {render.meta.set_total != null ? (
               <p className="mt-0.5 text-sm text-ink-secondary">
                 Set total ~${render.meta.set_total.toFixed(0)} across rotations
@@ -518,11 +524,13 @@ export const FashionCurationResults = memo(function FashionCurationResults({
             return (
               <section
                 key={lookId}
-                className="rounded-2xl border border-hairline-soft bg-surface/50 p-4"
+                className="rounded-[14px] border border-hairline bg-white p-4 shadow-[0_12px_28px_-22px_rgba(14,14,17,0.22)]"
               >
                 <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                   <div>
-                    <h3 className="font-medium text-ink">{label}</h3>
+                    <h3 className="font-display text-sm font-extrabold tracking-tight text-ink">
+                      {label}
+                    </h3>
                   </div>
                   {total > 0 ? (
                     <p className="text-sm font-medium text-ink">
@@ -586,7 +594,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
       ) : null}
 
       {slotIds.length ? (
-        <div className="space-y-5 border-t border-hairline-soft pt-5">
+        <div className="space-y-5 border-t border-hairline pt-5">
           {slotIds.map((slotId) => {
             const verified =
               verifiedBySlot.find((g) => g.slot_id === slotId)?.items ?? [];

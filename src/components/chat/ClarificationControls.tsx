@@ -311,7 +311,7 @@ export const ClarificationControls = memo(function ClarificationControls({
         </div>
       ))}
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-hairline-soft pt-4">
+      <div className="flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
         <button
           type="button"
           disabled={busy || !canSubmit}

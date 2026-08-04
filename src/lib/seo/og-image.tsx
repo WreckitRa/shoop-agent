@@ -52,7 +52,7 @@ export async function renderOgImage(options: OgCardOptions = {}) {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background: `linear-gradient(145deg, ${colors.surface.page} 0%, ${colors.brand.tint} 48%, #FFFFFF 100%)`,
+          background: `linear-gradient(145deg, ${colors.page} 0%, ${colors.brandSoft} 48%, #FFFFFF 100%)`,
           fontFamily:
             'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
         }}
@@ -80,7 +80,7 @@ export async function renderOgImage(options: OgCardOptions = {}) {
               style={{
                 fontSize: 88,
                 fontWeight: 800,
-                color: colors.brand.primary,
+                color: colors.brand,
                 letterSpacing: "-0.03em",
                 marginBottom: 20,
               }}
@@ -93,7 +93,7 @@ export async function renderOgImage(options: OgCardOptions = {}) {
             style={{
               fontSize: 40,
               fontWeight: 700,
-              color: colors.text.primary,
+              color: colors.ink,
               letterSpacing: "-0.02em",
               lineHeight: 1.15,
               maxWidth: 900,
@@ -107,7 +107,7 @@ export async function renderOgImage(options: OgCardOptions = {}) {
               marginTop: 22,
               fontSize: 26,
               lineHeight: 1.45,
-              color: colors.text.soft,
+              color: colors.inkSoft,
               maxWidth: 880,
             }}
           >
@@ -131,9 +131,9 @@ export async function renderOgImage(options: OgCardOptions = {}) {
                   alignItems: "center",
                   padding: "12px 22px",
                   borderRadius: 999,
-                  background: colors.surface.page,
-                  border: `1.5px solid ${colors.brand.borderLight}`,
-                  color: colors.text.primary,
+                  background: colors.page,
+                  border: `1.5px solid ${colors.brandSoft}`,
+                  color: colors.ink,
                   fontSize: 22,
                   fontWeight: 600,
                   boxShadow: "0 8px 24px rgba(227, 16, 15, 0.08)",
@@ -151,7 +151,7 @@ export async function renderOgImage(options: OgCardOptions = {}) {
             alignItems: "center",
             justifyContent: "space-between",
             padding: "22px 72px 30px",
-            borderTop: `1px solid ${colors.border.slate}`,
+            borderTop: `1px solid ${colors.hairline}`,
             background: "rgba(255,255,255,0.72)",
           }}
         >
@@ -159,7 +159,7 @@ export async function renderOgImage(options: OgCardOptions = {}) {
             style={{
               fontSize: 22,
               fontWeight: 600,
-              color: colors.text.secondary,
+              color: colors.inkSecondary,
             }}
           >
             {domain}
@@ -168,7 +168,7 @@ export async function renderOgImage(options: OgCardOptions = {}) {
             style={{
               fontSize: 20,
               fontWeight: 700,
-              color: colors.brand.primary,
+              color: colors.brand,
               letterSpacing: "0.12em",
               textTransform: "uppercase",
             }}
@@ -184,7 +184,7 @@ export async function renderOgImage(options: OgCardOptions = {}) {
             left: 0,
             right: 0,
             height: 8,
-            background: colors.brand.primary,
+            background: colors.brand,
           }}
         />
       </div>

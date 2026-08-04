@@ -69,11 +69,11 @@ export function PickFindSimilarButton({
       }
       aria-pressed={isSelected}
       className={cn(
-        "flex w-full shrink-0 items-center justify-center gap-1 border-t border-hairline-soft text-[10px] font-medium tracking-[0.04em] transition disabled:cursor-not-allowed disabled:opacity-45",
+        "flex w-full shrink-0 items-center justify-center gap-1 border-t border-hairline text-[10px] font-medium tracking-[0.04em] transition disabled:cursor-not-allowed disabled:opacity-45",
         compact ? "px-2 py-1.5" : "px-3 py-2",
         isSelected
           ? "bg-ink text-white hover:bg-ink/90"
-          : "bg-transparent text-ink-muted hover:bg-warm/80 hover:text-ink",
+          : "bg-transparent text-ink-muted hover:bg-surface-tint/80 hover:text-ink",
         className,
       )}
     >

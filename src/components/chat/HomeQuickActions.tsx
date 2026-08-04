@@ -1,46 +1,37 @@
 "use client";
 
-import {
-  ArrowRight,
-  Gift,
-  Heart,
-  Layers,
-  Shirt,
-  Sparkles,
-  Tag,
-} from "lucide-react";
+import { Heart, Shirt, Sparkles, Tag } from "lucide-react";
+import { cn } from "@/lib/ai-chat/cn";
 import { useChatStore } from "@/components/chat/chat-store";
 
-const DESKTOP_QUICK_ACTIONS = [
+type Props = {
+  onSelect?: (prompt: string) => void;
+  className?: string;
+};
+
+type Chip = {
+  label: string;
+  prompt: string;
+};
+
+const CHIPS: Chip[] = [
   {
-    id: "wedding-guest",
     label: "what do I wear to a wedding?",
-    prompt:
-      "What do I wear to a wedding? I’m a guest in Sardinia in May, and my budget is $400.",
-    icon: Sparkles,
+    prompt: "What should I wear to a wedding?",
   },
   {
-    id: "gift",
-    label: "find a gift for my wife",
-    prompt:
-      "Find an anniversary gift for my wife — she loves sculptural gold jewelry, and my budget is $300.",
-    icon: Gift,
-  },
-  {
-    id: "style-blazer",
     label: "style this blazer",
-    prompt:
-      "Style my navy blazer for a smart-casual dinner — warm weather, polished but relaxed.",
-    icon: Sparkles,
+    prompt: "Help me style a blazer I already own",
   },
   {
-    id: "compare",
-    label: "compare similar pieces",
-    prompt:
-      "Compare similar pieces for me — prioritize quality, fit, and cost per wear, then tell me which is worth buying.",
-    icon: Layers,
+    label: "like this, for less",
+    prompt: "Find me something like this, for less",
   },
-] as const;
+  {
+    label: "gift for someone",
+    prompt: "Help me find a gift for someone",
+  },
+];
 
 const MOBILE_QUICK_ACTIONS = [
   {
@@ -81,43 +72,46 @@ function revealComposer() {
   });
 }
 
-export function HomeQuickActions() {
+function useQuickActionSelect(onSelect?: (prompt: string) => void) {
   const setInput = useChatStore((s) => s.setInput);
   const requestComposerFocus = useChatStore((s) => s.requestComposerFocus);
 
+  return (prompt: string) => {
+    if (onSelect) {
+      onSelect(prompt);
+      return;
+    }
+    setInput(prompt);
+    requestComposerFocus();
+    revealComposer();
+  };
+}
+
+export function HomeQuickActions({ onSelect, className }: Props) {
+  const select = useQuickActionSelect(onSelect);
+
   return (
-    <div className="grid w-full grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
-      {DESKTOP_QUICK_ACTIONS.map((action) => {
-        const Icon = action.icon;
-        return (
-          <button
-            key={action.id}
-            type="button"
-            className="shoop-home-quick-action group flex min-h-[78px] flex-col items-stretch rounded-[16px] bg-[#F3F1EE] px-3 py-3 text-left transition duration-150 hover:bg-[#ECE9E5] active:scale-[0.99]"
-            onClick={() => {
-              setInput(action.prompt);
-              requestComposerFocus();
-              revealComposer();
-            }}
-          >
-            <Icon
-              className="size-4 text-ink-secondary"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <span className="mt-2 min-w-0 flex-1 text-[12px] font-medium leading-[1.3] tracking-[-0.01em] text-ink lowercase">
-              {action.label}
-            </span>
-          </button>
-        );
-      })}
+    <div
+      className={cn("flex flex-wrap gap-2", className)}
+      role="group"
+      aria-label="Quick starts"
+    >
+      {CHIPS.map((chip) => (
+        <button
+          key={chip.label}
+          type="button"
+          onClick={() => select(chip.prompt)}
+          className="shoop-a-chip"
+        >
+          {chip.label}
+        </button>
+      ))}
     </div>
   );
 }
 
 export function HomeMobileActionGrid() {
-  const setInput = useChatStore((s) => s.setInput);
-  const requestComposerFocus = useChatStore((s) => s.requestComposerFocus);
+  const select = useQuickActionSelect();
 
   return (
     <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
@@ -127,12 +121,8 @@ export function HomeMobileActionGrid() {
           <button
             key={action.id}
             type="button"
-            className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-[16px] bg-white px-1 py-2 text-center shadow-soft ring-1 ring-hairline/70 transition active:scale-[0.98] sm:min-h-0 sm:gap-2 sm:rounded-[18px] sm:px-1.5 sm:py-3"
-            onClick={() => {
-              setInput(action.prompt);
-              requestComposerFocus();
-              revealComposer();
-            }}
+            className="flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-[16px] border border-hairline bg-white px-1 py-2 text-center shadow-soft transition active:scale-[0.98] sm:min-h-0 sm:gap-2 sm:rounded-[18px] sm:px-1.5 sm:py-3"
+            onClick={() => select(action.prompt)}
           >
             <Icon
               className="size-[18px] text-ink-secondary"
@@ -146,43 +136,5 @@ export function HomeMobileActionGrid() {
         );
       })}
     </div>
-  );
-}
-
-const HOW_IT_WORKS = [
-  "Tell me the occasion",
-  "See it on you",
-  "One cart across every store",
-] as const;
-
-export function HomeHowItWorks() {
-  return (
-    <ol
-      className="shoop-home-how-it-works grid grid-cols-3 overflow-hidden rounded-[16px] border border-hairline bg-white/70 sm:rounded-[18px]"
-      aria-label="How Shoop works"
-    >
-      {HOW_IT_WORKS.map((step, index) => (
-        <li
-          key={step}
-          className="relative flex min-h-[52px] items-center px-2 py-1.5 sm:min-h-[72px] sm:px-4 sm:py-3"
-        >
-          <div>
-            <span className="block text-[9px] font-semibold tabular-nums tracking-[0.12em] text-ink-muted">
-              0{index + 1}
-            </span>
-            <span className="mt-0.5 block text-[10px] font-medium leading-[1.2] text-ink sm:mt-1 sm:text-[12px] sm:leading-[1.3]">
-              {step}
-            </span>
-          </div>
-          {index < HOW_IT_WORKS.length - 1 ? (
-            <ArrowRight
-              className="absolute right-0 top-1/2 size-3 -translate-y-1/2 translate-x-1/2 text-ink-muted"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-          ) : null}
-        </li>
-      ))}
-    </ol>
   );
 }

@@ -71,7 +71,7 @@ export function TryOnAvatarSlider() {
       className={cn(
         "group absolute right-0 top-1/2 z-30 flex -translate-y-1/2 items-center overflow-hidden",
         "rounded-l-2xl border border-r-0 border-hairline bg-white/95",
-        "shadow-[-6px_0_24px_rgba(12,12,12,0.08)] backdrop-blur-md",
+        "shadow-[-6px_0_24px_rgba(14,14,17,0.08)] backdrop-blur-md",
         "text-ink-secondary transition-all duration-500 ease-out hover:bg-white hover:text-ink",
         peeking
           ? "w-[min(13.5rem,calc(100vw-1rem))] flex-row gap-3 px-3 py-3 sm:w-[min(15rem,calc(100vw-1rem))]"
@@ -108,7 +108,7 @@ export function TryOnAvatarSlider() {
       </span>
       {peeking ? (
         <span className="min-w-0 flex-1 text-left">
-          <span className="block font-serif text-lg font-semibold leading-tight text-ink">
+          <span className="block font-display text-lg font-extrabold leading-tight tracking-tight text-ink">
             See it on you.
           </span>
           <span className="mt-1 block text-[11px] leading-snug text-ink-muted">

@@ -24,6 +24,8 @@ const deckQuerySchema = z.object({
   currency: z.string().optional(),
   wornLabels: z.string().optional(),
   wornTasteTags: z.string().optional(),
+  /** Style catalog ids already picked on worn step. */
+  wornLookIds: z.string().optional(),
 });
 
 const outfitPickSchema = z
@@ -78,6 +80,7 @@ export async function GET(req: Request) {
       currency: url.searchParams.get("currency") ?? undefined,
       wornLabels: url.searchParams.get("wornLabels") ?? undefined,
       wornTasteTags: url.searchParams.get("wornTasteTags") ?? undefined,
+      wornLookIds: url.searchParams.get("wornLookIds") ?? undefined,
     });
 
     if (!parsedQuery.success) {
@@ -128,12 +131,13 @@ export async function GET(req: Request) {
       currency: q.currency?.trim() || profile?.currency || undefined,
       wornLabels: splitCsv(q.wornLabels),
       wornTasteTags: splitCsv(q.wornTasteTags),
+      wornLookIds: splitCsv(q.wornLookIds),
     };
 
     const deck = await buildOutfitGridDeck(ctx, { signal: req.signal });
 
     return Response.json({
-      source: "shopify_catalog",
+      source: "inhouse_catalog",
       mode: ctx.mode,
       deck: deck.map((c) => ({
         id: c.id,

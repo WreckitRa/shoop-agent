@@ -13,7 +13,7 @@ export function ProductCurationLoadingPanel({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-2xl border border-hairline-soft bg-surface-tint/60 px-4 py-4",
+        "flex flex-col gap-3 rounded-2xl border border-hairline bg-surface-tint/60 px-4 py-4",
         variant === "sidebar" && "border-brand/15 bg-brand/[0.03]",
         className,
       )}

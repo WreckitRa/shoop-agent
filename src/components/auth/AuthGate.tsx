@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { GuestLeavePrompt } from "@/components/auth/GuestLeavePrompt";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
@@ -22,7 +21,7 @@ type AuthUser = { id: string; email: string | null };
 type AuthMode = "login" | "signup";
 
 const inputClassName =
-  "w-full rounded-xl border border-hairline bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition focus:border-ink/30 focus:ring-2 focus:ring-ink/5";
+  "w-full border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-2 font-display text-[20px] font-bold text-[var(--fitting-ink)] outline-none placeholder:font-bold placeholder:text-[#D9D9DE] focus:border-[var(--fitting-red)]";
 
 async function fetchSession(): Promise<{
   configured: boolean;
@@ -224,7 +223,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <AuthShell>
-        <p className="text-sm text-ink-muted">Loading…</p>
+        <p className="text-sm font-semibold text-[var(--fitting-quiet)]">
+          Loading…
+        </p>
       </AuthShell>
     );
   }
@@ -298,7 +299,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-b from-white to-[#F7F7F9]">
       {children}
     </div>
   );
@@ -313,7 +314,7 @@ function AuthOverlay({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-[rgba(14,14,17,0.45)] p-4 backdrop-blur-md"
       onClick={onDismiss ? () => onDismiss() : undefined}
       role={onDismiss ? "presentation" : undefined}
     >
@@ -335,7 +336,6 @@ type AuthModalProps = {
   busy: boolean;
   onSubmit: (e: React.FormEvent) => void;
   showGuestCta: boolean;
-  /** Guest session active — show sign-in data-loss warning and signup save copy. */
   isGuestBrowsing?: boolean;
   guestHasDataToLose?: boolean;
   loginDataLossAcknowledged?: boolean;
@@ -370,24 +370,70 @@ function AuthModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-title"
-      className="w-full max-w-md overflow-hidden rounded-[28px] border border-hairline bg-white shadow-lift"
+      className="w-full max-w-md overflow-hidden rounded-[22px] border border-[var(--fitting-line)] bg-white shadow-[0_26px_54px_-22px_rgba(14,14,17,0.45)]"
     >
-      <AuthModalHeader mode={mode} onModeChange={onModeChange} />
+      <div className="border-b border-[var(--fitting-line)] px-7 py-6">
+        <div className="mb-4 font-display text-[19px] font-black tracking-[0.02em]">
+          SHOO<span className="text-[var(--fitting-red)]">P</span>
+        </div>
+        <p className="text-[10.5px] font-extrabold tracking-[0.14em] text-[var(--fitting-red)]">
+          {mode === "signup" ? "THE FITTING · START" : "WELCOME BACK"}
+        </p>
+        <h2
+          id="auth-title"
+          className="mt-2 font-display text-[clamp(28px,4vw,34px)] font-extrabold leading-[1.05] tracking-[-0.02em] text-[var(--fitting-ink)]"
+        >
+          {mode === "signup" ? "Claim your print." : "Unlock your print."}
+        </h2>
+        <p className="mt-2 font-whisper text-[15px] italic text-[var(--fitting-quiet)]">
+          {mode === "signup"
+            ? "Seven quick questions. Your twin develops while you answer."
+            : "Pick up where you left off — memory, chats, and fit intact."}
+        </p>
+        <div className="mt-5 inline-flex overflow-hidden rounded-xl border border-[#D6D6DE] bg-white">
+          <button
+            type="button"
+            onClick={() => onModeChange("login")}
+            className={cn(
+              "px-5 py-2.5 text-xs font-extrabold transition",
+              mode === "login"
+                ? "bg-[var(--fitting-ink)] text-white"
+                : "text-[var(--fitting-quiet)]",
+            )}
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange("signup")}
+            className={cn(
+              "px-5 py-2.5 text-xs font-extrabold transition",
+              mode === "signup"
+                ? "bg-[var(--fitting-ink)] text-white"
+                : "text-[var(--fitting-quiet)]",
+            )}
+          >
+            Sign up
+          </button>
+        </div>
+      </div>
+
       {showLoginDataLossGuard ? (
         <div
           role="alert"
-          className="mx-6 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm leading-snug text-amber-950"
+          className="mx-7 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm leading-snug text-amber-950"
         >
           <span className="font-medium">Heads up:</span> signing in opens your
           existing account and erases this device&apos;s guest chats, cart, and
-          preferences — including anything stored locally. Clearing your browser
-          cache or data will also delete your guest session. They won&apos;t be
-          merged into your account.
+          preferences — including anything stored locally.
         </div>
       ) : null}
-      <form onSubmit={(e) => void onSubmit(e)} className="space-y-4 px-6 py-5">
-        <label className="block space-y-2 text-sm">
-          <span className="font-medium text-ink">Email</span>
+
+      <form onSubmit={(e) => void onSubmit(e)} className="space-y-5 px-7 py-6">
+        <label className="block space-y-2">
+          <span className="text-[12.5px] font-extrabold text-[var(--fitting-ink)]">
+            Email
+          </span>
           <input
             type="email"
             autoComplete="email"
@@ -398,11 +444,15 @@ function AuthModal({
             placeholder="you@example.com"
           />
         </label>
-        <label className="block space-y-2 text-sm">
-          <span className="font-medium text-ink">Password</span>
+        <label className="block space-y-2">
+          <span className="text-[12.5px] font-extrabold text-[var(--fitting-ink)]">
+            Password
+          </span>
           <input
             type="password"
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            autoComplete={
+              mode === "signup" ? "new-password" : "current-password"
+            }
             required
             minLength={8}
             value={password}
@@ -422,9 +472,8 @@ function AuthModal({
               className="mt-0.5 size-4 shrink-0 rounded border-amber-300 text-amber-800 focus:ring-amber-400/40"
             />
             <span>
-              I understand my guest chats and preferences on this device will be
-              erased when I sign in, and that clearing browser data will delete
-              them too.
+              I understand my guest chats and preferences on this device will
+              be erased when I sign in.
             </span>
           </label>
         ) : null}
@@ -436,119 +485,45 @@ function AuthModal({
         <button
           type="submit"
           disabled={busy || loginSubmitBlocked}
-          className="btn-primary w-full rounded-full py-2.5"
+          className="group inline-flex h-14 w-full items-center justify-center gap-3 rounded-[14px] bg-[var(--fitting-ink)] font-display text-[14.5px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50"
         >
           {busy
             ? mode === "signup"
-              ? "Creating account…"
+              ? "Creating…"
               : "Signing in…"
             : mode === "signup"
-              ? "Create account"
+              ? "Lock it in"
               : "Sign in"}
+          {!busy ? (
+            <span className="transition-transform group-hover:translate-x-1">
+              →
+            </span>
+          ) : null}
         </button>
       </form>
 
       {showGuestCta ? (
-        <div className="border-t border-hairline px-6 py-4">
-          <div className="relative mb-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-hairline" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
-              or
-            </span>
-            <div className="h-px flex-1 bg-hairline" />
-          </div>
+        <div className="border-t border-[var(--fitting-line)] px-7 py-5">
           <button
             type="button"
             onClick={onContinueAsGuest}
-            className={cn(
-              "group flex w-full items-center justify-between gap-3 rounded-2xl border border-hairline",
-              "bg-gradient-to-br from-surface-tint to-white px-4 py-3.5 text-left transition-all duration-200",
-              "hover:border-ink/15 hover:shadow-soft active:scale-[0.99]",
-            )}
+            className="w-full border-0 border-b border-[var(--fitting-line)] bg-transparent pb-1 text-center text-[12.5px] font-semibold text-[var(--fitting-quiet)] hover:text-[var(--fitting-ink)]"
           >
-            <span className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-soft ring-1 ring-hairline">
-                <Sparkles
-                  className="h-5 w-5 text-brand"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-              </span>
-              <span>
-                <span className="block text-sm font-semibold text-ink">
-                  Continue as guest
-                </span>
-                <span className="mt-0.5 block text-xs leading-snug text-ink-muted">
-                  Try Shoop instantly — your chats stay on this device until you sign up.
-                </span>
-              </span>
-            </span>
-            <ArrowRight
-              className="h-4 w-4 shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5 group-hover:text-ink"
-              strokeWidth={1.75}
-              aria-hidden
-            />
+            skip... continue as guest
           </button>
+          <p className="mt-3 text-center text-[11px] leading-relaxed text-[var(--fitting-quiet)]">
+            Guest chats stay on this device until you claim a print.
+          </p>
         </div>
-      ) : null}
-
-      <p className="border-t border-hairline px-6 py-4 text-center text-xs leading-relaxed text-ink-muted">
-        {showGuestCta
-          ? "Create an account anytime to sync chats, memory, and checkout across devices."
-          : isGuestBrowsing && mode === "signup"
+      ) : (
+        <p className="border-t border-[var(--fitting-line)] px-7 py-4 text-center text-[11px] leading-relaxed text-[var(--fitting-quiet)]">
+          {isGuestBrowsing && mode === "signup"
             ? "Sign up to save your guest session and pick up on any device."
             : isGuestBrowsing && mode === "login" && guestHasDataToLose
               ? "Sign up instead if you want to keep this guest session."
               : "Sign in to access your saved chats and preferences."}
-      </p>
-    </div>
-  );
-}
-
-function AuthModalHeader({
-  mode,
-  onModeChange,
-}: {
-  mode: AuthMode;
-  onModeChange: (mode: AuthMode) => void;
-}) {
-  return (
-    <div className="border-b border-hairline px-6 py-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
-        Account
-      </p>
-      <h2
-        id="auth-title"
-        className="mt-2 font-serif text-[1.75rem] font-semibold tracking-tight text-ink"
-      >
-        {mode === "signup" ? "Create your account" : "Welcome back"}
-      </h2>
-      <div className="mt-5 flex gap-1 rounded-full bg-surface-tint p-1">
-        <button
-          type="button"
-          onClick={() => onModeChange("login")}
-          className={cn(
-            "flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors",
-            mode === "login"
-              ? "bg-white text-ink shadow-soft"
-              : "text-ink-secondary hover:text-ink",
-          )}
-        >
-          Sign in
-        </button>
-        <button
-          type="button"
-          onClick={() => onModeChange("signup")}
-          className={cn(
-            "flex-1 rounded-full px-3 py-2 text-sm font-medium transition-colors",
-            mode === "signup"
-              ? "bg-white text-ink shadow-soft"
-              : "text-ink-secondary hover:text-ink",
-          )}
-        >
-          Sign up
-        </button>
-      </div>
+        </p>
+      )}
     </div>
   );
 }

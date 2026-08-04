@@ -752,7 +752,7 @@ export function ProductPageView({
           className={cn(
             "shrink-0",
             embedded
-              ? "flex items-center justify-between border-b border-hairline-soft px-4 py-2.5 md:px-5"
+              ? "flex items-center justify-between border-b border-hairline px-4 py-2.5 md:px-5"
               : "px-4 pt-2 md:px-6 md:pt-3 xl:px-8",
           )}
         >
@@ -1295,7 +1295,7 @@ function ProductIdentityBlock({ detail }: { detail: CatalogProductDetail }) {
       ) : null}
       <h1
         className={cn(
-          "font-serif text-[1.75rem] font-semibold leading-tight tracking-[-0.02em] text-ink md:text-[2rem]",
+          "font-display text-[1.75rem] font-extrabold leading-tight tracking-[-0.025em] text-ink md:text-[2rem]",
           brand ? "mt-1.5" : "",
         )}
       >
@@ -1690,7 +1690,7 @@ function PurchaseSidebar({
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5 border-b border-hairline-soft pb-3">
+        <div className="flex flex-col gap-1.5 border-b border-hairline pb-3">
           <ProductCommerceMeta
             sellerName={sellerName}
             sellerDomain={sellerDomain}
@@ -1891,7 +1891,7 @@ function HandoffConfirm({
         }}
       />
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-hairline bg-white shadow-[0_24px_64px_rgba(15,23,42,0.18)]">
-        <div className="border-b border-hairline-soft bg-surface-subtle/80 px-5 py-4 sm:px-6">
+        <div className="border-b border-hairline bg-surface-subtle/80 px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-info-bg text-info-accent">
               <ExternalLink className="size-5" aria-hidden />

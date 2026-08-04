@@ -16,6 +16,18 @@ import { startResolvedOutfitTryon } from "./run-outfit";
 import type { FittingRoomItemDescriptor } from "./fitting-room-types";
 import { fittingRoomLookId } from "./fitting-room-types";
 
+/** Resolve same-origin static assets so FASHN can fetch them. */
+export function toAbsolutePublicUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  const path = url.startsWith("/") ? url : `/${url}`;
+  const envBase =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    process.env.APP_URL?.replace(/\/$/, "") ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+  const base = envBase || "http://localhost:3000";
+  return `${base}${path}`;
+}
+
 export type ResolvedFittingRoomItem = {
   ref: string;
   garment: string;
@@ -62,6 +74,27 @@ export async function resolveFittingRoomItems(params: {
         productId: pick.pick?.id,
         searchId,
         tryonSupported: Boolean(mapSlotToGarmentType(garment, pick.title)),
+      });
+      continue;
+    }
+
+    if (descriptor.provenance.kind === "image") {
+      const { imageUrl, title, garment, styleId } = descriptor.provenance;
+      if (!imageUrl?.trim()) throw new Error("Image URL required");
+      const absolute = toAbsolutePublicUrl(imageUrl.trim());
+      const label = (title ?? garment ?? styleId ?? "styled outfit dress look").trim();
+      // Full-look style photos: treat as one-piece dress so chain always supports them.
+      const garmentLabel =
+        garment?.trim() ||
+        `${label} dress look`;
+      resolved.push({
+        ref: `image:${styleId ?? absolute}`,
+        garment: garmentLabel.includes("dress")
+          ? garmentLabel
+          : `${garmentLabel} dress`,
+        imageUrl: absolute,
+        title: label,
+        tryonSupported: true,
       });
       continue;
     }

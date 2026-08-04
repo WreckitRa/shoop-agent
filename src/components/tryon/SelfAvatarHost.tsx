@@ -90,12 +90,12 @@ export function SelfAvatarHost() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="self-avatar-flow-title"
-        className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-hairline bg-white shadow-[0_24px_64px_rgba(12,12,12,0.18)]"
+        className="relative z-10 flex max-h-[min(92vh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-hairline bg-white shadow-[0_24px_64px_rgba(14,14,17,0.18)]"
       >
-        <div className="flex items-center justify-between border-b border-hairline-soft px-5 py-4 sm:px-6">
+        <div className="flex items-center justify-between border-b border-hairline px-5 py-4 sm:px-6">
           <h2
             id="self-avatar-flow-title"
-            className="font-serif text-lg font-semibold text-ink"
+            className="font-display text-lg font-extrabold tracking-tight text-ink"
           >
             Complete your card
           </h2>

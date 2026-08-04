@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { Bookmark, Clock, Settings } from "lucide-react";
+import { Bookmark, Clock, Heart, Settings } from "lucide-react";
 import { useChatStore } from "@/components/chat/chat-store";
 import {
   sidebarBadgeClass,
@@ -75,6 +75,7 @@ export function SidebarMenuSection() {
     <div className="mt-5">
       <p className={sidebarSectionLabelClass}>Menu</p>
       <nav>
+        <SidebarMenuItem icon={Heart} label="Moodboard" href="/moodboard" />
         <SidebarMenuItem
           icon={Clock}
           label="Orders"

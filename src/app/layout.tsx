@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import {
+  Archivo,
   Cormorant_Garamond,
   DM_Sans,
+  Fraunces,
   JetBrains_Mono,
   Nunito,
 } from "next/font/google";
@@ -12,7 +14,7 @@ import "./globals.css";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-dm-sans",
 });
 
@@ -20,6 +22,19 @@ const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
   variable: "--font-cormorant",
+});
+
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["700", "800", "900"],
+  variable: "--font-archivo",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
+  variable: "--font-fraunces",
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -39,7 +54,7 @@ export const metadata: Metadata = rootMetadata();
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#F9F7F5",
+  themeColor: "#F5F5F7",
   colorScheme: "light",
 };
 
@@ -51,7 +66,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${cormorant.variable} ${jetbrainsMono.variable} ${nunito.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${cormorant.variable} ${archivo.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${nunito.variable} h-full antialiased`}
     >
       <head>
         <link rel="preconnect" href="https://cdn.shopify.com" />

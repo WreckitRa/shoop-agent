@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Heart,
   Plus,
   Settings,
 } from "lucide-react";
@@ -88,6 +89,15 @@ function SidebarCollapsedRail({ onNewShoop }: { onNewShoop: () => void }) {
 
       <div aria-hidden className="h-2 shrink-0" />
 
+      <Link
+        href="/moodboard"
+        title="Moodboard"
+        aria-label="Moodboard"
+        className={cn(sidebarRailButtonClass, "my-0.5")}
+      >
+        <Heart className={sidebarRailIconClass} strokeWidth={1.75} />
+      </Link>
+
       <button
         type="button"
         title="Orders"
@@ -167,7 +177,7 @@ export const ChatSidebar = memo(function ChatSidebar() {
     <>
       <aside
         className={cn(
-          "shoop-sidebar-desktop fixed inset-y-0 left-0 z-[100] flex h-[100dvh] shrink-0 flex-col overflow-hidden border-r border-hairline-soft bg-warm py-4 font-sans transition-[transform,width] duration-[220ms] ease-out",
+          "shoop-sidebar-desktop fixed inset-y-0 left-0 z-[100] flex h-[100dvh] shrink-0 flex-col overflow-hidden border-r border-hairline bg-white py-4 font-sans transition-[transform,width] duration-[220ms] ease-out",
           "w-[260px] px-3.5 lg:relative lg:translate-x-0",
           sidebarCollapsed
             ? "lg:w-[64px] lg:items-center lg:px-0"

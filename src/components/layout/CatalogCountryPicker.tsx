@@ -172,7 +172,7 @@ export function CatalogCountryPicker({
               }}
               className="flex flex-col overflow-hidden rounded-2xl border border-hairline bg-white shadow-card ring-1 ring-black/5"
             >
-              <div className="relative shrink-0 border-b border-hairline-soft px-2 py-2">
+              <div className="relative shrink-0 border-b border-hairline px-2 py-2">
                 <Search
                   className="pointer-events-none absolute left-4 top-1/2 size-3.5 -translate-y-1/2 text-ink-muted"
                   aria-hidden
@@ -238,7 +238,7 @@ export function CatalogCountryPicker({
                 )}
               </ul>
               {error ? (
-                <p className="shrink-0 border-t border-hairline-soft px-3 py-2 text-[10px] font-medium text-warning-dark">
+                <p className="shrink-0 border-t border-hairline px-3 py-2 text-[10px] font-medium text-warning-dark">
                   {error}
                 </p>
               ) : null}
@@ -278,7 +278,7 @@ export function CatalogCountryPicker({
           "inline-flex h-8 min-w-0 items-center gap-1 rounded-full border border-hairline bg-white px-2.5 text-[11px] font-medium tracking-wide text-ink-secondary transition-colors",
           disabled
             ? "cursor-not-allowed opacity-55"
-            : "hover:border-line-medium hover:bg-warm hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20",
+            : "hover:border-line-medium hover:bg-surface-tint hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20",
         )}
       >
         <MapPin className="size-3 shrink-0" aria-hidden strokeWidth={1.75} />

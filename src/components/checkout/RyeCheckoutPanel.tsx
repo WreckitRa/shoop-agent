@@ -146,7 +146,7 @@ function RyePaymentForm({
   ]);
 
   return (
-    <div className="mt-5 border-t border-hairline-soft pt-5">
+    <div className="mt-5 border-t border-hairline pt-5">
       <p className="text-sm font-medium text-ink">Payment</p>
       <div className="mt-3 rounded-xl border border-hairline px-3 py-3">
         <CardElement options={CARD_ELEMENT_OPTIONS} />
@@ -267,7 +267,7 @@ export function RyeCheckoutPanel({
               </span>
             </div>
           ) : null}
-          <div className="flex justify-between border-t border-hairline-soft pt-3 text-base font-semibold text-ink">
+          <div className="flex justify-between border-t border-hairline pt-3 text-base font-semibold text-ink">
             <span>Total</span>
             <span>{formatRyeMoney(offer.total)}</span>
           </div>

@@ -715,7 +715,7 @@ export function PreCheckoutView() {
       <div className="flex min-h-0 flex-1 items-center justify-center shoop-page-x py-10">
         <SettingsCard className="max-w-sm p-8 text-center">
           <PackageOpen className="mx-auto size-10 text-ink-muted" />
-          <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight text-ink">
+          <h1 className="mt-4 font-display text-2xl font-extrabold tracking-tight text-ink">
             We could not find that item
           </h1>
           <p className="mt-2 text-sm leading-5 text-ink-muted">
@@ -769,7 +769,7 @@ export function PreCheckoutView() {
         <ChevronLeft className="size-4" />
         Back
       </button>
-      <h1 className="mb-5 font-serif text-2xl font-semibold tracking-tight text-ink md:text-3xl">
+      <h1 className="mb-5 font-display text-2xl font-extrabold tracking-tight text-ink md:text-3xl">
         Checkout
       </h1>
 
@@ -863,7 +863,7 @@ export function PreCheckoutView() {
         )}
 
         <SettingsCard className="h-fit">
-          <div className="border-b border-hairline-soft px-5 py-4 sm:px-6">
+          <div className="border-b border-hairline px-5 py-4 sm:px-6">
             <h2 className="text-sm font-semibold tracking-tight text-ink">
               Order summary
             </h2>
@@ -908,7 +908,7 @@ export function PreCheckoutView() {
 
             {phase === "form" ? (
               <>
-                <div className="mt-4 space-y-2 border-t border-hairline-soft pt-4 text-body-sm">
+                <div className="mt-4 space-y-2 border-t border-hairline pt-4 text-body-sm">
                   <div className="flex justify-between text-ink-secondary">
                     <span>Items ({line.quantity})</span>
                     <span className="font-semibold text-ink">
@@ -921,7 +921,7 @@ export function PreCheckoutView() {
                   </div>
                 </div>
 
-                <div className="mt-3 flex justify-between border-t border-hairline-soft pt-4 text-base font-semibold text-ink">
+                <div className="mt-3 flex justify-between border-t border-hairline pt-4 text-base font-semibold text-ink">
                   <span>Subtotal</span>
                   <span>
                     {localizingPrice ? (

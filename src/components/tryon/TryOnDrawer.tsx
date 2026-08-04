@@ -117,7 +117,7 @@ function RackSlot({
 }) {
   if (!item) {
     return (
-      <div className="flex aspect-[3/4] items-center justify-center rounded-xl border border-dashed border-hairline-soft bg-surface-tint/60 text-[10px] text-ink-muted">
+      <div className="flex aspect-[3/4] items-center justify-center rounded-xl border border-dashed border-hairline bg-surface-tint/60 text-[10px] text-ink-muted">
         Empty
       </div>
     );
@@ -127,7 +127,7 @@ function RackSlot({
     item && !isActive ? findActiveSlotConflict(activeItems, item) : null;
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-hairline-soft bg-white p-2">
+    <div className="flex flex-col gap-2 rounded-xl border border-hairline bg-white p-2">
       <button
         type="button"
         className="relative aspect-[3/4] overflow-hidden rounded-lg bg-surface-tint"
@@ -173,7 +173,7 @@ function RackSlot({
         {isActive ? (
           <button
             type="button"
-            className="rounded-full border border-hairline-soft px-2 py-1 text-[10px] font-medium text-ink-secondary"
+            className="rounded-full border border-hairline px-2 py-1 text-[10px] font-medium text-ink-secondary"
             onClick={onRemoveFromAvatar}
           >
             Remove from avatar
@@ -181,7 +181,7 @@ function RackSlot({
         ) : null}
         <button
           type="button"
-          className="rounded-full border border-hairline-soft px-2 py-1 text-[10px] font-medium text-ink-muted"
+          className="rounded-full border border-hairline px-2 py-1 text-[10px] font-medium text-ink-muted"
           onClick={onRemoveFromRack}
         >
           Remove from rack
@@ -291,7 +291,7 @@ export function TryOnDrawer() {
       aria-hidden={!open}
       style={{ width: open ? PANEL_WIDTH : "0px" }}
       className={cn(
-        "relative z-20 flex h-full shrink-0 flex-col overflow-hidden border-hairline bg-white shadow-[-12px_0_40px_rgba(12,12,12,0.06)] transition-[width] duration-300 ease-out",
+        "relative z-20 flex h-full shrink-0 flex-col overflow-hidden border-hairline bg-white shadow-[-12px_0_40px_rgba(14,14,17,0.08)] transition-[width] duration-300 ease-out",
         open ? "border-l" : "pointer-events-none border-l-0",
       )}
       data-tryon-drawer
@@ -300,11 +300,11 @@ export function TryOnDrawer() {
         style={{ width: PANEL_WIDTH }}
         className={cn("flex h-full min-w-0 flex-col", !open && "invisible")}
       >
-        <header className="flex items-center justify-between border-b border-hairline-soft px-5 py-4">
+        <header className="flex items-center justify-between border-b border-hairline px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-brand" aria-hidden />
-              <h2 className="font-serif text-xl font-semibold tracking-tight text-ink">
+              <h2 className="font-display text-xl font-extrabold tracking-tight text-ink">
                 Fitting room
               </h2>
             </div>
@@ -451,7 +451,7 @@ export function TryOnDrawer() {
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
-                className="rounded-full border border-hairline-soft px-3 py-1 text-xs"
+                className="rounded-full border border-hairline px-3 py-1 text-xs"
                 onClick={() => sendFeedback(1)}
                 aria-label="Helpful try-on"
               >
@@ -459,7 +459,7 @@ export function TryOnDrawer() {
               </button>
               <button
                 type="button"
-                className="rounded-full border border-hairline-soft px-3 py-1 text-xs"
+                className="rounded-full border border-hairline px-3 py-1 text-xs"
                 onClick={() => sendFeedback(-1)}
                 aria-label="Unhelpful try-on"
               >
@@ -494,7 +494,7 @@ export function TryOnDrawer() {
           ) : null}
 
           {activeItems.length ? (
-            <section className="mt-5 border-t border-hairline-soft pt-4">
+            <section className="mt-5 border-t border-hairline pt-4">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
                 On your avatar
               </h3>
@@ -529,7 +529,7 @@ export function TryOnDrawer() {
             </section>
           ) : null}
 
-          <section className="mt-5 border-t border-hairline-soft pt-4">
+          <section className="mt-5 border-t border-hairline pt-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
               Candidate rack
             </h3>

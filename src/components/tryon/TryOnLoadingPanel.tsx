@@ -147,7 +147,7 @@ export function TryOnLoadingPanel({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-hairline-soft bg-surface-tint/60 px-4 py-5",
+        "rounded-2xl border border-hairline bg-surface-tint/60 px-4 py-5",
         compact && "py-4",
         className,
       )}
@@ -205,7 +205,7 @@ export function TryOnLoadingPanel({
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-hairline-soft pt-3">
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-hairline pt-3">
         <p className="text-xs text-ink-muted">{hint}</p>
         <p className="shrink-0 text-[10px] tabular-nums text-ink-muted">
           {elapsed}s · {copy.estimate}

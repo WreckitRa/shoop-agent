@@ -33,8 +33,8 @@ export function SettingsCardHeader({
   description?: string;
 }) {
   return (
-    <div className="border-b border-hairline-soft px-5 py-5 sm:px-6">
-      <h2 className="font-serif text-xl font-semibold tracking-tight text-ink">
+    <div className="border-b border-hairline px-5 py-5 sm:px-6">
+      <h2 className="font-display text-xl font-extrabold tracking-tight text-ink">
         {title}
       </h2>
       {description ? (
@@ -224,7 +224,7 @@ export function DangerActionModal({
         aria-modal="true"
         aria-labelledby="danger-modal-title"
         aria-describedby="danger-modal-desc"
-        className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-error-border bg-white shadow-[0_24px_64px_rgba(12,12,12,0.22)]"
+        className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-error-border bg-white shadow-[0_24px_64px_rgba(14, 14, 17,0.22)]"
       >
         <div className="border-b border-error-border bg-error-bg px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">

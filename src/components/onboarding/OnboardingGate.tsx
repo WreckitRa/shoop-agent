@@ -1,19 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FittingFlash } from "@/components/onboarding/fitting/FittingFlash";
 import {
-  AiProfileTransferStep,
-  type AiTransferPhase,
-} from "@/components/onboarding/AiProfileTransferStep";
+  FittingPhotoStep,
+  defaultMuscularityForBuild,
+  type FittingPhotoValues,
+} from "@/components/onboarding/fitting/FittingPhotoStep";
+import { FittingShell } from "@/components/onboarding/fitting/FittingShell";
+import { FittingVerdictStep } from "@/components/onboarding/fitting/FittingVerdictStep";
 import {
-  CARD_FORGE_STEP_META,
-  CardForgeStep,
-  cardForgeCopy,
-  type CardForgeSubstep,
-} from "@/components/onboarding/CardForgeStep";
-import { OnboardingDoorwayStep } from "@/components/onboarding/OnboardingDoorwayStep";
-import { OnboardingLoadingPanel } from "@/components/onboarding/OnboardingLoadingPanel";
-import { TasteComplimentStep } from "@/components/onboarding/TasteComplimentStep";
+  EMPTY_MIRROR,
+  FITTING_Q_STEPS,
+  FITTING_STEPS,
+  STEP_META,
+  STEP_PROGRESS_PCT,
+  formFromGender,
+  shortEraLabel,
+  spendShort,
+  type BuildKey,
+  type FittingStep,
+  type MirrorState,
+} from "@/components/onboarding/fitting/types";
 import { TasteHonestyStep } from "@/components/onboarding/TasteHonestyStep";
 import { TasteLovesVetoesStep } from "@/components/onboarding/TasteLovesVetoesStep";
 import {
@@ -26,44 +34,183 @@ import {
   type YouIdentityValues,
 } from "@/components/onboarding/YouIdentityStep";
 import {
-  YouLocationSizesStep,
-  type YouLocationValues,
-} from "@/components/onboarding/YouLocationSizesStep";
+  FittingBackLink,
+  FittingCount,
+} from "@/components/onboarding/onboarding-ui";
+import { stubSerialFromId } from "@/components/onboarding/ShoopCard";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
+import { guestFetch } from "@/lib/client/guest-fetch";
+import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import {
-  isPrimaryAiAssistantId,
-  type PrimaryAiAssistantId,
-} from "@/lib/onboarding/ai-transfer-prompts";
-import {
+  BUDGET_OPTIONS,
   DEFAULT_CITY,
   DEFAULT_CURRENCY,
   DEFAULT_SHIPPING_COUNTRY,
+  STYLE_ERAS,
   ageYearsFromBirthDate,
   currencyHintForCountry,
-  joinCsvValues,
   isAtLeastAge,
+  joinCsvValues,
   normalizeAgeRange,
   normalizeGender,
   parseCsvValues,
+  styleEraLabel,
   styleEraToAgeRange,
 } from "@/lib/onboarding/form-options";
 import type { StyleMix } from "@/lib/onboarding/style-mix";
-import { useUserProfileStore } from "@/lib/client/user-profile-store";
+import {
+  TRYON_CLIENT_POLL_MAX_MS,
+  TRYON_CLIENT_POLL_MS,
+} from "@/lib/tryon/client-poll";
+import { isCompareSettled } from "@/lib/tryon/compare-variants";
+import type {
+  AvatarAttributes,
+  AvatarCompareVariant,
+  BuildBand,
+  HeightBand,
+} from "@/lib/tryon/types";
+
+type AvatarApiBody = {
+  error?: string;
+  avatar?: { url?: string };
+  draft?: {
+    step?: string;
+    preview_url?: string;
+    compare?: boolean;
+    compare_job_id?: string;
+    preview_variants?: AvatarCompareVariant[];
+    attributes?: AvatarAttributes;
+    intake?: {
+      refusal_message?: string;
+      clear?: Partial<AvatarAttributes>;
+    };
+  };
+};
+
+async function readAvatarJson(res: Response): Promise<AvatarApiBody> {
+  const text = await res.text();
+  if (!text.trim()) {
+    return {
+      error: res.ok ? undefined : `Something went wrong (${res.status}).`,
+    };
+  }
+  try {
+    return JSON.parse(text) as AvatarApiBody;
+  } catch {
+    return { error: `Something went wrong (${res.status}).` };
+  }
+}
+
+function birthDateToInput(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+function heightBandFromCm(cm: number): HeightBand {
+  if (cm < 160) return "under_160";
+  if (cm < 170) return "160_170";
+  if (cm < 180) return "170_180";
+  if (cm < 190) return "180_190";
+  return "over_190";
+}
+
+/** Full FASHN silhouette payload from photo-step answers (+ smart defaults). */
+function buildFittingAvatarAttributes(opts: {
+  heightCm: number;
+  build: BuildBand;
+  muscularity: FittingPhotoValues["muscularity"];
+  bodyShape: FittingPhotoValues["bodyShape"];
+  bustFullness: FittingPhotoValues["bustFullness"];
+  includeBust: boolean;
+}): AvatarAttributes {
+  const attrs: AvatarAttributes = {
+    height_band: heightBandFromCm(opts.heightCm),
+    build: opts.build,
+    muscularity:
+      opts.muscularity ?? defaultMuscularityForBuild(opts.build),
+  };
+  if (opts.bodyShape) attrs.body_shape = opts.bodyShape;
+  if (opts.includeBust && opts.bustFullness) {
+    attrs.bust_fullness = opts.bustFullness;
+  }
+  return attrs;
+}
+
+function mergeLabelLists(a: string[], b: string[]): string[] {
+  const map = new Map<string, string>();
+  for (const raw of [...a, ...b]) {
+    const t = raw.trim();
+    if (!t) continue;
+    map.set(t.toLowerCase(), t);
+  }
+  return [...map.values()];
+}
+
+function mergeCsvLabels(
+  a: string | undefined,
+  b: string | undefined,
+): string | undefined {
+  const list = mergeLabelLists(
+    a?.split(",").map((s) => s.trim()).filter(Boolean) ?? [],
+    b?.split(",").map((s) => s.trim()).filter(Boolean) ?? [],
+  );
+  return list.length ? list.join(", ") : undefined;
+}
 
 type OnboardingPrefill = {
   preferredName?: string;
   genderPresentation?: string;
   ageRange?: string;
+  styleEras?: string;
   shippingCountry?: string;
   currency?: string;
-  topSize?: string;
-  bottomSize?: string;
-  shoeEU?: string;
   budgetPhilosophy?: string;
   brandLikes?: string;
   brandAvoids?: string;
   hardAvoids?: string;
+  honestyPreference?: string;
+  heightCm?: number;
+  weightKg?: number;
+  build?: string;
+  muscularity?: string;
+  bodyShape?: string;
+  bustFullness?: string;
 };
+
+/** Accumulate free-text fills so later steps stay pre-populated after hydrates. */
+function mergePrefillLatch(
+  prev: OnboardingPrefill,
+  next: OnboardingPrefill,
+): OnboardingPrefill {
+  return {
+    preferredName: next.preferredName?.trim() || prev.preferredName,
+    genderPresentation:
+      next.genderPresentation?.trim() || prev.genderPresentation,
+    ageRange: next.ageRange?.trim() || prev.ageRange,
+    styleEras: mergeCsvLabels(prev.styleEras, next.styleEras) ?? prev.styleEras,
+    shippingCountry: next.shippingCountry?.trim() || prev.shippingCountry,
+    currency: next.currency?.trim() || prev.currency,
+    budgetPhilosophy:
+      mergeCsvLabels(prev.budgetPhilosophy, next.budgetPhilosophy) ??
+      prev.budgetPhilosophy,
+    brandLikes:
+      mergeCsvLabels(prev.brandLikes, next.brandLikes) ?? prev.brandLikes,
+    brandAvoids:
+      mergeCsvLabels(prev.brandAvoids, next.brandAvoids) ?? prev.brandAvoids,
+    hardAvoids:
+      mergeCsvLabels(prev.hardAvoids, next.hardAvoids) ?? prev.hardAvoids,
+    honestyPreference:
+      next.honestyPreference?.trim() || prev.honestyPreference,
+    heightCm: next.heightCm ?? prev.heightCm,
+    weightKg: next.weightKg ?? prev.weightKg,
+    build: next.build ?? prev.build,
+    muscularity: next.muscularity ?? prev.muscularity,
+    bodyShape: next.bodyShape ?? prev.bodyShape,
+    bustFullness: next.bustFullness ?? prev.bustFullness,
+  };
+}
 
 type OnboardingStatus = {
   prefill?: OnboardingPrefill;
@@ -82,7 +229,6 @@ type OnboardingStatus = {
     currency: string | null;
     shippingCountry: string | null;
     valuePhilosophy: string | null;
-    primaryAiAssistant: string | null;
     styleEra: string | null;
     honestyPreference: string | null;
     complimentPreferences: string[] | null;
@@ -90,6 +236,9 @@ type OnboardingStatus = {
     styleMix: StyleMix | null;
   } | null;
   sizing: {
+    heightCm?: number | null;
+    weightKg?: number | null;
+    bodyType?: string | null;
     topUsualSize: string | null;
     bottomUsualSize: string | null;
     shoeEU: number | null;
@@ -100,68 +249,12 @@ type OnboardingStatus = {
   tasteTags: Array<{ tag: string; polarity: string; category?: string | null }>;
 };
 
-const RAIL_STEPS = [
-  { id: "you", label: "Who you are" },
-  { id: "taste", label: "What's your taste" },
-  { id: "card", label: "Your card" },
-] as const;
+const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v2";
 
-type RailStepId = (typeof RAIL_STEPS)[number]["id"];
-type FlowStep = "doorway" | "intake" | RailStepId;
+type OnboardingUiSession = { step: FittingStep };
 
-type TasteSubstep =
-  | "spend"
-  | "worn"
-  | "aspirational"
-  | "loves"
-  | "compliments"
-  | "honesty";
-
-const TASTE_SUBSTEPS: TasteSubstep[] = [
-  "spend",
-  "worn",
-  "aspirational",
-  "loves",
-  "compliments",
-  "honesty",
-];
-
-const CARD_FORGE_ORDER: CardForgeSubstep[] = [
-  "photo",
-  "height",
-  "build",
-  "definition",
-  "mint",
-  "reveal",
-];
-
-const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v1";
-
-type OnboardingUiSession = {
-  step: FlowStep;
-  youSubstep: 0 | 1;
-  tasteSubstep: TasteSubstep;
-  cardSubstep: CardForgeSubstep;
-};
-
-type ResumePosition = OnboardingUiSession;
-
-function isTasteSubstep(v: unknown): v is TasteSubstep {
-  return typeof v === "string" && (TASTE_SUBSTEPS as string[]).includes(v);
-}
-
-function isCardSubstep(v: unknown): v is CardForgeSubstep {
-  return typeof v === "string" && (CARD_FORGE_ORDER as string[]).includes(v);
-}
-
-function isFlowStep(v: unknown): v is FlowStep {
-  return (
-    v === "doorway" ||
-    v === "intake" ||
-    v === "you" ||
-    v === "taste" ||
-    v === "card"
-  );
+function isFittingStep(v: unknown): v is FittingStep {
+  return typeof v === "string" && (FITTING_STEPS as string[]).includes(v);
 }
 
 function readOnboardingUiSession(): OnboardingUiSession | null {
@@ -170,17 +263,8 @@ function readOnboardingUiSession(): OnboardingUiSession | null {
     const raw = sessionStorage.getItem(ONBOARDING_UI_SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<OnboardingUiSession>;
-    if (!isFlowStep(parsed.step)) return null;
-    return {
-      step: parsed.step,
-      youSubstep: parsed.youSubstep === 1 ? 1 : 0,
-      tasteSubstep: isTasteSubstep(parsed.tasteSubstep)
-        ? parsed.tasteSubstep
-        : "spend",
-      cardSubstep: isCardSubstep(parsed.cardSubstep)
-        ? parsed.cardSubstep
-        : "photo",
-    };
+    if (!isFittingStep(parsed.step)) return null;
+    return { step: parsed.step };
   } catch {
     return null;
   }
@@ -191,7 +275,7 @@ function writeOnboardingUiSession(pos: OnboardingUiSession) {
   try {
     sessionStorage.setItem(ONBOARDING_UI_SESSION_KEY, JSON.stringify(pos));
   } catch {
-    /* ignore quota / private mode */
+    /* ignore */
   }
 }
 
@@ -227,114 +311,29 @@ function profileTasteSaved(status: OnboardingStatus): boolean {
   return false;
 }
 
-/** Server floor — never resume past what was actually persisted. */
-function resumeFloorFromStatus(status: OnboardingStatus): ResumePosition {
-  if (!status.onboarding.started) {
-    return {
-      step: "doorway",
-      youSubstep: 0,
-      tasteSubstep: "spend",
-      cardSubstep: "photo",
-    };
-  }
-
-  if (profileTasteSaved(status)) {
-    return {
-      step: "card",
-      youSubstep: 1,
-      tasteSubstep: "honesty",
-      cardSubstep: "photo",
-    };
-  }
-
-  if (profileYouSaved(status.profile)) {
-    return {
-      step: "taste",
-      youSubstep: 1,
-      tasteSubstep: "spend",
-      cardSubstep: "photo",
-    };
-  }
-
-  const identityDone = Boolean(
-    status.profile?.preferredName?.trim() &&
-      status.profile?.genderPresentation?.trim() &&
-      status.profile?.styleEra?.trim(),
-  );
-
-  return {
-    step: "you",
-    youSubstep: identityDone ? 1 : 0,
-    tasteSubstep: "spend",
-    cardSubstep: "photo",
-  };
+function resumeFloorFromStatus(status: OnboardingStatus): FittingStep {
+  if (!status.onboarding.started) return "name";
+  if (profileTasteSaved(status)) return "honesty";
+  if (status.sizing?.heightCm || status.sizing?.bodyType) return "worn";
+  if (status.profile?.valuePhilosophy) return "photo";
+  if (profileYouSaved(status.profile)) return "spend";
+  return "name";
 }
 
-const FLOW_RANK: Record<FlowStep, number> = {
-  doorway: 0,
-  intake: 1,
-  you: 2,
-  taste: 3,
-  card: 4,
-};
-
-/**
- * Merge session UI (mid-taste / card forge) with the server floor.
- * Session may advance within the unlocked rail step; never past what the server allows.
- */
-function resolveResumePosition(status: OnboardingStatus): ResumePosition {
-  const floor = resumeFloorFromStatus(status);
+function resolveResumeStep(status: OnboardingStatus): FittingStep {
   if (status.onboarding.completed) {
     clearOnboardingUiSession();
-    return floor;
+    return "name";
   }
-
+  const floor = resumeFloorFromStatus(status);
   const session = readOnboardingUiSession();
   if (!session) return floor;
-
-  if (FLOW_RANK[session.step] < FLOW_RANK[floor.step]) {
-    return floor;
-  }
-
-  if (floor.step === "card") {
-    if (session.step === "card") {
-      const sIdx = CARD_FORGE_ORDER.indexOf(session.cardSubstep);
-      const fIdx = CARD_FORGE_ORDER.indexOf(floor.cardSubstep);
-      return {
-        step: "card",
-        youSubstep: 1,
-        tasteSubstep: "honesty",
-        cardSubstep:
-          CARD_FORGE_ORDER[Math.max(sIdx, fIdx)] ?? floor.cardSubstep,
-      };
-    }
-    return floor;
-  }
-
-  if (floor.step === "taste") {
-    if (session.step === "taste") {
-      const sIdx = TASTE_SUBSTEPS.indexOf(session.tasteSubstep);
-      const fIdx = TASTE_SUBSTEPS.indexOf(floor.tasteSubstep);
-      return {
-        step: "taste",
-        youSubstep: 1,
-        tasteSubstep:
-          TASTE_SUBSTEPS[Math.max(sIdx, fIdx)] ?? floor.tasteSubstep,
-        cardSubstep: "photo",
-      };
-    }
-    // Stale session still on card before taste was re-saved — stay on taste
-    return floor;
-  }
-
-  if (floor.step === "you" && session.step === "you") {
-    return {
-      ...floor,
-      youSubstep: Math.max(session.youSubstep, floor.youSubstep) as 0 | 1,
-    };
-  }
-
-  return floor;
+  const floorIdx = FITTING_STEPS.indexOf(floor);
+  const sessionIdx = FITTING_STEPS.indexOf(session.step);
+  if (sessionIdx < floorIdx) return floor;
+  // Session may be mid-flow; never jump to verdict on reload
+  if (session.step === "verdict") return "honesty";
+  return session.step;
 }
 
 async function fetchSelfPerson(
@@ -366,106 +365,6 @@ async function fetchSelfPerson(
     return null;
   }
 }
-/**
- * Ordered milestones for the whole onboarding flow.
- * Identity / location / spend advance within the same step as each answer lands.
- */
-const FLOW_PROGRESS_KEYS = [
-  "doorway",
-  "intake",
-  "you:name",
-  "you:gender",
-  "you:dob",
-  "you:era",
-  "you:world",
-  "you:country",
-  "you:city",
-  "you:sizes",
-  "taste:spend",
-  "taste:worn",
-  "taste:aspirational",
-  "taste:loves",
-  "taste:compliments",
-  "taste:honesty",
-  "card:photo",
-  "card:height",
-  "card:build",
-  "card:definition",
-  "card:mint",
-  "card:reveal",
-] as const;
-
-type FlowProgressKey = (typeof FLOW_PROGRESS_KEYS)[number];
-
-const PRE_CARD_PROGRESS_KEYS = FLOW_PROGRESS_KEYS.filter(
-  (k) => !k.startsWith("card:"),
-);
-const CARD_PROGRESS_KEYS = FLOW_PROGRESS_KEYS.filter((k) =>
-  k.startsWith("card:"),
-);
-
-/** Share of the bar reserved for Your card (photo → reveal). */
-const CARD_PROGRESS_START_PCT = 58;
-
-/**
- * Ease-out through taste, then a clear climb through Your card.
- * Early steps still jump quickly; card forge owns the last ~42%.
- */
-function exponentialProgressPercent(
-  key: FlowProgressKey,
-  power = 2.35,
-): number {
-  if (key.startsWith("card:")) {
-    const idx = CARD_PROGRESS_KEYS.indexOf(
-      key as (typeof CARD_PROGRESS_KEYS)[number],
-    );
-    if (idx < 0) return CARD_PROGRESS_START_PCT;
-    const t = (idx + 1) / CARD_PROGRESS_KEYS.length;
-    return Math.round(
-      CARD_PROGRESS_START_PCT + t * (100 - CARD_PROGRESS_START_PCT),
-    );
-  }
-
-  const idx = PRE_CARD_PROGRESS_KEYS.indexOf(
-    key as (typeof PRE_CARD_PROGRESS_KEYS)[number],
-  );
-  if (idx <= 0) return 4;
-  const last = PRE_CARD_PROGRESS_KEYS.length - 1;
-  if (idx >= last) return CARD_PROGRESS_START_PCT;
-  const t = idx / last;
-  return Math.round(
-    4 + (1 - Math.pow(1 - t, power)) * (CARD_PROGRESS_START_PCT - 4),
-  );
-}
-
-function furthestProgressKey(
-  keys: FlowProgressKey[],
-): FlowProgressKey {
-  let best: FlowProgressKey = "doorway";
-  let bestIdx = -1;
-  for (const key of keys) {
-    const idx = FLOW_PROGRESS_KEYS.indexOf(key);
-    if (idx > bestIdx) {
-      bestIdx = idx;
-      best = key;
-    }
-  }
-  return best;
-}
-
-function splitCsv(value: string): string[] {
-  return value
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
-}
-
-function birthDateToInput(value: string | Date | null | undefined): string {
-  if (!value) return "";
-  const d = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
-}
 
 async function fetchStatus(
   signal?: AbortSignal,
@@ -487,51 +386,135 @@ function togglePick(
   return [...selected, card];
 }
 
+function heightCmFromPhoto(v: FittingPhotoValues): number {
+  if (v.heightUnit === "cm") return v.heightCm;
+  return Math.round((v.heightFt * 12 + v.heightIn) * 2.54);
+}
+
+function weightKgFromPhoto(v: FittingPhotoValues): number | null {
+  if (v.weightSkipped || v.weightValue == null) return null;
+  if (v.weightUnit === "kg") return Math.round(v.weightValue);
+  return Math.round(v.weightValue * 0.453592);
+}
+
+function leanFromPicks(
+  worn: OutfitGridCard[],
+  stolen: OutfitGridCard[],
+  styleMix: StyleMix | null,
+): string {
+  if (styleMix?.axes?.[0]?.label) {
+    const label = styleMix.axes[0].label;
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+  const scores: Record<string, number> = {
+    Parisian: 0,
+    Minimal: 0,
+    Bold: 0,
+  };
+  const bump = (tags: string[] | undefined, w: number) => {
+    for (const t of tags ?? []) {
+      const low = t.toLowerCase();
+      if (/paris|effortless|layered|quiet lux|chic/.test(low))
+        scores.Parisian += w;
+      else if (/minimal|clean|uniform|black|gallery/.test(low))
+        scores.Minimal += w;
+      else if (/bold|statement|color|power|loud/.test(low)) scores.Bold += w;
+    }
+  };
+  for (const p of worn) bump(p.tasteTags ?? [p.archetype ?? p.label], 3);
+  for (const p of stolen) bump(p.tasteTags ?? [p.archetype ?? p.label], 2);
+  const top = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  return top && top[1] > 0 ? top[0] : "";
+}
+
+/** Mirror % is only advanced by real persisted milestones. */
+/**
+ * Mirror “developing · %” — quiz progress toward a dressed twin.
+ * Twin may mint early (after photo); that only advances the body band.
+ * 100% is reserved for the final step (verdict / clothes on the avatar).
+ */
+function developPctFromFlags(flags: {
+  identity: boolean;
+  spend: boolean;
+  sizing: boolean;
+  photoAccepted: boolean;
+  /** Body twin minted — not card-complete. */
+  twinReady: boolean;
+  wornSaved: boolean;
+  wantedSaved: boolean;
+  nolistSaved: boolean;
+  tasteFinal: boolean;
+  /** Final Fitting step. */
+  verdict: boolean;
+  /** FASHN try-on of a worn style onto the twin. */
+  dressed: boolean;
+}): number {
+  let pct = 4;
+  if (flags.identity) pct = 12;
+  if (flags.spend) pct = Math.max(pct, 22);
+  if (flags.sizing) pct = Math.max(pct, 32);
+  if (flags.photoAccepted) pct = Math.max(pct, 40);
+  // Early mint: body exists; keep room for taste + final dress.
+  if (flags.twinReady) pct = Math.max(pct, 48);
+  if (flags.wornSaved) pct = Math.max(pct, 58);
+  if (flags.wantedSaved) pct = Math.max(pct, 68);
+  if (flags.nolistSaved) pct = Math.max(pct, 78);
+  if (flags.tasteFinal) pct = Math.max(pct, 88);
+  // Verdict step landed — almost there until dress finishes.
+  if (flags.verdict) pct = Math.max(pct, 94);
+  // FASHN dressed twin from a worn style pick = true complete.
+  if (flags.dressed) pct = Math.max(pct, 100);
+  return pct;
+}
+
 export function OnboardingGate() {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<FlowStep>("doorway");
-  const [youSubstep, setYouSubstep] = useState<0 | 1>(0);
-  const [tasteSubstep, setTasteSubstep] = useState<TasteSubstep>("spend");
-  const [cardSubstep, setCardSubstep] = useState<CardForgeSubstep>("photo");
+  const [step, setStep] = useState<FittingStep>("name");
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
-  const [avatarBusy, setAvatarBusy] = useState(false);
-  const [avatarLoading, setAvatarLoading] = useState(false);
-  const [editingLocation, setEditingLocation] = useState(false);
-  /** Keep modal mounted through welcome beat after onboarding completes. */
-  const [holdOpenForWelcome, setHoldOpenForWelcome] = useState(false);
+  const [holdOpen, setHoldOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [flash, setFlash] = useState<{
+    cover: string;
+    status: string;
+    detail: string;
+  } | null>(null);
+  const [tellFeedback, setTellFeedback] = useState<string | null>(null);
+  const [tellBusy, setTellBusy] = useState(false);
+  /** Latched free-text fills so brands/vetoes/etc. survive until later steps. */
+  const tellLatchRef = useRef<OnboardingPrefill>({});
+
   const submissionLockRef = useRef(false);
   const reviewRequestKeyRef = useRef<string | null>(null);
   const wornDeckInFlightRef = useRef(false);
   const aspirationalDeckInFlightRef = useRef(false);
-  /** Labels only — avoids recreating loadOutfitDeck when picks change. */
   const wornPickLabelsRef = useRef<string[]>([]);
   const wornPickTasteTagsRef = useRef<string[]>([]);
-
-  const [intakeText, setIntakeText] = useState("");
-  const [intakePhase, setIntakePhase] = useState<AiTransferPhase>("select");
-  const [selectedAi, setSelectedAi] = useState<PrimaryAiAssistantId | "">("");
+  const avatarStartedRef = useRef(false);
+  /** Server accepted photo draft (not just local preview). */
+  const photoReadyRef = useRef(false);
+  /** Prevent double FASHN spend. */
+  const mintInFlightRef = useRef(false);
+  const mintDoneRef = useRef(false);
+  const mintAbortRef = useRef(false);
 
   const [preferredName, setPreferredName] = useState("");
   const [genderPresentation, setGenderPresentation] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [birthDateSkipped, setBirthDateSkipped] = useState(false);
   const [styleEras, setStyleEras] = useState<string[]>([]);
-  const [lifestyleTags, setLifestyleTags] = useState<string[]>([]);
-
+  const [lifestyleTags] = useState<string[]>([]);
+  const detectedArea = useUserProfileStore((s) => s.detectedArea);
   const [city, setCity] = useState(DEFAULT_CITY);
   const [shippingCountry, setShippingCountry] = useState(
     DEFAULT_SHIPPING_COUNTRY,
   );
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
-  const [topSize, setTopSize] = useState("");
-  const [bottomSize, setBottomSize] = useState("");
-  const [shoeEU, setShoeEU] = useState("");
-  const [locationConfirmed, setLocationConfirmed] = useState(true);
 
   const [budgetPhilosophies, setBudgetPhilosophies] = useState<string[]>([]);
+  const [customSpendLabels, setCustomSpendLabels] = useState<string[]>([]);
   const [wornDeck, setWornDeck] = useState<OutfitGridCard[]>([]);
   const [aspirationalDeck, setAspirationalDeck] = useState<OutfitGridCard[]>(
     [],
@@ -542,101 +525,308 @@ export function OnboardingGate() {
   const [aspirationalPicks, setAspirationalPicks] = useState<OutfitGridCard[]>(
     [],
   );
+  /** Mirror closet slots — latched from worn picks so they survive deck reloads / hydration. */
+  const [closetImages, setClosetImages] = useState<string[]>([]);
+  const [brandLikes, setBrandLikes] = useState<string[]>([]);
+  const [brandAvoids, setBrandAvoids] = useState<string[]>([]);
+  const [hardAvoids, setHardAvoids] = useState<string[]>([]);
+  const [honestyPreference, setHonestyPreference] = useState("");
+  const [styleMix, setStyleMix] = useState<StyleMix | null>(null);
+
+  const [photoValues, setPhotoValues] = useState<FittingPhotoValues>({
+    photoPreview: null,
+    heightUnit: "ft",
+    heightFt: 5,
+    heightIn: 9,
+    heightCm: 175,
+    weightValue: null,
+    weightUnit: "lb",
+    weightSkipped: false,
+    build: null,
+    muscularity: null,
+    bodyShape: null,
+    bustFullness: null,
+  });
+  /** Local face preview (object URL) while FASHN twin is generating. */
+  const [localFacePreview, setLocalFacePreview] = useState<string | null>(null);
+  /** Real mint result / people API avatar_url */
+  const [twinAvatarUrl, setTwinAvatarUrl] = useState<string | null>(null);
+  const [twinStatus, setTwinStatus] = useState<MirrorState["twinStatus"]>(
+    "idle",
+  );
+  const [twinError, setTwinError] = useState<string | null>(null);
+  /** FASHN dress of a worn style onto the twin (verdict step). */
+  const [dressedAvatarUrl, setDressedAvatarUrl] = useState<string | null>(null);
+  const [dressStatus, setDressStatus] = useState<
+    "idle" | "dressing" | "ready" | "error"
+  >("idle");
+  const [dressError, setDressError] = useState<string | null>(null);
+  const [dressStyleLabel, setDressStyleLabel] = useState<string | null>(null);
+  const dressKickRef = useRef(false);
+  const [persistedFlags, setPersistedFlags] = useState({
+    identity: false,
+    spend: false,
+    sizing: false,
+    wornSaved: false,
+    wantedSaved: false,
+    nolistSaved: false,
+    tasteFinal: false,
+  });
 
   useEffect(() => {
     wornPickLabelsRef.current = wornPicks.map((p) => p.label);
     wornPickTasteTagsRef.current = wornPicks.flatMap((p) => p.tasteTags ?? []);
+    const urls = wornPicks
+      .map((p) => p.imageUrl)
+      .filter((u): u is string => Boolean(u?.trim()))
+      .slice(0, 3);
+    // Latch non-empty picks; don't wipe closet if picks are accidentally cleared.
+    if (urls.length > 0) setClosetImages(urls);
   }, [wornPicks]);
-  const [brandLikes, setBrandLikes] = useState<string[]>([]);
-  const [brandAvoids, setBrandAvoids] = useState<string[]>([]);
-  const [hardAvoids, setHardAvoids] = useState<string[]>([]);
-  const [compliments, setCompliments] = useState<string[]>([]);
-  const [honestyPreference, setHonestyPreference] = useState("");
-  const [styleMix, setStyleMix] = useState<StyleMix | null>(null);
 
-  const detectedArea = useUserProfileStore((s) => s.detectedArea);
-  const suggestedLabel = useMemo(() => {
-    if (!detectedArea) return null;
-    const parts = [detectedArea.cityLabel, detectedArea.countryLabel].filter(
-      Boolean,
-    );
-    return parts.length ? parts.join(", ") : null;
-  }, [detectedArea]);
+  /** Only when identity context *content* changes — not new array refs from hydrate. */
+  const outfitDeckContextKey = [
+    genderPresentation.trim().toLowerCase(),
+    joinCsvValues(styleEras),
+    joinCsvValues(budgetPhilosophies),
+  ].join("|");
+
+  useEffect(() => {
+    setWornDeck([]);
+    setAspirationalDeck([]);
+    setWornPicks([]);
+    setAspirationalPicks([]);
+    setClosetImages([]);
+    wornDeckInFlightRef.current = false;
+    aspirationalDeckInFlightRef.current = false;
+  }, [outfitDeckContextKey]);
 
   const applyPrefill = useCallback((prefill: OnboardingPrefill) => {
     if (prefill.preferredName) setPreferredName(prefill.preferredName);
     if (prefill.genderPresentation) {
       setGenderPresentation(normalizeGender(prefill.genderPresentation));
     }
-    if (prefill.shippingCountry) {
-      setShippingCountry(prefill.shippingCountry);
-      setLocationConfirmed(true);
+    if (prefill.styleEras) {
+      setStyleEras((prev) =>
+        mergeLabelLists(prev, parseCsvValues(prefill.styleEras)),
+      );
     }
-    if (prefill.currency) setCurrency(prefill.currency);
-    if (prefill.topSize) setTopSize(prefill.topSize);
-    if (prefill.bottomSize) setBottomSize(prefill.bottomSize);
-    if (prefill.shoeEU) setShoeEU(prefill.shoeEU);
     if (prefill.budgetPhilosophy) {
-      setBudgetPhilosophies(parseCsvValues(prefill.budgetPhilosophy));
+      setBudgetPhilosophies((prev) =>
+        mergeLabelLists(prev, parseCsvValues(prefill.budgetPhilosophy)),
+      );
     }
-    if (prefill.brandLikes) setBrandLikes(splitCsv(prefill.brandLikes));
-    if (prefill.brandAvoids) setBrandAvoids(splitCsv(prefill.brandAvoids));
-    if (prefill.hardAvoids) setHardAvoids(splitCsv(prefill.hardAvoids));
+    if (prefill.brandLikes) {
+      setBrandLikes((prev) =>
+        mergeLabelLists(
+          prev,
+          prefill.brandLikes!
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean),
+        ),
+      );
+    }
+    if (prefill.brandAvoids) {
+      setBrandAvoids((prev) =>
+        mergeLabelLists(
+          prev,
+          prefill.brandAvoids!
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean),
+        ),
+      );
+    }
+    if (prefill.hardAvoids) {
+      setHardAvoids((prev) =>
+        mergeLabelLists(
+          prev,
+          prefill.hardAvoids!
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean),
+        ),
+      );
+    }
+    if (prefill.honestyPreference) {
+      setHonestyPreference(prefill.honestyPreference);
+    }
+    if (
+      prefill.heightCm ||
+      prefill.weightKg ||
+      prefill.build ||
+      prefill.muscularity ||
+      prefill.bodyShape ||
+      prefill.bustFullness
+    ) {
+      setPhotoValues((prev) => {
+        const next = { ...prev };
+        if (prefill.heightCm) {
+          const cm = prefill.heightCm;
+          next.heightCm = cm;
+          next.heightUnit = "cm";
+          next.heightFt = Math.floor(cm / 2.54 / 12);
+          next.heightIn = Math.round((cm / 2.54) % 12);
+        }
+        if (prefill.weightKg) {
+          next.weightValue = prefill.weightKg;
+          next.weightUnit = "kg";
+          next.weightSkipped = false;
+        }
+        if (prefill.build) {
+          next.build = prefill.build as BuildKey;
+          if (!next.muscularity) {
+            next.muscularity = defaultMuscularityForBuild(
+              prefill.build as BuildKey,
+            );
+          }
+        }
+        if (prefill.muscularity) {
+          next.muscularity =
+            prefill.muscularity as FittingPhotoValues["muscularity"];
+        }
+        if (prefill.bodyShape) {
+          next.bodyShape =
+            prefill.bodyShape as FittingPhotoValues["bodyShape"];
+        }
+        if (prefill.bustFullness) {
+          next.bustFullness =
+            prefill.bustFullness as FittingPhotoValues["bustFullness"];
+        }
+        return next;
+      });
+    }
+
+    // Advance develop flags when free-text filled later steps early.
+    setPersistedFlags((f) => ({
+      ...f,
+      spend:
+        f.spend ||
+        Boolean(prefill.budgetPhilosophy?.trim()),
+      sizing:
+        f.sizing ||
+        Boolean(prefill.heightCm || prefill.weightKg || prefill.build),
+      nolistSaved:
+        f.nolistSaved ||
+        Boolean(
+          prefill.brandLikes?.trim() ||
+            prefill.brandAvoids?.trim() ||
+            prefill.hardAvoids?.trim(),
+        ),
+      tasteFinal: f.tasteFinal || Boolean(prefill.honestyPreference?.trim()),
+    }));
   }, []);
 
   const hydrateFromStatus = useCallback(
     (next: OnboardingStatus, prefill?: OnboardingPrefill) => {
       setStatus(next);
-      setPreferredName(next.profile?.preferredName ?? "");
-      setGenderPresentation(normalizeGender(next.profile?.genderPresentation));
-      setBirthDate(birthDateToInput(next.profile?.birthDate));
-      setStyleEras(parseCsvValues(next.profile?.styleEra));
-      setLifestyleTags(next.profile?.lifestyleTags ?? []);
-      setCity(next.profile?.city?.trim() || DEFAULT_CITY);
-      setShippingCountry(
-        next.profile?.shippingCountry?.trim() ||
-          next.profile?.country?.trim() ||
-          DEFAULT_SHIPPING_COUNTRY,
-      );
-      setCurrency(next.profile?.currency?.trim() || DEFAULT_CURRENCY);
-      setLocationConfirmed(true);
-      setTopSize(next.sizing?.topUsualSize ?? "");
-      setBottomSize(next.sizing?.bottomUsualSize ?? "");
-      setShoeEU(
-        next.sizing?.shoeEU != null
-          ? String(next.sizing.shoeEU)
-          : next.sizing?.shoeUS != null
-            ? String(next.sizing.shoeUS)
-            : "",
-      );
-      // Don't wipe taste fields that may only exist in local/prefill state until
-      // the taste step persists them (saveYou would otherwise clear spend habit).
+      // Soft fields: never wipe client free-text with empty server values.
+      if (next.profile?.preferredName?.trim()) {
+        setPreferredName(next.profile.preferredName.trim());
+      }
+      if (next.profile?.genderPresentation?.trim()) {
+        setGenderPresentation(
+          normalizeGender(next.profile.genderPresentation),
+        );
+      }
+      const bd = birthDateToInput(next.profile?.birthDate);
+      if (bd) {
+        setBirthDate(bd);
+        setBirthDateSkipped(false);
+      } else if (next.profile?.ageRange) {
+        setBirthDateSkipped(true);
+      }
+      const nextEras = parseCsvValues(next.profile?.styleEra);
+      if (nextEras.length) {
+        setStyleEras((prev) => mergeLabelLists(prev, nextEras));
+      }
+      if (next.profile?.city?.trim()) setCity(next.profile.city.trim());
+      if (next.profile?.shippingCountry?.trim() || next.profile?.country?.trim()) {
+        setShippingCountry(
+          next.profile.shippingCountry?.trim() ||
+            next.profile.country?.trim() ||
+            DEFAULT_SHIPPING_COUNTRY,
+        );
+      }
+      if (next.profile?.currency?.trim()) {
+        setCurrency(next.profile.currency.trim());
+      }
       if (next.profile?.valuePhilosophy) {
-        setBudgetPhilosophies(parseCsvValues(next.profile.valuePhilosophy));
+        setBudgetPhilosophies((prev) =>
+          mergeLabelLists(prev, parseCsvValues(next.profile!.valuePhilosophy)),
+        );
       }
       const likedBrands = next.brandPreferences
         .filter((b) => b.sentiment === "love" || b.sentiment === "like")
         .map((b) => b.brand);
-      if (likedBrands.length) setBrandLikes(likedBrands);
+      if (likedBrands.length) {
+        setBrandLikes((prev) => mergeLabelLists(prev, likedBrands));
+      }
       const avoidedBrands = next.brandPreferences
         .filter((b) => b.sentiment === "avoid" || b.sentiment === "hate")
         .map((b) => b.brand);
-      if (avoidedBrands.length) setBrandAvoids(avoidedBrands);
-      if (next.hardNegatives.length) {
-        setHardAvoids(next.hardNegatives.map((h) => h.value));
+      if (avoidedBrands.length) {
+        setBrandAvoids((prev) => mergeLabelLists(prev, avoidedBrands));
       }
-      if (next.profile?.complimentPreferences?.length) {
-        setCompliments(next.profile.complimentPreferences);
+      if (next.hardNegatives.length) {
+        setHardAvoids((prev) =>
+          mergeLabelLists(
+            prev,
+            next.hardNegatives.map((h) => h.value),
+          ),
+        );
       }
       if (next.profile?.honestyPreference) {
         setHonestyPreference(next.profile.honestyPreference);
       }
       if (next.profile?.styleMix) setStyleMix(next.profile.styleMix);
-      const ai = next.profile?.primaryAiAssistant ?? "";
-      if (ai && isPrimaryAiAssistantId(ai)) {
-        setSelectedAi(ai);
-        setIntakePhase("paste");
+      if (next.sizing?.heightCm) {
+        const cm = next.sizing.heightCm;
+        setPhotoValues((prev) => ({
+          ...prev,
+          heightCm: cm,
+          heightUnit: "cm",
+          heightFt: Math.floor(cm / 2.54 / 12),
+          heightIn: Math.round((cm / 2.54) % 12),
+        }));
       }
+      if (next.sizing?.weightKg) {
+        setPhotoValues((prev) => ({
+          ...prev,
+          weightValue: next.sizing!.weightKg!,
+          weightUnit: "kg",
+          weightSkipped: false,
+        }));
+      }
+      if (next.sizing?.bodyType) {
+        setPhotoValues((prev) => ({
+          ...prev,
+          build: next.sizing!.bodyType as BuildKey,
+        }));
+      }
+      setPersistedFlags((prev) => ({
+        ...prev,
+        identity: profileYouSaved(next.profile),
+        spend:
+          prev.spend || Boolean(next.profile?.valuePhilosophy?.trim()),
+        sizing:
+          prev.sizing ||
+          Boolean(next.sizing?.heightCm || next.sizing?.bodyType),
+        tasteFinal:
+          prev.tasteFinal ||
+          Boolean(next.profile?.honestyPreference?.trim()),
+        wornSaved:
+          prev.wornSaved ||
+          next.tasteTags.some((t) => t.category === "worn"),
+        wantedSaved:
+          prev.wantedSaved ||
+          next.tasteTags.some((t) => t.category === "aspirational"),
+        nolistSaved:
+          prev.nolistSaved ||
+          next.brandPreferences.length > 0 ||
+          next.hardNegatives.length > 0,
+      }));
       if (prefill) applyPrefill(prefill);
     },
     [applyPrefill],
@@ -651,27 +841,29 @@ export function OnboardingGate() {
         if (next === "unauthorized") return;
         hydrateFromStatus(next);
 
-        const resume = resolveResumePosition(next);
-        setStep(resume.step);
-        setYouSubstep(resume.youSubstep);
-        setTasteSubstep(resume.tasteSubstep);
-        setCardSubstep(resume.cardSubstep);
-        writeOnboardingUiSession(resume);
+        // Prefer profile, else real IP-detected area for ship-to.
+        if (!next.profile?.shippingCountry?.trim() && detectedArea?.countryLabel) {
+          setShippingCountry(detectedArea.countryLabel);
+          const hint = currencyHintForCountry(detectedArea.countryLabel);
+          if (hint) setCurrency(hint);
+        }
+        if (!next.profile?.city?.trim() && detectedArea?.cityLabel) {
+          setCity(detectedArea.cityLabel);
+        }
 
-        if (resume.step === "card" || resume.step === "taste") {
-          const self = await fetchSelfPerson(ctrl.signal);
-          if (ctrl.signal.aborted || !self) return;
+        const resume = resolveResumeStep(next);
+        setStep(resume);
+        writeOnboardingUiSession({ step: resume });
+        const self = await fetchSelfPerson(ctrl.signal);
+        if (self) {
           setSelfPersonId(self.id);
-          if (resume.step === "card" && self.hasAvatar) {
-            // Already minted — land on reveal, never re-spend a FASHN credit
-            setCardSubstep("reveal");
-            writeOnboardingUiSession({
-              ...resume,
-              cardSubstep: "reveal",
-            });
-            if (self.avatarUrl) {
-              useSelfAvatarStore.getState().markReady(self.avatarUrl);
-            }
+          if (self.hasAvatar && self.avatarUrl) {
+            setTwinAvatarUrl(self.avatarUrl);
+            setTwinStatus("ready");
+            setTwinError(null);
+            photoReadyRef.current = true;
+            mintDoneRef.current = true;
+            useSelfAvatarStore.getState().markReady(self.avatarUrl);
           }
         }
       } catch {
@@ -681,18 +873,13 @@ export function OnboardingGate() {
       }
     })();
     return () => ctrl.abort();
-  }, [hydrateFromStatus]);
+  }, [hydrateFromStatus, detectedArea]);
 
-  // Persist UI position so refresh resumes mid-taste / card forge.
   useEffect(() => {
     if (loading || !status || status.onboarding.completed) return;
-    writeOnboardingUiSession({
-      step,
-      youSubstep,
-      tasteSubstep,
-      cardSubstep,
-    });
-  }, [loading, status, step, youSubstep, tasteSubstep, cardSubstep]);
+    writeOnboardingUiSession({ step });
+  }, [loading, status, step]);
+
   const identityValues = useMemo<YouIdentityValues>(
     () => ({
       preferredName,
@@ -709,28 +896,6 @@ export function OnboardingGate() {
       birthDateSkipped,
       styleEras,
       lifestyleTags,
-    ],
-  );
-
-  const locationValues = useMemo<YouLocationValues>(
-    () => ({
-      city,
-      shippingCountry,
-      currency,
-      topSize,
-      bottomSize,
-      shoeEU,
-      locationConfirmed: locationConfirmed && !editingLocation,
-    }),
-    [
-      city,
-      shippingCountry,
-      currency,
-      topSize,
-      bottomSize,
-      shoeEU,
-      locationConfirmed,
-      editingLocation,
     ],
   );
 
@@ -756,44 +921,30 @@ export function OnboardingGate() {
           setStyleEras(value as string[]);
           break;
         case "lifestyleTags":
-          setLifestyleTags(value as string[]);
           break;
       }
     },
     [],
   );
 
-  const locationOnChange = useCallback(
-    <K extends keyof YouLocationValues>(
+  const photoOnChange = useCallback(
+    <K extends keyof FittingPhotoValues>(
       key: K,
-      value: YouLocationValues[K],
+      value: FittingPhotoValues[K],
     ) => {
-      switch (key) {
-        case "city":
-          setCity(value as string);
-          break;
-        case "shippingCountry":
-          setShippingCountry(value as string);
-          break;
-        case "currency":
-          setCurrency(value as string);
-          break;
-        case "topSize":
-          setTopSize(value as string);
-          break;
-        case "bottomSize":
-          setBottomSize(value as string);
-          break;
-        case "shoeEU":
-          setShoeEU(value as string);
-          break;
-        case "locationConfirmed":
-          setLocationConfirmed(value as boolean);
-          break;
-      }
+      setPhotoValues((prev) => ({ ...prev, [key]: value }));
     },
     [],
   );
+
+  const valuePhilosophyWire = useMemo(() => {
+    const known = new Set(BUDGET_OPTIONS.map((b) => b.value as string));
+    const picked = budgetPhilosophies.filter((v) => known.has(v));
+    const customs = budgetPhilosophies
+      .filter((v) => v.startsWith("custom:"))
+      .map((v) => v.slice(7));
+    return joinCsvValues([...picked, ...customs]) || null;
+  }, [budgetPhilosophies]);
 
   const loadOutfitDeck = useCallback(
     async (mode: "worn" | "aspirational") => {
@@ -801,10 +952,10 @@ export function OnboardingGate() {
         mode === "worn" ? wornDeckInFlightRef : aspirationalDeckInFlightRef;
       if (inFlight.current) return;
       inFlight.current = true;
-      const setLoading =
+      const setLoadingState =
         mode === "worn" ? setWornLoading : setAspirationalLoading;
       const setDeck = mode === "worn" ? setWornDeck : setAspirationalDeck;
-      setLoading(true);
+      setLoadingState(true);
       try {
         const params = new URLSearchParams({ mode });
         if (genderPresentation.trim()) {
@@ -816,8 +967,8 @@ export function OnboardingGate() {
         if (lifestyleTags.length) {
           params.set("lifestyleTags", lifestyleTags.join(","));
         }
-        if (budgetPhilosophies.length) {
-          params.set("valuePhilosophy", joinCsvValues(budgetPhilosophies));
+        if (valuePhilosophyWire) {
+          params.set("valuePhilosophy", valuePhilosophyWire);
         }
         if (brandLikes.length) params.set("brandLikes", brandLikes.join(","));
         if (brandAvoids.length)
@@ -832,72 +983,142 @@ export function OnboardingGate() {
         if (mode === "aspirational" && wornPickTasteTagsRef.current.length) {
           params.set("wornTasteTags", wornPickTasteTagsRef.current.join(","));
         }
+        if (mode === "aspirational" && wornPicks.length) {
+          params.set(
+            "wornLookIds",
+            wornPicks.map((p) => p.id).filter(Boolean).join(","),
+          );
+        }
         const res = await fetch(`/api/onboarding/taste?${params}`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("deck");
         const json = (await res.json()) as { deck: OutfitGridCard[] };
-        // New live deck — never carry selections from a previous run/fetch.
-        if (mode === "worn") setWornPicks([]);
-        else setAspirationalPicks([]);
+        // Keep worn picks + closet when (re)loading decks
+        if (mode === "aspirational") setAspirationalPicks([]);
         setDeck(json.deck ?? []);
       } catch {
-        if (mode === "worn") setWornPicks([]);
-        else setAspirationalPicks([]);
+        if (mode === "aspirational") setAspirationalPicks([]);
         setDeck([]);
       } finally {
         inFlight.current = false;
-        setLoading(false);
+        setLoadingState(false);
       }
     },
     [
       genderPresentation,
       styleEras,
       lifestyleTags,
-      budgetPhilosophies,
+      valuePhilosophyWire,
       brandLikes,
       brandAvoids,
       shippingCountry,
       currency,
+      wornPicks,
     ],
   );
 
-  async function submitIntake() {
-    if (!intakeText.trim()) {
-      setStep("you");
-      setYouSubstep(0);
-      return;
+  useEffect(() => {
+    if (step === "worn" && wornDeck.length === 0) {
+      void loadOutfitDeck("worn");
     }
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/onboarding/intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: intakeText }),
-      });
-      if (!res.ok) throw new Error("extract");
-      const next = (await res.json()) as OnboardingStatus;
-      hydrateFromStatus(next, next.prefill);
-      setStep("you");
-      setYouSubstep(0);
-    } catch {
-      setError(
-        "We couldn't read that just yet — no worries, you can fill in the form yourself.",
+  }, [step, wornDeck.length, loadOutfitDeck]);
+
+  useEffect(() => {
+    if (step === "wanted" && aspirationalDeck.length === 0) {
+      void loadOutfitDeck("aspirational");
+    }
+  }, [step, aspirationalDeck.length, loadOutfitDeck]);
+
+  useEffect(() => {
+    return () => {
+      mintAbortRef.current = true;
+    };
+  }, []);
+
+  // Enter to advance
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      if (step === "verdict" || step === "honesty") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      const btn = document.querySelector<HTMLButtonElement>(
+        "[data-fitting-primary]",
       );
-      setStep("you");
-      setYouSubstep(0);
-    } finally {
-      setBusy(false);
+      btn?.click();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step]);
+
+  /**
+   * Black loading screen stays up until `work` finishes (real API / deck).
+   * Minimum hold avoids a jarring 50ms flash on fast saves.
+   */
+  async function runWithLoading(opts: {
+    from: Exclude<FittingStep, "verdict">;
+    nextStep: FittingStep;
+    work: () => Promise<boolean>;
+    /** Extra status when preloading the next grid deck, etc. */
+    detailExtra?: string;
+  }): Promise<boolean> {
+    const meta = STEP_META[opts.from];
+    setError(null);
+    setFlash({
+      cover: meta.flashCover,
+      status: meta.flashNext,
+      detail: opts.detailExtra
+        ? `${meta.loadingDetail} ${opts.detailExtra}`
+        : meta.loadingDetail,
+    });
+    const started = Date.now();
+    try {
+      const ok = await opts.work();
+      if (!ok) {
+        setFlash(null);
+        return false;
+      }
+      const elapsed = Date.now() - started;
+      if (elapsed < 450) {
+        await new Promise((r) => setTimeout(r, 450 - elapsed));
+      }
+      setStep(opts.nextStep);
+      setFlash(null);
+      return true;
+    } catch (e) {
+      setFlash(null);
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+      return false;
     }
   }
 
-  async function saveYouAndContinue() {
-    if (submissionLockRef.current) return;
+  function showLoading(opts: {
+    cover: string;
+    status: string;
+    detail: string;
+  }) {
+    setFlash(opts);
+  }
+
+  function hideLoading() {
+    setFlash(null);
+  }
+
+  async function saveIdentity(): Promise<boolean> {
+    if (submissionLockRef.current) return false;
     const missing: string[] = [];
     if (!preferredName.trim()) missing.push("name");
     if (!genderPresentation.trim()) missing.push("clothing style");
     const styleEraWire = joinCsvValues(styleEras);
+    if (
+      birthDate.trim() &&
+      !birthDateSkipped &&
+      !isAtLeastAge(birthDate, 13)
+    ) {
+      setError("You need to be at least 13 to use Shoop.");
+      return false;
+    }
     const ageFromDob =
       !birthDateSkipped && birthDate && isAtLeastAge(birthDate, 13)
         ? ageYearsFromBirthDate(birthDate)
@@ -906,21 +1127,17 @@ export function OnboardingGate() {
       ageFromDob != null
         ? normalizeAgeRange(String(ageFromDob))
         : styleEraToAgeRange(styleEraWire);
-    if (!styleEraWire || !ageRange) missing.push("style era");
+    if (!styleEraWire) missing.push("style era");
+    else if (!ageRange) missing.push("style era");
     if (missing.length) {
       setError(`Almost there — just add your ${missing.join(" and ")}.`);
-      return;
+      return false;
     }
 
     submissionLockRef.current = true;
     setBusy(true);
     setError(null);
     try {
-      const sizing: Record<string, unknown> = {};
-      if (topSize.trim()) sizing.topUsualSize = topSize.trim();
-      if (bottomSize.trim()) sizing.bottomUsualSize = bottomSize.trim();
-      if (shoeEU.trim()) sizing.shoeEU = Number(shoeEU);
-
       const requestKey =
         reviewRequestKeyRef.current ??
         (reviewRequestKeyRef.current = crypto.randomUUID());
@@ -933,7 +1150,7 @@ export function OnboardingGate() {
             profile: {
               preferredName: preferredName.trim(),
               genderPresentation: genderPresentation.trim(),
-              ageRange,
+              ageRange: normalizeAgeRange(ageRange) || ageRange,
               styleEra: styleEraWire,
               lifestyleTags,
               city: city.trim() || null,
@@ -946,9 +1163,7 @@ export function OnboardingGate() {
                 isAtLeastAge(birthDate, 13)
                   ? new Date(`${birthDate}T12:00:00.000Z`).toISOString()
                   : null,
-              ...(selectedAi ? { primaryAiAssistant: selectedAi } : {}),
             },
-            ...(Object.keys(sizing).length ? { sizing } : {}),
           },
           requestKey,
         }),
@@ -965,18 +1180,424 @@ export function OnboardingGate() {
       if (patchJson.selfPerson?.id) {
         setSelfPersonId(patchJson.selfPerson.id);
       }
-      setStep("taste");
-      setTasteSubstep("spend");
+      setPersistedFlags((f) => ({ ...f, identity: true }));
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your profile.");
+      return false;
     } finally {
       submissionLockRef.current = false;
       setBusy(false);
     }
   }
 
-  async function saveTasteAndGoToAvatar() {
-    if (submissionLockRef.current) return;
+  async function ensurePersonId(): Promise<string | null> {
+    if (selfPersonId) return selfPersonId;
+    const self = await fetchSelfPerson();
+    if (self) {
+      setSelfPersonId(self.id);
+      return self.id;
+    }
+    return null;
+  }
+
+  async function startAvatarIfNeeded(personId: string) {
+    if (avatarStartedRef.current) return;
+    avatarStartedRef.current = true;
+    try {
+      const res = await guestFetch("/api/avatar/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ person_id: personId }),
+      });
+      if (!res.ok) avatarStartedRef.current = false;
+    } catch {
+      avatarStartedRef.current = false;
+    }
+  }
+
+  async function pollAvatarJob(
+    personId: string,
+    jobId: string,
+    startedAt: number,
+  ): Promise<string | null> {
+    if (mintAbortRef.current) return null;
+    if (Date.now() - startedAt > TRYON_CLIENT_POLL_MAX_MS) return null;
+
+    const res = await guestFetch(
+      `/api/avatar/job/${jobId}?person_id=${encodeURIComponent(personId)}`,
+    );
+    const body = (await readAvatarJson(res)) as AvatarApiBody & {
+      status?: string;
+      variants?: AvatarCompareVariant[];
+    };
+    if (!res.ok || body.error) return null;
+
+    const variants = body.variants ?? body.draft?.preview_variants ?? [];
+    const settled =
+      isCompareSettled(variants) || Boolean(body.draft?.preview_url);
+    if (settled) {
+      return (
+        body.draft?.preview_url ??
+        variants.find((v) => v.preview_url)?.preview_url ??
+        null
+      );
+    }
+    await new Promise((r) => setTimeout(r, TRYON_CLIENT_POLL_MS));
+    return pollAvatarJob(personId, jobId, startedAt);
+  }
+
+  /**
+   * Same sequence as CardForge mint, fire-and-forget during quiz:
+   * measurements → check (intake merge) → attributes → FASHN generate → poll → approve.
+   * Sends every body-related AvatarAttributes field we have so the prompt is complete.
+   */
+  async function kickBackgroundMint(opts: {
+    personId: string;
+    heightCm: number;
+    build: BuildBand;
+    muscularity: FittingPhotoValues["muscularity"];
+    bodyShape: FittingPhotoValues["bodyShape"];
+    bustFullness: FittingPhotoValues["bustFullness"];
+    includeBust: boolean;
+  }) {
+    if (mintDoneRef.current || mintInFlightRef.current) return;
+    if (!photoReadyRef.current) return;
+
+    mintInFlightRef.current = true;
+    setTwinStatus("developing");
+    setTwinError(null);
+
+    try {
+      await startAvatarIfNeeded(opts.personId);
+
+      let attrs = buildFittingAvatarAttributes({
+        heightCm: opts.heightCm,
+        build: opts.build,
+        muscularity: opts.muscularity,
+        bodyShape: opts.bodyShape,
+        bustFullness: opts.bustFullness,
+        includeBust: opts.includeBust,
+      });
+
+      const measRes = await guestFetch("/api/avatar/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "measurements",
+          person_id: opts.personId,
+          measurements: [
+            { metric: "height", value: opts.heightCm, unit: "cm" },
+          ],
+        }),
+      });
+      if (!measRes.ok) {
+        throw new Error("Could not save height to fashion memory.");
+      }
+
+      // Re-check merges photo intake suggestions (e.g. body_shape) under stated attrs.
+      const checkRes = await guestFetch("/api/avatar/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "check",
+          person_id: opts.personId,
+          attributes: attrs,
+        }),
+      });
+      const checkBody = await readAvatarJson(checkRes);
+      if (checkBody.draft?.step === "refused_minor") {
+        throw new Error(
+          checkBody.draft.intake?.refusal_message ??
+            "We can't use this photo.",
+        );
+      }
+      if (checkRes.ok && !checkBody.error) {
+        const suggested = checkBody.draft?.attributes ?? {};
+        const clear = checkBody.draft?.intake?.clear ?? {};
+        // User-stated wins; intake fills gaps only.
+        attrs = {
+          ...clear,
+          ...suggested,
+          ...attrs,
+        };
+        if (!attrs.body_shape && clear.body_shape) {
+          attrs.body_shape = clear.body_shape;
+        }
+        // Keep bust only for feminine shoppers.
+        if (!opts.includeBust) {
+          delete attrs.bust_fullness;
+        }
+      }
+
+      const attrRes = await guestFetch("/api/avatar/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "attributes",
+          person_id: opts.personId,
+          attributes: attrs,
+        }),
+      });
+      const attrBody = await readAvatarJson(attrRes);
+      if (!attrRes.ok || attrBody.error) {
+        throw new Error(attrBody.error ?? "Could not save avatar attributes.");
+      }
+
+      const genRes = await guestFetch("/api/avatar/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          person_id: opts.personId,
+          action: "generate",
+          attributes: attrs,
+        }),
+      });
+      const genBody = await readAvatarJson(genRes);
+      if (!genRes.ok || genBody.error) {
+        throw new Error(genBody.error ?? "Twin generation failed.");
+      }
+
+      let preview: string | null = genBody.draft?.preview_url ?? null;
+      if (genBody.draft?.compare && genBody.draft.compare_job_id) {
+        preview = await pollAvatarJob(
+          opts.personId,
+          genBody.draft.compare_job_id,
+          Date.now(),
+        );
+      }
+
+      if (!preview) {
+        throw new Error("Twin mint produced no preview image.");
+      }
+
+      const approveRes = await guestFetch("/api/avatar/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          person_id: opts.personId,
+          action: "approve",
+        }),
+      });
+      const approveBody = await readAvatarJson(approveRes);
+      let savedUrl = approveBody.avatar?.url ?? null;
+
+      if (!approveRes.ok || !savedUrl) {
+        const self = await fetchSelfPerson();
+        if (self?.hasAvatar && self.avatarUrl) savedUrl = self.avatarUrl;
+      }
+
+      if (!savedUrl && !preview) {
+        throw new Error(
+          approveBody.error ?? "Twin generated but could not be saved.",
+        );
+      }
+
+      const finalUrl = savedUrl ?? preview;
+      mintDoneRef.current = true;
+      setTwinAvatarUrl(finalUrl);
+      setTwinStatus("ready");
+      setTwinError(null);
+      useSelfAvatarStore.getState().markReady(finalUrl);
+      void useSelfAvatarStore.getState().refresh();
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Twin mint failed.";
+      console.error("[shoop] background twin mint failed", e);
+      setTwinError(msg);
+      setTwinStatus("error");
+    } finally {
+      mintInFlightRef.current = false;
+    }
+  }
+
+  async function uploadPhoto(file: File) {
+    const preview = URL.createObjectURL(file);
+    setPhotoValues((p) => ({ ...p, photoPreview: preview }));
+    setLocalFacePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return preview;
+    });
+    setTwinStatus("idle");
+    setTwinError(null);
+    photoReadyRef.current = false;
+    mintDoneRef.current = false;
+
+    const personId = await ensurePersonId();
+    if (!personId) {
+      setError(
+        "Save your name first so we can attach the photo to your profile.",
+      );
+      return;
+    }
+    await startAvatarIfNeeded(personId);
+
+    try {
+      const form = new FormData();
+      form.append("person_id", personId);
+      form.append("photo", file);
+      const res = await guestFetch("/api/avatar/upload", {
+        method: "POST",
+        body: form,
+      });
+      const body = await readAvatarJson(res);
+      if (!res.ok || body.error) {
+        setError(body.error ?? "Could not upload photo. Try another.");
+        return;
+      }
+      if (body.draft?.step === "refused_minor") {
+        setError(
+          body.draft.intake?.refusal_message ?? "We can't use this photo.",
+        );
+        photoReadyRef.current = false;
+        return;
+      }
+
+      const checkRes = await guestFetch("/api/avatar/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check", person_id: personId }),
+      });
+      const checkBody = await readAvatarJson(checkRes);
+      if (checkBody.draft?.step === "refused_minor") {
+        setError(
+          checkBody.draft.intake?.refusal_message ??
+            "We can't use this photo.",
+        );
+        photoReadyRef.current = false;
+        return;
+      }
+
+      // Apply soft body_shape suggestion from full-body intake if user has none yet.
+      const suggestedShape =
+        checkBody.draft?.intake?.clear?.body_shape ??
+        checkBody.draft?.attributes?.body_shape;
+      if (suggestedShape) {
+        setPhotoValues((p) =>
+          p.bodyShape ? p : { ...p, bodyShape: suggestedShape },
+        );
+      }
+
+      photoReadyRef.current = true;
+      setError(null);
+    } catch {
+      setError("Upload failed — try another photo.");
+    }
+  }
+
+  async function saveSpend(): Promise<boolean> {
+    if (!valuePhilosophyWire) {
+      // Optional — allow skip, still return true
+      return true;
+    }
+    if (submissionLockRef.current) return false;
+    submissionLockRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/onboarding/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patch: {
+            profile: { valuePhilosophy: valuePhilosophyWire },
+          },
+          requestKey: crypto.randomUUID(),
+        }),
+      });
+      const json = (await res.json()) as OnboardingStatus & { error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Could not save spend style.");
+      hydrateFromStatus(json);
+      setPersistedFlags((f) => ({ ...f, spend: true }));
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save spend style.");
+      return false;
+    } finally {
+      submissionLockRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function savePhotoAndAttrs(): Promise<boolean> {
+    if (submissionLockRef.current) return false;
+    submissionLockRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const heightCm = heightCmFromPhoto(photoValues);
+      const weightKg = weightKgFromPhoto(photoValues);
+      const build = (photoValues.build ?? "average") as BuildBand;
+      const sizing: Record<string, unknown> = {
+        heightCm,
+        bodyType: build,
+      };
+      if (weightKg != null) sizing.weightKg = weightKg;
+
+      const patch = await fetch("/api/onboarding/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patch: {
+            profile: {
+              unitsLength: photoValues.heightUnit === "ft" ? "in" : "cm",
+              unitsWeight: photoValues.weightUnit === "lb" ? "lb" : "kg",
+              ...(valuePhilosophyWire
+                ? { valuePhilosophy: valuePhilosophyWire }
+                : {}),
+            },
+            sizing,
+          },
+          requestKey: crypto.randomUUID(),
+        }),
+      });
+      const json = (await patch.json()) as OnboardingStatus & {
+        error?: string;
+        selfPerson?: { id: string } | null;
+      };
+      if (!patch.ok) {
+        throw new Error(json.error ?? "Could not save your measurements.");
+      }
+      hydrateFromStatus(json);
+      if (json.selfPerson?.id) setSelfPersonId(json.selfPerson.id);
+      setPersistedFlags((f) => ({
+        ...f,
+        sizing: true,
+        spend: f.spend || Boolean(valuePhilosophyWire),
+      }));
+
+      const personId =
+        json.selfPerson?.id ?? selfPersonId ?? (await ensurePersonId());
+
+      if (personId && photoReadyRef.current) {
+        void kickBackgroundMint({
+          personId,
+          heightCm,
+          build,
+          muscularity: photoValues.muscularity,
+          bodyShape: photoValues.bodyShape,
+          bustFullness: photoValues.bustFullness,
+          includeBust: normalizeGender(genderPresentation) === "feminine",
+        });
+      }
+
+      return true;
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not save your measurements.",
+      );
+      return false;
+    } finally {
+      submissionLockRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function saveTaste(
+    complete: boolean,
+    mark?: "worn" | "wanted" | "nolist" | "final",
+  ): Promise<boolean> {
+    if (submissionLockRef.current) return false;
     submissionLockRef.current = true;
     setBusy(true);
     setError(null);
@@ -990,7 +1611,7 @@ export function OnboardingGate() {
             label: p.label,
             tasteTags: p.tasteTags,
             productTitle: p.title,
-            productId: p.productId,
+            productId: p.productId ?? p.id,
             archetype: p.archetype,
           })),
           aspirationalPicks: aspirationalPicks.map((p) => ({
@@ -998,16 +1619,16 @@ export function OnboardingGate() {
             label: p.label,
             tasteTags: p.tasteTags,
             productTitle: p.title,
-            productId: p.productId,
+            productId: p.productId ?? p.id,
             archetype: p.archetype,
           })),
           brandLikes,
           brandAvoids,
           hardAvoids,
-          compliments,
+          compliments: [],
           honestyPreference: honestyPreference || null,
-          valuePhilosophy: joinCsvValues(budgetPhilosophies) || null,
-          complete: false,
+          valuePhilosophy: valuePhilosophyWire,
+          complete,
         }),
       });
       const next = (await res.json()) as OnboardingStatus & {
@@ -1020,775 +1641,741 @@ export function OnboardingGate() {
       hydrateFromStatus(next);
       if (next.styleMix) setStyleMix(next.styleMix);
       else if (next.profile?.styleMix) setStyleMix(next.profile.styleMix);
-
-      if (selfPersonId == null) {
-        const self = await fetchSelfPerson();
-        if (self) setSelfPersonId(self.id);
-      }
-      setStep("card");
-      setCardSubstep("photo");
+      setPersistedFlags((f) => ({
+        ...f,
+        wornSaved: f.wornSaved || mark === "worn" || wornPicks.length > 0,
+        wantedSaved:
+          f.wantedSaved || mark === "wanted" || aspirationalPicks.length > 0,
+        nolistSaved:
+          f.nolistSaved ||
+          mark === "nolist" ||
+          brandLikes.length + brandAvoids.length + hardAvoids.length > 0,
+        tasteFinal: f.tasteFinal || mark === "final" || complete,
+        spend: f.spend || Boolean(valuePhilosophyWire),
+      }));
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your taste.");
+      return false;
     } finally {
       submissionLockRef.current = false;
       setBusy(false);
     }
   }
 
-  const finishCardForge = async () => {
-    setError(null);
-    useSelfAvatarStore.getState().markReady();
-    void useSelfAvatarStore.getState().refresh();
-    setAvatarBusy(false);
-    setHoldOpenForWelcome(true);
-    await completeOnboarding();
-  };
-
-  const dismissAfterWelcome = () => {
-    setHoldOpenForWelcome(false);
-  };
+  async function waitForMintIfRunning(maxMs = 12_000) {
+    if (!mintInFlightRef.current) return;
+    const start = Date.now();
+    while (mintInFlightRef.current && Date.now() - start < maxMs) {
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
 
   async function completeOnboarding() {
-    if (submissionLockRef.current) {
-      throw new Error("Already finishing…");
-    }
+    if (submissionLockRef.current) return;
     submissionLockRef.current = true;
     setBusy(true);
     setError(null);
+    showLoading({
+      cover: "Opening<br><em>the Mirror.</em>",
+      status: "finishing your print…",
+      detail: mintInFlightRef.current
+        ? "Waiting for your twin mint, then marking onboarding complete…"
+        : "Saving final state and starting your projection jobs…",
+    });
     try {
+      // Brief wait if FASHN is still minting — do not fake "ready".
+      submissionLockRef.current = false;
+      await waitForMintIfRunning(15_000);
+      submissionLockRef.current = true;
+
+      // Ensure final taste is on server before completing
+      submissionLockRef.current = false;
+      const tasteOk = await saveTaste(false, "final");
+      submissionLockRef.current = true;
+      if (!tasteOk) {
+        throw new Error("Could not save final taste before complete.");
+      }
+
       const res = await fetch("/api/onboarding", { method: "POST" });
       const next = (await res.json()) as OnboardingStatus & { error?: string };
       if (!res.ok) {
-        // Fallback: complete via taste with complete:true
-        const tasteRes = await fetch("/api/onboarding/taste", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            wornPicks: wornPicks.map((p) => ({
-              id: p.id,
-              label: p.label,
-              tasteTags: p.tasteTags,
-              archetype: p.archetype,
-            })),
-            aspirationalPicks: aspirationalPicks.map((p) => ({
-              id: p.id,
-              label: p.label,
-              tasteTags: p.tasteTags,
-              archetype: p.archetype,
-            })),
-            brandLikes,
-            brandAvoids,
-            hardAvoids,
-            compliments,
-            honestyPreference: honestyPreference || null,
-            valuePhilosophy: joinCsvValues(budgetPhilosophies) || null,
-            complete: true,
-          }),
-        });
-        const tasteJson = (await tasteRes.json()) as OnboardingStatus & {
-          error?: string;
-        };
-        if (!tasteRes.ok) {
-          throw new Error(
-            tasteJson.error ?? next.error ?? "Could not finish onboarding.",
-          );
+        submissionLockRef.current = false;
+        const tasteRes = await saveTaste(true, "final");
+        submissionLockRef.current = true;
+        if (!tasteRes) {
+          throw new Error(next.error ?? "Could not finish onboarding.");
         }
-        hydrateFromStatus(tasteJson);
       } else {
         hydrateFromStatus(next);
       }
       useUserProfileStore.getState().setOnboardingCompleted(true);
       void useUserProfileStore.getState().hydrate({ force: true });
+      void useSelfAvatarStore.getState().refresh();
       clearOnboardingUiSession();
+      setHoldOpen(false);
     } catch (e) {
-      setHoldOpenForWelcome(false);
-      setError(e instanceof Error ? e.message : "Could not finish onboarding.");
-      throw e;
+      setError(
+        e instanceof Error ? e.message : "Could not finish onboarding.",
+      );
     } finally {
+      hideLoading();
       submissionLockRef.current = false;
       setBusy(false);
     }
   }
 
+  async function advanceFrom(current: FittingStep) {
+    setError(null);
+    if (current === "name") {
+      await runWithLoading({
+        from: "name",
+        nextStep: "spend",
+        work: () => saveIdentity(),
+      });
+      return;
+    }
+    if (current === "spend") {
+      await runWithLoading({
+        from: "spend",
+        nextStep: "photo",
+        work: () => saveSpend(),
+      });
+      return;
+    }
+    if (current === "photo") {
+      await runWithLoading({
+        from: "photo",
+        nextStep: "worn",
+        work: async () => {
+          const ok = await savePhotoAndAttrs();
+          if (!ok) return false;
+          // Prefetch worn deck while user is on the loading screen
+          await loadOutfitDeck("worn");
+          return true;
+        },
+        detailExtra: "Loading your wardrobe grid…",
+      });
+      return;
+    }
+    if (current === "worn") {
+      await runWithLoading({
+        from: "worn",
+        nextStep: "wanted",
+        work: async () => {
+          const ok = await saveTaste(false, "worn");
+          if (!ok) return false;
+          await loadOutfitDeck("aspirational");
+          return true;
+        },
+        detailExtra: "Loading steal-closet looks…",
+      });
+      return;
+    }
+    if (current === "wanted") {
+      await runWithLoading({
+        from: "wanted",
+        nextStep: "nolist",
+        work: () => saveTaste(false, "wanted"),
+      });
+      return;
+    }
+    if (current === "nolist") {
+      await runWithLoading({
+        from: "nolist",
+        nextStep: "honesty",
+        work: () => saveTaste(false, "nolist"),
+      });
+      return;
+    }
+    if (current === "honesty") {
+      await runWithLoading({
+        from: "honesty",
+        nextStep: "verdict",
+        work: async () => {
+          const ok = await saveTaste(false, "final");
+          if (!ok) return false;
+          setHoldOpen(true);
+          return true;
+        },
+      });
+    }
+  }
+
   function goBack() {
     setError(null);
-    if (avatarBusy) return;
-    if (step === "card") {
-      if (cardSubstep === "reveal" || cardSubstep === "mint") {
-        setCardSubstep("definition");
-        return;
-      }
-      const order = CARD_FORGE_ORDER;
-      const idx = order.indexOf(cardSubstep);
-      if (idx > 0) {
-        setCardSubstep(order[idx - 1]!);
-        return;
-      }
-      setStep("taste");
-      setTasteSubstep("honesty");
-      return;
-    }
-    if (step === "taste") {
-      const idx = TASTE_SUBSTEPS.indexOf(tasteSubstep);
-      if (idx > 0) {
-        setTasteSubstep(TASTE_SUBSTEPS[idx - 1]!);
-        return;
-      }
-      setStep("you");
-      setYouSubstep(1);
-      return;
-    }
-    if (step === "you") {
-      if (youSubstep === 1) {
-        setYouSubstep(0);
-        return;
-      }
-      setStep("doorway");
-      return;
-    }
-    if (step === "intake") {
-      if (intakePhase === "paste") setIntakePhase("select");
-      else setStep("doorway");
-    }
+    const idx = FITTING_STEPS.indexOf(step);
+    if (idx <= 0) return;
+    setStep(FITTING_STEPS[idx - 1]!);
   }
 
-  async function advance() {
-    setError(null);
-    if (step === "you") {
-      if (youSubstep === 0) {
-        if (!preferredName.trim()) {
-          setError(
-            "Only your name is truly required... the rest is up to you.",
-          );
-          return;
-        }
-        if (
-          birthDate.trim() &&
-          !birthDateSkipped &&
-          !isAtLeastAge(birthDate, 13)
-        ) {
-          setError("You need to be at least 13 to use Shoop.");
-          return;
-        }
-        setYouSubstep(1);
-        return;
-      }
-      await saveYouAndContinue();
-      return;
-    }
-    if (step === "taste") {
-      const idx = TASTE_SUBSTEPS.indexOf(tasteSubstep);
-      if (tasteSubstep === "spend") {
-        // ok to skip spend
-      }
-      if (tasteSubstep === "worn") {
-        // ok to skip picks
-      }
-      if (idx < TASTE_SUBSTEPS.length - 1) {
-        const next = TASTE_SUBSTEPS[idx + 1]!;
-        setTasteSubstep(next);
-        return;
-      }
-      await saveTasteAndGoToAvatar();
-    }
-  }
+  async function handleTell(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || tellBusy) return;
 
-  // Reload outfit grids when personalization inputs change (spend habit, etc.).
-  // Also clear picks — card ids are live product ids and must not carry over.
-  useEffect(() => {
-    setWornDeck([]);
-    setAspirationalDeck([]);
-    setWornPicks([]);
-    setAspirationalPicks([]);
-    wornDeckInFlightRef.current = false;
-    aspirationalDeckInFlightRef.current = false;
-  }, [
-    budgetPhilosophies,
-    genderPresentation,
-    styleEras,
-    lifestyleTags,
-    shippingCountry,
-    currency,
-    brandLikes,
-    brandAvoids,
-  ]);
-
-  // Entering a grid step: clear picks + deck so we never show stale
-  // selections against a previous live fetch (or hydrated prior answers).
-  useEffect(() => {
-    if (step === "taste" && tasteSubstep === "worn") {
-      setWornPicks([]);
-      setWornDeck([]);
-      wornDeckInFlightRef.current = false;
-    }
-  }, [step, tasteSubstep]);
-
-  useEffect(() => {
-    if (step === "taste" && tasteSubstep === "aspirational") {
-      setAspirationalPicks([]);
-      setAspirationalDeck([]);
-      aspirationalDeckInFlightRef.current = false;
-    }
-  }, [step, tasteSubstep]);
-
-  // Load once per grid step — advance() used to also fetch, which doubled
-  // catalog fan-out and left slots empty when the deadline hit.
-  useEffect(() => {
-    if (step === "taste" && tasteSubstep === "worn" && wornDeck.length === 0) {
-      void loadOutfitDeck("worn");
-    }
-  }, [step, tasteSubstep, wornDeck.length, loadOutfitDeck]);
-
-  useEffect(() => {
-    if (
-      step === "taste" &&
-      tasteSubstep === "aspirational" &&
-      aspirationalDeck.length === 0
-    ) {
-      void loadOutfitDeck("aspirational");
-    }
-  }, [step, tasteSubstep, aspirationalDeck.length, loadOutfitDeck]);
-
-  const progressPercent = useMemo(() => {
-    const reached: FlowProgressKey[] = [];
-
-    if (step === "doorway") {
-      return exponentialProgressPercent("doorway");
-    }
-    reached.push("intake");
-    if (step === "intake") {
-      return exponentialProgressPercent("intake");
-    }
-
-    // Identity: each answered field nudges progress on the same step
-    const identityAnswered = [
-      preferredName.trim(),
-      genderPresentation.trim(),
-      birthDateSkipped ||
-      (birthDate.trim() && isAtLeastAge(birthDate, 13))
-        ? "dob"
-        : "",
-      styleEras.length ? "era" : "",
-      lifestyleTags.length ? "world" : "",
-    ].filter(Boolean).length;
-    const identityKeys: FlowProgressKey[] = [
-      "you:name",
-      "you:gender",
-      "you:dob",
-      "you:era",
-      "you:world",
-    ];
-    if (identityAnswered > 0) {
-      reached.push(
-        identityKeys[Math.min(identityAnswered, identityKeys.length) - 1]!,
-      );
-    }
-
-    if (step === "you" && youSubstep === 0) {
-      return exponentialProgressPercent(furthestProgressKey(reached));
-    }
-
-    reached.push("you:world");
-
-    const locationAnswered = [
-      shippingCountry.trim(),
-      city.trim(),
-      topSize.trim() || bottomSize.trim() || shoeEU.trim() ? "sizes" : "",
-    ].filter(Boolean).length;
-    const locationKeys: FlowProgressKey[] = [
-      "you:country",
-      "you:city",
-      "you:sizes",
-    ];
-    if (locationAnswered > 0) {
-      reached.push(
-        locationKeys[Math.min(locationAnswered, locationKeys.length) - 1]!,
-      );
-    }
-
-    if (step === "you") {
-      return exponentialProgressPercent(furthestProgressKey(reached));
-    }
-
-    reached.push("you:sizes");
-
-    if (budgetPhilosophies.length) reached.push("taste:spend");
-
-    if (step === "taste") {
-      const tasteIdx = TASTE_SUBSTEPS.indexOf(tasteSubstep);
-      for (let i = 0; i <= tasteIdx; i++) {
-        const sub = TASTE_SUBSTEPS[i]!;
-        reached.push(`taste:${sub}`);
-      }
-      return exponentialProgressPercent(furthestProgressKey(reached));
-    }
-
-    reached.push("taste:honesty");
-
-    if (step === "card") {
-      const cardKeys: Record<CardForgeSubstep, FlowProgressKey> = {
-        photo: "card:photo",
-        height: "card:height",
-        build: "card:build",
-        definition: "card:definition",
-        mint: "card:mint",
-        reveal: "card:reveal",
+    setTellBusy(true);
+    setTellFeedback("Reading that…");
+    try {
+      const res = await fetch("/api/onboarding/fitting-tell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: trimmed,
+          known: {
+            preferredName: preferredName.trim() || undefined,
+            genderPresentation: genderPresentation || undefined,
+            styleEras: styleEras.length ? styleEras : undefined,
+            budgetPhilosophies: budgetPhilosophies.length
+              ? budgetPhilosophies
+              : undefined,
+            brandLikes: brandLikes.length ? brandLikes : undefined,
+            brandAvoids: brandAvoids.length ? brandAvoids : undefined,
+            hardAvoids: hardAvoids.length ? hardAvoids : undefined,
+            honestyPreference: honestyPreference || undefined,
+            heightCm: photoValues.heightCm || null,
+            weightKg:
+              photoValues.weightValue != null && photoValues.weightUnit === "kg"
+                ? photoValues.weightValue
+                : photoValues.weightValue != null &&
+                    photoValues.weightUnit === "lb"
+                  ? Math.round(photoValues.weightValue * 0.453592)
+                  : null,
+            build: photoValues.build,
+            currentStep: step,
+          },
+        }),
+      });
+      const json = (await res.json()) as OnboardingStatus & {
+        error?: string;
+        summary?: string;
+        filled?: string[];
+        deferredNote?: string;
+        prefill?: OnboardingPrefill;
+        extraction?: {
+          preferredName?: string;
+          genderPresentation?: string;
+          styleEras?: string[];
+          budgetPhilosophies?: string[];
+          brandLikes?: string[];
+          brandAvoids?: string[];
+          hardAvoids?: string[];
+          honestyPreference?: string;
+          muscularity?: string;
+          bodyShape?: string;
+          bustFullness?: string;
+          weightKg?: number;
+          build?: string;
+          heightCm?: number;
+          heightFt?: number;
+          heightIn?: number;
+        };
       };
-      reached.push(cardKeys[cardSubstep]);
-      return exponentialProgressPercent(furthestProgressKey(reached));
+      if (!res.ok) {
+        setTellFeedback(json.error ?? "Couldn't parse that — try again.");
+        setTimeout(() => setTellFeedback(null), 4000);
+        return;
+      }
+
+      // Build full prefill (incl. UI-only body fields + brands) and latch it
+      // so identity/spend saves later can't drop chips for future steps.
+      const extractedHeight =
+        json.extraction?.heightCm ??
+        (json.extraction?.heightFt != null
+          ? Math.round(
+              (json.extraction.heightFt * 12 +
+                (json.extraction.heightIn ?? 0)) *
+                2.54,
+            )
+          : undefined);
+      const richPrefill: OnboardingPrefill = {
+        ...json.prefill,
+        heightCm: extractedHeight ?? json.prefill?.heightCm,
+        weightKg: json.extraction?.weightKg ?? json.prefill?.weightKg,
+        build: json.extraction?.build ?? json.prefill?.build,
+        muscularity: json.extraction?.muscularity,
+        bodyShape: json.extraction?.bodyShape,
+        bustFullness: json.extraction?.bustFullness,
+        brandLikes:
+          json.extraction?.brandLikes?.join(", ") ?? json.prefill?.brandLikes,
+        brandAvoids:
+          json.extraction?.brandAvoids?.join(", ") ??
+          json.prefill?.brandAvoids,
+        hardAvoids:
+          json.extraction?.hardAvoids?.join(", ") ?? json.prefill?.hardAvoids,
+        budgetPhilosophy:
+          json.extraction?.budgetPhilosophies?.join(",") ??
+          json.prefill?.budgetPhilosophy,
+        honestyPreference:
+          json.extraction?.honestyPreference ??
+          json.prefill?.honestyPreference,
+      };
+      tellLatchRef.current = mergePrefillLatch(
+        tellLatchRef.current,
+        richPrefill,
+      );
+
+      hydrateFromStatus(json, tellLatchRef.current);
+
+      const filled = json.filled?.length
+        ? ` · ${json.filled.join(", ")}`
+        : "";
+      const deferred = json.deferredNote?.trim() ?? "";
+      setTellFeedback(
+        `✓ ${json.summary?.trim() || "Form updated"}${filled}${deferred}`,
+      );
+      setTimeout(() => setTellFeedback(null), 6000);
+    } catch {
+      setTellFeedback("Network error — try again.");
+      setTimeout(() => setTellFeedback(null), 4000);
+    } finally {
+      setTellBusy(false);
+    }
+  }
+
+  const developPct = developPctFromFlags({
+    identity: persistedFlags.identity || profileYouSaved(status?.profile ?? null),
+    spend:
+      persistedFlags.spend || Boolean(status?.profile?.valuePhilosophy?.trim()),
+    sizing: persistedFlags.sizing || Boolean(status?.sizing?.heightCm),
+    photoAccepted: photoReadyRef.current || Boolean(localFacePreview),
+    twinReady: twinStatus === "ready" && Boolean(twinAvatarUrl),
+    wornSaved: persistedFlags.wornSaved,
+    wantedSaved: persistedFlags.wantedSaved,
+    nolistSaved: persistedFlags.nolistSaved,
+    tasteFinal: persistedFlags.tasteFinal,
+    verdict: step === "verdict",
+    dressed: dressStatus === "ready" && Boolean(dressedAvatarUrl),
+  });
+
+  /**
+   * On the verdict step: pick one worn style and FASHN-dress it onto the minted twin.
+   * Uses image provenance (in-house style photo, not Shopify).
+   */
+  useEffect(() => {
+    if (step !== "verdict") return;
+    if (dressKickRef.current) return;
+    if (twinStatus !== "ready" || !twinAvatarUrl) return;
+    if (dressStatus === "ready" || dressStatus === "dressing") return;
+
+    const pick =
+      wornPicks.find((p) => Boolean(p.imageUrl?.trim())) ??
+      (closetImages[0]
+        ? {
+            id: closetImages[0].match(/\/([^/]+)\.\w+$/)?.[1] ?? "worn-0",
+            label: "your worn pick",
+            imageUrl: closetImages[0],
+          }
+        : null);
+    if (!pick?.imageUrl?.trim()) {
+      dressKickRef.current = true;
+      return;
     }
 
-    return exponentialProgressPercent("card:reveal");
+    dressKickRef.current = true;
+    const styleId = pick.id;
+    const title = pick.label || "worn look";
+    const imageUrl = pick.imageUrl.trim();
+
+    void (async () => {
+      setDressStatus("dressing");
+      setDressError(null);
+      setDressStyleLabel(title);
+      try {
+        const absolute = /^https?:\/\//i.test(imageUrl)
+          ? imageUrl
+          : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+        const res = await fetch("/api/tryon/fitting-room", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: [
+              {
+                provenance: {
+                  kind: "image",
+                  imageUrl: absolute,
+                  styleId,
+                  title,
+                  garment: `${title} styled full outfit dress look`,
+                },
+              },
+            ],
+          }),
+        });
+        const body = (await res.json()) as { error?: string; jobId?: string };
+        if (!res.ok || !body.jobId) {
+          throw new Error(body.error ?? "Could not start dress.");
+        }
+        const startedAt = Date.now();
+        let finalUrl: string | null = null;
+        while (Date.now() - startedAt <= TRYON_CLIENT_POLL_MAX_MS) {
+          const pollRes = await fetch(
+            `/api/tryon/fitting-room/${body.jobId}`,
+          );
+          const pollBody = (await pollRes.json()) as {
+            error?: string;
+            tryon_look?: {
+              status?: string;
+              final_image_url?: string;
+              partial_note?: string;
+              compare?: boolean;
+              variants?: Array<{ image_url?: string; status?: string }>;
+            };
+          };
+          if (!pollRes.ok) {
+            throw new Error(pollBody.error ?? "Dress poll failed.");
+          }
+          const look = pollBody.tryon_look;
+          if (look?.status === "completed" && look.final_image_url) {
+            finalUrl = look.final_image_url;
+            break;
+          }
+          if (look?.compare) {
+            const any =
+              look.final_image_url ||
+              look.variants?.find((v) => v.image_url)?.image_url;
+            const settled = (look.variants ?? []).every(
+              (v) => v.status === "completed" || v.status === "failed",
+            );
+            if (any && settled) {
+              finalUrl = any;
+              break;
+            }
+            if (look.status === "failed" && !any) {
+              throw new Error(
+                look.partial_note ?? "Could not dress this look.",
+              );
+            }
+          } else if (look?.status === "failed") {
+            throw new Error(
+              look.partial_note ?? "Could not dress this look.",
+            );
+          }
+          await new Promise((r) => setTimeout(r, TRYON_CLIENT_POLL_MS));
+        }
+        if (!finalUrl) {
+          throw new Error("Dress timed out — open the Mirror later.");
+        }
+        setDressedAvatarUrl(finalUrl);
+        setDressStatus("ready");
+      } catch (e) {
+        setDressStatus("error");
+        setDressError(
+          e instanceof Error ? e.message : "Could not dress your twin.",
+        );
+      }
+    })();
   }, [
     step,
-    youSubstep,
-    tasteSubstep,
-    cardSubstep,
-    preferredName,
-    genderPresentation,
-    birthDate,
-    birthDateSkipped,
-    styleEras,
-    lifestyleTags,
-    shippingCountry,
-    city,
-    topSize,
-    bottomSize,
-    shoeEU,
-    budgetPhilosophies,
+    twinStatus,
+    twinAvatarUrl,
+    wornPicks,
+    closetImages,
+    dressStatus,
   ]);
+
+  const mirror = useMemo<MirrorState>(() => {
+    const eraShorts = styleEras.map((e) => {
+      const row = STYLE_ERAS.find((x) => x.value === e);
+      return shortEraLabel(row?.label ?? e);
+    });
+    const eraLabel =
+      eraShorts.length === 0
+        ? ""
+        : eraShorts.length <= 2
+          ? eraShorts.join(" + ")
+          : `${eraShorts.slice(0, 2).join(" + ")} +${eraShorts.length - 2}`;
+
+    const known = new Set(BUDGET_OPTIONS.map((b) => b.value as string));
+    const spendBits = budgetPhilosophies.map((v) =>
+      known.has(v)
+        ? spendShort(v)
+        : v.startsWith("custom:")
+          ? v.slice(7).slice(0, 10)
+          : spendShort(v),
+    );
+    const spendLabel = spendBits.join(" · ");
+    const lean = leanFromPicks(wornPicks, aspirationalPicks, styleMix);
+    const vetoN = hardAvoids.length + brandAvoids.length;
+    const displayTwinUrl =
+      dressStatus === "ready" && dressedAvatarUrl
+        ? dressedAvatarUrl
+        : twinAvatarUrl;
+
+    return {
+      ...EMPTY_MIRROR,
+      name: preferredName.trim(),
+      eraLabel,
+      spendLabel,
+      leanLabel: lean,
+      brandsLabel: brandLikes.length ? `${brandLikes.length} loved` : "",
+      noListLabel: vetoN ? `${vetoN} refused` : "",
+      photoUrl: localFacePreview,
+      twinAvatarUrl: displayTwinUrl,
+      heightCm: heightCmFromPhoto(photoValues),
+      build: photoValues.build,
+      muscularity: photoValues.muscularity,
+      bodyShape: photoValues.bodyShape,
+      bustFullness:
+        normalizeGender(genderPresentation) === "feminine"
+          ? photoValues.bustFullness
+          : null,
+      form: formFromGender(genderPresentation),
+      developPct,
+      twinStatus,
+      twinError,
+      dressStatus,
+      dressError,
+      dressStyleLabel,
+      closetImages,
+      serial: selfPersonId ? stubSerialFromId(selfPersonId) : "——",
+      foil:
+        step === "verdict" &&
+        twinStatus === "ready" &&
+        dressStatus === "ready",
+    };
+  }, [
+    preferredName,
+    styleEras,
+    budgetPhilosophies,
+    wornPicks,
+    aspirationalPicks,
+    styleMix,
+    hardAvoids,
+    brandAvoids,
+    brandLikes,
+    localFacePreview,
+    twinAvatarUrl,
+    dressedAvatarUrl,
+    photoValues,
+    genderPresentation,
+    developPct,
+    twinStatus,
+    twinError,
+    dressStatus,
+    dressError,
+    dressStyleLabel,
+    closetImages,
+    selfPersonId,
+    step,
+  ]);
+
+  const progressPct =
+    step === "verdict"
+      ? 100
+      : STEP_PROGRESS_PCT[
+          Math.max(
+            0,
+            FITTING_Q_STEPS.indexOf(
+              step as (typeof FITTING_Q_STEPS)[number],
+            ),
+          )
+        ] ?? 7;
+
+  const stepMeta =
+    step === "verdict"
+      ? { n: 7, stage: "THE FITTING" }
+      : STEP_META[step];
+
+  if (loading) {
+    return (
+      <FittingFlash
+        show
+        coverHtml="Opening<br><em>The Fitting.</em>"
+        statusLabel="loading your print…"
+        detail="Fetching your profile…"
+      />
+    );
+  }
 
   if (
     (!status?.onboarding || status.onboarding.completed) &&
-    !holdOpenForWelcome
+    !holdOpen
   ) {
     return null;
   }
 
-  const railStep: RailStepId | null =
-    step === "doorway" || step === "intake" ? null : (step as RailStepId);
-
-  const header = (() => {
-    if (step === "doorway") {
-      return {
-        eyebrow: "GETTING STARTED",
-        title: "Two ways in.",
-        subtitle: "Both end the same place: Shoop, knowing you.",
-      };
-    }
-    if (step === "intake") {
-      return {
-        eyebrow: "GETTING STARTED",
-        title: "Import from your AI",
-        subtitle:
-          intakePhase === "select"
-            ? "Which AI do you use? We'll give you a short message to copy."
-            : "Copy the message into your AI, then paste what it writes back here.",
-      };
-    }
-    if (step === "you") {
-      return {
-        eyebrow: "GETTING STARTED",
-        title:
-          youSubstep === 0
-            ? "First things first... what should I call you?"
-            : "Where should the good stuff ship?",
-        subtitle: null as string | null,
-      };
-    }
-    if (step === "taste") {
-      const titles: Record<
-        TasteSubstep,
-        { title: string; subtitle: string | null }
-      > = {
-        spend: { title: "How do you like to spend?", subtitle: null },
-        worn: {
-          title: "Which three did you actually wear most this month?",
-          subtitle:
-            "Not the fantasy... the reality. No judgment, this is a safe space for that hoodie.",
-        },
-        aspirational: {
-          title: "Whose closet would you steal?",
-          subtitle:
-            "No guilt... stealing is just wanting with style. Pick two.",
-        },
-        loves: { title: "Quick vetoes and loyalties.", subtitle: null },
-        compliments: {
-          title: "What's the compliment you'd love to hear?",
-          subtitle: "Pick two.",
-        },
-        honesty: {
-          title: "Last one, and it matters: how honest do you want me?",
-          subtitle: null,
-        },
-      };
-      return { eyebrow: "GETTING STARTED", ...titles[tasteSubstep] };
-    }
-    if (step === "card") {
-      const copy = cardForgeCopy(cardSubstep, preferredName);
-      return {
-        eyebrow: "GETTING STARTED",
-        title: copy.title,
-        subtitle: copy.subtitle,
-      };
-    }
-    return {
-      eyebrow: "GETTING STARTED",
-      title: "Your Shoop card",
-      subtitle: null,
-    };
-  })();
-
-  const footerHint = (() => {
-    if (step === "you" && youSubstep === 0) {
-      return "Only your name is truly required... the rest is up to you.";
-    }
-    if (step === "you" && youSubstep === 1) {
-      return "Skip... I'll grab them at your first checkout.";
-    }
-    if (step === "card") {
-      return "Everything works without a card. Skip anytime and finish later in Settings.";
-    }
-    return "";
-  })();
-
-  const showRail = railStep != null;
-  const showPrimaryNext =
-    step === "you" ||
-    step === "taste" ||
-    (step === "intake" && intakePhase === "paste");
+  // Initial bootstrap uses FittingFlash black screen (not a separate light panel).
+  // Keep shell mounted only after load so flash can cover it during step work.
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="onboarding-title"
-        className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[22px] border border-hairline bg-white shadow-lift"
+    <>
+      <FittingFlash
+        show={Boolean(flash)}
+        coverHtml={flash?.cover ?? ""}
+        statusLabel={flash?.status ?? ""}
+        detail={flash?.detail ?? null}
+      />
+      <FittingShell
+        step={step}
+        progressPct={progressPct}
+        stageLabel={
+          step === "verdict" ? "THE FITTING" : stepMeta.stage
+        }
+        stepCountLabel={
+          step === "verdict" ? "DONE" : `${stepMeta.n} of 7`
+        }
+        mirror={mirror}
+        onTell={handleTell}
+        tellFeedback={tellFeedback}
+        tellBusy={tellBusy}
       >
-        <div
-          className={
-            showRail
-              ? "shrink-0 border-b border-neutral-200 px-6 pb-4 pt-4 sm:px-8"
-              : "shrink-0 px-6 pb-2 pt-6 sm:px-8"
-          }
-        >
-          {showRail ? (
-            <div className="mb-3 flex items-center justify-center text-[11.5px] text-neutral-400">
-              {RAIL_STEPS.map((s, i) => {
-                const active = railStep === s.id;
-                const activeIdx = RAIL_STEPS.findIndex((x) => x.id === railStep);
-                const done = activeIdx > i;
-                const lineFilled = activeIdx > i;
-                return (
-                  <div key={s.id} className="flex items-center">
-                    <span
-                      className={
-                        active
-                          ? "shrink-0 font-bold text-brand"
-                          : done
-                            ? "shrink-0 font-medium text-neutral-500"
-                            : "shrink-0"
-                      }
-                    >
-                      <span className="mr-1 align-[2px] text-[8px]">●</span>
-                      {s.label}
-                    </span>
-                    {i < RAIL_STEPS.length - 1 ? (
-                      <span
-                        className={
-                          lineFilled
-                            ? "mx-2.5 h-px w-5 shrink-0 bg-brand/45"
-                            : "mx-2.5 h-px w-5 shrink-0 bg-neutral-200"
-                        }
-                        aria-hidden
-                      />
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-
-          <div
-            className={showRail ? "mb-4" : "mb-4 mt-1"}
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={progressPercent}
-            aria-label="Onboarding progress"
-          >
-            <div className="flex items-center gap-3">
-              <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-100">
-                <div
-                  className="h-full rounded-full bg-brand transition-[width] duration-500 ease-out"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-brand">
-                {progressPercent}%
-              </span>
-            </div>
-            {step === "card" && cardSubstep !== "reveal" ? (
-              <p className="mt-1.5 text-[10px] font-extrabold tracking-[0.12em] text-neutral-400">
-                STEP {CARD_FORGE_STEP_META[cardSubstep].n} OF 5 ·{" "}
-                {CARD_FORGE_STEP_META[cardSubstep].label}
-                <span className="ml-2 font-semibold tracking-normal text-neutral-500">
-                  · Clarity {CARD_FORGE_STEP_META[cardSubstep].clarity}
-                </span>
-              </p>
-            ) : null}
-          </div>
-
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-neutral-400">
-            {header.eyebrow}
-          </p>
-          <h2
-            id="onboarding-title"
-            className="mt-1.5 text-[22px] font-extrabold tracking-tight text-ink"
-          >
-            {header.title}
-          </h2>
-          {header.subtitle ? (
-            <p className="mt-1.5 max-w-xl text-[13.5px] leading-6 text-neutral-500">
-              {header.subtitle}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4 sm:px-8">
-          {loading || avatarLoading ? (
-            <div className="py-16 text-center text-sm text-neutral-500">
-              One moment…
-            </div>
-          ) : step === "doorway" ? (
-            <OnboardingDoorwayStep
-              onImportAi={() => setStep("intake")}
-              onQuickQuiz={() => {
-                setStep("you");
-                setYouSubstep(0);
-              }}
-            />
-          ) : step === "intake" ? (
-            <AiProfileTransferStep
-              phase={intakePhase}
-              selectedAi={selectedAi}
-              intakeText={intakeText}
-              onSelectAi={(id) => {
-                setSelectedAi(id);
-                setIntakePhase("paste");
-              }}
-              onIntakeChange={setIntakeText}
-              onBackToSelect={() => setIntakePhase("select")}
-            />
-          ) : step === "you" && youSubstep === 0 ? (
-            <YouIdentityStep
-              values={identityValues}
-              onChange={identityOnChange}
-            />
-          ) : step === "you" ? (
-            <YouLocationSizesStep
-              values={locationValues}
-              suggestedLabel={suggestedLabel}
-              onChange={locationOnChange}
-              onConfirmSuggested={() => {
-                if (detectedArea?.countryLabel) {
-                  setShippingCountry(detectedArea.countryLabel);
-                  const hint = currencyHintForCountry(
-                    detectedArea.countryLabel,
-                  );
-                  if (hint && !currency) setCurrency(hint);
-                }
-                if (detectedArea?.cityLabel) setCity(detectedArea.cityLabel);
-                setLocationConfirmed(true);
-                setEditingLocation(false);
-              }}
-              onChangeLocation={() => {
-                setEditingLocation(true);
-                setLocationConfirmed(false);
-              }}
-            />
-          ) : step === "taste" && tasteSubstep === "spend" ? (
-            <TasteSpendStep
-              values={budgetPhilosophies}
-              onChange={setBudgetPhilosophies}
-            />
-          ) : step === "taste" && tasteSubstep === "worn" ? (
-            <TasteOutfitGridStep
-              cards={wornDeck}
-              selectedIds={wornPicks.map((p) => p.id)}
-              maxPicks={3}
-              loading={wornLoading}
-              onToggle={(card) =>
-                setWornPicks((prev) => togglePick(prev, card, 3))
-              }
-              why="Your real wardrobe is my starting point. The dream comes next."
-            />
-          ) : step === "taste" && tasteSubstep === "aspirational" ? (
-            <TasteOutfitGridStep
-              cards={aspirationalDeck}
-              selectedIds={aspirationalPicks.map((p) => p.id)}
-              maxPicks={2}
-              loading={aspirationalLoading}
-              onToggle={(card) =>
-                setAspirationalPicks((prev) => togglePick(prev, card, 2))
-              }
-              why="Where you're headed matters as much as where you are. I dress both."
-            />
-          ) : step === "taste" && tasteSubstep === "loves" ? (
-            <TasteLovesVetoesStep
-              context={{
-                genderPresentation,
-                styleEra: joinCsvValues(styleEras),
-                lifestyleTags,
-                valuePhilosophy: joinCsvValues(budgetPhilosophies),
-                shippingCountry,
-                wornLabels: wornPicks.map((p) => p.label),
-                aspirationalLabels: aspirationalPicks.map((p) => p.label),
-                wornTasteTags: wornPicks.flatMap((p) => p.tasteTags ?? []),
-                aspirationalTasteTags: aspirationalPicks.flatMap(
-                  (p) => p.tasteTags ?? [],
-                ),
-              }}
-              brandLikes={brandLikes}
-              brandAvoids={brandAvoids}
-              hardAvoids={hardAvoids}
-              onChangeBrandLikes={setBrandLikes}
-              onChangeBrandAvoids={setBrandAvoids}
-              onChangeHardAvoids={setHardAvoids}
-            />
-          ) : step === "taste" && tasteSubstep === "compliments" ? (
-            <TasteComplimentStep
-              values={compliments}
-              onChange={setCompliments}
-            />
-          ) : step === "taste" && tasteSubstep === "honesty" ? (
-            <TasteHonestyStep
-              value={honestyPreference}
-              onChange={setHonestyPreference}
-            />
-          ) : step === "card" && selfPersonId ? (
-            <CardForgeStep
-              key={selfPersonId}
-              personId={selfPersonId}
-              preferredName={preferredName}
-              styleEra={joinCsvValues(styleEras)}
-              styleMix={styleMix}
-              substep={cardSubstep}
-              onBusyChange={setAvatarBusy}
-              onSubstepChange={setCardSubstep}
-              onComplete={() => finishCardForge()}
-              onWelcomeDone={dismissAfterWelcome}
-              onSkipAll={() => {
-                setHoldOpenForWelcome(false);
-                void completeOnboarding();
-              }}
-            />
-          ) : step === "card" ? (
-            <div className="space-y-4 py-8 text-center">
-              <p className="text-sm text-neutral-600">
-                We couldn&apos;t load your profile person for your card.
-              </p>
-              <button
-                type="button"
-                className="text-sm font-semibold text-[#007AFF] transition hover:underline"
-                onClick={() => finishCardForge()}
-              >
-                Continue without card
-              </button>
-            </div>
-          ) : (
-            <OnboardingLoadingPanel variant="saving" compact />
-          )}
-
-          {error ? (
-            <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-              {error}
-            </p>
-          ) : null}
-        </div>
-
-        {step !== "doorway" && step !== "card" ? (
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-neutral-200 px-6 py-4 sm:px-8">
-            <div className="min-w-0 space-y-1">
-              <button
-                type="button"
-                onClick={goBack}
-                disabled={busy}
-                className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
-              >
-                ← Back
-              </button>
-              {footerHint ? (
-                <p className="max-w-md text-xs text-neutral-400">
-                  {footerHint}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap justify-end gap-2">
-              {step === "intake" && intakePhase === "select" ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep("you");
-                    setYouSubstep(0);
-                  }}
-                  className="text-sm font-medium text-neutral-500 transition hover:text-neutral-800 hover:underline"
-                >
-                  Skip — I&apos;ll fill it in myself
-                </button>
-              ) : null}
-              {step === "intake" && intakePhase === "paste" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep("you");
-                      setYouSubstep(0);
-                    }}
-                    disabled={busy}
-                    className="text-sm font-medium text-neutral-500 transition hover:text-neutral-800 hover:underline disabled:opacity-50"
-                  >
-                    Skip for now
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void submitIntake()}
-                    disabled={busy}
-                    className="text-sm font-semibold text-[#007AFF] transition hover:underline disabled:opacity-50"
-                  >
-                    {busy ? "Reading…" : "Continue"}
-                  </button>
-                </>
-              ) : null}
-              {showPrimaryNext ? (
-                <button
-                  type="button"
-                  onClick={() => void advance()}
-                  disabled={busy}
-                  className="text-sm font-semibold text-[#007AFF] transition hover:underline disabled:opacity-50"
-                >
-                  {busy ? "Saving…" : "Next →"}
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : step === "card" ? (
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-neutral-200 px-6 py-4 sm:px-8">
-            <button
-              type="button"
-              onClick={goBack}
-              disabled={busy || avatarBusy}
-              className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
-            >
-              ← Back
-            </button>
-            {footerHint ? (
-              <p className="max-w-md text-xs text-neutral-400">{footerHint}</p>
-            ) : null}
-          </div>
+        {step !== "verdict" && step !== "name" ? (
+          <FittingBackLink onClick={goBack} />
         ) : null}
-      </div>
-    </div>
+        {step !== "verdict" ? (
+          <FittingCount n={stepMeta.n} total={7} />
+        ) : null}
+
+        {step === "name" ? (
+          <YouIdentityStep
+            values={identityValues}
+            onChange={identityOnChange}
+            onContinue={() => void advanceFrom("name")}
+            busy={busy}
+          />
+        ) : null}
+
+        {step === "spend" ? (
+          <TasteSpendStep
+            values={budgetPhilosophies}
+            onChange={setBudgetPhilosophies}
+            customLabels={customSpendLabels}
+            onCustomLabelsChange={setCustomSpendLabels}
+            onContinue={() => void advanceFrom("spend")}
+            busy={busy}
+          />
+        ) : null}
+
+        {step === "photo" ? (
+          <FittingPhotoStep
+            values={photoValues}
+            onChange={photoOnChange}
+            onPhotoFile={(f) => void uploadPhoto(f)}
+            onSkipPhoto={() => {
+              photoReadyRef.current = false;
+              void advanceFrom("photo");
+            }}
+            onContinue={() => void advanceFrom("photo")}
+            busy={busy}
+            showContinue
+            showBust={normalizeGender(genderPresentation) === "feminine"}
+          />
+        ) : null}
+
+        {step === "worn" ? (
+          <TasteOutfitGridStep
+            mode="worn"
+            cards={wornDeck}
+            selectedIds={wornPicks.map((p) => p.id)}
+            maxPicks={3}
+            loading={wornLoading}
+            onToggle={(card) =>
+              setWornPicks((prev) => togglePick(prev, card, 3))
+            }
+            why="Your real wardrobe is my starting point. The dream comes next."
+            onContinue={() => void advanceFrom("worn")}
+            busy={busy}
+          />
+        ) : null}
+
+        {step === "wanted" ? (
+          <TasteOutfitGridStep
+            mode="aspirational"
+            cards={aspirationalDeck}
+            selectedIds={aspirationalPicks.map((p) => p.id)}
+            maxPicks={2}
+            loading={aspirationalLoading}
+            onToggle={(card) =>
+              setAspirationalPicks((prev) => togglePick(prev, card, 2))
+            }
+            why="Where you're headed matters as much as where you are. I dress both."
+            onContinue={() => void advanceFrom("wanted")}
+            busy={busy}
+          />
+        ) : null}
+
+        {step === "nolist" ? (
+          <TasteLovesVetoesStep
+            context={{
+              genderPresentation,
+              styleEra: joinCsvValues(styleEras),
+              lifestyleTags,
+              valuePhilosophy: valuePhilosophyWire ?? "",
+              shippingCountry,
+              wornLabels: wornPicks.map((p) => p.label),
+              aspirationalLabels: aspirationalPicks.map((p) => p.label),
+              wornTasteTags: wornPicks.flatMap((p) => p.tasteTags ?? []),
+              aspirationalTasteTags: aspirationalPicks.flatMap(
+                (p) => p.tasteTags ?? [],
+              ),
+            }}
+            brandLikes={brandLikes}
+            brandAvoids={brandAvoids}
+            hardAvoids={hardAvoids}
+            onChangeBrandLikes={setBrandLikes}
+            onChangeBrandAvoids={setBrandAvoids}
+            onChangeHardAvoids={setHardAvoids}
+            onContinue={() => void advanceFrom("nolist")}
+            busy={busy}
+          />
+        ) : null}
+
+        {step === "honesty" ? (
+          <TasteHonestyStep
+            value={honestyPreference}
+            onChange={setHonestyPreference}
+            onContinue={() => void advanceFrom("honesty")}
+            busy={busy}
+          />
+        ) : null}
+
+        {step === "verdict" ? (
+          <FittingVerdictStep
+            preferredName={preferredName}
+            wornLabels={wornPicks.map((p) => p.label)}
+            stealLabels={aspirationalPicks.map((p) => p.label)}
+            leanLabel={mirror.leanLabel}
+            form={mirror.form}
+            build={photoValues.build}
+            vetoCount={hardAvoids.length + brandAvoids.length}
+            developPct={mirror.developPct}
+            dressStatus={dressStatus}
+            dressStyleLabel={dressStyleLabel}
+            busy={busy}
+            onMeetTwin={() => void completeOnboarding()}
+            shareCopied={shareCopied}
+            onShare={() => {
+              const text = `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes. shoop.world`;
+              void navigator.clipboard?.writeText(text).then(() => {
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2000);
+              });
+            }}
+          />
+        ) : null}
+
+        {error ? (
+          <p className="mt-4 max-w-lg rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {error}
+          </p>
+        ) : null}
+
+        {/* hidden trigger for enter-key */}
+        {step !== "verdict" ? (
+          <button
+            type="button"
+            data-fitting-primary
+            className="sr-only"
+            onClick={() => void advanceFrom(step)}
+          >
+            next
+          </button>
+        ) : null}
+
+        {/* keep styleMix referenced for future narration */}
+        <span className="sr-only">{styleMix ? JSON.stringify(styleMix) : ""}</span>
+        <span className="sr-only">{styleEraLabel(joinCsvValues(styleEras))}</span>
+      </FittingShell>
+    </>
   );
 }

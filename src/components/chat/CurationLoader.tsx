@@ -113,7 +113,7 @@ export const CurationLoader = memo(function CurationLoader({
 
   return (
     <div className="tp-shoop-reply-enter w-full max-w-[28rem] select-none">
-      <div className="rounded-[20px] border border-hairline-soft bg-surface/70 px-4 pb-3.5 pt-4 shadow-[0_2px_12px_rgba(12,12,12,0.04)] backdrop-blur-sm">
+      <div className="rounded-[20px] border border-hairline bg-surface/70 px-4 pb-3.5 pt-4 shadow-[0_2px_12px_rgba(14,14,17,0.04)] backdrop-blur-sm">
         <FunnelRail phaseIndex={phaseIndex} />
 
         <div className={cn("mt-4", showDrops && "min-h-[8.5rem]")}>

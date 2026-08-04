@@ -51,7 +51,7 @@ export function SidebarUserFooter() {
   return (
     <div
       ref={rootRef}
-      className="relative mt-2 shrink-0 border-t border-hairline-soft pb-1 pt-3"
+      className="relative mt-2 shrink-0 border-t border-hairline pb-1 pt-3"
     >
       {open ? (
         <div

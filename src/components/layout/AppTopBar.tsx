@@ -1,12 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { Menu } from "lucide-react";
 import { CartButton } from "@/components/cart/CartButton";
 import { ProfileAvatarLink } from "@/components/auth/ProfileAvatarLink";
 import { CatalogLocalizationBar } from "@/components/layout/CatalogLocalizationBar";
-import { ShoopLogo } from "@/components/brand/ShoopBrand";
-import { NEW_CHAT_PATH } from "@/lib/shared/chatRoutes";
 
 type AppTopBarProps = {
   onOpenSidebar: () => void;
@@ -14,36 +11,27 @@ type AppTopBarProps = {
 
 export function AppTopBar({ onOpenSidebar }: AppTopBarProps) {
   return (
-    <div className="z-10 shrink-0 border-b border-hairline-soft bg-page/90 backdrop-blur-md">
+    <div className="z-10 shrink-0 border-b border-hairline bg-white/95 backdrop-blur-md">
       <header className="relative flex h-14 items-center shoop-page-x md:h-16">
         {/* Left */}
-        <div className="flex min-w-0 items-center">
+        <div className="flex min-w-0 items-center gap-6">
           <button
             type="button"
-            className="inline-flex size-9 items-center justify-center rounded-xl text-ink-soft transition hover:bg-surface-tint hover:text-ink lg:hidden"
+            className="inline-flex size-9 items-center justify-center rounded-[10px] text-ink-soft transition hover:bg-surface-tint hover:text-ink lg:hidden"
             aria-label="Open sidebar"
             onClick={onOpenSidebar}
           >
             <Menu className="size-[18px]" strokeWidth={1.75} />
           </button>
-          <Link
-            href={NEW_CHAT_PATH}
-            className="hidden items-center rounded-lg px-1 py-1 transition-opacity hover:opacity-80 lg:inline-flex"
-            aria-label="Shoop home"
+          {/* FIND → TRY → DECIDE crumb — home is always FIND */}
+          <nav
+            aria-label="Journey"
+            className="hidden items-center gap-4 font-display text-[10.5px] font-extrabold tracking-[0.08em] text-[#b9b9c2] lg:flex"
           >
-            <ShoopLogo className="h-[22px]" />
-          </Link>
-        </div>
-
-        {/* Center wordmark — mobile only */}
-        <div className="pointer-events-none absolute inset-x-0 flex justify-center lg:hidden">
-          <Link
-            href={NEW_CHAT_PATH}
-            className="pointer-events-auto"
-            aria-label="Shoop home"
-          >
-            <ShoopLogo className="h-5" />
-          </Link>
+            <span className="text-brand">FIND</span>
+            <span>TRY</span>
+            <span>DECIDE</span>
+          </nav>
         </div>
 
         {/* Trailing utilities — profile last, flush to the far edge */}

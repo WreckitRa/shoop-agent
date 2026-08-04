@@ -1,7 +1,6 @@
 "use client";
 
 import { memo, useEffect, useMemo, useRef } from "react";
-import Image from "next/image";
 import { cn } from "@/lib/ai-chat/cn";
 import { useSearchParams } from "next/navigation";
 import { useChatStore } from "@/components/chat/chat-store";
@@ -21,7 +20,6 @@ import {
   AgentDebugPanel,
   AgentDebugToggleRail,
 } from "@/components/chat/AgentDebugPanel";
-import { SHOOP_HERO_SHOPPING_SRC } from "@/lib/shared/brand-assets";
 
 export const ChatLayout = memo(function ChatLayout() {
   const searchParams = useSearchParams();
@@ -77,25 +75,6 @@ export const ChatLayout = memo(function ChatLayout() {
       <ChatFocusHighlightProvider highlight={focusHighlight}>
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            {showEmpty ? (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 z-0 hidden overflow-hidden lg:block"
-              >
-                <div className="absolute left-[67%] top-1/2 h-[min(76vh,760px)] w-[min(78vw,880px)] -translate-x-1/2 -translate-y-[58%] xl:h-[min(82vh,840px)] xl:w-[min(86vw,980px)] 2xl:h-[min(89vh,936px)] 2xl:w-[min(96vw,1113px)]">
-                  <Image
-                    src={SHOOP_HERO_SHOPPING_SRC}
-                    alt=""
-                    fill
-                    priority
-                    unoptimized
-                    sizes="(min-width: 1536px) 1113px, (min-width: 1280px) 980px, 880px"
-                    className="object-contain object-center"
-                  />
-                </div>
-              </div>
-            ) : null}
-
             <AgentDebugToggleRail />
             <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
               {error ? (
@@ -127,10 +106,7 @@ export const ChatLayout = memo(function ChatLayout() {
               <div className="relative min-h-0 flex-1">
                 <div
                   ref={scrollRef}
-                  className={cn(
-                    "h-full min-h-0 overflow-x-hidden overscroll-y-contain [-webkit-overflow-scrolling:touch]",
-                    showEmpty ? "overflow-y-hidden" : "overflow-y-auto",
-                  )}
+                  className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
                 >
                   <div
                     className={cn(

@@ -96,7 +96,7 @@ export function TryOnLookButton({
       <div className="mt-3">
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-full border border-hairline-soft px-3 py-1 text-xs font-medium text-ink transition hover:bg-surface-tint"
+          className="inline-flex items-center gap-1.5 rounded-full border border-hairline px-3 py-1 text-xs font-medium text-ink transition hover:bg-surface-tint"
           onClick={() => openCreateFlow()}
         >
           Create your avatar to try them on

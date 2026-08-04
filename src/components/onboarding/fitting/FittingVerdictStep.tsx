@@ -1,0 +1,176 @@
+"use client";
+
+import {
+  FittingCta,
+  FittingTitle,
+  FittingWhisper,
+} from "@/components/onboarding/onboarding-ui";
+import type { BuildKey, SilhouetteForm } from "./types";
+
+type Props = {
+  preferredName: string;
+  wornLabels: string[];
+  stealLabels: string[];
+  leanLabel: string;
+  form: SilhouetteForm;
+  build: BuildKey | null;
+  vetoCount: number;
+  developPct: number;
+  /** FASHN dress of one worn pick onto the twin. */
+  dressStatus?: "idle" | "dressing" | "ready" | "error";
+  dressStyleLabel?: string | null;
+  busy?: boolean;
+  onMeetTwin: () => void;
+  onShare?: () => void;
+  shareCopied?: boolean;
+};
+
+const LEAN_TXT: Record<string, string> = {
+  Parisian: "effortless, thrown-on polish",
+  Minimal: "clean lines and quiet confidence",
+  Bold: "statement pieces that own the room",
+};
+
+const BUILD_TXT: Record<BuildKey, string> = {
+  slim: "your frame carries drape and layering beautifully",
+  average:
+    "nearly every cut works on you... precise fit is your superpower",
+  athletic: "structure and taper show your shape... boxy hides it",
+  broad: "strong shoulders love clean lines and hate cling",
+  plus: "drape, structure and the right rise do the work... cling never will",
+};
+
+export function FittingVerdictStep({
+  preferredName,
+  wornLabels,
+  stealLabels,
+  leanLabel,
+  form,
+  build,
+  vetoCount,
+  developPct,
+  dressStatus = "idle",
+  dressStyleLabel = null,
+  busy,
+  onMeetTwin,
+  onShare,
+  shareCopied,
+}: Props) {
+  const first =
+    preferredName.trim().charAt(0).toUpperCase() +
+    preferredName.trim().slice(1).toLowerCase();
+  const leanKey = leanLabel || "Minimal";
+  const leanTxt =
+    LEAN_TXT[leanKey] ??
+    LEAN_TXT[leanKey.charAt(0).toUpperCase() + leanKey.slice(1).toLowerCase()] ??
+    "a mix all your own";
+  const buildTxt = build
+    ? BUILD_TXT[build]
+    : "we'll fine-tune the cut as we shop together";
+  const formTip =
+    form === "f"
+      ? "Waist definition is your friend... let pieces follow it."
+      : form === "m"
+        ? "Let the shoulder line lead... everything hangs from there."
+        : "Balance over rules... we fit the body you have, not a template.";
+
+  const gap =
+    stealLabels[0] &&
+    wornLabels[0] &&
+    stealLabels[0] !== wornLabels[0]
+      ? `You live in <b>${wornLabels.join(" + ") || "your comfort zone"}</b> but you're drawn to <b>${stealLabels.join(" + ")}</b>... that gap is exactly where I'll push you, one piece at a time.`
+      : "Your reality and your wishlist already agree... my job is to sharpen it.";
+
+  return (
+    <section>
+      <div className="mb-[18px] text-xs font-extrabold tracking-[0.08em] text-[var(--fitting-red)]">
+        The verdict
+      </div>
+      <FittingTitle
+        lines={[
+          {
+            text: first
+              ? `Alright ${first}...`
+              : "Alright...",
+          },
+          { text: "here's what I %%see.%%", red: true },
+        ]}
+      />
+
+      <div className="mt-2 max-w-[600px] rounded-[20px] bg-[var(--fitting-ink)] px-7 py-[26px] text-white shadow-[0_26px_54px_-22px_rgba(14,14,17,0.55)]">
+        <div className="text-[10.5px] font-extrabold tracking-[0.14em] text-[#FF8A90]">
+          WHAT YOU LOVE
+        </div>
+        <p className="mt-1.5 text-sm leading-[1.65] text-[#E8E8EE] [&_b]:text-white">
+          {wornLabels.length ? (
+            <>
+              <b>{wornLabels.join(" · ")}</b>
+              {"... "}
+            </>
+          ) : null}
+          you lean toward <b>{leanTxt}</b>
+          {vetoCount > 0 ? (
+            <>
+              , and you know your nos:{" "}
+              <b>{vetoCount} hard vetoes</b>, sacred and kept.
+            </>
+          ) : (
+            "."
+          )}
+        </p>
+
+        <div className="mt-4 text-[10.5px] font-extrabold tracking-[0.14em] text-[#FF8A90]">
+          WHAT SUITS YOU
+        </div>
+        <p className="mt-1.5 text-sm leading-[1.65] text-[#E8E8EE] [&_b]:text-white">
+          {buildTxt.charAt(0).toUpperCase() + buildTxt.slice(1)}. {formTip}
+        </p>
+
+        <div className="mt-4 text-[10.5px] font-extrabold tracking-[0.14em] text-[#FF8A90]">
+          WORTH CONSIDERING
+        </div>
+        <p
+          className="mt-1.5 text-sm leading-[1.65] text-[#E8E8EE] [&_b]:text-white"
+          dangerouslySetInnerHTML={{ __html: gap }}
+        />
+
+        <div className="mt-[18px] flex flex-wrap items-center gap-3 border-t border-white/12 pt-3.5">
+          <FittingCta onClick={onMeetTwin} disabled={busy}>
+            {busy ? "Opening…" : "Meet your twin in the Mirror"}
+          </FittingCta>
+          {onShare ? (
+            <button
+              type="button"
+              onClick={onShare}
+              className="h-[46px] rounded-xl border-[1.5px] border-white bg-transparent px-5 font-display text-[13px] font-extrabold text-white transition hover:bg-white hover:text-[var(--fitting-ink)]"
+            >
+              {shareCopied ? "Copied ✓" : "Share my verdict"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <FittingWhisper>
+        {dressStatus === "dressing" ? (
+          <>
+            Shoop is putting{" "}
+            <b>{dressStyleLabel ?? "your worn look"}</b> on your twin right
+            now... {developPct}% and counting.
+          </>
+        ) : dressStatus === "ready" ? (
+          <>
+            {developPct}% · dressed in{" "}
+            <b>{dressStyleLabel ?? "your worn look"}</b>. Open the Mirror — the
+            foil lands with the fit.
+          </>
+        ) : (
+          <>
+            {developPct}% developed... the Mirror brings the fit, the mint
+            brings the foil.{" "}
+            <b>First-edition serials are still three digits.</b>
+          </>
+        )}
+      </FittingWhisper>
+    </section>
+  );
+}

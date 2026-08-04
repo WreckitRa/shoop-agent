@@ -241,7 +241,7 @@ export function ProfileView() {
                 {initials}
               </div>
             </div>
-            <h1 className="mt-5 font-serif text-2xl font-semibold tracking-tight text-ink">
+            <h1 className="mt-5 font-display text-2xl font-extrabold tracking-tight text-ink">
               {displayName}
             </h1>
             {email ? (

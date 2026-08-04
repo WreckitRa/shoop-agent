@@ -2,42 +2,75 @@
 
 import { HONESTY_OPTIONS } from "@/lib/onboarding/form-options";
 import { cn } from "@/lib/ai-chat/cn";
-import { OnboardingWhy } from "@/components/onboarding/onboarding-ui";
+import {
+  FittingNavRow,
+  FittingTitle,
+  FittingWhisper,
+} from "@/components/onboarding/onboarding-ui";
 
 type Props = {
   value: string;
   onChange: (value: string) => void;
+  onContinue?: () => void;
+  busy?: boolean;
 };
 
-export function TasteHonestyStep({ value, onChange }: Props) {
+export function TasteHonestyStep({
+  value,
+  onChange,
+  onContinue,
+  busy,
+}: Props) {
   return (
     <section>
-      <div className="mt-2 grid gap-3 sm:grid-cols-3">
+      <FittingTitle
+        lines={[
+          { text: "How honest" },
+          { text: "do you want me?" },
+        ]}
+      />
+      <FittingWhisper>
+        I&apos;ll never say a piece works when it doesn&apos;t. This only sets how
+        I break the news... and every no comes with a{" "}
+        <b>yes that gets you the same look.</b>
+      </FittingWhisper>
+
+      <div className="flex max-w-[680px] flex-col gap-3 sm:flex-row">
         {HONESTY_OPTIONS.map((opt) => (
           <button
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
             className={cn(
-              "rounded-[14px] border p-4 text-left transition",
-              "shadow-[inset_0_2px_5px_rgba(12,12,12,0.07),inset_0_-1px_0_rgba(255,255,255,0.85)]",
-              value === opt.value
-                ? "border-[#E8A09C] bg-[#FDF1F0] text-[#C43B35] shadow-[inset_0_2px_6px_rgba(196,59,53,0.12),inset_0_-1px_0_rgba(255,255,255,0.7)]"
-                : "border-neutral-200/80 bg-[#F5F3F0] hover:border-neutral-300 hover:bg-[#F1EFEC]",
+              "flex-1 rounded-[14px] border border-[#D6D6DE] bg-white p-[18px_16px] text-left transition-all duration-150",
+              "hover:-translate-y-0.5 hover:shadow-[0_12px_24px_-12px_rgba(14,14,17,0.35)]",
+              value === opt.value &&
+                "border-[var(--fitting-red)] bg-[var(--fitting-mist)] shadow-[inset_0_3px_4px_-1px_rgba(14,14,17,0.22)]",
             )}
           >
-            <b className="mb-1.5 block text-[13.5px] font-bold">{opt.label}</b>
-            <p className="text-[12.5px] italic leading-5 text-neutral-500">
+            <b
+              className={cn(
+                "mb-2 block font-display text-[15px] font-extrabold",
+                value === opt.value && "text-[var(--fitting-red)]",
+              )}
+            >
+              {opt.label}
+            </b>
+            <i className="block font-whisper text-[12.5px] not-italic italic leading-[1.55] text-[var(--fitting-quiet)]">
               &ldquo;{opt.quote}&rdquo;
-            </p>
+            </i>
           </button>
         ))}
       </div>
-      <OnboardingWhy>
-        I&apos;ll never tell you a dress works when it doesn&apos;t. This just
-        sets how I break the news... and whatever I say no to, I&apos;ll always
-        hand you a yes that gets you the same look.
-      </OnboardingWhy>
+
+      {onContinue ? (
+        <FittingNavRow
+          onNext={onContinue}
+          busy={busy}
+          nextLabel="Lock it in... last one"
+          enterHint={false}
+        />
+      ) : null}
     </section>
   );
 }

@@ -8,7 +8,7 @@ import { useChatMessageProductLink } from "@/components/chat/ChatMessageProductL
 import { InlineChatProductPanel } from "@/components/chat/InlineChatProductPanel";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
 import { cn } from "@/lib/ai-chat/cn";
-import { colors, fontWeight, radius, shadow } from "@/lib/design/tokens";
+import { colors, fontWeight, radii, shadows } from "@/lib/design/tokens";
 import { useCatalogLocalization } from "@/hooks/useCatalogLocalization";
 import { displayCurrencyFromLocalization } from "@/lib/shopify/catalog-localization";
 import { chatProductDomId, stashChatFocusReturn } from "@/lib/shared/chatFocus";
@@ -154,10 +154,10 @@ export function CuratedPickSkeleton({
         width: "100%",
         maxWidth: isHero ? 196 : 168,
         minWidth: 0,
-        background: colors.surface.default,
-        border: `1px solid ${colors.border.default}`,
-        borderRadius: isHero ? radius["2xl"] : radius.xl,
-        boxShadow: isHero ? shadow.soft : undefined,
+        background: colors.surface,
+        border: `1px solid ${colors.hairline}`,
+        borderRadius: isHero ? radii["2xl"] : radii.xl,
+        boxShadow: isHero ? shadows.soft : undefined,
         padding: isHero ? 14 : 12,
         display: "flex",
         flexDirection: "column",
@@ -169,15 +169,15 @@ export function CuratedPickSkeleton({
           height: 10,
           width: isHero ? 88 : 72,
           borderRadius: 6,
-          background: colors.surface.neutral,
+          background: colors.surfaceSubtle,
         }}
       />
       <div
         style={{
           width: "100%",
           aspectRatio: "1",
-          borderRadius: radius.xl,
-          background: colors.surface.neutral,
+          borderRadius: radii.xl,
+          background: colors.surfaceSubtle,
         }}
       />
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -186,7 +186,7 @@ export function CuratedPickSkeleton({
             height: isHero ? 14 : 12,
             width: "88%",
             borderRadius: 6,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
           }}
         />
         <div
@@ -194,7 +194,7 @@ export function CuratedPickSkeleton({
             height: isHero ? 16 : 14,
             width: "40%",
             borderRadius: 6,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
           }}
         />
         <div
@@ -202,7 +202,7 @@ export function CuratedPickSkeleton({
             height: 9,
             width: "100%",
             borderRadius: 6,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
           }}
         />
       </div>
@@ -229,10 +229,10 @@ export function HeroPickCard({
         link.className,
       )}
       style={{
-        background: colors.surface.default,
-        border: `1px solid ${colors.border.default}`,
-        boxShadow: shadow.card,
-        borderRadius: radius.xl,
+        background: colors.surface,
+        border: `1px solid ${colors.hairline}`,
+        boxShadow: shadows.card,
+        borderRadius: radii.xl,
         marginBottom: 16,
       }}
     >
@@ -267,10 +267,10 @@ export function HeroPickCard({
           style={{
             width: 132,
             height: 132,
-            borderRadius: radius.lg,
+            borderRadius: radii.lg,
             objectFit: "cover",
             flexShrink: 0,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
           }}
           referrerPolicy="no-referrer"
         />
@@ -279,13 +279,13 @@ export function HeroPickCard({
           style={{
             width: 132,
             height: 132,
-            borderRadius: radius.lg,
+            borderRadius: radii.lg,
             flexShrink: 0,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: colors.text.muted,
+            color: colors.inkMuted,
             fontSize: 36,
             fontWeight: fontWeight.semibold,
           }}
@@ -300,7 +300,7 @@ export function HeroPickCard({
             fontSize: 11,
             fontWeight: fontWeight.semibold,
             letterSpacing: "0.1em",
-            color: colors.brand.primary,
+            color: colors.brand,
             textTransform: "uppercase",
             marginBottom: 6,
           }}
@@ -311,7 +311,7 @@ export function HeroPickCard({
           style={{
             fontSize: 18,
             fontWeight: fontWeight.medium,
-            color: colors.text.primary,
+            color: colors.ink,
             marginBottom: 4,
             lineHeight: 1.25,
           }}
@@ -323,7 +323,7 @@ export function HeroPickCard({
             style={{
               fontSize: 20,
               fontWeight: fontWeight.bold,
-              color: colors.text.primary,
+              color: colors.ink,
             }}
           >
             {price}
@@ -364,14 +364,14 @@ function RatingTag({
         gap: 3,
         fontSize: size === "sm" ? 11 : 10,
         fontWeight: 600,
-        color: colors.text.soft,
+        color: colors.inkSoft,
       }}
     >
-      <span aria-hidden style={{ color: colors.warning.DEFAULT }}>
+      <span aria-hidden style={{ color: colors.warning }}>
         ★
       </span>
       {normalized.toFixed(1)}
-      <span style={{ color: colors.text.muted }}>
+      <span style={{ color: colors.inkMuted }}>
         ({rating.count.toLocaleString()})
       </span>
     </span>
@@ -398,10 +398,10 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
         link.className,
       )}
       style={{
-        background: colors.surface.default,
-        border: `1px solid ${colors.border.default}`,
-        borderRadius: radius.xl,
-        boxShadow: isHero ? shadow.card : shadow.soft,
+        background: colors.surface,
+        border: `1px solid ${colors.hairline}`,
+        borderRadius: radii.xl,
+        boxShadow: isHero ? shadows.card : shadows.soft,
         textAlign: "left",
       }}
     >
@@ -437,7 +437,7 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
               aspectRatio: "1",
               objectFit: "cover",
               display: "block",
-              background: colors.surface.neutral,
+              background: colors.surfaceSubtle,
             }}
             referrerPolicy="no-referrer"
           />
@@ -446,11 +446,11 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
             style={{
               width: "100%",
               aspectRatio: "1",
-              background: colors.surface.neutral,
+              background: colors.surfaceSubtle,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: colors.text.muted,
+              color: colors.inkMuted,
               fontSize: isHero ? 36 : 28,
               fontWeight: fontWeight.semibold,
             }}
@@ -462,7 +462,7 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
         {isHero ? (
           <span
             className="absolute left-2.5 top-2.5 rounded-full bg-white/92 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] backdrop-blur-sm"
-            style={{ color: colors.brand.primary }}
+            style={{ color: colors.brand }}
           >
             Shoop&apos;s pick
           </span>
@@ -481,7 +481,7 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
           style={{
             fontSize: isHero ? 14 : 13,
             fontWeight: fontWeight.medium,
-            color: colors.text.primary,
+            color: colors.ink,
             lineHeight: 1.35,
             display: "-webkit-box",
             WebkitLineClamp: 2,
@@ -504,7 +504,7 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
               style={{
                 fontSize: isHero ? 16 : 14,
                 fontWeight: fontWeight.bold,
-                color: colors.text.primary,
+                color: colors.ink,
                 letterSpacing: "-0.01em",
               }}
             >
@@ -519,7 +519,7 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
           style={{
             fontSize: isHero ? 12 : 11,
             lineHeight: 1.4,
-            color: colors.text.secondary,
+            color: colors.inkSecondary,
             margin: 0,
             display: "-webkit-box",
             WebkitLineClamp: 2,
@@ -534,7 +534,7 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
             style={{
               fontSize: isHero ? 11 : 10,
               lineHeight: 1.35,
-              color: colors.text.muted,
+              color: colors.inkMuted,
               margin: 0,
               fontWeight: fontWeight.medium,
             }}
@@ -569,10 +569,10 @@ export function GalleryPickCard({ pick }: { pick: CuratedPick }) {
       )}
       style={{
         width: 164,
-        background: colors.surface.default,
-        border: `1px solid ${colors.border.default}`,
-        borderRadius: radius.xl,
-        boxShadow: shadow.soft,
+        background: colors.surface,
+        border: `1px solid ${colors.hairline}`,
+        borderRadius: radii.xl,
+        boxShadow: shadows.soft,
       }}
     >
       <PickReplyButton pick={pick} className="absolute right-2 top-2 z-10" />
@@ -607,7 +607,7 @@ export function GalleryPickCard({ pick }: { pick: CuratedPick }) {
               width: "100%",
               aspectRatio: "1",
               objectFit: "cover",
-              background: colors.surface.neutral,
+              background: colors.surfaceSubtle,
               display: "block",
             }}
             referrerPolicy="no-referrer"
@@ -617,11 +617,11 @@ export function GalleryPickCard({ pick }: { pick: CuratedPick }) {
             style={{
               width: "100%",
               aspectRatio: "1",
-              background: colors.surface.neutral,
+              background: colors.surfaceSubtle,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: colors.text.muted,
+              color: colors.inkMuted,
               fontSize: 28,
               fontWeight: fontWeight.semibold,
             }}
@@ -644,7 +644,7 @@ export function GalleryPickCard({ pick }: { pick: CuratedPick }) {
           style={{
             fontSize: 12,
             fontWeight: fontWeight.medium,
-            color: colors.text.primary,
+            color: colors.ink,
             lineHeight: 1.35,
             display: "-webkit-box",
             WebkitLineClamp: 2,
@@ -659,7 +659,7 @@ export function GalleryPickCard({ pick }: { pick: CuratedPick }) {
             style={{
               fontSize: 14,
               fontWeight: fontWeight.bold,
-              color: colors.text.primary,
+              color: colors.ink,
               letterSpacing: "-0.01em",
             }}
           >
@@ -671,7 +671,7 @@ export function GalleryPickCard({ pick }: { pick: CuratedPick }) {
           style={{
             fontSize: 11,
             lineHeight: 1.35,
-            color: colors.text.secondary,
+            color: colors.inkSecondary,
             margin: 0,
             display: "-webkit-box",
             WebkitLineClamp: 2,
@@ -698,10 +698,10 @@ export function GalleryPickSkeleton() {
       aria-hidden
       style={{
         width: 164,
-        background: colors.surface.default,
-        border: `1px solid ${colors.border.default}`,
-        borderRadius: radius.xl,
-        boxShadow: shadow.soft,
+        background: colors.surface,
+        border: `1px solid ${colors.hairline}`,
+        borderRadius: radii.xl,
+        boxShadow: shadows.soft,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
@@ -711,7 +711,7 @@ export function GalleryPickSkeleton() {
         style={{
           width: "100%",
           aspectRatio: "1",
-          background: colors.surface.neutral,
+          background: colors.surfaceSubtle,
         }}
       />
       <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "10px 12px 12px" }}>
@@ -720,7 +720,7 @@ export function GalleryPickSkeleton() {
             height: 12,
             width: "92%",
             borderRadius: 6,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
           }}
         />
         <div
@@ -728,7 +728,7 @@ export function GalleryPickSkeleton() {
             height: 12,
             width: "45%",
             borderRadius: 6,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
           }}
         />
       </div>
@@ -757,10 +757,10 @@ export function FashionLeadPickCard({
         link.className,
       )}
       style={{
-        background: colors.surface.default,
-        border: `1px solid ${colors.border.default}`,
-        boxShadow: shadow.card,
-        borderRadius: radius.xl,
+        background: colors.surface,
+        border: `1px solid ${colors.hairline}`,
+        boxShadow: shadows.card,
+        borderRadius: radii.xl,
       }}
     >
       <button
@@ -782,7 +782,7 @@ export function FashionLeadPickCard({
           className="relative w-full"
           style={{
             aspectRatio: "3 / 4",
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
           }}
         >
           {product.imageUrl ? (
@@ -798,7 +798,7 @@ export function FashionLeadPickCard({
           ) : (
             <div
               className="absolute inset-0 flex items-center justify-center text-[36px] font-semibold"
-              style={{ color: colors.text.muted }}
+              style={{ color: colors.inkMuted }}
               aria-hidden
             >
               {product.title.charAt(0)}
@@ -806,7 +806,7 @@ export function FashionLeadPickCard({
           )}
           <span
             className="absolute left-2.5 top-2.5 rounded-full bg-white/92 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-sm"
-            style={{ color: colors.brand.primary }}
+            style={{ color: colors.brand }}
           >
             Top find
           </span>
@@ -824,7 +824,7 @@ export function FashionLeadPickCard({
             style={{
               fontSize: 13,
               fontWeight: fontWeight.medium,
-              color: colors.text.primary,
+              color: colors.ink,
               lineHeight: 1.3,
               display: "-webkit-box",
               WebkitLineClamp: 2,
@@ -847,7 +847,7 @@ export function FashionLeadPickCard({
                 style={{
                   fontSize: 15,
                   fontWeight: fontWeight.bold,
-                  color: colors.text.primary,
+                  color: colors.ink,
                   letterSpacing: "-0.01em",
                 }}
               >
@@ -892,10 +892,10 @@ export function FashionStackPickCard({
         link.className,
       )}
       style={{
-        background: colors.surface.default,
-        border: `1px solid ${colors.border.default}`,
-        borderRadius: radius.xl,
-        boxShadow: shadow.soft,
+        background: colors.surface,
+        border: `1px solid ${colors.hairline}`,
+        borderRadius: radii.xl,
+        boxShadow: shadows.soft,
       }}
     >
       <button
@@ -915,7 +915,7 @@ export function FashionStackPickCard({
       >
         <div
           className="relative min-h-[120px] overflow-hidden"
-          style={{ background: colors.surface.neutral }}
+          style={{ background: colors.surfaceSubtle }}
         >
           {product.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -929,7 +929,7 @@ export function FashionStackPickCard({
           ) : (
             <div
               className="absolute inset-0 flex items-center justify-center text-[22px] font-semibold"
-              style={{ color: colors.text.muted }}
+              style={{ color: colors.inkMuted }}
               aria-hidden
             >
               {product.title.charAt(0)}
@@ -951,7 +951,7 @@ export function FashionStackPickCard({
               fontSize: 10,
               fontWeight: fontWeight.semibold,
               letterSpacing: "0.1em",
-              color: colors.text.muted,
+              color: colors.inkMuted,
               textTransform: "uppercase",
             }}
           >
@@ -961,7 +961,7 @@ export function FashionStackPickCard({
             style={{
               fontSize: 12,
               fontWeight: fontWeight.medium,
-              color: colors.text.primary,
+              color: colors.ink,
               lineHeight: 1.3,
               display: "-webkit-box",
               WebkitLineClamp: 2,
@@ -984,7 +984,7 @@ export function FashionStackPickCard({
                 style={{
                   fontSize: 14,
                   fontWeight: fontWeight.bold,
-                  color: colors.text.primary,
+                  color: colors.ink,
                   letterSpacing: "-0.01em",
                 }}
               >
@@ -1029,10 +1029,10 @@ export function ProductScrollCard({
       )}
       style={{
         width: 164,
-        background: colors.surface.default,
-        border: `1px solid ${muted ? colors.border.hairlineSoft : colors.border.default}`,
-        borderRadius: radius.xl,
-        boxShadow: muted ? undefined : shadow.soft,
+        background: colors.surface,
+        border: `1px solid ${muted ? colors.hairlineSoft : colors.hairline}`,
+        borderRadius: radii.xl,
+        boxShadow: muted ? undefined : shadows.soft,
       }}
     >
       <button
@@ -1064,7 +1064,7 @@ export function ProductScrollCard({
               width: "100%",
               aspectRatio: "1",
               objectFit: "cover",
-              background: colors.surface.neutral,
+              background: colors.surfaceSubtle,
               display: "block",
             }}
             referrerPolicy="no-referrer"
@@ -1074,11 +1074,11 @@ export function ProductScrollCard({
             style={{
               width: "100%",
               aspectRatio: "1",
-              background: colors.surface.neutral,
+              background: colors.surfaceSubtle,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: colors.text.muted,
+              color: colors.inkMuted,
               fontSize: 28,
               fontWeight: fontWeight.semibold,
             }}
@@ -1100,7 +1100,7 @@ export function ProductScrollCard({
             style={{
               fontSize: 12,
               fontWeight: fontWeight.medium,
-              color: muted ? colors.text.soft : colors.text.primary,
+              color: muted ? colors.inkSoft : colors.ink,
               lineHeight: 1.35,
               display: "-webkit-box",
               WebkitLineClamp: 2,
@@ -1115,7 +1115,7 @@ export function ProductScrollCard({
               style={{
                 fontSize: 14,
                 fontWeight: fontWeight.bold,
-                color: muted ? colors.text.soft : colors.text.primary,
+                color: muted ? colors.inkSoft : colors.ink,
                 letterSpacing: "-0.01em",
               }}
             >
@@ -1153,10 +1153,10 @@ export function SecondaryPickCard({
         link.className,
       )}
       style={{
-        background: colors.surface.default,
-        border: `1px solid ${colors.border.default}`,
-        borderRadius: radius.xl,
-        boxShadow: shadow.soft,
+        background: colors.surface,
+        border: `1px solid ${colors.hairline}`,
+        borderRadius: radii.xl,
+        boxShadow: shadows.soft,
       }}
     >
     <button
@@ -1189,10 +1189,10 @@ export function SecondaryPickCard({
           style={{
             width: 72,
             height: 72,
-            borderRadius: radius.lg,
+            borderRadius: radii.lg,
             objectFit: "cover",
             flexShrink: 0,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
           }}
           referrerPolicy="no-referrer"
         />
@@ -1201,13 +1201,13 @@ export function SecondaryPickCard({
           style={{
             width: 72,
             height: 72,
-            borderRadius: radius.lg,
+            borderRadius: radii.lg,
             flexShrink: 0,
-            background: colors.surface.neutral,
+            background: colors.surfaceSubtle,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: colors.text.muted,
+            color: colors.inkMuted,
             fontWeight: fontWeight.semibold,
           }}
           aria-hidden
@@ -1221,7 +1221,7 @@ export function SecondaryPickCard({
             fontSize: 10,
             fontWeight: fontWeight.semibold,
             letterSpacing: "0.08em",
-            color: colors.text.muted,
+            color: colors.inkMuted,
             textTransform: "uppercase",
             marginBottom: 4,
           }}
@@ -1232,7 +1232,7 @@ export function SecondaryPickCard({
           style={{
             fontSize: 14,
             fontWeight: fontWeight.medium,
-            color: colors.text.primary,
+            color: colors.ink,
             marginBottom: 2,
             lineHeight: 1.3,
           }}
@@ -1244,7 +1244,7 @@ export function SecondaryPickCard({
             style={{
               fontSize: 15,
               fontWeight: fontWeight.bold,
-              color: colors.text.primary,
+              color: colors.ink,
             }}
           >
             {price}

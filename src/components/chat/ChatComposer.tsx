@@ -153,9 +153,7 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
             />
           ) : null}
           {isHeroComposer ? (
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted sm:mb-2 sm:text-[11px]">
-              Start your search
-            </p>
+            <p className="shoop-ask-label mb-2">Ask me anything</p>
           ) : null}
           <div>
             <textarea

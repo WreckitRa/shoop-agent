@@ -67,7 +67,7 @@ export function PickReplyButton({
       aria-label={`Ask Shoop about ${pick.title}`}
       aria-pressed={isActive}
       className={cn(
-        "group inline-flex h-7 min-w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-hairline bg-surface/95 px-1.5 shadow-sm backdrop-blur-sm transition-[gap,padding,border-color,background-color,justify-content] duration-200 ease-out hover:justify-start hover:gap-1.5 hover:border-ink/20 hover:bg-warm hover:px-2.5",
+        "group inline-flex h-7 min-w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-hairline bg-surface/95 px-1.5 shadow-sm backdrop-blur-sm transition-[gap,padding,border-color,background-color,justify-content] duration-200 ease-out hover:justify-start hover:gap-1.5 hover:border-ink/20 hover:bg-surface-tint hover:px-2.5",
         isActive &&
           "justify-start gap-1.5 border-ink/25 bg-ink text-white px-2.5",
         className,

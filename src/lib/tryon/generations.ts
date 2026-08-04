@@ -528,6 +528,70 @@ export async function saveTryonFeedback(params: {
   });
 }
 
+export type MoodboardItem = {
+  generationId: string;
+  imageUrl: string;
+  kind: "item" | "look";
+  title: string;
+  lovedAt: string;
+  searchId: string | null;
+  productRef: string | null;
+  lookId: string | null;
+};
+
+/** Loved try-ons (♥ feedback) — source of truth for the Moodboard. */
+export async function listMoodboardTryons(
+  userId: string,
+  limit = 60,
+): Promise<MoodboardItem[]> {
+  if (testGenStore) return [];
+
+  const rows = await prisma.tryonFeedback.findMany({
+    where: {
+      userId,
+      rating: 1,
+      generation: {
+        status: "completed",
+        kind: { in: ["single", "outfit"] },
+        outputUrl: { not: null },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: {
+      generation: {
+        select: {
+          id: true,
+          kind: true,
+          outputUrl: true,
+          searchId: true,
+          productRef: true,
+          lookId: true,
+        },
+      },
+    },
+  });
+
+  return rows
+    .filter((row) => Boolean(row.generation.outputUrl))
+    .map((row) => {
+      const kind = row.generation.kind === "outfit" ? "look" : "item";
+      const title =
+        row.generation.lookId?.trim() ||
+        (kind === "look" ? "Saved look" : "Saved try-on");
+      return {
+        generationId: row.generation.id,
+        imageUrl: row.generation.outputUrl!,
+        kind,
+        title,
+        lovedAt: row.createdAt.toISOString(),
+        searchId: row.generation.searchId,
+        productRef: row.generation.productRef,
+        lookId: row.generation.lookId,
+      };
+    });
+}
+
 export async function countAvatarRegensToday(personId: string): Promise<number> {
   const db = fashionMemoryDb();
   const since = startOfUtcDay().toISOString();
