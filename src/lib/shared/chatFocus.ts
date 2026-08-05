@@ -1,4 +1,4 @@
-import { conversationPath, isChatRoutePathname } from "@/lib/shared/chatRoutes";
+import { conversationPath } from "@/lib/shared/chatRoutes";
 
 /** Query keys for deep-linking back to a chat message (and optional product). */
 export const CHAT_FOCUS_MSG_PARAM = "msg";
@@ -59,7 +59,7 @@ export type ChatFocusReturnStash = ChatFocusTarget & {
   conversationId: string;
 };
 
-/** Persist focus target for browser-back (history) as well as explicit `?from=` links. */
+/** Persist focus target for browser-back (history) as well as deep links. */
 export function stashChatFocusReturn(stash: ChatFocusReturnStash): void {
   if (typeof window === "undefined") return;
   try {
@@ -90,39 +90,5 @@ export function consumeChatFocusReturn(
     };
   } catch {
     return null;
-  }
-}
-
-/**
- * Sanitize the product-page `?from=` back target.
- * Allows only in-app chat paths plus optional focus query params.
- */
-export function resolveProductBackHref(from: string | undefined | null): string {
-  if (!from?.trim()) return "/";
-  try {
-    const decoded = decodeURIComponent(from.trim());
-    const url = new URL(decoded, "https://shoop.internal");
-    if (
-      !url.pathname.startsWith("/") ||
-      url.pathname.startsWith("//") ||
-      !isChatRoutePathname(url.pathname)
-    ) {
-      return "/";
-    }
-
-    const safe = new URLSearchParams();
-    const msg = url.searchParams.get(CHAT_FOCUS_MSG_PARAM)?.trim();
-    const product = url.searchParams.get(CHAT_FOCUS_PRODUCT_PARAM)?.trim();
-    if (msg && isValidFocusMessageId(msg)) {
-      safe.set(CHAT_FOCUS_MSG_PARAM, msg);
-    }
-    if (product && isValidFocusProductId(product)) {
-      safe.set(CHAT_FOCUS_PRODUCT_PARAM, product);
-    }
-
-    const qs = safe.toString();
-    return qs ? `${url.pathname}?${qs}` : url.pathname;
-  } catch {
-    return "/";
   }
 }

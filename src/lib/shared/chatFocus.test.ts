@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   buildChatReturnPath,
   parseChatFocusFromSearchParams,
-  resolveProductBackHref,
 } from "./chatFocus";
 
 describe("chatFocus", () => {
@@ -27,28 +26,5 @@ describe("chatFocus", () => {
       ),
       null,
     );
-  });
-
-  it("sanitizes product back href and strips unknown params", () => {
-    const from = encodeURIComponent(
-      "/c/conv1?msg=msg123abc456&product=gid%3A%2F%2Fshopify%2Fp%2F1&evil=1",
-    );
-    assert.equal(
-      resolveProductBackHref(from),
-      "/c/conv1?msg=msg123abc456&product=gid%3A%2F%2Fshopify%2Fp%2F1",
-    );
-  });
-
-  it("blocks open redirects in back href", () => {
-    assert.equal(resolveProductBackHref(encodeURIComponent("//evil.com")), "/");
-    assert.equal(
-      resolveProductBackHref(encodeURIComponent("https://evil.com")),
-      "/",
-    );
-  });
-
-  it("rejects non-chat app paths in back href", () => {
-    assert.equal(resolveProductBackHref(encodeURIComponent("/chat/conv1")), "/");
-    assert.equal(resolveProductBackHref(encodeURIComponent("/profile")), "/");
   });
 });

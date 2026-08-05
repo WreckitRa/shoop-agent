@@ -599,10 +599,6 @@ export function collectCatalogImageUrls(
   return out;
 }
 
-export function productPagePath(productId: string): string {
-  return `/product/${encodeURIComponent(productId)}`;
-}
-
 /** Map search filters to buyer `catalog.context` (Global Catalog examples use this with `ships_to`). */
 export function catalogContextFromSearchFilters(
   filters: CatalogSearchFilters,

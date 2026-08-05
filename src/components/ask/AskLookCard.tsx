@@ -58,23 +58,13 @@ export function AskLookCard({ token, initialShare }: Props) {
   const [noteDraft, setNoteDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [zoom, setZoom] = useState(1);
 
   const voterKey = useMemo(() => getAskVoterKey(), []);
 
   useEffect(() => {
-    if (!fullscreen) {
-      setZoom(1);
-      return;
-    }
+    if (!fullscreen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setFullscreen(false);
-      if (e.key === "+" || e.key === "=") {
-        setZoom((z) => Math.min(3, Math.round((z + 0.25) * 100) / 100));
-      }
-      if (e.key === "-" || e.key === "_") {
-        setZoom((z) => Math.max(1, Math.round((z - 0.25) * 100) / 100));
-      }
     };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -280,13 +270,13 @@ export function AskLookCard({ token, initialShare }: Props) {
             className="shoop-ask-fullbtn"
             onClick={() => setFullscreen(true)}
           >
-            Zoom & inspect
+            See full look
           </button>
           <button
             type="button"
             className="shoop-ask-imhit"
             onClick={() => setFullscreen(true)}
-            aria-label="Open full look to zoom and inspect"
+            aria-label="See full look"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -544,69 +534,24 @@ export function AskLookCard({ token, initialShare }: Props) {
           className="shoop-ask-fs"
           role="dialog"
           aria-modal="true"
-          aria-label="Inspect look"
+          aria-label="Full look"
+          onClick={() => setFullscreen(false)}
         >
-          <div className="shoop-ask-fs__bar">
-            <div className="shoop-ask-fs__zoom">
-              <button
-                type="button"
-                aria-label="Zoom out"
-                disabled={zoom <= 1}
-                onClick={() =>
-                  setZoom((z) => Math.max(1, Math.round((z - 0.25) * 100) / 100))
-                }
-              >
-                −
-              </button>
-              <span>{Math.round(zoom * 100)}%</span>
-              <button
-                type="button"
-                aria-label="Zoom in"
-                disabled={zoom >= 3}
-                onClick={() =>
-                  setZoom((z) => Math.min(3, Math.round((z + 0.25) * 100) / 100))
-                }
-              >
-                +
-              </button>
-            </div>
-            <button
-              type="button"
-              className="shoop-ask-fs__close"
-              aria-label="Close"
-              onClick={() => setFullscreen(false)}
-            >
-              Close
-            </button>
-          </div>
-          <div
-            className="shoop-ask-fs__stage"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setFullscreen(false);
-            }}
-            onWheel={(e) => {
-              if (!e.ctrlKey && !e.metaKey) return;
-              e.preventDefault();
-              const next =
-                e.deltaY < 0
-                  ? Math.min(3, zoom + 0.1)
-                  : Math.max(1, zoom - 0.1);
-              setZoom(Math.round(next * 100) / 100);
-            }}
+          <button
+            type="button"
+            className="shoop-ask-fs__close"
+            aria-label="Close"
+            onClick={() => setFullscreen(false)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={share.imageUrl}
-              alt={`${share.askerName} — full look`}
-              style={{ transform: `scale(${zoom})` }}
-              onDoubleClick={() =>
-                setZoom((z) => (z > 1 ? 1 : 2))
-              }
-            />
-          </div>
-          <p className="shoop-ask-fs__hint">
-            Pinch or use + / − · double-tap to zoom · Esc to close
-          </p>
+            Close
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={share.imageUrl}
+            alt={`${share.askerName} — full look`}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <p className="shoop-ask-fs__hint">Tap anywhere to close</p>
         </div>
       ) : null}
     </div>

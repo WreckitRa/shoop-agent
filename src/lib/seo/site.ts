@@ -79,7 +79,7 @@ export type PageMetadataOptions = {
   /** Full document title — skips the template. */
   absoluteTitle?: string;
   description?: string;
-  /** Path after origin, e.g. `/profile` or `/product/abc`. */
+  /** Path after origin, e.g. `/profile` or `/c/abc`. */
   path?: string;
   /** When true, adds noindex,nofollow (private / thin routes). */
   noIndex?: boolean;

@@ -15,7 +15,6 @@ export default function robots(): MetadataRoute.Robots {
           "/ask/",
           "/profile",
           "/_next/",
-          "/product/",
         ],
       },
     ],

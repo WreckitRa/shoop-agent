@@ -64,7 +64,7 @@ function resolveChatPriceRange(options: {
   return undefined;
 }
 
-/** Build inline chat expansion state — mirrors `buildProductPageHref` alignment. */
+/** Build inline chat expansion state for the in-thread PDP panel. */
 export function buildInlineProductState(
   productId: string,
   options: {

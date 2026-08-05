@@ -35,7 +35,6 @@ export function InlineChatProductPanel({ onClose }: { onClose: () => void }) {
     >
       <div className="w-full overflow-visible rounded-2xl border border-hairline bg-white shadow-card">
       <ProductPageView
-        embedded
         onClose={handleClose}
         productId={state.productId}
         featuredVariantId={state.featuredVariantId}

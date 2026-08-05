@@ -23,7 +23,6 @@ import {
   appendUtmToContinueUrlAction,
   getProductAction,
 } from "@/actions/catalog";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   collectCatalogImageUrls,
@@ -89,11 +88,8 @@ export type ProductPageViewProps = {
   featuredVariantId?: string;
   fallbackTitle?: string;
   fallbackImageUrl?: string;
-  backHref?: string;
   prefilledOptions?: SelectedOption[];
   chatPriceRange?: ProductPriceRangeHint;
-  /** Render inside chat thread instead of a standalone route. */
-  embedded?: boolean;
   onClose?: () => void;
 };
 
@@ -179,10 +175,8 @@ export function ProductPageView({
   featuredVariantId,
   fallbackTitle,
   fallbackImageUrl,
-  backHref = "/",
   prefilledOptions,
   chatPriceRange,
-  embedded = false,
   onClose,
 }: ProductPageViewProps) {
   const [phase, setPhase] = useState<Phase>("loading");
@@ -229,23 +223,18 @@ export function ProductPageView({
   const catalogProductId =
     phase === "ready" && detail?.id ? detail.id : productId;
   const { pick: chatPick } = useChatProductPick(catalogProductId);
-  const { curation: persistedCuration, phase: curationPhase } = useProductCuration(
+  const { curation: persistedCuration } = useProductCuration(
     phase === "ready" ? detail?.id : undefined,
   );
   // The user already saw this pick's verdict + reason in chat. Show it
-  // immediately for continuity on the embedded PDP.
-  const chatCuration =
-    embedded && chatPick
-      ? productCurationFromChatPick(chatPick, catalogProductId)
-      : null;
+  // immediately for continuity on the in-chat PDP.
+  const chatCuration = chatPick
+    ? productCurationFromChatPick(chatPick, catalogProductId)
+    : null;
   const displayCuration = chatCuration ?? persistedCuration ?? null;
   const hasCuration = displayCuration != null;
   const isPersonalizing = false;
-  const showCurationLoading =
-    !hasCuration &&
-    // Standalone PDP: curation API fetch in-flight with nothing cached yet.
-    !embedded &&
-    curationPhase === "loading";
+  const showCurationLoading = false;
 
   useEffect(() => {
     fetchGenRef.current += 1;
@@ -664,9 +653,7 @@ export function ProductPageView({
     });
   }, [detail, catalogVariant, resolvedVariant, pickedOptions]);
 
-  const sectionPx = embedded
-    ? "px-4 md:px-5"
-    : "px-4 md:px-6 xl:px-8";
+  const sectionPx = "px-4 md:px-5";
 
   const showShoopPickBadge =
     hasCuration && displayCuration?.slot === "shoop_pick";
@@ -734,29 +721,10 @@ export function ProductPageView({
     0;
 
   return (
-    <div
-      className={cn(
-        "flex flex-col bg-page",
-        embedded ? "w-full overflow-visible" : "h-full min-h-0 overflow-hidden",
-      )}
-    >
-      <div
-        className={cn(
-          "flex w-full flex-col",
-          embedded
-            ? ""
-            : "mx-auto h-full min-h-0 max-w-[1400px] overflow-hidden",
-        )}
-      >
-        <div
-          className={cn(
-            "shrink-0",
-            embedded
-              ? "flex items-center justify-between border-b border-hairline px-4 py-2.5 md:px-5"
-              : "px-4 pt-2 md:px-6 md:pt-3 xl:px-8",
-          )}
-        >
-          {embedded && onClose ? (
+    <div className="flex w-full flex-col overflow-visible bg-page">
+      <div className="flex w-full flex-col">
+        <div className="flex shrink-0 items-center justify-between border-b border-hairline px-4 py-2.5 md:px-5">
+          {onClose ? (
             <>
               <p className="text-sm font-semibold text-ink">Product details</p>
               <button
@@ -769,41 +737,21 @@ export function ProductPageView({
               </button>
             </>
           ) : (
-            <Link
-              href={backHref}
-              className="inline-flex items-center gap-1 text-body-sm font-medium text-ink-soft transition-colors hover:text-ink"
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-              Back
-            </Link>
+            <p className="text-sm font-semibold text-ink">Product details</p>
           )}
         </div>
 
         {phase === "loading" ? (
-          <LoadingState fallbackTitle={fallbackTitle} embedded={embedded} />
+          <LoadingState fallbackTitle={fallbackTitle} />
         ) : phase === "error" ? (
           <ErrorState
             message={loadError ?? "Unknown error."}
-            backHref={backHref}
-            embedded={embedded}
             onClose={onClose}
           />
         ) : detail ? (
           <>
-            <div
-              className={cn(
-                embedded
-                  ? "pb-4"
-                  : "min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-6 [-webkit-overflow-scrolling:touch]",
-              )}
-            >
-              <section
-                className={cn(
-                  embedded
-                    ? "px-4 pt-3 md:px-5"
-                    : "px-4 pt-4 md:px-6 md:pt-2 xl:px-8",
-                )}
-              >
+            <div className="pb-4">
+              <section className="px-4 pt-3 md:px-5">
                 <div className="grid w-full grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
                   <ProductHeroGallery
                     images={galleryImages}
@@ -812,9 +760,7 @@ export function ProductPageView({
                     title={detail.title}
                     activeImageUrl={productImage}
                     switching={optionsBusy}
-                    embedded={embedded}
-                    backHref={backHref}
-                    onClose={embedded ? onClose : undefined}
+                    onClose={onClose}
                     showPickBadge={showShoopPickBadge}
                     showBuyBadge={showBuyBadgeOnImage}
                   />
@@ -834,7 +780,7 @@ export function ProductPageView({
                       optionGroups={optionGroups}
                       selectedOptions={selectedOptions}
                       optionsBusy={optionsBusy}
-                      resolveSwatchColors={embedded}
+                      resolveSwatchColors
                       onPick={onPickOption}
                     />
                   ) : null}
@@ -953,18 +899,11 @@ export function ProductPageView({
 
 function LoadingState({
   fallbackTitle,
-  embedded = false,
 }: {
   fallbackTitle?: string;
-  embedded?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "flex items-center justify-center py-12",
-        embedded ? "" : "min-h-0 flex-1",
-      )}
-    >
+    <div className="flex items-center justify-center py-12">
       <div className="flex flex-col items-center gap-3 text-ink-muted">
         <Loader2 className="size-7 animate-spin" />
         <p className="text-sm">
@@ -977,25 +916,16 @@ function LoadingState({
 
 function ErrorState({
   message,
-  backHref,
-  embedded = false,
   onClose,
 }: {
   message: string;
-  backHref: string;
-  embedded?: boolean;
   onClose?: () => void;
 }) {
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center gap-3 px-6 py-10 text-center",
-        embedded ? "" : "min-h-0 flex-1",
-      )}
-    >
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-10 text-center">
       <AlertTriangle className="size-8 text-warning" />
       <p className="max-w-md text-sm text-ink-soft">{message}</p>
-      {embedded && onClose ? (
+      {onClose ? (
         <button
           type="button"
           onClick={onClose}
@@ -1003,11 +933,7 @@ function ErrorState({
         >
           Close
         </button>
-      ) : (
-        <Link href={backHref} className="btn-primary px-6">
-          Go back
-        </Link>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1019,8 +945,6 @@ function ProductHeroGallery({
   title,
   activeImageUrl,
   switching = false,
-  embedded = false,
-  backHref,
   onClose,
   showPickBadge,
   showBuyBadge,
@@ -1031,8 +955,6 @@ function ProductHeroGallery({
   title: string;
   activeImageUrl: string | null;
   switching?: boolean;
-  embedded?: boolean;
-  backHref: string;
   onClose?: () => void;
   showPickBadge: boolean;
   showBuyBadge: boolean;
@@ -1108,14 +1030,7 @@ function ProductHeroGallery({
           </div>
         ) : null}
 
-        <div
-          className={cn(
-            "relative w-full shrink-0 overflow-hidden rounded-[28px] bg-white shadow-soft",
-            embedded
-              ? "aspect-[4/5] min-h-[220px] max-h-[min(420px,70vw)] sm:aspect-[5/6]"
-              : "h-[min(360px,45dvh)] sm:h-[min(420px,50dvh)] lg:h-[min(640px,60dvh)] 2xl:h-[min(560px,45dvh)]",
-          )}
-        >
+        <div className="relative aspect-[4/5] min-h-[220px] max-h-[min(420px,70vw)] w-full shrink-0 overflow-hidden rounded-[28px] bg-white shadow-soft sm:aspect-[5/6]">
           {displayUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -1179,20 +1094,17 @@ function ProductHeroGallery({
           ) : null}
         </div>
 
-        <GalleryActionsBar backHref={backHref} onClose={onClose} />
+        <GalleryActionsBar onClose={onClose} />
       </div>
     </div>
   );
 }
 
 function GalleryActionsBar({
-  backHref,
   onClose,
 }: {
-  backHref: string;
   onClose?: () => void;
 }) {
-  const router = useRouter();
   const showToast = useToastStore((s) => s.show);
 
   const onShare = useCallback(async () => {
@@ -1209,12 +1121,8 @@ function GalleryActionsBar({
   }, [showToast]);
 
   const onSkip = useCallback(() => {
-    if (onClose) {
-      onClose();
-      return;
-    }
-    router.push(backHref);
-  }, [backHref, onClose, router]);
+    onClose?.();
+  }, [onClose]);
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-4 pt-1 sm:gap-5">
