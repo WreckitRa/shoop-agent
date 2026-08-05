@@ -8,10 +8,8 @@ import type {
   RenderVerifiedItem,
 } from "@/lib/fashion-memory/types/render-contract";
 import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
-import { cn } from "@/lib/ai-chat/cn";
 import { TryOnLookButton } from "@/components/tryon/TryOnLookButton";
 import { ShoopFindCard } from "@/components/chat/ShoopFindCard";
-import { FittingRoomAction } from "@/components/tryon/FittingRoomAction";
 import { fittingRoomItemFromProductCard, fittingRoomItemFromSearchPick } from "@/components/tryon/fitting-room-item-builders";
 import { capsuleLookId } from "@/lib/tryon/outfit-ids";
 import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
@@ -145,15 +143,13 @@ function CuratedPickCard({
 function ChangingRoomCta({
   picks,
   searchId,
-  lookId,
   title,
 }: {
   picks: RenderPick[];
   searchId: string;
-  lookId: string;
   title: string;
 }) {
-  const openLookTryOn = useTryOnDrawerStore((s) => s.openLookTryOn);
+  const openAndDressItems = useTryOnDrawerStore((s) => s.openAndDressItems);
   const addManyToFittingRoom = useTryOnDrawerStore((s) => s.addManyToFittingRoom);
   const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
   const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
@@ -194,12 +190,8 @@ function ChangingRoomCta({
       className="shoop-quiz-apply"
       onClick={() => {
         if (anyTryon) {
-          openLookTryOn({
-            searchId,
-            lookId,
-            title,
-            items,
-          });
+          // Rack picks aren't a named curation look — dress via fitting-room.
+          openAndDressItems({ items, title });
           return;
         }
         addManyToFittingRoom(items);
@@ -209,75 +201,6 @@ function ChangingRoomCta({
       Take the look to the changing room
       <span aria-hidden>→</span>
     </button>
-  );
-}
-
-function BenchCard({
-  title,
-  imageUrl,
-  price,
-  unverified = false,
-  onOpen,
-  selected,
-  fittingRoomItem,
-}: {
-  title: string;
-  imageUrl?: string;
-  price?: { amount: number; currency: string };
-  unverified?: boolean;
-  onOpen?: () => void;
-  selected?: boolean;
-  fittingRoomItem?: import("@/lib/tryon/fitting-room-types").FittingRoomItem;
-}) {
-  const inner = (
-    <>
-      <div className="relative aspect-[3/4] bg-surface-tint">
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={title} className="size-full object-cover" />
-        ) : (
-          <div className="flex size-full items-center justify-center text-[10px] text-ink-muted">
-            No image
-          </div>
-        )}
-        {unverified ? (
-          <span className="absolute bottom-1 left-1 rounded bg-ink/75 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white">
-            Unverified
-          </span>
-        ) : null}
-      </div>
-      <div className="space-y-0.5 p-2">
-        <p className="line-clamp-2 text-[11px] font-medium text-ink">{title}</p>
-        {price ? (
-          <p className="text-[10px] text-ink-muted">{formatPrice(price)}</p>
-        ) : null}
-      </div>
-    </>
-  );
-
-  return (
-    <article
-      className={cn(
-        "flex w-[8.5rem] shrink-0 flex-col overflow-hidden rounded-xl border bg-white",
-        unverified
-          ? "border-dashed border-hairline opacity-80"
-          : "border-hairline",
-        selected && "ring-1 ring-ink/15",
-      )}
-    >
-      {onOpen ? (
-        <button type="button" className="text-left" onClick={onOpen}>
-          {inner}
-        </button>
-      ) : (
-        inner
-      )}
-      {fittingRoomItem ? (
-        <div className="px-2 pb-2">
-          <FittingRoomAction item={fittingRoomItem} compact />
-        </div>
-      ) : null}
-    </article>
   );
 }
 
@@ -311,16 +234,19 @@ function SlotBenches({
             : null}
         </p>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="shoop-vrack !mt-0">
         {verified.map((item) => (
-          <BenchCard
+          <ShoopFindCard
             key={item.ref}
             title={item.title}
             imageUrl={item.imageUrl}
-            price={item.displayPrice}
+            priceLabel={
+              item.displayPrice ? formatPrice(item.displayPrice) : null
+            }
             selected={selectedProductId === item.id}
+            compact
             onOpen={() => openProduct(item)}
-            fittingRoomItem={fittingRoomItemFromSearchPick({
+            fittingItem={fittingRoomItemFromSearchPick({
               searchId,
               pick: {
                 ref: item.ref,
@@ -333,22 +259,19 @@ function SlotBenches({
                 tryon: { available: true, disclaimer: TRYON_DISCLAIMER },
               },
             })}
+            tryonAvailable
           />
         ))}
-        {verified.length && unverified.length ? (
-          <div
-            className="mx-1 flex w-px shrink-0 self-stretch bg-hairline"
-            aria-hidden
-          />
-        ) : null}
         {unverified.map((item) => (
-          <BenchCard
+          <ShoopFindCard
             key={`${item.slot_id}-${item.product_id}`}
             title={item.title}
             imageUrl={item.image_url}
-            price={item.price}
-            unverified
+            priceLabel={item.price ? formatPrice(item.price) : null}
+            meta="Unverified"
             selected={selectedProductId === item.product_id}
+            compact
+            muted
             onOpen={() =>
               openProduct({
                 id: item.product_id,
@@ -357,12 +280,13 @@ function SlotBenches({
                 displayPrice: item.price,
               })
             }
-            fittingRoomItem={fittingRoomItemFromProductCard({
+            fittingItem={fittingRoomItemFromProductCard({
               id: item.product_id,
               title: item.title,
               imageUrl: item.image_url,
               displayPrice: item.price,
             })}
+            tryonAvailable
           />
         ))}
       </div>
@@ -627,7 +551,6 @@ export const FashionCurationResults = memo(function FashionCurationResults({
           <ChangingRoomCta
             picks={render.tiers.picks}
             searchId={searchId}
-            lookId={`rack:${searchId}`}
             title="Your rack"
           />
           {panel}

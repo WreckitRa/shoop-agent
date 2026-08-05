@@ -76,6 +76,14 @@ type TryOnDrawerState = {
     /** Look pieces — seed the candidate rack when opening. */
     items?: FittingRoomItem[];
   }) => void;
+  /**
+   * Open the changing room with these pieces active and dress via fitting-room
+   * (not /api/tryon/look — that only works for named curation looks).
+   */
+  openAndDressItems: (params: {
+    items: FittingRoomItem[];
+    title?: string;
+  }) => void;
   openAvatarViewer: () => Promise<void>;
   close: () => void;
   sendFeedback: (rating: 1 | -1, generationId?: string) => void;
@@ -671,6 +679,70 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
     void ensureAvatarLoaded(generation).then(() => {
       if (get().renderGeneration !== generation) return;
       void startLookTryonJob(generation, params);
+    });
+  },
+
+  openAndDressItems: (params) => {
+    clearPollTimer();
+    const generation = get().renderGeneration + 1;
+    syncChromeForTryOnDrawer(true);
+
+    const itemsById = { ...get().itemsById };
+    const rackIds: string[] = [];
+    const activeIds: string[] = [];
+    const activeItems: FittingRoomItem[] = [];
+
+    for (const item of params.items) {
+      itemsById[item.id] = item;
+      if (
+        !rackIds.includes(item.id) &&
+        rackIds.length < MAX_FITTING_ROOM_ITEMS
+      ) {
+        rackIds.push(item.id);
+      }
+      // One piece per garment slot — e.g. 3 tees on a single-item rack
+      // stay on the rail, but only the first dresses the twin.
+      if (
+        item.tryonSupported &&
+        !activeIds.includes(item.id) &&
+        activeIds.length < MAX_FITTING_ROOM_ITEMS &&
+        !findActiveSlotConflict(activeItems, item)
+      ) {
+        activeIds.push(item.id);
+        activeItems.push(item);
+      }
+    }
+
+    set({
+      open: true,
+      renderGeneration: generation,
+      itemsById,
+      rackIds,
+      activeIds,
+      previewLookId: null,
+      previewLookTitle: params.title ?? null,
+      status: "loading_avatar",
+      error: null,
+      jobId: null,
+      resultUrl: null,
+      compare: false,
+      variants: [],
+      lookSteps: [],
+      partialNote: null,
+    });
+
+    void ensureAvatarLoaded(generation).then(() => {
+      if (get().renderGeneration !== generation) return;
+      if (!get().activeIds.length) {
+        set({
+          status: get().avatarUrl ? "idle" : "failed",
+          error: get().avatarUrl
+            ? null
+            : "None of these pieces support try-on.",
+        });
+        return;
+      }
+      void startActiveOutfitRender(generation);
     });
   },
 

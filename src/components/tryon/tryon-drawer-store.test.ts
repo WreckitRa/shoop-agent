@@ -157,4 +157,42 @@ describe("fitting room store", () => {
     assert.equal(state.itemsById["shirt-1"]?.title, "Item shirt-1");
     assert.equal(state.itemsById["pants-1"]?.garment, "pants");
   });
+
+  it("openAndDressItems activates try-on pieces for fitting-room dress", () => {
+    const items = [
+      sampleItem("shirt-1", true, "shirt"),
+      sampleItem("pants-1", true, "pants"),
+      sampleItem("tie-1", false, "tie"),
+    ];
+    useTryOnDrawerStore.getState().openAndDressItems({
+      items,
+      title: "Your rack",
+    });
+    const state = useTryOnDrawerStore.getState();
+    assert.equal(state.open, true);
+    assert.equal(state.previewLookId, null);
+    assert.deepEqual(state.rackIds, ["shirt-1", "pants-1", "tie-1"]);
+    assert.deepEqual(state.activeIds, ["shirt-1", "pants-1"]);
+  });
+
+  it("openAndDressItems dresses only one piece per garment type", () => {
+    const items = [
+      sampleItem("shirt-1", true, "shirt"),
+      sampleItem("shirt-2", true, "t-shirt"),
+      sampleItem("shirt-3", true, "tee"),
+      sampleItem("pants-1", true, "pants"),
+    ];
+    useTryOnDrawerStore.getState().openAndDressItems({
+      items,
+      title: "Your rack",
+    });
+    const state = useTryOnDrawerStore.getState();
+    assert.deepEqual(state.rackIds, [
+      "shirt-1",
+      "shirt-2",
+      "shirt-3",
+      "pants-1",
+    ]);
+    assert.deepEqual(state.activeIds, ["shirt-1", "pants-1"]);
+  });
 });

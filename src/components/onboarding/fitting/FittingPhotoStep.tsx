@@ -129,8 +129,8 @@ function UnitSeg({
 }
 
 /**
- * Unit first, then value, then steppers — fixed min height, digits never clipped.
- * Layout: [unit] [number] | [▲▼]
+ * Value first, then unit, then steppers — fixed min height, digits never clipped.
+ * Layout: [number] [unit] | [▲▼]
  *
  * While focused, do not clamp to min — otherwise typing 75 is impossible (7 clamps to 35).
  * Final min/max applied on blur; max still soft-enforced while typing.
@@ -166,9 +166,6 @@ function NumBox({
 
   return (
     <span className="inline-flex h-[46px] items-center rounded-xl border border-[#D6D6DE] bg-white">
-      <b className="shrink-0 pl-3.5 pr-1.5 text-[10.5px] font-bold uppercase tracking-[0.04em] text-[#B7B7BF]">
-        {unit}
-      </b>
       <input
         type="text"
         inputMode="numeric"
@@ -206,9 +203,12 @@ function NumBox({
           commitClamp(n);
         }}
         style={{ width: digitWidth(display || placeholder || "0", minDigits) }}
-        className="min-w-[1.6em] border-0 bg-transparent py-2.5 font-display text-[17px] font-extrabold tabular-nums text-[var(--fitting-ink)] outline-none placeholder:text-[#D9D9DE]"
+        className="min-w-[1.6em] border-0 bg-transparent py-2.5 pl-3.5 font-display text-[17px] font-extrabold tabular-nums text-[var(--fitting-ink)] outline-none placeholder:text-[#D9D9DE]"
       />
-      <span className="ml-1 flex h-full flex-col justify-center border-l border-[#EEEEF2] pr-1">
+      <b className="shrink-0 pl-1 pr-2 text-[10.5px] font-bold uppercase tracking-[0.04em] text-[#B7B7BF]">
+        {unit}
+      </b>
+      <span className="flex h-full flex-col justify-center border-l border-[#EEEEF2] pr-1">
         <button
           type="button"
           className="px-2 py-0.5 text-[8px] leading-none text-[var(--fitting-quiet)] hover:text-[var(--fitting-ink)]"

@@ -96,6 +96,7 @@ export const MessageBubble = memo(function MessageBubble({
   const clarification = message.metadata?.clarification;
   const giftDirections = message.metadata?.giftDirections;
   const shoppingMode = message.metadata?.shoppingMode;
+  const lookAsk = message.metadata?.lookAsk;
   const streamingFashionPipeline = useChatStore((s) => s.streamingFashionPipeline);
   const streamingFashionPreviewImages = useChatStore(
     (s) => s.streamingFashionPreviewImages,
@@ -249,6 +250,17 @@ export const MessageBubble = memo(function MessageBubble({
           </div>
         </div>
       )}
+
+      {!isUser && lookAsk ? (
+        <div className="shoop-lookask-chat">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lookAsk.imageUrl} alt="" />
+          <div className="meta">
+            <b>Verdict: {lookAsk.verdictTitle}</b>
+            <a href={lookAsk.askPath}>Open discussion →</a>
+          </div>
+        </div>
+      ) : null}
 
       {!isUser && productSearch?.searches.length ? (
         <ChatMessageProductLinkProvider messageId={message.id}>

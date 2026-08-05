@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ShoopIcon } from "@/components/brand/ShoopBrand";
+import { useChatStore } from "@/components/chat/chat-store";
+import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { cn } from "@/lib/ai-chat/cn";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import {
@@ -30,13 +33,28 @@ type Props = {
   imageUrl: string;
   pieces: LookScanPiece[];
   className?: string;
+  /** Existing mirror twin — scan band + annotations portal into this. */
+  frameEl: HTMLElement | null;
+  /** So the twin can toggle `.shoop-twin--scanning`. */
+  onScanningChange?: (scanning: boolean) => void;
 };
 
-export function StudyingScan({ imageUrl, pieces, className }: Props) {
+export function StudyingScan({
+  imageUrl,
+  pieces,
+  className,
+  frameEl,
+  onScanningChange,
+}: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [whisper, setWhisper] = useState<string>(FALLBACK_WHISPERS[0]);
   const [whisperDim, setWhisperDim] = useState(false);
-  const [annoLit, setAnnoLit] = useState<boolean[]>([false, false, false, false]);
+  const [annoLit, setAnnoLit] = useState<boolean[]>([
+    false,
+    false,
+    false,
+    false,
+  ]);
   const [checks, setChecks] = useState<{
     fit: "idle" | "busy" | "tied";
     palette: "idle" | "busy" | "tied";
@@ -44,10 +62,15 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
   }>({ fit: "idle", palette: "idle", nolist: "idle" });
   const [verdict, setVerdict] = useState<LookScanVerdict | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareHint, setShareHint] = useState<string | null>(null);
   const timersRef = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const verdictReadyRef = useRef<LookScanVerdict | null>(null);
   const choreographyDoneRef = useRef(false);
+  const jobId = useTryOnDrawerStore((s) => s.jobId);
+  const conversationId = useChatStore((s) => s.activeConversationId);
+  const loadConversation = useChatStore((s) => s.loadConversation);
 
   function clearTimers() {
     for (const id of timersRef.current) window.clearTimeout(id);
@@ -58,14 +81,13 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
     timersRef.current.push(window.setTimeout(fn, ms));
   }
 
-  function resetVisuals(annos: readonly string[], whispers: readonly string[]) {
+  function resetVisuals() {
     clearTimers();
-    setWhisper(whispers[0] ?? FALLBACK_WHISPERS[0]);
+    setWhisper(FALLBACK_WHISPERS[0]);
     setWhisperDim(false);
     setAnnoLit([false, false, false, false]);
     setChecks({ fit: "idle", palette: "idle", nolist: "idle" });
     setVerdict(null);
-    void annos;
   }
 
   function revealVerdict(v: LookScanVerdict) {
@@ -76,11 +98,7 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
     setPhase("done");
   }
 
-  function runChoreography(opts: {
-    annos: readonly string[];
-    whispers: readonly string[];
-  }) {
-    const { whispers } = opts;
+  function runChoreography(whispers: readonly string[]) {
     choreographyDoneRef.current = false;
 
     const say = (i: number) => {
@@ -108,10 +126,7 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
     schedule(() => {
       choreographyDoneRef.current = true;
       const ready = verdictReadyRef.current;
-      if (ready) {
-        revealVerdict(ready);
-      }
-      // else keep scanning until API returns
+      if (ready) revealVerdict(ready);
     }, 2500);
   }
 
@@ -122,16 +137,17 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
     choreographyDoneRef.current = false;
     setError(null);
     setPhase("scanning");
-    resetVisuals(FALLBACK_ANNOS, FALLBACK_WHISPERS);
-    runChoreography({ annos: FALLBACK_ANNOS, whispers: FALLBACK_WHISPERS });
+    resetVisuals();
+    runChoreography(FALLBACK_WHISPERS);
 
     const ac = new AbortController();
     abortRef.current = ac;
 
     try {
       const absoluteUrl =
-        /^https?:\/\//i.test(imageUrl) ? imageUrl
-        : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+        /^https?:\/\//i.test(imageUrl)
+          ? imageUrl
+          : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 
       const res = await guestFetch("/api/tryon/look-scan", {
         method: "POST",
@@ -149,11 +165,6 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
       const v = body.verdict;
       verdictReadyRef.current = v;
 
-      // Swap in LLM whispers/annos mid-scan if still running
-      if (!choreographyDoneRef.current) {
-        setWhisper((prev) => prev); // keep current beat
-      }
-
       if (choreographyDoneRef.current) {
         revealVerdict(v);
       }
@@ -161,7 +172,59 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
       if (ac.signal.aborted) return;
       clearTimers();
       setPhase("error");
-      setError(err instanceof Error ? err.message : "Couldn't study this look.");
+      setError(
+        err instanceof Error ? err.message : "Couldn't study this look.",
+      );
+    }
+  }
+
+  async function shareAskTheGirls() {
+    if (!verdict || shareBusy) return;
+    setShareBusy(true);
+    setShareHint(null);
+    try {
+      const absoluteUrl =
+        /^https?:\/\//i.test(imageUrl)
+          ? imageUrl
+          : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+
+      const res = await guestFetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: absoluteUrl,
+          pieces,
+          verdict,
+          generationId: jobId,
+          conversationId,
+        }),
+      });
+      const body = (await res.json().catch(() => null)) as {
+        error?: string;
+        url?: string;
+        askPath?: string;
+      } | null;
+      if (!res.ok || !body?.url) {
+        throw new Error(body?.error ?? "Couldn't create the share link.");
+      }
+
+      try {
+        await navigator.clipboard.writeText(body.url);
+        setShareHint("Link copied — send it to the girls");
+      } catch {
+        setShareHint(body.url);
+      }
+
+      if (conversationId) {
+        void loadConversation(conversationId);
+      }
+      window.open(body.askPath ?? body.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setShareHint(
+        err instanceof Error ? err.message : "Couldn't create the share link.",
+      );
+    } finally {
+      setShareBusy(false);
     }
   }
 
@@ -172,35 +235,19 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    onScanningChange?.(phase === "scanning");
+    return () => onScanningChange?.(false);
+  }, [phase, onScanningChange]);
+
   const annos = verdict?.annotations ?? FALLBACK_ANNOS;
-  const showScanUi = phase === "scanning" || phase === "done" || phase === "error";
+  const showChrome =
+    phase === "scanning" || phase === "done" || phase === "error";
 
-  return (
-    <div className={cn("shoop-sscan", className)}>
-      <div className="shoop-sscan__hd">
-        <span className="shoop-sscan__t">THE STUDYING SCAN</span>
-      </div>
-
-      {phase === "idle" ? (
-        <button
-          type="button"
-          className="shoop-sscan__start"
-          onClick={() => void startScan()}
-        >
-          Study this look →
-        </button>
-      ) : null}
-
-      {showScanUi ? (
-        <>
-          <div
-            className={cn(
-              "shoop-sscan__frame",
-              phase === "scanning" && "shoop-sscan__frame--scanning",
-            )}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="shoop-sscan__subject" src={imageUrl} alt="Your try-on" />
+  const overlays: ReactNode =
+    showChrome && frameEl
+      ? createPortal(
+          <>
             <div className="shoop-sscan__band" aria-hidden>
               <div className="shoop-sscan__line" />
             </div>
@@ -219,8 +266,30 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
                 {i % 2 === 0 ? <span className="tick" /> : null}
               </div>
             ))}
-          </div>
+          </>,
+          frameEl,
+        )
+      : null;
 
+  return (
+    <div className={cn("shoop-sscan", className)}>
+      {overlays}
+      <div className="shoop-sscan__hd">
+        <span className="shoop-sscan__t">THE STUDYING SCAN</span>
+      </div>
+
+      {phase === "idle" ? (
+        <button
+          type="button"
+          className="shoop-sscan__start"
+          onClick={() => void startScan()}
+        >
+          Study this look →
+        </button>
+      ) : null}
+
+      {showChrome ? (
+        <>
           <div
             className={cn("shoop-sscan__whisper", whisperDim && "dim")}
             dangerouslySetInnerHTML={{
@@ -233,7 +302,10 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
             }}
           />
 
-          <div className="shoop-sscan__checks" aria-hidden={phase === "error"}>
+          <div
+            className="shoop-sscan__checks"
+            aria-hidden={phase === "error"}
+          >
             {(
               [
                 ["fit", "FIT"],
@@ -248,14 +320,12 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
                   checks[key] === "busy" && "busy",
                   checks[key] === "tied" && "tied",
                   phase === "done" &&
-                    verdict?.checks[
-                      key === "nolist" ? "nolist" : key
-                    ] === "fail" &&
+                    verdict?.checks[key === "nolist" ? "nolist" : key] ===
+                      "fail" &&
                     "fail",
                   phase === "done" &&
-                    verdict?.checks[
-                      key === "nolist" ? "nolist" : key
-                    ] === "caution" &&
+                    verdict?.checks[key === "nolist" ? "nolist" : key] ===
+                      "caution" &&
                     "caution",
                 )}
               >
@@ -287,6 +357,28 @@ export function StudyingScan({ imageUrl, pieces, className }: Props) {
                   }}
                 />
               </div>
+            </div>
+          ) : null}
+
+          {verdict && phase === "done" ? (
+            <div className="mt-3 space-y-2">
+              <button
+                type="button"
+                className="shoop-sscan__ask"
+                disabled={shareBusy}
+                onClick={() => void shareAskTheGirls()}
+              >
+                {shareBusy ? "Making the card…" : "Ask the girls →"}
+              </button>
+              {shareHint ? (
+                <p className="text-center text-[10px] font-semibold text-[var(--fitting-quiet)]">
+                  {shareHint}
+                </p>
+              ) : (
+                <p className="text-center text-[10px] text-[var(--fitting-quiet)]">
+                  They vote before they peek at mine.
+                </p>
+              )}
             </div>
           ) : null}
 

@@ -6,7 +6,10 @@
 import { z } from "zod";
 import { getAnthropicClient } from "@/lib/ai-chat/anthropic";
 import { logAiChat } from "@/lib/ai-chat/observability";
-import { parseLlmJsonObject } from "@/lib/ai-chat/shopping-memory/llm-json";
+import {
+  parseLlmJsonObject,
+  stripNullFields,
+} from "@/lib/ai-chat/shopping-memory/llm-json";
 import { fetchAndResizeCurationImage } from "@/lib/fashion-memory/curation/curation-images";
 import { FASHION_CURATION_MODEL } from "@/lib/fashion-memory/models";
 import {
@@ -20,17 +23,33 @@ import type { LookScanPiece, LookScanVerdict } from "@/lib/tryon/look-scan-types
 export type { LookScanPiece, LookScanVerdict } from "@/lib/tryon/look-scan-types";
 export { formatScanEmphasis } from "@/lib/tryon/look-scan-types";
 
+const checkEnum = z.enum(["pass", "caution", "fail"]);
+
 const verdictSchema = z.object({
   verdict_title: z.string().min(1).max(80),
   verdict_body: z.string().min(1).max(600),
   annotations: z.array(z.string().min(1).max(48)).length(4),
   whispers: z.array(z.string().min(1).max(120)).length(4),
   checks: z.object({
-    fit: z.enum(["pass", "caution", "fail"]),
-    palette: z.enum(["pass", "caution", "fail"]),
-    nolist: z.enum(["pass", "caution", "fail"]),
+    fit: checkEnum,
+    palette: checkEnum,
+    nolist: checkEnum,
   }),
 });
+
+const FALLBACK_ANNOS = [
+  "checking the drape",
+  "palette vs yours",
+  "hem · proportion",
+  "no-list · clear ✓",
+] as const;
+
+const FALLBACK_WHISPERS = [
+  "stepping back for a look...",
+  "mm... the shoulders. **interesting.**",
+  "checking it against **your no-list...**",
+  "one more angle...",
+] as const;
 
 function honestyQuote(honesty: string | null | undefined): string {
   const v = honesty?.trim().toLowerCase();
@@ -124,28 +143,166 @@ function piecesBlock(pieces: LookScanPiece[]): string {
 
 const SYSTEM = `You are Shoop's mirror stylist. You study a try-on photo of the shopper wearing an outfit and deliver a short, specific verdict.
 
-Return ONLY a JSON object (no markdown fence) with this exact shape:
+Return ONLY a JSON object (no markdown fence) with this exact shape and these exact keys:
 {
   "verdict_title": "short headline after 'Verdict:' — e.g. Love-it territory",
   "verdict_body": "2–4 sentences. Use **double asterisks** around the one or two key phrases the shopper must notice.",
-  "annotations": ["4 short scan labels, ≤5 words each — what you're glancing at"],
-  "whispers": ["4 rotating status lines while scanning — intimate, lowercase, can use **bold** sparingly"],
+  "annotations": ["label1", "label2", "label3", "label4"],
+  "whispers": ["line1", "line2", "line3", "line4"],
   "checks": {
-    "fit": "pass|caution|fail",
-    "palette": "pass|caution|fail",
-    "nolist": "pass|caution|fail"
+    "fit": "pass",
+    "palette": "pass",
+    "nolist": "pass"
   }
 }
 
-Rules:
-- Match the shopper's honesty preference exactly (gentle / straight / no-mercy).
-- Be specific to THIS photo and THESE pieces — no generic praise.
-- Honor hard no-list and taste vetoes; call out conflicts honestly.
-- Palette check: against their known likes/palette signals when present.
-- Fit check: what you can see in the photo (drape, length, shoulder, rise).
-- Keep verdict_body under ~70 words.
-- Never invent review counts or prices you weren't given.
-- Language: English unless the shopper context clearly uses another.`;
+Field rules (required — never omit):
+- verdict_title: string, ≤12 words
+- verdict_body: string, under ~70 words
+- annotations: exactly 4 short scan labels, ≤5 words each
+- whispers: exactly 4 rotating status lines (intimate, lowercase; **bold** sparingly)
+- checks.fit / checks.palette / checks.nolist: each exactly "pass", "caution", or "fail"
+
+Match the shopper's honesty preference (gentle / straight / no-mercy). Be specific to THIS photo and THESE pieces. Honor hard no-list and taste vetoes. Never invent review counts or prices you weren't given.`;
+
+function asTrimmedString(v: unknown): string | undefined {
+  if (typeof v === "string") {
+    const t = v.trim();
+    return t || undefined;
+  }
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return undefined;
+}
+
+function asStringList(v: unknown): string[] | undefined {
+  if (Array.isArray(v)) {
+    const out = v
+      .map((x) => asTrimmedString(x))
+      .filter((x): x is string => Boolean(x));
+    return out.length ? out : undefined;
+  }
+  if (typeof v === "string" && v.trim()) {
+    const out = v
+      .split(/\n|;/)
+      .map((s) => s.replace(/^[-–•\d.)\s]+/, "").trim())
+      .filter(Boolean);
+    return out.length ? out : undefined;
+  }
+  return undefined;
+}
+
+function padFour(
+  list: string[] | undefined,
+  fallback: readonly [string, string, string, string],
+  maxLen: number,
+): [string, string, string, string] {
+  const cleaned = (list ?? [])
+    .map((s) => s.trim().slice(0, maxLen))
+    .filter(Boolean);
+  return [
+    cleaned[0] ?? fallback[0],
+    cleaned[1] ?? fallback[1],
+    cleaned[2] ?? fallback[2],
+    cleaned[3] ?? fallback[3],
+  ];
+}
+
+function coerceCheck(v: unknown): "pass" | "caution" | "fail" | undefined {
+  if (typeof v !== "string") return undefined;
+  const t = v.trim().toLowerCase();
+  if (t === "pass" || t === "ok" || t === "good" || t === "clear") return "pass";
+  if (t === "caution" || t === "warn" || t === "warning" || t === "maybe") {
+    return "caution";
+  }
+  if (t === "fail" || t === "no" || t === "bad" || t === "conflict") return "fail";
+  return undefined;
+}
+
+/**
+ * Models often rename keys (camelCase / nested / shorter aliases) or drop
+ * annotations/whispers. Normalize before Zod so a usable verdict still ships.
+ */
+export function coerceLookScanPayload(raw: unknown): unknown {
+  // Defensive: callers must pass parseLlmJsonObject(...).value — unwrap if they forgot.
+  let cleaned = stripNullFields(raw);
+  if (
+    cleaned &&
+    typeof cleaned === "object" &&
+    !Array.isArray(cleaned) &&
+    "value" in cleaned &&
+    "salvaged" in cleaned &&
+    (cleaned as { salvaged: unknown }).salvaged !== undefined
+  ) {
+    cleaned = stripNullFields((cleaned as { value: unknown }).value);
+  }
+  if (!cleaned || typeof cleaned !== "object" || Array.isArray(cleaned)) {
+    return cleaned;
+  }
+
+  const root = cleaned as Record<string, unknown>;
+  const nested =
+    root.verdict &&
+    typeof root.verdict === "object" &&
+    !Array.isArray(root.verdict)
+      ? (root.verdict as Record<string, unknown>)
+      : null;
+
+  const pick = (...keys: string[]): unknown => {
+    for (const key of keys) {
+      if (root[key] !== undefined) return root[key];
+      if (nested && nested[key] !== undefined) return nested[key];
+    }
+    return undefined;
+  };
+
+  const title =
+    asTrimmedString(pick("verdict_title", "verdictTitle", "title", "headline")) ??
+    asTrimmedString(root.verdict); // rare: verdict as plain string
+  const body = asTrimmedString(
+    pick("verdict_body", "verdictBody", "body", "summary", "reason", "text"),
+  );
+
+  const annotations = padFour(
+    asStringList(pick("annotations", "annos", "labels", "scan_labels")),
+    FALLBACK_ANNOS,
+    48,
+  );
+  const whispers = padFour(
+    asStringList(pick("whispers", "status_lines", "statusLines", "scan_whispers")),
+    FALLBACK_WHISPERS,
+    120,
+  );
+
+  const checksRaw = pick("checks", "scores", "gates");
+  const checksObj =
+    checksRaw && typeof checksRaw === "object" && !Array.isArray(checksRaw)
+      ? (checksRaw as Record<string, unknown>)
+      : {};
+
+  const fit =
+    coerceCheck(checksObj.fit) ??
+    coerceCheck(checksObj.Fit) ??
+    "pass";
+  const palette =
+    coerceCheck(checksObj.palette) ??
+    coerceCheck(checksObj.color) ??
+    coerceCheck(checksObj.Palette) ??
+    "pass";
+  const nolist =
+    coerceCheck(checksObj.nolist) ??
+    coerceCheck(checksObj.no_list) ??
+    coerceCheck(checksObj.noList) ??
+    coerceCheck(checksObj.veto) ??
+    "pass";
+
+  return {
+    verdict_title: title?.slice(0, 80),
+    verdict_body: body?.slice(0, 600),
+    annotations,
+    whispers,
+    checks: { fit, palette, nolist },
+  };
+}
 
 export async function runLookScanVerdict(params: {
   userId: string;
@@ -176,14 +333,14 @@ Honesty mode: ${voice ?? "balanced"}
 
 ${piecesBlock(params.pieces)}
 
-Study the try-on photo and return the JSON verdict.`;
+Study the try-on photo and return the JSON verdict with ALL required keys.`;
 
   try {
     const anthropic = getAnthropicClient();
     const msg = await anthropic.messages.create(
       {
         model: FASHION_CURATION_MODEL,
-        max_tokens: 700,
+        max_tokens: 900,
         system: SYSTEM,
         messages: [
           {
@@ -204,18 +361,29 @@ Study the try-on photo and return the JSON verdict.`;
       .join("\n")
       .trim();
 
-    const parsed = parseLlmJsonObject(text);
-    if (!parsed) {
+    const parsedResult = parseLlmJsonObject(text);
+    if (!parsedResult) {
       logAiChat("warn", "look_scan_parse_failed", {
         preview: text.slice(0, 200),
       });
       return null;
     }
 
-    const validated = verdictSchema.safeParse(parsed);
+    const parsed = parsedResult.value;
+    const coerced = coerceLookScanPayload(parsed);
+    const validated = verdictSchema.safeParse(coerced);
     if (!validated.success) {
       logAiChat("warn", "look_scan_schema_failed", {
-        issues: validated.error.issues.slice(0, 4),
+        salvaged: parsedResult.salvaged,
+        keys:
+          parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? Object.keys(parsed as object).slice(0, 12)
+            : [],
+        issues: validated.error.issues.slice(0, 6).map((i) => ({
+          path: i.path.join("."),
+          message: i.message,
+        })),
+        preview: text.slice(0, 240),
       });
       return null;
     }

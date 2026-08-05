@@ -231,12 +231,14 @@ function RailHanger({
   wearing,
   hearted,
   onHeart,
+  onUnwear,
   onDragStart,
 }: {
   item: FittingRoomItem;
   wearing: boolean;
   hearted: boolean;
   onHeart: () => void;
+  onUnwear: () => void;
   onDragStart: (event: DragEvent, id: string) => void;
 }) {
   return (
@@ -254,7 +256,21 @@ function RailHanger({
       <div className="shoop-h2g__hi">
         <b>{item.title}</b>
         {item.price ? <i>{formatPrice(item.price)}</i> : null}
-        {wearing ? <span className="shoop-h2g__wr">WEARING</span> : null}
+        {wearing ? (
+          <span className="shoop-h2g__wear-row">
+            <span className="shoop-h2g__wr">WEARING</span>
+            <button
+              type="button"
+              className="shoop-h2g__uw"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnwear();
+              }}
+            >
+              Unwear
+            </button>
+          </span>
+        ) : null}
       </div>
       <button
         type="button"
@@ -286,6 +302,7 @@ export function TryOnDrawer() {
   const partialNote = useTryOnDrawerStore((s) => s.partialNote);
   const close = useTryOnDrawerStore((s) => s.close);
   const tryOnItem = useTryOnDrawerStore((s) => s.tryOnItem);
+  const removeFromAvatar = useTryOnDrawerStore((s) => s.removeFromAvatar);
   const sendFeedback = useTryOnDrawerStore((s) => s.sendFeedback);
   const jobId = useTryOnDrawerStore((s) => s.jobId);
 
@@ -300,6 +317,8 @@ export function TryOnDrawer() {
   const [helpRating, setHelpRating] = useState<1 | -1 | null>(null);
   const [heartedIds, setHeartedIds] = useState<Set<string>>(() => new Set());
   const [moodCount, setMoodCount] = useState<number | null>(null);
+  const [twinEl, setTwinEl] = useState<HTMLDivElement | null>(null);
+  const [scanScanning, setScanScanning] = useState(false);
 
   const activeItems = activeIds
     .map((id) => itemsById[id])
@@ -467,6 +486,7 @@ export function TryOnDrawer() {
                   wearing={activeIds.includes(item.id)}
                   hearted={heartedIds.has(item.id)}
                   onHeart={() => heartItem(item.id)}
+                  onUnwear={() => removeFromAvatar(item.id)}
                   onDragStart={onDragStart}
                 />
               ))
@@ -486,13 +506,19 @@ export function TryOnDrawer() {
         </div>
 
         <div className="shoop-croom__mirror">
+          <div className="shoop-croom__mirror-scroll">
           <div className="shoop-twinlbl">
             <ShoopIcon size={18} className="rounded-[5px]" />
             THE MIRROR · DROP CLOTHES ON ME
           </div>
 
           <div
-            className={cn("shoop-twin", dropGlow && "shoop-twin--glow")}
+            ref={setTwinEl}
+            className={cn(
+              "shoop-twin",
+              dropGlow && "shoop-twin--glow",
+              scanScanning && "shoop-twin--scanning",
+            )}
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "copy";
@@ -619,6 +645,8 @@ export function TryOnDrawer() {
           {showResult && resultUrl ? (
             <StudyingScan
               imageUrl={resultUrl}
+              frameEl={twinEl}
+              onScanningChange={setScanScanning}
               pieces={activeItems.map((item) => ({
                 title: item.title,
                 priceLabel: item.price ? formatPrice(item.price) : undefined,
@@ -705,6 +733,7 @@ export function TryOnDrawer() {
               />
             </div>
           ) : null}
+          </div>
         </div>
       </div>
     </div>

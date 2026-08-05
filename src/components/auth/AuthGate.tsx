@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { GuestLeavePrompt } from "@/components/auth/GuestLeavePrompt";
+import { ShoopLogo } from "@/components/brand/ShoopBrand";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
 import { cn } from "@/lib/ai-chat/cn";
 import {
@@ -62,6 +64,8 @@ async function migrateGuestDataAfterAuth(): Promise<boolean> {
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isAskPage = pathname?.startsWith("/ask/") ?? false;
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -77,6 +81,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const guestHasDataToLose = useGuestHasPersistedData(
     showAuthModal && guestActive,
   );
+  const askGuestBootRef = useRef(false);
 
   const refreshGuest = useCallback(() => {
     setGuestActive(isGuestSessionActive());
@@ -150,6 +155,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       window.removeEventListener("shoop-open-auth", onOpenAuth);
     };
   }, [refresh, refreshGuest]);
+
+  // Public Ask the Girls pages: silent guest — never block on auth modal.
+  useEffect(() => {
+    if (!isAskPage || user || guestActive || loading) return;
+    if (askGuestBootRef.current) return;
+    askGuestBootRef.current = true;
+    useAppSessionStore.getState().setGuest();
+    void startGuestSessionAsync().then(() => {
+      setGuestActive(true);
+      setError(null);
+    });
+  }, [isAskPage, user, guestActive, loading]);
 
   function handleContinueAsGuest() {
     leaveConversationRoute();
@@ -238,7 +255,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         {children}
-        <OnboardingGate />
+        {!isAskPage ? <OnboardingGate /> : null}
       </>
     );
   }
@@ -247,7 +264,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         {children}
-        <GuestLeavePrompt />
+        {!isAskPage ? <GuestLeavePrompt /> : null}
         {showAuthModal ? (
           <AuthOverlay
             onDismiss={() => {
@@ -276,6 +293,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         ) : null}
       </>
     );
+  }
+
+  if (isAskPage) {
+    return <>{children}</>;
   }
 
   return (
@@ -373,8 +394,8 @@ function AuthModal({
       className="w-full max-w-md overflow-hidden rounded-[22px] border border-[var(--fitting-line)] bg-white shadow-[0_26px_54px_-22px_rgba(14,14,17,0.45)]"
     >
       <div className="border-b border-[var(--fitting-line)] px-7 py-6">
-        <div className="mb-4 font-display text-[19px] font-black tracking-[0.02em]">
-          SHOO<span className="text-[var(--fitting-red)]">P</span>
+        <div className="mb-4">
+          <ShoopLogo className="h-6" />
         </div>
         <p className="text-[10.5px] font-extrabold tracking-[0.14em] text-[var(--fitting-red)]">
           {mode === "signup" ? "THE FITTING · START" : "WELCOME BACK"}

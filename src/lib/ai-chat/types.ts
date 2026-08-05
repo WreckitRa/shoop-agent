@@ -296,6 +296,16 @@ export type MessageMetadata = {
    * Full history lives in admin via pipeline_events table.
    */
   fashionPipelineEvents?: import("@/lib/fashion-memory/observability/pipeline-event-payloads").CompactPipelineEvent[];
+  /**
+   * Compact “Ask the Girls” share card injected after Studying Scan.
+   */
+  lookAsk?: {
+    token: string;
+    imageUrl: string;
+    verdictTitle: string;
+    askPath: string;
+    shoopVote?: string;
+  };
 };
 
 export type ChatMessage = {

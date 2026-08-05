@@ -1436,3 +1436,63 @@ model TryonFeedback {
   @@map("tryon_feedback")
   @@schema("public")
 }
+
+/// Public “Ask the Girls” discussion card for a dressed try-on + Studying Scan.
+model LookAskShare {
+  id             String   @id @default(cuid())
+  token          String   @unique
+  ownerUserId    String
+  generationId   String?
+  conversationId String?
+  messageId      String?
+  imageUrl       String
+  pieces         Json     @default("[]")
+  shoopVerdict   Json
+  /// Mapped poll choice: no | meh | almost | love
+  shoopVote      String
+  askerName      String
+  serial         Int
+  killCount      Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  votes LookAskVote[]
+  notes LookAskNote[]
+
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([token])
+  @@map("look_ask_shares")
+  @@schema("public")
+}
+
+model LookAskVote {
+  id          String       @id @default(cuid())
+  shareId     String
+  share       LookAskShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  voterKey    String
+  displayName String
+  userId      String?
+  /// no | meh | almost | love
+  choice      String
+  createdAt   DateTime     @default(now())
+
+  @@unique([shareId, voterKey])
+  @@index([shareId])
+  @@map("look_ask_votes")
+  @@schema("public")
+}
+
+model LookAskNote {
+  id          String       @id @default(cuid())
+  shareId     String
+  share       LookAskShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  voterKey    String
+  displayName String
+  userId      String?
+  body        String
+  createdAt   DateTime     @default(now())
+
+  @@index([shareId, createdAt])
+  @@map("look_ask_notes")
+  @@schema("public")
+}
