@@ -1,11 +1,10 @@
 # Onboarding flow: data collected, storage, required vs optional
 
 > **Audience:** engineer or AI reviewing what Shoop learns during onboarding.  
-> **Scope:** authenticated modal onboarding (`OnboardingGate`) from doorway → complete, including storage and projection into fashion-memory.  
+> **Scope:** authenticated modal onboarding (`OnboardingGate`) — fitting-room style steps through complete, including storage and projection into fashion-memory.  
 > **Deep dive on outfit grids only:** [`outfit-grid-wear-steal-logic.md`](./outfit-grid-wear-steal-logic.md).  
 > **How onboarding feeds fashion search:** [`../fashion/before-ready-to-search.md`](../fashion/before-ready-to-search.md) §3.  
 > **Source of truth:** `src/components/onboarding/OnboardingGate.tsx`, `src/lib/onboarding/**`, `prisma/schema.prisma` (`UserProfile`, `SizingProfile`, …).  
-> **Date of capture:** 2026-07-30.
 
 ---
 
@@ -21,45 +20,25 @@ Onboarding builds a **typed profile** for the signed-in shopper so fashion chat 
 | `genderPresentation` | **Yes** |
 | `ageRange` | **Yes** (from DOB or style era) |
 
-Everything else is skippable. Soft UI copy says “Only your name is truly required…” on the identity substep, but leaving the **You** section for taste still requires **name + gender + style era** (which supplies `ageRange` when DOB is skipped).
+Everything else is skippable.
 
 ---
 
 ## 2. Flow overview
 
-**UI rail:** Who you are → What's your taste → Your card
+**Live UI** (`OnboardingGate` + fitting steps): name → spend → photo/body → worn grid → wanted grid → loves/vetoes → honesty → verdict/card.
 
-```mermaid
-flowchart TD
-  A["doorway: Import AI / Quick quiz"] --> B{"Path"}
-  B -->|Import| C["intake: pick assistant → paste reply"]
-  B -->|Quiz / Skip intake| D["you: identity"]
-  C --> D
-  D --> E["you: location + sizes"]
-  E --> F["taste: spend → worn → steal → loves → compliments → honesty"]
-  F --> G["card forge: photo → height → build → definition → mint → reveal"]
-  G --> H["POST complete → projection jobs"]
-```
+| Step | Screen |
+|------|--------|
+| `name` | `YouIdentityStep` |
+| `spend` | `TasteSpendStep` |
+| `photo` | `FittingPhotoStep` |
+| `worn` / `wanted` | `TasteOutfitGridStep` |
+| `nolist` | `TasteLovesVetoesStep` |
+| `honesty` | `TasteHonestyStep` |
+| `verdict` | `FittingVerdictStep` (+ `CardForgeStep` / avatar hosts as needed) |
 
-| # | Step | Substep | Screen | User-facing title / copy |
-|---|------|---------|--------|--------------------------|
-| 0 | `doorway` | — | `OnboardingDoorwayStep` | “Two ways in.” — **Import from your AI** \| **Quick quiz** |
-| 1a | `intake` | `select` | `AiProfileTransferStep` | Pick assistant |
-| 1b | `intake` | `paste` | same | Copy transfer prompt → paste AI reply (**Skip** allowed) |
-| 2a | `you` | 0 | `YouIdentityStep` | Name, how you shop, birthday, style era, world |
-| 2b | `you` | 1 | `YouLocationSizesStep` | Ship-to country/city/currency + sizes |
-| 3a | `taste` | `spend` | `TasteSpendStep` | “How do you like to spend?” |
-| 3b | `taste` | `worn` | `TasteOutfitGridStep` | “Which three did you actually wear most this month?” (max **3**) |
-| 3c | `taste` | `aspirational` | `TasteOutfitGridStep` | “Whose closet would you steal?” (max **2**) |
-| 3d | `taste` | `loves` | `TasteLovesVetoesStep` | “Quick vetoes and loyalties.” |
-| 3e | `taste` | `compliments` | `TasteComplimentStep` | “What's the compliment you'd love to hear?” (pick **2**) |
-| 3f | `taste` | `honesty` | `TasteHonestyStep` | “how honest do you want me?” |
-| 4 | `card` | photo→…→reveal | `CardForgeStep` | Avatar forge (**entirely skippable**) |
-
-Progress milestones: `FLOW_PROGRESS_KEYS` in `OnboardingGate.tsx`.  
 Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v1`.
-
-**Not in live gate (legacy):** `TasteSwipeStep`, `ShoppingCartRevealStep`, `OnboardingProfileStep`.
 
 ---
 
@@ -83,12 +62,11 @@ Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v1`.
 
 | Area | Skip behavior |
 |------|----------------|
-| AI intake | “Skip — I'll fill it in myself” / “Skip for now” |
 | Birthday | “Prefer not to say” (`birthDateSkipped`) |
 | Lifestyle / world chips | Optional multi-select |
-| Country / city / currency / sizes | Footer: skip; sizes copy: “I'll grab them at your first checkout” |
-| Entire taste rail substeps | Advance without picks |
-| Card forge | “Skip for now” / `onSkipAll` → complete without avatar |
+| Country / city / currency / sizes | Skip allowed; sizes can wait until checkout |
+| Taste / grids / loves | Advance without picks |
+| Photo / card forge | Skip → complete without avatar |
 
 ---
 
@@ -100,15 +78,9 @@ Legend for **Required?**:
 - **Client You** — blocked before taste  
 - **Optional** — skip / empty OK  
 
-### 4.1 Doorway / AI intake
+### 4.1 Identity (name step)
 
-| Field | UI | Values | Required? | Stored where |
-|-------|-----|--------|-----------|--------------|
-| Path | Import AI / Quick quiz | — | Choose one | UI only |
-| `primaryAiAssistant` | ChatGPT, Claude, Gemini, Copilot, Perplexity, Meta AI, Other | `chatgpt` \| `claude` \| `gemini` \| `copilot` \| `perplexity` \| `meta_ai` \| `other` | Optional | `UserProfile.primaryAiAssistant` (saved with You) |
-| Intake paste | Free text 3–24k chars | string | Optional (skip) | **Not stored raw.** LLM extract → prefill patch + shopping-memory write |
-
-### 4.2 You — identity
+Collected in `YouIdentityStep` — see table below. Ship-to / sizes may also be set via profile or review APIs when present.
 
 | Field | UI label / copy | Values | Required? | Prisma |
 |-------|-----------------|--------|-----------|--------|
@@ -199,7 +171,7 @@ These can land via **AI paste** (or later profile editors), not the main taste c
 | Field | Storage | Notes |
 |-------|---------|-------|
 | Owned products | `OwnedProduct` | From intake extract |
-| Extra brand/size/taste observations | Shopping-memory + typed projectors | Intake also calls `writeMemoryFromExtraction` |
+| Extra brand/size/taste observations | Typed profile tables | `memory-extract/projector.ts` (`projectExtractionToTypedTables`) |
 | `extraNotes` on review | Background LLM job | Enrich without overwriting reviewed fields |
 
 ---
@@ -257,8 +229,7 @@ Many other columns exist (`occupation`, `workEnvironment`, units, …) for post-
 | `/api/onboarding` | GET | Load / resume | Status + full profile bundle |
 | `/api/onboarding` | PATCH | Generic writes | `onboardingPatchSchema` |
 | `/api/onboarding` | POST | Finish | Mark `onboardingCompleted` (fails if required missing) + enqueue projection |
-| `/api/onboarding/intake` | POST | AI paste | Extract → prefill patch + memory write |
-| `/api/onboarding/review` | POST | End of You | Identity/location/sizes + ensure self person |
+| `/api/onboarding/review` | POST | Identity checkpoint | Identity/location/sizes + ensure self person |
 | `/api/onboarding/taste` | GET | Outfit decks | Live catalog grids |
 | `/api/onboarding/taste` | POST | End of taste / mid | Persist taste patch; optional `complete` |
 | `/api/cron/onboarding-jobs` | POST | Worker | Drain projection / extra-notes jobs |
@@ -266,8 +237,7 @@ Many other columns exist (`occupation`, `workEnvironment`, units, …) for post-
 
 On every successful patch/complete, `enqueueOnboardingProjection` bumps version and a worker runs:
 
-1. **`seedOnboardingIntoFashionMemory`** → self fashion facts/signals  
-2. **`refreshTypedProfileIntoShoppingView`** → shopping profile summary / canonical memory  
+1. **`seedOnboardingIntoFashionMemory`** → self fashion facts/signals
 
 Also re-seeded lazily on first fashion chat turn if projection lagging (`assembleRouterContext`).
 
@@ -294,46 +264,9 @@ Account sizing/gender also remain readable directly via `loadIntakeProfileHints`
 
 ## 8. Prompts used in onboarding
 
-### 8.1 AI transfer (user copies into their assistant)
+### 8.1 Outfit grid slot LLM
 
-Base (`ai-transfer-prompts.ts`):
-
-> Write a short shopping profile for me: my style, sizes, brands I like and avoid, budget, hard no's, owned products, and what I usually shop for.
-
-Per-assistant variants append “one paragraph / copy-ready” + specificity (sizes, currency, deal-breakers). Full map in `TRANSFER_PROMPTS`.
-
-### 8.2 Intake extraction prefix
-
-`/api/onboarding/intake` prepends this to the shopping-memory extractor:
-
-```
-The user pasted a structured shopping profile document (markdown headings are common).
-Extract EVERY fact into separate observations for onboarding. Include name, gender presentation if stated,
-all sizes (topSize, bottomUsualSize or waist/inseam, shoeSizeEU), style tasteTags, brands, hard negatives,
-owned products, and valuePhilosophy. Emit many observations (not one summary blob).
-Do NOT include profileUpdates or activeIntent — only isShoppingRelevant and observations.
-Keep normalizedText short; avoid repeating the same facts in attributes.
-
-Profile document:
-```
-
-Then the shared shopping-memory extractor `SYSTEM` runs; heuristic merge in `prefill.ts` builds the onboarding patch.
-
-### 8.3 Outfit grid slot LLM
-
-`OUTFIT_GRID_SLOT_SYSTEM` (`outfit-grid.ts`):
-
-```
-You fill a 9-cell casting matrix for a fashion onboarding grid. You receive cells as {"cell":n,"archetype":"...","mode":"worn|aspirational","context":{...}}. For EACH cell return {"cell":n,"label":"2-4 words, lowercase-friendly, in the archetype voice","searchQuery":"...","tasteTags":["..."]}. searchQuery RULES: must include the audience (AUD), a COMBINATION of 2+ garment words (outfit energy, never one noun), and one of: outfit, look, co-ord, set, styled, model. LABEL RULES: no two labels may share their first word; labels must read as nine visibly different lives. WORN cells: everyday reality inside the given lifestyleTags... include the unglamorous truth (knitwear, denim, comfort). ASPIRATIONAL cells: one elevation step above worn (occasion, fabric, tailoring)... never a costume leap; banned territory: the wornLabels provided. Respect brandAvoids as aesthetic signals. Formality + color: no two adjacent cells same formality band; at least 4 distinct color families across the deck. Return ONLY JSON {"slots":[...]}. No markdown.
-```
-
-### 8.4 Vision photo judge
-
-`OUTFIT_GRID_VISION_JUDGE_SYSTEM` (`outfit-grid-vision.ts`):
-
-```
-You judge candidate photos for a fashion onboarding grid. For each SLOT you receive a vibe label and up to 3 numbered product photos. Pick the ONE photo per slot that best satisfies, in priority order: 1) STYLED PRESENCE: on-model or styled composition beats flat-lay/packshot; 2) LABEL MATCH: the photo plausibly depicts the vibe label; 3) CLARITY: garment clearly visible, clean background, no heavy graphics/text overlays; 4) DECK VARIETY: reject a photo too visually similar to a winner you already picked (same silhouette + same color family + same crop). Return ONLY JSON: {"picks":[{"slot":n,"winner":k|null,"reason":"<8 words"}]}. winner=null if all candidates fail 1 or 3... the slot will refill.
-```
+`OUTFIT_GRID_SLOT_SYSTEM` (`outfit-grid.ts` / in-house path): fills the worn/wanted casting matrix.
 
 **Not LLM:** `loves-vetoes-suggest.ts` (ranked chips), `style-mix.ts` (keyword/archetype scoring for `styleMix`).
 
@@ -375,17 +308,15 @@ User answers (wizard / AI paste)
 |------|------|
 | `src/components/onboarding/OnboardingGate.tsx` | Wizard orchestrator, validation, saves |
 | `src/components/onboarding/YouIdentityStep.tsx` | Name / gender / DOB / era / world |
-| `src/components/onboarding/YouLocationSizesStep.tsx` | Ship + sizes |
-| `src/components/onboarding/Taste*.tsx` | Spend, grids, loves, compliments, honesty |
+| `src/components/onboarding/Taste*.tsx` | Spend, grids, loves, honesty |
+| `src/components/onboarding/fitting/*` | Photo + verdict |
 | `src/components/onboarding/CardForgeStep.tsx` | Avatar forge |
-| `src/components/onboarding/AiProfileTransferStep.tsx` | AI import UX |
 | `src/lib/onboarding/status.ts` | Required fields, patch, complete |
 | `src/lib/onboarding/form-options.ts` | Enums / size lists / labels |
 | `src/lib/onboarding/taste-persist.ts` | Picks → patch |
 | `src/lib/onboarding/seed-fashion-memory.ts` | Projection to fashion DB |
 | `src/lib/onboarding/background-jobs.ts` | Projection worker |
-| `src/lib/onboarding/ai-transfer-prompts.ts` | Copy-paste prompts |
-| `src/lib/onboarding/outfit-grid.ts` / `outfit-grid-vision.ts` | Deck generation |
+| `src/lib/onboarding/outfit-grid.ts` / `outfit-grid-inhouse.ts` | Deck generation |
 | `src/app/api/onboarding/**` | HTTP surface |
 | `prisma/schema.prisma` | Table definitions |
 
@@ -397,4 +328,4 @@ User answers (wizard / AI paste)
 
 **Usually useful, all optional:** style era (also drives age), lifestyle tags, ship country/city/currency, top/bottom/shoe sizes, spend philosophy, worn ≤3 + steal ≤2 looks, brand loves/avoids, style vetoes, compliments ≤2, honesty mode, avatar body photo/attrs.
 
-**Downstream consumers:** fashion router (skip dept/size; taste signals), shopping-memory summary, try-on avatar APIs.
+**Downstream consumers:** fashion router (skip dept/size; taste signals), typed profile tables, try-on avatar APIs.

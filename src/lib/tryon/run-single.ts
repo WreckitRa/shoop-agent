@@ -27,7 +27,6 @@ import {
 } from "./dress/product-context";
 import { persistProviderImage } from "./storage";
 import { aggregateCompareStatus } from "./compare-variants";
-import { logTryonDress } from "./dress-log";
 import { TRYON_DISCLAIMER } from "./types";
 import type { TryonCompareVariant, TryonPickContract } from "./types";
 import type { TryOnProviderInput } from "./providers/types";
@@ -163,16 +162,6 @@ export async function startSingleTryon(params: {
     });
     if (cached) {
       const variants = variantsFromChildren(cached.children);
-      logTryonDress("info", "compare_cache_hit", {
-        parent_job_id: cached.parent.id,
-        ref: params.ref,
-        search_id: params.searchId,
-        providers: variants.map((v) => ({
-          key: v.provider_key,
-          status: v.status,
-          ms: v.ms,
-        })),
-      });
       return {
         jobId: cached.parent.id,
         status: "completed",
@@ -201,14 +190,6 @@ export async function startSingleTryon(params: {
       skipCapCheck: true,
     });
 
-    logTryonDress("info", "compare_started", {
-      parent_job_id: parent.id,
-      ref: params.ref,
-      search_id: params.searchId,
-      avatar_version: avatar.version,
-      providers: providerKeys,
-      garment_type: garmentType,
-    });
 
     void processCompareTryonJob({
       parentJobId: parent.id,
@@ -242,12 +223,6 @@ export async function startSingleTryon(params: {
     userId: params.userId,
   });
   if (cached?.outputUrl) {
-    logTryonDress("info", "single_cache_hit", {
-      job_id: cached.id,
-      ref: params.ref,
-      provider: cached.provider,
-      ms: cached.ms,
-    });
     return {
       jobId: cached.id,
       status: "completed",
@@ -275,14 +250,6 @@ export async function startSingleTryon(params: {
     avatarVersion: avatar.version,
   });
 
-  logTryonDress("info", "single_started", {
-    job_id: gen.id,
-    ref: params.ref,
-    search_id: params.searchId,
-    provider_key: providerKey,
-    provider: provider.name,
-    avatar_version: avatar.version,
-  });
 
   void processSingleProviderJob({
     jobId: gen.id,
@@ -367,13 +334,6 @@ async function processSingleProviderJob(
   await updateGeneration(params.jobId, { status: "processing" });
   const started = Date.now();
 
-  logTryonDress("info", "provider_processing", {
-    provider_key: params.providerKey,
-    provider: provider.name,
-    job_id: params.jobId,
-    ref: params.ref,
-    mode: "single",
-  });
 
   try {
     const dressInput = await buildDressInput(params);
@@ -395,14 +355,6 @@ async function processSingleProviderJob(
       ms,
       costEstimate: dressCostEstimateForProvider(provider.name),
     });
-    logTryonDress("info", "provider_completed", {
-      provider_key: params.providerKey,
-      provider: provider.name,
-      job_id: params.jobId,
-      ref: params.ref,
-      mode: "single",
-      ms,
-    });
     await writeTryonTapSignal(params);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -411,15 +363,6 @@ async function processSingleProviderJob(
       status: "failed",
       error: message,
       ms,
-    });
-    logTryonDress("error", "provider_failed", {
-      provider_key: params.providerKey,
-      provider: provider.name,
-      job_id: params.jobId,
-      ref: params.ref,
-      mode: "single",
-      ms,
-      error: message.slice(0, 300),
     });
   }
 }
@@ -433,11 +376,6 @@ async function processCompareTryonJob(
 ): Promise<void> {
   await updateGeneration(params.parentJobId, { status: "processing" });
 
-  logTryonDress("info", "compare_processing", {
-    parent_job_id: params.parentJobId,
-    ref: params.ref,
-    providers: params.providerKeys,
-  });
 
   const dressInput = await buildDressInput(params);
   let signalWritten = false;
@@ -466,14 +404,6 @@ async function processCompareTryonJob(
       await updateGeneration(child.id, { status: "processing" });
       const started = Date.now();
 
-      logTryonDress("info", "provider_processing", {
-        provider_key: providerKey,
-        provider: provider.name,
-        job_id: child.id,
-        parent_job_id: params.parentJobId,
-        ref: params.ref,
-        mode: "compare",
-      });
 
       try {
         const result = await provider.dress(dressInput);
@@ -494,15 +424,6 @@ async function processCompareTryonJob(
           ms,
           costEstimate: dressCostEstimateForProvider(provider.name),
         });
-        logTryonDress("info", "provider_completed", {
-          provider_key: providerKey,
-          provider: provider.name,
-          job_id: child.id,
-          parent_job_id: params.parentJobId,
-          ref: params.ref,
-          mode: "compare",
-          ms,
-        });
         if (!signalWritten && params.pick) {
           signalWritten = true;
           await writeTryonTapSignal(params);
@@ -514,16 +435,6 @@ async function processCompareTryonJob(
           status: "failed",
           error: message,
           ms,
-        });
-        logTryonDress("error", "provider_failed", {
-          provider_key: providerKey,
-          provider: provider.name,
-          job_id: child.id,
-          parent_job_id: params.parentJobId,
-          ref: params.ref,
-          mode: "compare",
-          ms,
-          error: message.slice(0, 300),
         });
       }
     }),
@@ -537,20 +448,6 @@ async function processCompareTryonJob(
     ms: parentMs,
   });
 
-  logTryonDress(anySuccess ? "info" : "error", "compare_finished", {
-    parent_job_id: params.parentJobId,
-    ref: params.ref,
-    status: anySuccess ? "completed" : "failed",
-    ms: parentMs,
-    providers: children.map((c) => ({
-      key: (c.inputRefs.provider_key as DressProviderKey | undefined) ?? "unknown",
-      provider: c.provider,
-      job_id: c.id,
-      status: c.status,
-      ms: c.ms,
-      error: c.error ? String(c.error).slice(0, 120) : undefined,
-    })),
-  });
 }
 
 async function writeTryonTapSignal(params: DressJobContext): Promise<void> {
@@ -587,19 +484,6 @@ export async function pollSingleTryon(params: {
     const variants = mergeDressCompareVariants(providerKeys, children);
     const status = aggregateCompareStatus(variants);
     const imageUrl = firstCompletedImage(variants);
-    logTryonDress("info", "poll_status", {
-      job_id: params.jobId,
-      mode: "compare",
-      status,
-      ref: row.productRef,
-      providers: variants.map((v) => ({
-        key: v.provider_key,
-        status: v.status,
-        ms: v.ms,
-        has_image: Boolean(v.image_url),
-        error: v.error,
-      })),
-    });
     return {
       status,
       compare: true,
@@ -613,15 +497,6 @@ export async function pollSingleTryon(params: {
     };
   }
 
-  logTryonDress("info", "poll_status", {
-    job_id: params.jobId,
-    mode: "single",
-    status: row.status,
-    ref: row.productRef,
-    provider: row.provider,
-    ms: row.ms,
-    error: row.error ? String(row.error).slice(0, 120) : undefined,
-  });
 
   return {
     status: row.status,
@@ -641,9 +516,6 @@ function formatTryonFailureMessage(stored: string | null | undefined): string {
   const msg = stored.trim();
   if (/timed out|aborted/i.test(msg)) {
     return "This one is taking too long — try another piece.";
-  }
-  if (process.env.NODE_ENV === "development" || process.env.AGENT_DEBUG === "1") {
-    return msg.length > 240 ? `${msg.slice(0, 240)}…` : msg;
   }
   return "Couldn't dress this one — try another piece.";
 }

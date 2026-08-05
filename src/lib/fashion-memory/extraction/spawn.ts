@@ -13,7 +13,7 @@ export type SpawnFashionExtractionParams = {
 
 /**
  * Fire-and-forget extraction after the response stream has closed.
- * Matches shopping-memory detached job pattern (run-chat-stream).
+ * Detached extraction job (fire-and-forget after the fashion turn).
  */
 export function spawnDetachedFashionExtraction(
   params: SpawnFashionExtractionParams,

@@ -4,9 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { ComposerReplyChip } from "@/components/chat/ComposerReplyChip";
-import { FeelingMoodPicker } from "@/components/chat/FeelingMoodPicker";
 import { ReceiptPlusButton } from "@/components/chat/ReceiptPlusButton";
-import { SelectedCategoryChips } from "@/components/chat/SelectedCategoryChips";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useSuggestedPrompt } from "@/components/chat/useSuggestedPrompt";
 import { ShoopIcon } from "@/components/brand/ShoopBrand";
@@ -33,8 +31,6 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
   const clearComposerReplyContext = useChatStore(
     (s) => s.clearComposerReplyContext,
   );
-  const selectedCategories = useChatStore((s) => s.selectedCategories);
-  const removeHomeCategory = useChatStore((s) => s.removeHomeCategory);
   const [homePlaceholderIndex, setHomePlaceholderIndex] = useState(0);
 
   const suggestedPlaceholder = useSuggestedPrompt();
@@ -137,19 +133,7 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
             isHeroComposer ? " shoop-buybrief-box--hero" : ""
           }`}
         >
-          {!isHomeEmpty ? (
-            <ComposerBrandRow
-              selectedCategories={selectedCategories}
-              onRemoveCategory={removeHomeCategory}
-            />
-          ) : selectedCategories.length > 0 ? (
-            <div className="mb-2">
-              <SelectedCategoryChips
-                selectedCategories={selectedCategories}
-                onRemove={removeHomeCategory}
-              />
-            </div>
-          ) : null}
+          {!isHomeEmpty ? <ComposerBrandRow /> : null}
           {composerReplyContext ? (
             <ComposerReplyChip
               context={composerReplyContext}
@@ -225,7 +209,6 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
             ) : (
               <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                 <ReceiptPlusButton />
-                <FeelingMoodPicker />
               </div>
             )}
             {isStreaming ? (
@@ -262,13 +245,7 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
   );
 }
 
-function ComposerBrandRow({
-  selectedCategories,
-  onRemoveCategory,
-}: {
-  selectedCategories: string[];
-  onRemoveCategory: (name: string) => void;
-}) {
+function ComposerBrandRow() {
   return (
     <div className="mb-1.5 flex items-start justify-between gap-2">
       <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -278,10 +255,6 @@ function ComposerBrandRow({
             <span className="sr-only">Ask Shoop</span>
           </div>
         </div>
-        <SelectedCategoryChips
-          selectedCategories={selectedCategories}
-          onRemove={onRemoveCategory}
-        />
       </div>
     </div>
   );

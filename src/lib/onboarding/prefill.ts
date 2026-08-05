@@ -1,8 +1,8 @@
 import type { z } from "zod";
 import { tagsFromFreeText } from "@/lib/onboarding/taste-tags";
 import type { onboardingPatchSchema } from "@/lib/onboarding/status";
-import type { ShoppingMemoryExtraction } from "@/lib/ai-chat/shopping-memory/types";
-import { observationTargetsBuyer } from "@/lib/ai-chat/shopping-memory/observation-scope";
+import type { OnboardingExtraction } from "@/lib/onboarding/memory-extract/types";
+import { observationTargetsBuyer } from "@/lib/onboarding/memory-extract/observation-scope";
 
 export type OnboardingFormPrefill = {
   preferredName?: string;
@@ -227,7 +227,7 @@ export function heuristicPrefillFromText(text: string): OnboardingFormPrefill {
 }
 
 export function prefillFromExtraction(
-  extraction: ShoppingMemoryExtraction,
+  extraction: OnboardingExtraction,
 ): OnboardingFormPrefill {
   const prefill: OnboardingFormPrefill = {};
   const styleLikes: string[] = [];
@@ -353,7 +353,7 @@ export function prefillFromExtraction(
 
 export function mergeOnboardingPrefill(
   text: string,
-  extraction: ShoppingMemoryExtraction | null,
+  extraction: OnboardingExtraction | null,
 ): OnboardingFormPrefill {
   const fromHeuristic = heuristicPrefillFromText(text);
   if (!extraction) return fromHeuristic;

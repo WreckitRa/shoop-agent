@@ -1,8 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildIntakePayload,
-  buildIntakeQuestions,
+  buildBlockingClarification,
   getGenderPresentation,
   needsDepartmentClarification,
   needsIntake,
@@ -120,9 +119,14 @@ describe("needsIntake", () => {
   });
 });
 
-describe("buildIntakeQuestions", () => {
+describe("buildBlockingClarification", () => {
   it("asks department first then relevant sizes only", () => {
-    const questions = buildIntakeQuestions({ brief: weddingBrief, facts: [] });
+    const blocking = buildBlockingClarification({
+      brief: weddingBrief,
+      facts: [],
+      targetPersonId: "p1",
+    });
+    const questions = blocking.questions;
     assert.equal(questions[0]?.field, "gender_presentation");
     assert.ok(questions.some((q) => q.field === "size_tops"));
     assert.ok(questions.some((q) => q.field === "size_bottoms"));
@@ -131,9 +135,10 @@ describe("buildIntakeQuestions", () => {
   });
 
   it("skips gender when account profile already has presentation", () => {
-    const questions = buildIntakeQuestions({
+    const blocking = buildBlockingClarification({
       brief: weddingBrief,
       facts: [],
+      targetPersonId: "p1",
       profileHints: {
         genderPresentation: "mens",
         sizeBuckets: new Set(),
@@ -141,31 +146,36 @@ describe("buildIntakeQuestions", () => {
         sizeLines: [],
       },
     });
+    const questions = blocking.questions;
     assert.ok(!questions.some((q) => q.field === "gender_presentation"));
     assert.ok(questions.some((q) => q.field === "size_tops"));
   });
 
   it("skips gender when brief already has department_scope (gift recipient)", () => {
-    const questions = buildIntakeQuestions({
+    const blocking = buildBlockingClarification({
       brief: { ...weddingBrief, department_scope: "womens" },
       facts: [],
+      targetPersonId: "p1",
       personLabel: "mom",
     });
+    const questions = blocking.questions;
     assert.ok(!questions.some((q) => q.field === "gender_presentation"));
     assert.ok(questions.some((q) => q.field === "size_tops"));
   });
 
   it("skips gender for mother/wife relations without asking Men's/Women's", () => {
-    const questions = buildIntakeQuestions({
+    const blocking = buildBlockingClarification({
       brief: {
         ...weddingBrief,
         request_type: "single_item",
         garments: ["dress"],
       },
       facts: [],
+      targetPersonId: "p1",
       personLabel: "mother",
       person: { relation: "mother" },
     });
+    const questions = blocking.questions;
     assert.ok(!questions.some((q) => q.field === "gender_presentation"));
     assert.deepEqual(
       questions.map((q) => q.field),
@@ -174,33 +184,35 @@ describe("buildIntakeQuestions", () => {
   });
 
   it("still asks gender for ambiguous relations like friend", () => {
-    const questions = buildIntakeQuestions({
+    const blocking = buildBlockingClarification({
       brief: {
         ...weddingBrief,
         request_type: "single_item",
         garments: ["dress"],
       },
       facts: [],
+      targetPersonId: "p1",
       personLabel: "friend",
       person: { relation: "friend" },
     });
-    assert.equal(questions[0]?.field, "gender_presentation");
+    assert.equal(blocking.questions[0]?.field, "gender_presentation");
   });
 
   it("names the recipient in the gender question for gifts", () => {
-    const questions = buildIntakeQuestions({
+    const blocking = buildBlockingClarification({
       brief: weddingBrief,
       facts: [],
+      targetPersonId: "p1",
       personLabel: "mom",
     });
     assert.match(
-      questions.find((q) => q.field === "gender_presentation")?.question ?? "",
+      blocking.questions.find((q) => q.field === "gender_presentation")?.text ?? "",
       /for mom/i,
     );
   });
 
   it("names the recipient in size questions for gifts", () => {
-    const questions = buildIntakeQuestions({
+    const blocking = buildBlockingClarification({
       brief: {
         ...weddingBrief,
         request_type: "single_item",
@@ -208,15 +220,16 @@ describe("buildIntakeQuestions", () => {
         department_scope: "womens",
       },
       facts: [],
+      targetPersonId: "p1",
       personLabel: "mother",
     });
-    const dressQ = questions.find((q) => q.field === "size_dresses");
-    assert.match(dressQ?.question ?? "", /mother/i);
-    assert.doesNotMatch(dressQ?.question ?? "", /\byou\b/i);
+    const dressQ = blocking.questions.find((q) => q.field === "size_dresses");
+    assert.match(dressQ?.text ?? "", /mother/i);
+    assert.doesNotMatch(dressQ?.text ?? "", /\byou\b/i);
   });
 
   it("skips size buckets covered by account sizing profile", () => {
-    const questions = buildIntakeQuestions({
+    const blocking = buildBlockingClarification({
       brief: weddingBrief,
       facts: [
         {
@@ -233,6 +246,7 @@ describe("buildIntakeQuestions", () => {
           updated_at: "2026-01-01",
         } satisfies FashionFactRow,
       ],
+      targetPersonId: "p1",
       profileHints: {
         genderPresentation: "mens",
         sizeBuckets: new Set(["tops", "bottoms", "shoes"]),
@@ -240,26 +254,21 @@ describe("buildIntakeQuestions", () => {
         sizeLines: ["tops M (account)"],
       },
     });
-    assert.ok(!questions.some((q) => q.field.startsWith("size_")));
-    assert.ok(!questions.some((q) => q.field === "gender_presentation"));
+    assert.ok(!blocking.questions.some((q) => q.field?.startsWith("size_")));
+    assert.ok(!blocking.questions.some((q) => q.field === "gender_presentation"));
   });
-});
 
-describe("buildIntakePayload", () => {
   it("opens with essentials framing line", () => {
-    const payload = buildIntakePayload({
+    const blocking = buildBlockingClarification({
       brief: weddingBrief,
       facts: [],
       targetPersonId: "p1",
     });
-    assert.match(payload.reply, /essentials|fits/i);
-    assert.equal(payload.target_person_id, "p1");
+    assert.match(blocking.reply, /essentials|fits/i);
+    assert.equal(blocking.target_person_id, "p1");
   });
-});
 
-describe("buildBlockingClarification", () => {
-  it("bundles department and size for cold cyprus wedding outfit", async () => {
-    const { buildBlockingClarification } = await import("./identity-gate");
+  it("bundles department and size for cold cyprus wedding outfit", () => {
     const blocking = buildBlockingClarification({
       brief: weddingBrief,
       facts: [],

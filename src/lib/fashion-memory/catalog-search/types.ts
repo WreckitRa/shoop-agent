@@ -17,22 +17,12 @@ export type FashionSearchProfile = {
 import type { ProductNormalization } from "../normalize/types";
 import type { HardDroppedProduct, ProductSuspicion } from "../hard-drops/types";
 import type { ProductScore } from "../scoring/types";
-import type { PipelineDebugProduct } from "@/lib/ai-chat/search/pipeline-debug";
-import type { ProductCard } from "@/lib/ai-chat/types";
 
 export type FashionQueryVariantUsed = {
   query: string;
   category_filtered: boolean;
   /** Retrieval lane — A hedge / B price scout / C precise. */
   lane?: import("./category-hedge").CatalogLane;
-};
-
-export type FashionCatalogPageCall = {
-  page: number;
-  /** Full `catalog` object sent to `search_catalog` for this page. */
-  request: Record<string, unknown>;
-  product_count: number;
-  has_next_page: boolean;
 };
 
 export type FashionCatalogQueryLog = {
@@ -44,12 +34,8 @@ export type FashionCatalogQueryLog = {
   raw_count: number;
   duration_ms: number;
   error?: string;
-  /** Every `search_catalog` page request (up to 2×50 for 100 hits). */
-  catalog_calls?: FashionCatalogPageCall[];
-  /** Up to 100 products returned for this query variant. */
-  products?: PipelineDebugProduct[];
-  /** Full product cards for chat rendering. */
-  product_cards?: ProductCard[];
+  /** Ordered product ids for shopify-rank scoring (not full snapshots). */
+  products?: Array<{ id: string }>;
 };
 
 /** Raw catalog hit with corroboration metadata for downstream scoring. */
@@ -104,8 +90,6 @@ export type FashionSlotCatalogResult = {
     reformulated: boolean;
   };
   query_logs: FashionCatalogQueryLog[];
-  /** Full Shopify payloads for debug expand view (omitted from slim metadata). */
-  catalog_by_id?: Record<string, Record<string, unknown>>;
   /** Verified hydrated bench — trace lifecycle only. */
   verified_pool?: import("../hydration/types").HydratedCandidate[];
   /** Transparent unverified tail from reserve. */
@@ -154,12 +138,11 @@ export type FashionCatalogSearchResult = {
   budget_tension?: import("../budget/budgetTension").BudgetTension;
   curation?: import("../curation/types").FashionCurationPresentation;
   curation_ms?: number;
-  curation_debug?: import("../curation/fashion-curation-debug").FashionCurationDebugV1;
   /** Stop before hydrate/curation — ask user to raise budget. */
   budget_raise_ask?: import("../budget/budget-raise-ask").BudgetRaiseAsk;
 };
 
-/** Chat/admin metadata — scored catalog + query logs omitted (see agent debug). */
+/** Chat/admin metadata — scored catalog + query logs omitted from client payload. */
 export type MessageFashionCatalogSearchMetaV1 = {
   version: 1;
   slots: Array<
@@ -181,11 +164,7 @@ export type MessageFashionCatalogSearchMetaV1 = {
       | "guard_band_count"
       | "enforced_max"
       | "guard_max"
-    > & {
-      /** Legacy runs may still carry full scored survivors — chat UI ignores these. */
-      products?: FashionSlotCatalogResult["products"];
-      query_logs?: FashionSlotCatalogResult["query_logs"];
-    }
+    >
   >;
   timing_ms: number;
   brand_narration?: string;

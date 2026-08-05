@@ -10,7 +10,7 @@ import type { LightweightPromptAudit } from "@/lib/ai-chat/prompt-run/lightweigh
 import {
   parseLlmJsonObject,
   stripNullFields,
-} from "@/lib/ai-chat/shopping-memory/llm-json";
+} from "@/lib/ai-chat/llm-json";
 import type { onboardingPatchSchema } from "@/lib/onboarding/status";
 import {
   AGE_RANGES,

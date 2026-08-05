@@ -18,12 +18,6 @@ import {
 import { formatScanEmphasis } from "@/lib/tryon/look-scan-types";
 import { guestFetch } from "@/lib/client/guest-fetch";
 
-const POSES = [
-  { className: "", label: "FRONT" },
-  { className: "p1", label: "THE DETAIL" },
-  { className: "p2", label: "THE TURN" },
-] as const;
-
 const AVATAR_COLORS = [
   "#C97B84",
   "#B08968",
@@ -54,7 +48,6 @@ export function AskLookCard({ token, initialShare }: Props) {
   );
   const [loading, setLoading] = useState(!initialShare);
   const [error, setError] = useState<string | null>(null);
-  const [pose, setPose] = useState(0);
   const [nameDraft, setNameDraft] = useState(
     () => getAskDisplayName() ?? "",
   );
@@ -64,8 +57,33 @@ export function AskLookCard({ token, initialShare }: Props) {
   );
   const [noteDraft, setNoteDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   const voterKey = useMemo(() => getAskVoterKey(), []);
+
+  useEffect(() => {
+    if (!fullscreen) {
+      setZoom(1);
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFullscreen(false);
+      if (e.key === "+" || e.key === "=") {
+        setZoom((z) => Math.min(3, Math.round((z + 0.25) * 100) / 100));
+      }
+      if (e.key === "-" || e.key === "_") {
+        setZoom((z) => Math.max(1, Math.round((z - 0.25) * 100) / 100));
+      }
+    };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [fullscreen]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -259,40 +277,29 @@ export function AskLookCard({ token, initialShare }: Props) {
           ) : null}
           <button
             type="button"
-            className="shoop-ask-tap l"
-            aria-label="Previous pose"
-            onClick={() => setPose((p) => (p + 2) % 3)}
-          />
+            className="shoop-ask-fullbtn"
+            onClick={() => setFullscreen(true)}
+          >
+            Zoom & inspect
+          </button>
           <button
             type="button"
-            className="shoop-ask-tap r"
-            aria-label="Next pose"
-            onClick={() => setPose((p) => (p + 1) % 3)}
-          />
-          <span className="shoop-ask-dots">
-            {POSES.map((_, i) => (
-              <span
-                key={i}
-                className={cn("shoop-ask-dot", pose === i && "on")}
-              />
-            ))}
-            <span className="shoop-ask-poselab">{POSES[pose]!.label}</span>
-          </span>
-          <span className="shoop-ask-plus">
-            3 ANGLES · SHOOP<i>+</i>
-          </span>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={share.imageUrl}
-            alt={`${share.askerName} trying it on`}
-            className={POSES[pose]!.className}
-          />
-          <div className="shoop-ask-id">
-            <b>
-              {asker} · trying it on
-            </b>
-            <i>№ {serial}</i>
-          </div>
+            className="shoop-ask-imhit"
+            onClick={() => setFullscreen(true)}
+            aria-label="Open full look to zoom and inspect"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={share.imageUrl}
+              alt={`${share.askerName} trying it on`}
+            />
+          </button>
+        </div>
+        <div className="shoop-ask-id">
+          <b>
+            {asker} · trying it on
+          </b>
+          <i>№ {serial}</i>
         </div>
 
         <div className="shoop-ask-body">
@@ -330,7 +337,7 @@ export function AskLookCard({ token, initialShare }: Props) {
             <div className="shoop-ask-reveal">
               <div className="shoop-ask-poll">
                 <div className="shoop-ask-pt">
-                  {asker.split(" ")[0]} ASKED THE GIRLS · {totalHuman} VOTED
+                  {asker.split(" ")[0]} ASKED FRIENDS · {totalHuman} VOTED
                 </div>
                 {juryTotal > 0 ? (
                   <div className="shoop-ask-avg">
@@ -338,7 +345,7 @@ export function AskLookCard({ token, initialShare }: Props) {
                       {avg.toFixed(1)}
                       <small>/4</small>
                     </b>
-                    <i>THE GIRLS + SHOOP · {avgLab}</i>
+                    <i>FRIENDS + SHOOP · {avgLab}</i>
                   </div>
                 ) : null}
                 {ASK_VOTE_CHOICES.map((c) => {
@@ -360,6 +367,11 @@ export function AskLookCard({ token, initialShare }: Props) {
                         {ASK_VOTE_LABELS[c]}
                         {share.myVote === c ? (
                           <span className="youtag"> YOU</span>
+                        ) : share.ownerVote === c ? (
+                          <span className="youtag">
+                            {" "}
+                            {share.askerName.split(" ")[0]?.toUpperCase()}
+                          </span>
                         ) : null}
                       </span>
                       <span className="pbar">
@@ -378,17 +390,27 @@ export function AskLookCard({ token, initialShare }: Props) {
                           ) : (
                             <span
                               key={v.voterKey}
-                              className={cn("av", v.voterKey === voterKey && "you")}
+                              className={cn(
+                                "av",
+                                (v.voterKey === voterKey || v.isOwner) && "you",
+                                v.isOwner && "asker",
+                              )}
                               style={
-                                v.voterKey === voterKey
+                                v.voterKey === voterKey || v.isOwner
                                   ? undefined
                                   : { background: colorFor(v.displayName) }
                               }
-                              title={v.displayName}
+                              title={
+                                v.isOwner
+                                  ? `${v.displayName} (asker)`
+                                  : v.displayName
+                              }
                             >
                               {v.voterKey === voterKey
                                 ? "YOU"
-                                : initial(v.displayName)}
+                                : v.isOwner
+                                  ? initial(share.askerName)
+                                  : initial(v.displayName)}
                             </span>
                           ),
                         )}
@@ -514,6 +536,77 @@ export function AskLookCard({ token, initialShare }: Props) {
               Continue
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {fullscreen ? (
+        <div
+          className="shoop-ask-fs"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Inspect look"
+        >
+          <div className="shoop-ask-fs__bar">
+            <div className="shoop-ask-fs__zoom">
+              <button
+                type="button"
+                aria-label="Zoom out"
+                disabled={zoom <= 1}
+                onClick={() =>
+                  setZoom((z) => Math.max(1, Math.round((z - 0.25) * 100) / 100))
+                }
+              >
+                −
+              </button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                disabled={zoom >= 3}
+                onClick={() =>
+                  setZoom((z) => Math.min(3, Math.round((z + 0.25) * 100) / 100))
+                }
+              >
+                +
+              </button>
+            </div>
+            <button
+              type="button"
+              className="shoop-ask-fs__close"
+              aria-label="Close"
+              onClick={() => setFullscreen(false)}
+            >
+              Close
+            </button>
+          </div>
+          <div
+            className="shoop-ask-fs__stage"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setFullscreen(false);
+            }}
+            onWheel={(e) => {
+              if (!e.ctrlKey && !e.metaKey) return;
+              e.preventDefault();
+              const next =
+                e.deltaY < 0
+                  ? Math.min(3, zoom + 0.1)
+                  : Math.max(1, zoom - 0.1);
+              setZoom(Math.round(next * 100) / 100);
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={share.imageUrl}
+              alt={`${share.askerName} — full look`}
+              style={{ transform: `scale(${zoom})` }}
+              onDoubleClick={() =>
+                setZoom((z) => (z > 1 ? 1 : 2))
+              }
+            />
+          </div>
+          <p className="shoop-ask-fs__hint">
+            Pinch or use + / − · double-tap to zoom · Esc to close
+          </p>
         </div>
       ) : null}
     </div>

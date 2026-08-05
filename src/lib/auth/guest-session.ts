@@ -57,10 +57,6 @@ export function parseGuestSessionId(raw: string | null): string | null {
   return UUID_RE.test(token) ? token : null;
 }
 
-export function isValidGuestId(id: string): boolean {
-  return UUID_RE.test(id);
-}
-
 /** Client-safe check: plain UUID or signed `{uuid}.{sig}` token shape. */
 export function isValidGuestSessionToken(token: string): boolean {
   const t = token.trim();
@@ -75,13 +71,4 @@ export function guestUserIdFromSessionId(sessionId: string): string {
 
 export function isGuestUserId(userId: string): boolean {
   return userId.startsWith(GUEST_USER_ID_PREFIX);
-}
-
-export function guestSessionIdFromUserId(userId: string): string | null {
-  if (!isGuestUserId(userId)) return null;
-  const sessionId = userId.slice(GUEST_USER_ID_PREFIX.length);
-  // Extract the bare UUID from a potentially signed token.
-  const signedMatch = SIGNED_TOKEN_RE.exec(sessionId);
-  if (signedMatch) return signedMatch[1] ?? null;
-  return UUID_RE.test(sessionId) ? sessionId : null;
 }

@@ -39,7 +39,6 @@ import {
   CURATION_STAGE_A_SHRINK_MS,
   FASHION_CURATION_SPLIT_ENABLED,
 } from "../pipeline-cutoffs";
-import { buildFashionCurationDebug } from "./fashion-curation-debug";
 import { recordCurationLatencyMs, recordCurationLlmCallMs, curationLlmCallLatencySnapshot } from "./latency-metrics";
 import { sanitizeCurationNarration } from "./narration-sanitize";
 import { fillCurationVoice } from "./voice";
@@ -574,24 +573,10 @@ is a contract failure — never return slots without looks in outfit mode.`
       lookMembership: lookMembershipFromOutput(repaired.output),
       fallback: true,
     });
-    const debug = buildFashionCurationDebug({
-      plan: params.plan,
-      registry: inputBundle.registry,
-      presentation,
-      input_text: inputBundle.textBlock,
-      image_count: 0,
-      curation_ms: curationMs,
-      fallback: true,
-      retries: 0,
-      validation_issues: repaired.issues,
-      raw_llm_output: null,
-      ts: started,
-    });
     return {
       presentation,
       curation_ms: curationMs,
       registry: inputBundle.registry,
-      debug,
     };
   }
 
@@ -1149,25 +1134,9 @@ is a contract failure — never return slots without looks in outfit mode.`
     fallback,
     voice_fallback: voiceFallback,
   });
-
-  const debug = buildFashionCurationDebug({
-    plan: params.plan,
-    registry: inputBundle.registry,
-    presentation,
-    input_text: inputBundle.textBlock,
-    image_count: imageCount,
-    curation_ms: curationMs,
-    fallback,
-    retries,
-    validation_issues: validationIssues,
-    raw_llm_output: rawOutput,
-    ts: started,
-  });
-
   return {
     presentation,
     curation_ms: curationMs,
     registry: inputBundle.registry,
-    debug,
   };
 }

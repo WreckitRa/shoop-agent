@@ -1,8 +1,9 @@
 import { chatPostBodySchema } from "@/lib/ai-chat/validators";
-import { createChatSseStream } from "@/lib/ai-chat/run-chat-stream";
+import {
+  createFashionChatSseStream,
+  type FashionChatPostBody,
+} from "@/lib/ai-chat/run-fashion-chat-stream";
 import { logAiChat } from "@/lib/ai-chat/observability";
-import { kickProductCurationJobWorker } from "@/lib/ai-chat/curation/jobs";
-import { kickShoppingMemoryJobWorker } from "@/lib/ai-chat/shopping-memory/jobs";
 import { getAuthContext } from "@/lib/auth/session";
 import { isQaDevEnvironment } from "@/lib/qa/guard";
 
@@ -35,15 +36,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const isFashionSend =
-      parsed.data.mode === "send" && parsed.data.fashionMode === true;
-    if (!isFashionSend) {
-      kickShoppingMemoryJobWorker();
-      kickProductCurationJobWorker();
-    }
-
-    const stream = createChatSseStream({
-      body: parsed.data,
+    const stream = createFashionChatSseStream({
+      body: parsed.data as FashionChatPostBody,
       signal: req.signal,
       userId: auth.userId,
       qaFaultsHeader: isQaDevEnvironment()

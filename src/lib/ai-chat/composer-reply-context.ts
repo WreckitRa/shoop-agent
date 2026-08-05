@@ -41,32 +41,3 @@ export function composerReplyPreviewLabel(ctx: ComposerReplyContext): string {
   }
   return title || "Selected pick";
 }
-
-/** Wrap the user's typed text with reply context for the model (transcript shows the chip separately). */
-export function formatUserTurnWithReplyContext(
-  userText: string,
-  reply: ComposerReplyContext | null | undefined,
-): string {
-  const text = userText.trim();
-  if (!reply) return text;
-
-  const lines = [
-    "<reply_context>",
-    "The user is composing their next message in reference to this specific product pick from the conversation.",
-    `Product: ${reply.title}`,
-    `Product id: ${reply.productId}`,
-  ];
-  if (reply.slot) lines.push(`Pick slot: ${reply.slot}`);
-  if (reply.verdict) lines.push(`Shoop verdict: ${reply.verdict}`);
-  if (reply.priceLabel) lines.push(`Price shown: ${reply.priceLabel}`);
-  if (reply.reason?.trim()) {
-    lines.push(`Why we showed it: ${reply.reason.trim()}`);
-  }
-  lines.push(
-    "Interpret their message as being about this item unless they clearly change topic. Do not repeat the full pick card unless they ask.",
-    "</reply_context>",
-    "",
-    text,
-  );
-  return lines.join("\n");
-}

@@ -8,21 +8,13 @@ import type {
   ConversationSummary,
   CuratedPick,
   ProductCard,
-  MessageClarificationV1,
-  MessageGiftDirectionsV1,
-  MessageMetadata,
-  ProductSearchInvocation,
   ResponseStyle,
-  ShoppingModeMetaV1,
   SidebarConversationNode,
 } from "@/lib/ai-chat/types";
 import type { ComposerReplyContext } from "@/lib/ai-chat/composer-reply-context";
 import { composerReplyFromPick } from "@/lib/ai-chat/composer-reply-context";
 import { applyIntentBranchSplitsToMessages } from "@/lib/ai-chat/intent-branch/apply-splits-to-messages";
-import { logIntentBranch } from "@/lib/ai-chat/intent-branch/debug-log";
-import { mergeOptionPreviewsIntoClarification } from "@/lib/ai-chat/search-clarification";
 import { mergeOptionPreviewsIntoFashionRouter } from "@/lib/fashion-memory/router/clarification-defaults";
-import { mergeOptionPreviewsIntoGiftDirections } from "@/lib/ai-chat/search/gift-directions";
 import {
   parseSidebarNodes,
   sidebarNodesToConversations,
@@ -48,21 +40,11 @@ import {
 } from "@/lib/fashion-memory/client/spawn-extraction";
 import { getGuestSessionId } from "@/lib/client/guest-storage";
 import { DEFAULT_UI_SETTINGS } from "@/lib/ai-chat/constants";
-import { mergeProductSearchMetadata } from "@/lib/ai-chat/merge-product-search-metadata";
-import { formatFindSimilarUserText } from "@/lib/ai-chat/search/find-similar/action";
-import {
-  MAX_FIND_SIMILAR_SEEDS,
-  type FindSimilarSeed,
-} from "@/lib/ai-chat/search/find-similar/types";
 import {
   mergeOptionPreviewMetadata,
   messageExpectsOptionPreviews,
   messageHasOptionPreviewImages,
 } from "@/lib/ai-chat/merge-option-preview-metadata";
-import { messageNeedsCurationEnhancement } from "@/lib/ai-chat/curation/enhancement-state";
-import {
-  isShoppingMode,
-} from "@/lib/ai-chat/shopping-mode";
 import {
   NEW_CHAT_PATH,
   conversationPath,
@@ -71,10 +53,6 @@ import {
 } from "@/lib/shared/chatRoutes";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { leaveConversationRoute } from "@/lib/client/chat-navigation";
-import {
-  useAgentDebugStore,
-  ingestAgentDebugFromSse,
-} from "@/components/chat/agent-debug-store";
 import {
   useAppSessionStore,
 } from "@/lib/client/app-session";
@@ -209,10 +187,7 @@ function resolveAssistantMessageId(
   const pending = [...messages]
     .reverse()
     .find(
-      (m) =>
-        m.role === "assistant" &&
-        (m.metadata?.giftDirections?.status === "pending" ||
-          m.metadata?.clarification?.status === "pending"),
+      (m) => m.role === "assistant" && m.metadata?.fashionRouter?.status === "pending",
     );
   return pending?.id ?? messageId;
 }
@@ -239,13 +214,7 @@ function applyAssistantStreamDone(
       if (metadata === null) {
         mergedMetadata = null;
       } else {
-        mergedMetadata = {
-          ...mergeOptionPreviewMetadata(m.metadata, metadata),
-          productSearch: mergeProductSearchMetadata(
-            m.metadata?.productSearch,
-            metadata.productSearch,
-          ),
-        };
+        mergedMetadata = mergeOptionPreviewMetadata(m.metadata, metadata);
       }
     }
     return {
@@ -258,8 +227,6 @@ function applyAssistantStreamDone(
   });
 }
 
-const CURATION_POLL_MS = 2500;
-const CURATION_POLL_MAX_MS = 120_000;
 const PREVIEW_POLL_MS = 1500;
 const PREVIEW_POLL_MAX_MS = 12_000;
 const activeOptionPreviewPolls = new Set<string>();
@@ -271,12 +238,6 @@ function optionPreviewPollKey(
   return `${conversationId}:${assistantMessageId}`;
 }
 
-function logClientOptionPreview(stage: string, payload?: Record<string, unknown>) {
-  if (process.env.NEXT_PUBLIC_OPTION_PREVIEW_DEBUG !== "1") return;
-  console.info("[option_preview:client]", stage, payload ?? "");
-}
-
-/** Poll until preview images land in DB (fallback if SSE missed). */
 function scheduleOptionPreviewPoll(args: {
   get: () => Pick<ChatState, "activeConversationId" | "messages" | "loadConversation">;
   conversationId: string | null;
@@ -314,9 +275,7 @@ function scheduleOptionPreviewPoll(args: {
       s.messages.find((m) => m.id === assistantMessageId) ??
       s.messages.find(
         (m) =>
-          m.role === "assistant" &&
-          (m.metadata?.giftDirections?.status === "pending" ||
-            m.metadata?.clarification?.status === "pending"),
+          m.role === "assistant" && m.metadata?.fashionRouter?.status === "pending",
       );
     if (!msg) {
       finishPoll();
@@ -330,7 +289,6 @@ function scheduleOptionPreviewPoll(args: {
       return;
     }
 
-    logClientOptionPreview("poll_load", { conversationId, assistantMessageId });
     void get()
       .loadConversation(conversationId, { silent: true })
       .finally(() => {
@@ -367,92 +325,6 @@ function isActiveChatCurationContext(conversationId: string): boolean {
   return parseConversationIdFromPath(path) === conversationId;
 }
 
-/** Poll until detached curator patches land in DB (SSE may close before update). */
-function scheduleCurationEnhancementPoll(args: {
-  get: () => Pick<ChatState, "activeConversationId" | "messages" | "loadConversation">;
-  conversationId: string | null;
-  assistantMessageId: string | null;
-}) {
-  const { get, conversationId, assistantMessageId } = args;
-  if (!conversationId || !assistantMessageId) return;
-
-  const startedAt = Date.now();
-
-  const poll = () => {
-    if (Date.now() - startedAt > CURATION_POLL_MAX_MS) return;
-    if (!isActiveChatCurationContext(conversationId)) return;
-    const s = get();
-    if (s.activeConversationId !== conversationId) return;
-
-    const msg = s.messages.find((m) => m.id === assistantMessageId);
-    const stillAwaiting = msg ? messageNeedsCurationEnhancement(msg.metadata) : false;
-    if (!stillAwaiting) return;
-
-    void get()
-      .loadConversation(conversationId, { silent: true })
-      .finally(() => {
-        if (!isActiveChatCurationContext(conversationId)) return;
-        window.setTimeout(poll, CURATION_POLL_MS);
-      });
-  };
-
-  window.setTimeout(poll, CURATION_POLL_MS);
-}
-
-function isMessageClarificationV1(v: unknown): v is MessageClarificationV1 {
-  if (!v || typeof v !== "object") return false;
-  const o = v as Record<string, unknown>;
-  return o.version === 1 && Array.isArray(o.questions);
-}
-
-function applyClarificationToMessage(
-  messages: ChatMessage[],
-  messageId: string,
-  clarification: MessageClarificationV1,
-  streamingAssistantMessageId: string | null = null,
-): ChatMessage[] {
-  const targetId = resolveAssistantMessageId(
-    messages,
-    messageId,
-    streamingAssistantMessageId,
-  );
-  return messages.map((m) =>
-    m.id === targetId
-      ? {
-          ...m,
-          metadata: { ...(m.metadata ?? {}), clarification },
-        }
-      : m,
-  );
-}
-
-function isMessageGiftDirectionsV1(v: unknown): v is MessageGiftDirectionsV1 {
-  if (!v || typeof v !== "object") return false;
-  const o = v as Record<string, unknown>;
-  return o.version === 1 && Array.isArray(o.directions);
-}
-
-function applyGiftDirectionsToMessage(
-  messages: ChatMessage[],
-  messageId: string,
-  giftDirections: MessageGiftDirectionsV1,
-  streamingAssistantMessageId: string | null = null,
-): ChatMessage[] {
-  const targetId = resolveAssistantMessageId(
-    messages,
-    messageId,
-    streamingAssistantMessageId,
-  );
-  return messages.map((m) =>
-    m.id === targetId
-      ? {
-          ...m,
-          metadata: { ...(m.metadata ?? {}), giftDirections },
-        }
-      : m,
-  );
-}
-
 function applyOptionPreviewsToMessage(
   messages: ChatMessage[],
   messageId: string,
@@ -473,24 +345,6 @@ function applyOptionPreviewsToMessage(
     }
 
     let nextMeta = meta;
-    if (meta.clarification) {
-      nextMeta = {
-        ...nextMeta,
-        clarification: mergeOptionPreviewsIntoClarification(
-          meta.clarification,
-          previewMap,
-        ),
-      };
-    }
-    if (meta.giftDirections) {
-      nextMeta = {
-        ...nextMeta,
-        giftDirections: mergeOptionPreviewsIntoGiftDirections(
-          meta.giftDirections,
-          previewMap,
-        ),
-      };
-    }
     if (meta.fashionRouter) {
       nextMeta = {
         ...nextMeta,
@@ -539,128 +393,7 @@ function fashionCatalogHasResults(
   );
 }
 
-/** Append a product-search invocation to the streaming assistant's metadata. */
-function applyProductSearchInvocation(
-  messages: ChatMessage[],
-  messageId: string,
-  invocation: ProductSearchInvocation,
-): ChatMessage[] {
-  return messages.map((m) => {
-    if (m.id !== messageId) return m;
-    const meta: MessageMetadata = m.metadata ?? {};
-    const prev = meta.productSearch;
-    const nextSearches = prev?.searches
-      ? [...prev.searches, invocation]
-      : [invocation];
-    return {
-      ...m,
-      metadata: {
-        ...meta,
-        productSearch: { version: 1, searches: nextSearches },
-      },
-    };
-  });
-}
-
-function isProductSearchInvocation(v: unknown): v is ProductSearchInvocation {
-  if (!v || typeof v !== "object") return false;
-  const o = v as Record<string, unknown>;
-  if (typeof o.query !== "string") return false;
-  if (!Array.isArray(o.products)) return false;
-  return true;
-}
-
-type ProductSearchUpdatePayload = {
-  searchKey: string;
-  curatedPicks: CuratedPick[];
-  curationFallback?: boolean;
-  curationPending?: boolean;
-  products?: ProductCard[];
-};
-
-function isProductSearchUpdate(v: unknown): v is ProductSearchUpdatePayload {
-  if (!v || typeof v !== "object") return false;
-  const o = v as Record<string, unknown>;
-  if (typeof o.searchKey !== "string") return false;
-  if (!Array.isArray(o.curatedPicks)) return false;
-  return true;
-}
-
-/** Merge a curator update into the matching invocation by `searchKey`. */
-function applyProductSearchUpdate(
-  messages: ChatMessage[],
-  messageId: string,
-  update: ProductSearchUpdatePayload,
-): ChatMessage[] {
-  return messages.map((m) => {
-    if (m.id !== messageId) return m;
-    const meta: MessageMetadata = m.metadata ?? {};
-    const prev = meta.productSearch;
-    if (!prev?.searches?.length) return m;
-    let touched = false;
-    const nextSearches = prev.searches.map((inv) => {
-      if (inv.searchKey !== update.searchKey) return inv;
-      touched = true;
-      const keepExisting =
-        (inv.curatedPicks?.length ?? 0) > 0 &&
-        inv.curationFallback === false &&
-        update.curationFallback === true &&
-        inv.curationPending !== true;
-      if (keepExisting) return inv;
-      return {
-        ...inv,
-        curatedPicks: update.curatedPicks,
-        curationFallback: update.curationFallback ?? inv.curationFallback,
-        curationPending: update.curationPending ?? false,
-        products: update.products ?? inv.products,
-      };
-    });
-    if (!touched) return m;
-    return {
-      ...m,
-      metadata: {
-        ...meta,
-        productSearch: { version: 1, searches: nextSearches },
-      },
-    };
-  });
-}
-
-function isShoppingModeMeta(v: unknown): v is ShoppingModeMetaV1 {
-  if (!v || typeof v !== "object") return false;
-  const o = v as Record<string, unknown>;
-  if (o.version !== 1) return false;
-  if (!isShoppingMode(o.mode)) return false;
-  if (o.source !== "user" && o.source !== "auto") return false;
-  return true;
-}
-
-function scheduleAgentDebugRunsFetch(args: { conversationId: string | null }) {
-  const debug = useAgentDebugStore.getState();
-  if (!debug.enabled || !args.conversationId) return;
-  debug.hydratePipelineFromCache(args.conversationId);
-  window.setTimeout(() => {
-    void debug.fetchRuns({ conversationId: args.conversationId });
-  }, 600);
-}
-
-type StreamMode =
-  | "send"
-  | "edit"
-  | "regenerate"
-  | "clarificationSubmit"
-  | "findSimilarSubmit";
-
-export type SimilarPickSeed = {
-  productId: string;
-  title: string;
-  upid?: string;
-};
-
-export type SimilarPickSelection = {
-  sourceMessageId: string;
-  picks: SimilarPickSeed[];
-};
+type StreamMode = "send" | "edit" | "regenerate";
 
 type ActiveStream = {
   id: string;
@@ -685,8 +418,6 @@ type ChatState = {
   input: string;
   /** Product pick referenced by the next outgoing message (ChatGPT-style reply). */
   composerReplyContext: ComposerReplyContext | null;
-  /** Multi-select find-similar picks pending submit (scoped to one search message). */
-  similarPickSelection: SimilarPickSelection | null;
   /** When set during a stream, auto-sends after the current stream finishes. */
   queuedSendText: string | null;
   isStreaming: boolean;
@@ -710,21 +441,13 @@ type ChatState = {
   sidebarCollapsed: boolean;
   /** Bumped to move keyboard focus into the composer (new chat, etc.). */
   composerFocusNonce: number;
-  /** Home category marquee selections (names from HOME_CATEGORIES). */
-  selectedCategories: string[];
-  /** Fashion mode — raw Shopify search path, no curation. */
-  fashionMode: boolean;
   /**
    * Mid-session fashion quiz answers queued for the next sendMessage so the
    * assistant bubble can persist status=answered across refresh.
    */
   pendingFashionClarification: {
     messageId: string;
-    answers: Record<
-      string,
-      | string
-      | { selected: string[]; customText?: string }
-    >;
+    answers: Record<string, { selected: string[]; customText?: string }>;
   } | null;
 
   /** Monotonic tokens — discard stale `loadConversation` / `fetchList` resolutions. */
@@ -738,20 +461,10 @@ type ChatState = {
     priceLabel?: string | null,
   ) => void;
   clearComposerReplyContext: () => void;
-  toggleSimilarPick: (pick: SimilarPickSeed, sourceMessageId: string) => void;
-  clearSimilarPickSelection: () => void;
-  submitSimilarPickSelection: () => Promise<void>;
-  toggleHomeCategory: (name: string) => void;
-  removeHomeCategory: (name: string) => void;
-  toggleFashionMode: () => void;
   /** Mark a fashion mid-session quiz answered (optimistic) and queue persistence. */
   answerFashionClarification: (
     messageId: string,
-    answers: Record<
-      string,
-      | string
-      | { selected: string[]; customText?: string }
-    >,
+    answers: Record<string, { selected: string[]; customText?: string }>,
   ) => void;
   requestComposerFocus: () => void;
   setSidebarOpen: (v: boolean) => void;
@@ -782,36 +495,7 @@ type ChatState = {
   stopGeneration: () => Promise<void>;
   regenerateAssistant: (assistantMessageId: string) => Promise<void>;
   editUserMessage: (messageId: string, content: string) => Promise<void>;
-
-  submitClarification: (
-    assistantMessageId: string,
-    answers: Record<
-      string,
-      {
-        optionIds?: string[];
-        customText?: string;
-        budgetMin?: number | null;
-        budgetMax?: number | null;
-        budgetAmount?: number;
-        currency?: string;
-      }
-    >,
-  ) => Promise<void>;
-  skipClarification: (assistantMessageId: string) => Promise<void>;
-  submitGiftDirections: (
-    assistantMessageId: string,
-    labels: string[],
-  ) => Promise<void>;
-  submitFindSimilar: (params: {
-    sourceMessageId: string;
-    seeds: FindSimilarSeed[];
-    confirmedAttribute?: string;
-    closeEmbeddedPdp?: () => void;
-  }) => Promise<void>;
 };
-
-/** Magic string the gift-direction chips post back (mirrors server constant). */
-const GIFT_DIRECTIONS_MESSAGE_PREFIX = "__gift_directions__:";
 
 type StreamRunArgs = {
   mode: StreamMode;
@@ -881,13 +565,6 @@ export const useChatStore = create<ChatState>((set, get) => {
       streamingFashionDroppedImages: [],
     });
 
-    if (useAgentDebugStore.getState().enabled) {
-      useAgentDebugStore.getState().beginTurn({
-        conversationId: args.conversationId,
-        assistantMessageId: args.optimisticAssistantId,
-      });
-    }
-
     let resolvedUserMessageId: string | null = null;
 
     try {
@@ -944,11 +621,8 @@ export const useChatStore = create<ChatState>((set, get) => {
         },
         onUserMessage: (mid, payload) => {
           resolvedUserMessageId = mid;
-          if (useAgentDebugStore.getState().enabled) {
-            useAgentDebugStore.setState({ userMessageId: mid });
-          }
-          // For 'send' / 'clarificationSubmit', server emits a fresh id. For 'edit'
-          // the id is the existing one and content was updated client-side already.
+          // For 'send', server emits a fresh id. For 'edit' the id is the
+          // existing one and content was updated client-side already.
           const serverContent =
             typeof payload?.content === "string" ? payload.content : null;
           setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
@@ -989,22 +663,6 @@ export const useChatStore = create<ChatState>((set, get) => {
         onTextDelta: (delta) => {
           setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
             streamingDraft: s.streamingDraft + delta,
-          }));
-        },
-        onProductSearch: (payload) => {
-          if (!isProductSearchInvocation(payload)) return;
-          const mid = resolvedAssistantId ?? args.optimisticAssistantId;
-          if (!mid) return;
-          setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
-            messages: applyProductSearchInvocation(s.messages, mid, payload),
-          }));
-        },
-        onProductSearchUpdate: (payload) => {
-          if (!isProductSearchUpdate(payload)) return;
-          const mid = resolvedAssistantId ?? args.optimisticAssistantId;
-          if (!mid) return;
-          setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
-            messages: applyProductSearchUpdate(s.messages, mid, payload),
           }));
         },
         onNarrationLine: (payload) => {
@@ -1054,54 +712,6 @@ export const useChatStore = create<ChatState>((set, get) => {
               streamingFashionDroppedImages: mergedDropped.slice(-16),
             };
           });
-        },
-        onAgentDebug: (payload) => {
-          ingestAgentDebugFromSse(payload);
-        },
-        onModeResolved: (payload) => {
-          if (!isShoppingModeMeta(payload)) return;
-          const mid = resolvedAssistantId ?? args.optimisticAssistantId;
-          if (!mid) return;
-          setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
-            messages: s.messages.map((m) =>
-              m.id === mid
-                ? {
-                    ...m,
-                    metadata: { ...(m.metadata ?? {}), shoppingMode: payload },
-                  }
-                : m,
-            ),
-          }));
-        },
-        onClarification: (payload) => {
-          const mid =
-            typeof payload.messageId === "string"
-              ? payload.messageId
-              : resolvedAssistantId ?? args.optimisticAssistantId;
-          if (!mid || !isMessageClarificationV1(payload.clarification)) return;
-          setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
-            messages: applyClarificationToMessage(
-              s.messages,
-              mid,
-              payload.clarification as MessageClarificationV1,
-              s.streamingAssistantMessageId,
-            ),
-          }));
-        },
-        onGiftDirections: (payload) => {
-          const mid =
-            typeof payload.messageId === "string"
-              ? payload.messageId
-              : resolvedAssistantId ?? args.optimisticAssistantId;
-          if (!mid || !isMessageGiftDirectionsV1(payload.giftDirections)) return;
-          setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
-            messages: applyGiftDirectionsToMessage(
-              s.messages,
-              mid,
-              payload.giftDirections as MessageGiftDirectionsV1,
-              s.streamingAssistantMessageId,
-            ),
-          }));
         },
         onFashionMemoryDelta: (payload) => {
           const guestId = getGuestSessionId();
@@ -1231,10 +841,6 @@ export const useChatStore = create<ChatState>((set, get) => {
               Array.isArray((row as { images?: unknown }).images),
           );
           if (!previews.length) return;
-          logClientOptionPreview("sse_hydrate", {
-            messageId: mid,
-            previewCount: previews.length,
-          });
           setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
             messages: applyOptionPreviewsToMessage(
               s.messages,
@@ -1282,9 +888,6 @@ export const useChatStore = create<ChatState>((set, get) => {
               streamError,
             ),
           }));
-          scheduleAgentDebugRunsFetch({
-            conversationId: resolvedConversationId,
-          });
         },
         onError: (msg) => {
           setIfActive(streamId, () => ({ error: msg }));
@@ -1292,12 +895,6 @@ export const useChatStore = create<ChatState>((set, get) => {
       });
 
       if (errored) throw new Error("Something went wrong. Retry.");
-
-      scheduleCurationEnhancementPoll({
-        get,
-        conversationId: resolvedConversationId,
-        assistantMessageId: resolvedAssistantId ?? args.optimisticAssistantId,
-      });
 
       scheduleOptionPreviewPoll({
         get,
@@ -1324,10 +921,6 @@ export const useChatStore = create<ChatState>((set, get) => {
             messageExpectsOptionPreviews(msg.metadata) &&
             !messageHasOptionPreviewImages(msg.metadata)
           ) {
-            logClientOptionPreview("post_stream_reload", {
-              conversationId: resolvedConversationId,
-              messageId: msg.id,
-            });
             void get().loadConversation(resolvedConversationId!, {
               silent: true,
             });
@@ -1407,7 +1000,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         }
 
         // Guest fashion extraction — after stream teardown, never on the SSE hot path.
-        if (args.mode === "send" && get().fashionMode) {
+        if (args.mode === "send") {
           const convId = stream.conversationId ?? args.conversationId;
           const guestId = getGuestSessionId();
           if (guestId && convId) {
@@ -1435,7 +1028,6 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     input: "",
     composerReplyContext: null,
-    similarPickSelection: null,
     queuedSendText: null,
     isStreaming: false,
     streamingAssistantMessageId: null,
@@ -1452,8 +1044,6 @@ export const useChatStore = create<ChatState>((set, get) => {
     sidebarOpen: false,
     sidebarCollapsed: false,
     composerFocusNonce: 0,
-    selectedCategories: [],
-    fashionMode: true,
     pendingFashionClarification: null,
 
     _loadConvToken: 0,
@@ -1470,61 +1060,6 @@ export const useChatStore = create<ChatState>((set, get) => {
         composerFocusNonce: get().composerFocusNonce + 1,
       }),
     clearComposerReplyContext: () => set({ composerReplyContext: null }),
-    toggleSimilarPick: (pick, sourceMessageId) =>
-      set((s) => {
-        const cur = s.similarPickSelection;
-        if (!cur || cur.sourceMessageId !== sourceMessageId) {
-          return {
-            similarPickSelection: {
-              sourceMessageId,
-              picks: [pick],
-            },
-          };
-        }
-        const idx = cur.picks.findIndex((p) => p.productId === pick.productId);
-        if (idx >= 0) {
-          const picks = cur.picks.filter((_, i) => i !== idx);
-          return {
-            similarPickSelection: picks.length
-              ? { ...cur, picks }
-              : null,
-          };
-        }
-        if (cur.picks.length >= MAX_FIND_SIMILAR_SEEDS) return s;
-        return {
-          similarPickSelection: {
-            ...cur,
-            picks: [...cur.picks, pick],
-          },
-        };
-      }),
-    clearSimilarPickSelection: () => set({ similarPickSelection: null }),
-    submitSimilarPickSelection: async () => {
-      const sel = get().similarPickSelection;
-      if (!sel?.picks.length || get().isStreaming) return;
-      const seeds: FindSimilarSeed[] = sel.picks.map((p) => ({
-        productId: p.productId,
-        productTitle: p.title,
-        upid: p.upid,
-      }));
-      set({ similarPickSelection: null });
-      await get().submitFindSimilar({
-        sourceMessageId: sel.sourceMessageId,
-        seeds,
-      });
-    },
-    toggleHomeCategory: (name) =>
-      set((s) => ({
-        selectedCategories: s.selectedCategories.includes(name)
-          ? s.selectedCategories.filter((c) => c !== name)
-          : [...s.selectedCategories, name],
-      })),
-    removeHomeCategory: (name) =>
-      set((s) => ({
-        selectedCategories: s.selectedCategories.filter((c) => c !== name),
-      })),
-    toggleFashionMode: () =>
-      set((s) => ({ fashionMode: !s.fashionMode })),
     answerFashionClarification: (messageId, answers) => {
       set((s) => ({
         pendingFashionClarification: { messageId, answers },
@@ -1577,19 +1112,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       const state = get();
       const prev = state.activeConversationId;
       if (id === undefined && prev === null) return;
-      if (prev === id) {
-        if (
-          id &&
-          state.messages.some(
-            (m) =>
-              m.role === "assistant" &&
-              messageNeedsCurationEnhancement(m.metadata),
-          )
-        ) {
-          void get().loadConversation(id, { silent: true });
-        }
-        return;
-      }
+      if (prev === id) return;
 
       set({ activeConversationId: id ?? null });
 
@@ -1616,21 +1139,11 @@ export const useChatStore = create<ChatState>((set, get) => {
       const since =
         get().intentPollSinceByConversation[conversationId] ??
         new Date(Date.now() - 5 * 60_000).toISOString();
-      logIntentBranch("client_poll_start", {
-        conversationId,
-        since,
-        attempt,
-      });
       try {
         const res = await guestFetch(
           `/api/conversations/${conversationId}/intent-events?since=${encodeURIComponent(since)}`,
         );
         if (!res.ok) {
-          logIntentBranch("client_poll_http_error", {
-            conversationId,
-            status: res.status,
-            attempt,
-          });
           return;
         }
         const data = (await res.json()) as {
@@ -1638,28 +1151,11 @@ export const useChatStore = create<ChatState>((set, get) => {
         };
         const branches = data.branches ?? [];
 
-        logIntentBranch("client_poll_result", {
-          conversationId,
-          attempt,
-          branchCount: branches.length,
-          branches: branches.map((b) => ({
-            id: b.id,
-            index: b.index,
-            title: b.title,
-            sourceMessageId: b.sourceMessageId,
-          })),
-        });
-
         if (branches.length === 0) {
           if (
             attempt < 2 &&
             get().activeConversationId === conversationId
           ) {
-            logIntentBranch("client_poll_retry", {
-              conversationId,
-              nextAttempt: attempt + 1,
-              delayMs: 3500,
-            });
             window.setTimeout(() => {
               void get().pollIntentBranches(conversationId, {
                 attempt: attempt + 1,
@@ -1716,15 +1212,6 @@ export const useChatStore = create<ChatState>((set, get) => {
           const nextMessages = viewing
             ? applyIntentBranchSplitsToMessages(s.messages, branches)
             : s.messages;
-          if (viewing) {
-            logIntentBranch("client_apply_splits", {
-              conversationId,
-              branchCount: branches.length,
-              messageCountBefore: s.messages.length,
-              messageCountAfter: nextMessages.length,
-              branchIds: branches.map((b) => b.id),
-            });
-          }
           return {
             sidebarNodes: nodes,
             conversations: sidebarNodesToConversations(nodes),
@@ -1741,23 +1228,14 @@ export const useChatStore = create<ChatState>((set, get) => {
 
         const showToast = useToastStore.getState().show;
         for (const branch of branches) {
-          logIntentBranch("client_toast", {
-            conversationId,
-            branchId: branch.id,
-            title: branch.title,
-          });
           showToast({
             emoji: "↳",
             title: "New topic detected",
             body: `"${branch.title}" — added to this Shoop in the sidebar.`,
           });
         }
-      } catch (error) {
-        logIntentBranch("client_poll_error", {
-          conversationId,
-          attempt,
-          error: error instanceof Error ? error.message : String(error),
-        });
+      } catch {
+        /* poll is best-effort */
       }
     },
 
@@ -1913,9 +1391,6 @@ export const useChatStore = create<ChatState>((set, get) => {
             activeConversationId: id,
             composerReplyContext: preserveStream
               ? live.composerReplyContext
-              : null,
-            similarPickSelection: preserveStream
-              ? live.similarPickSelection
               : null,
             streamingDraft: preserveStream ? live.streamingDraft : "",
             sidebarNodes,
@@ -2316,12 +1791,10 @@ export const useChatStore = create<ChatState>((set, get) => {
       const meta = get().conversationMeta;
       const conversationId = get().activeConversationId ?? undefined;
       const replyContext = get().composerReplyContext;
-      const fashionMode = get().fashionMode;
       const guestId = isGuestSessionActive() ? getGuestSessionId() : null;
-      const guestFashionMemory =
-        fashionMode && guestId
-          ? readGuestFashionMemoryForUser(guestId)
-          : undefined;
+      const guestFashionMemory = guestId
+        ? readGuestFashionMemoryForUser(guestId)
+        : undefined;
       const pendingFashionClarification = get().pendingFashionClarification;
 
       const optimisticUserId = makeLocalUserId();
@@ -2332,7 +1805,6 @@ export const useChatStore = create<ChatState>((set, get) => {
       set((s) => ({
         input: "",
         composerReplyContext: null,
-        similarPickSelection: null,
         pendingFashionClarification: null,
         messages: [
           ...s.messages,
@@ -2373,26 +1845,15 @@ export const useChatStore = create<ChatState>((set, get) => {
           message: text,
           replyContext: replyContext ?? undefined,
           settings: buildPayloadSettings(meta),
-          ...(fashionMode
+          guestFashionMemory,
+          ...(pendingFashionClarification
             ? {
-                fashionMode: true,
-                guestFashionMemory,
-                ...(pendingFashionClarification
-                  ? {
-                      fashionClarificationMessageId:
-                        pendingFashionClarification.messageId,
-                      fashionClarificationAnswers:
-                        pendingFashionClarification.answers,
-                    }
-                  : {}),
+                fashionClarificationMessageId:
+                  pendingFashionClarification.messageId,
+                fashionClarificationAnswers:
+                  pendingFashionClarification.answers,
               }
-            : {
-                shoppingMode: "auto",
-                selectedCategories:
-                  get().selectedCategories.length > 0
-                    ? get().selectedCategories
-                    : undefined,
-              }),
+            : {}),
         },
       });
     },
@@ -2463,7 +1924,6 @@ export const useChatStore = create<ChatState>((set, get) => {
           mode: "regenerate",
           targetMessageId: assistantMessageId,
           settings: buildPayloadSettings(meta),
-          shoppingMode: "auto",
         },
       });
     },
@@ -2520,303 +1980,10 @@ export const useChatStore = create<ChatState>((set, get) => {
           targetMessageId: messageId,
           message: trimmed,
           settings: buildPayloadSettings(meta),
-          shoppingMode: "auto",
         },
       });
     },
 
-    submitClarification: async (assistantMessageId, answers) => {
-      if (get().isStreaming) return;
-      const cid = get().activeConversationId;
-      if (!cid) return;
-
-      const assistantMsg = get().messages.find((m) => m.id === assistantMessageId);
-      const tasteProbe = assistantMsg?.metadata?.similarTasteProbe;
-      const similarAnswer = answers.similar_attr;
-      if (tasteProbe && similarAnswer?.optionIds?.length) {
-        const chipId = similarAnswer.optionIds[0];
-        set((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === assistantMessageId &&
-            m.metadata?.clarification?.status === "pending"
-              ? {
-                  ...m,
-                  metadata: {
-                    ...m.metadata,
-                    clarification: {
-                      ...m.metadata!.clarification!,
-                      status: "answered" as const,
-                      answers,
-                    },
-                  },
-                }
-              : m,
-          ),
-        }));
-        if (chipId && chipId !== "just_similar") {
-          const label =
-            chipId === "material"
-              ? "Material"
-              : chipId === "color"
-                ? "Color"
-                : chipId === "shape"
-                  ? "Shape"
-                  : chipId;
-          await get().submitFindSimilar({
-            sourceMessageId: tasteProbe.sourceMessageId,
-            seeds:
-              tasteProbe.seeds?.length ?
-                tasteProbe.seeds.map((s) => ({
-                  productId: s.productId,
-                  productTitle: s.productTitle,
-                  upid: s.upid,
-                }))
-              : [
-                  {
-                    productId: tasteProbe.seedProductId,
-                    productTitle: tasteProbe.seedTitle,
-                    upid: tasteProbe.upid,
-                  },
-                ],
-            confirmedAttribute: label,
-          });
-        }
-        return;
-      }
-
-      const meta = get().conversationMeta;
-      const optimisticAssistantId = makeLocalAssistantId();
-      const optimisticUserId = makeLocalUserId();
-      const ts = new Date().toISOString();
-
-      // Optimistic answered state + user-summary message + streaming assistant
-      // bubble. Marking the original quiz answered immediately closes the form
-      // instead of leaving disabled controls visible while the assistant streams.
-      // We let the server's actual content win via the user_message event payload,
-      // but show *something* immediately so the UI never freezes after clicking Apply.
-      set((s) => ({
-        messages: [
-          ...s.messages.map((m) =>
-            m.id === assistantMessageId &&
-            m.metadata?.clarification?.status === "pending"
-              ? {
-                  ...m,
-                  metadata: {
-                    ...m.metadata,
-                    clarification: {
-                      ...m.metadata.clarification,
-                      status: "answered" as const,
-                      answers,
-                    },
-                  },
-                }
-              : m,
-          ),
-          {
-            id: optimisticUserId,
-            conversationId: cid,
-            role: "user",
-            content: "Applying your selections…",
-            status: "completed",
-            createdAt: ts,
-            updatedAt: ts,
-          },
-          {
-            id: optimisticAssistantId,
-            conversationId: cid,
-            role: "assistant",
-            content: "",
-            status: "streaming",
-            createdAt: ts,
-            updatedAt: ts,
-          },
-        ],
-      }));
-
-      await runStream({
-        mode: "clarificationSubmit",
-        conversationId: cid,
-        optimisticAssistantId,
-        optimisticUserId,
-        url: "/api/chat",
-        body: {
-          conversationId: cid,
-          mode: "clarificationSubmit",
-          targetMessageId: assistantMessageId,
-          clarificationAnswers: answers,
-          settings: buildPayloadSettings(meta),
-          shoppingMode: "auto",
-        },
-      });
-    },
-
-    submitGiftDirections: async (assistantMessageId, labels) => {
-      if (get().isStreaming) return;
-      const cid = get().activeConversationId;
-      if (!cid || !labels.length) return;
-
-      const meta = get().conversationMeta;
-      const optimisticAssistantId = makeLocalAssistantId();
-      const optimisticUserId = makeLocalUserId();
-      const ts = new Date().toISOString();
-      const magicString = `${GIFT_DIRECTIONS_MESSAGE_PREFIX} ${labels.join(", ")}`;
-      const optimisticUserText =
-        labels.length === 1
-          ? `Let's explore: ${labels[0]}`
-          : `Let's explore: ${labels.join(", ")}`;
-
-      set((s) => ({
-        messages: [
-          ...s.messages.map((m) =>
-            m.id === assistantMessageId &&
-            m.metadata?.giftDirections?.status === "pending"
-              ? {
-                  ...m,
-                  metadata: {
-                    ...m.metadata,
-                    giftDirections: {
-                      ...m.metadata.giftDirections,
-                      status: "answered" as const,
-                      selected: labels,
-                    },
-                  },
-                }
-              : m,
-          ),
-          {
-            id: optimisticUserId,
-            conversationId: cid,
-            role: "user",
-            content: optimisticUserText,
-            status: "completed",
-            createdAt: ts,
-            updatedAt: ts,
-          },
-          {
-            id: optimisticAssistantId,
-            conversationId: cid,
-            role: "assistant",
-            content: "",
-            status: "streaming",
-            createdAt: ts,
-            updatedAt: ts,
-          },
-        ],
-      }));
-
-      await runStream({
-        mode: "send",
-        conversationId: cid,
-        optimisticAssistantId,
-        optimisticUserId,
-        pendingUserText: magicString,
-        url: "/api/chat",
-        body: {
-          conversationId: cid,
-          mode: "send",
-          message: magicString,
-          settings: buildPayloadSettings(meta),
-          shoppingMode: "auto",
-        },
-      });
-    },
-
-    submitFindSimilar: async (params) => {
-      if (get().isStreaming) return;
-      const cid = get().activeConversationId;
-      if (!cid || !params.seeds.length) return;
-
-      params.closeEmbeddedPdp?.();
-      set({ similarPickSelection: null });
-
-      const meta = get().conversationMeta;
-      const userText = formatFindSimilarUserText(params.seeds);
-      const optimisticAssistantId = makeLocalAssistantId();
-      const optimisticUserId = makeLocalUserId();
-      const ts = new Date().toISOString();
-
-      set((s) => ({
-        messages: [
-          ...s.messages,
-          {
-            id: optimisticUserId,
-            conversationId: cid,
-            role: "user",
-            content: userText,
-            status: "completed",
-            createdAt: ts,
-            updatedAt: ts,
-          },
-          {
-            id: optimisticAssistantId,
-            conversationId: cid,
-            role: "assistant",
-            content: "",
-            status: "streaming",
-            createdAt: ts,
-            updatedAt: ts,
-          },
-        ],
-      }));
-
-      await runStream({
-        mode: "findSimilarSubmit",
-        conversationId: cid,
-        optimisticAssistantId,
-        optimisticUserId,
-        pendingUserText: userText,
-        url: "/api/chat",
-        body: {
-          conversationId: cid,
-          mode: "findSimilarSubmit",
-          findSimilar: {
-            sourceMessageId: params.sourceMessageId,
-            seeds: params.seeds,
-            confirmedAttribute: params.confirmedAttribute,
-          },
-          settings: buildPayloadSettings(meta),
-        },
-      });
-    },
-
-    skipClarification: async (assistantMessageId) => {
-      const cid = get().activeConversationId;
-      if (!cid || get().isStreaming) return;
-      try {
-        const res = await guestFetch(`/api/messages/${assistantMessageId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clarificationSkip: true }),
-        });
-        if (!res.ok) {
-          throw new Error(await responseErrorMessage(res, "Could not skip."));
-        }
-        // Optimistic: mark the local message as skipped without a full reload.
-        set((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === assistantMessageId &&
-            m.metadata?.clarification?.status === "pending"
-              ? {
-                  ...m,
-                  metadata: {
-                    ...m.metadata,
-                    clarification: {
-                      ...m.metadata.clarification,
-                      status: "skipped",
-                    },
-                  },
-                }
-              : m,
-          ),
-        }));
-        persistGuestChatState(get());
-      } catch (e) {
-        set({
-          error:
-            e instanceof Error ? e.message : "Something went wrong. Retry.",
-        });
-      }
-    },
   };
 });
 

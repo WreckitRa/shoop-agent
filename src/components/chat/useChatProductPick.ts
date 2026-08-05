@@ -28,15 +28,6 @@ export function useChatProductPick(productId: string): ChatProductPickResult {
     if (!messageId) return { pick: null, curationPending: false };
     const message = messages.find((m) => m.id === messageId);
 
-    // Classic product-search curator picks
-    const searches = message?.metadata?.productSearch?.searches ?? [];
-    for (const inv of searches) {
-      const pick = inv.curatedPicks?.find((p) => p.id === productId);
-      if (pick) {
-        return { pick, curationPending: inv.curationPending === true };
-      }
-    }
-
     // Fashion curation — hero picks carry stylist voice into the PDP
     const fashion = message?.metadata?.fashionCatalogSearch;
     const curated = fashion?.curation?.tiers.picks.find((p) => p.id === productId);

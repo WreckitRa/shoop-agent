@@ -1,6 +1,6 @@
 import { loadSearchState } from "@/lib/fashion-memory/curation/search-context";
 import { ensureSelfPerson } from "@/lib/fashion-memory/people";
-import { loadBuyerCatalogContext } from "@/lib/ai-chat/shopping-memory/search-hints";
+import { loadBuyerCatalogContext } from "@/lib/ai-chat/buyer-catalog/search-hints";
 import { accessTokenForCatalogMcp } from "@/lib/shopify/catalog-auth";
 import {
   buildCatalogCallContext,

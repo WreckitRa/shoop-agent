@@ -2,8 +2,8 @@
 
 Shoop is a Next.js 16 app that pairs an Anthropic-powered shopping concierge
 with Shopify's Unified Commerce Platform (UCP) for catalog search, cart, and
-checkout. The chat agent extracts a structured "shopping memory" per user
-across conversations to personalize recommendations.
+checkout. The chat agent runs on a fashion-memory pipeline that extracts
+structured facts per user across conversations to personalize recommendations.
 
 ## Tech stack
 
@@ -51,7 +51,8 @@ src/
     cart/              # CartDrawer + Zustand cart store
     onboarding/        # First-run onboarding flow
   lib/
-    ai-chat/           # Anthropic streaming + shopping-memory pipeline
+    ai-chat/           # Anthropic streaming + chat plumbing
+    fashion-memory/    # Fashion router, search, curation pipeline
     cart/              # Cart persistence layer
     shopify/           # UCP catalog / cart / checkout / webhook clients
     shared/, design/   # Misc shared helpers
@@ -129,7 +130,7 @@ traffic:
    Privacy / Subscription" links pointing to `#`. They have been removed
    pending real URLs; re-add the component (or equivalent) with the live
    policies before launch.
-3. **Profile / shopping-memory management UI.** The `/api/profile/*` and
-   `/api/shopping-memory/*` endpoints are implemented and validated but no
-   front-end currently consumes them. Ship a settings screen, or remove the
-   endpoints, before a real audit.
+3. **Profile management UI.** The `/api/profile/*` endpoints are implemented
+   and validated but no front-end currently consumes them. Ship a settings
+   screen before a real audit. Chat memory is fashion-memory only
+   (`/api/fashion-memory/*`).

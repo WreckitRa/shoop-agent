@@ -7,7 +7,7 @@ function getRateLimitTier(pathname: string) {
   if (/^\/api\/chat($|\/)/.test(pathname)) return RATE_LIMIT_TIERS.chat;
   if (/^\/api\/cart($|\/)/.test(pathname)) return RATE_LIMIT_TIERS.cart;
   if (
-    /^\/api\/(profile|shopping-memory|onboarding|conversations|messages)($|\/)/.test(pathname)
+    /^\/api\/(profile|onboarding|conversations|messages)($|\/)/.test(pathname)
   )
     return RATE_LIMIT_TIERS.profile;
   if (/^\/api\//.test(pathname)) return RATE_LIMIT_TIERS.general;

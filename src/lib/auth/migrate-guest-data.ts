@@ -10,31 +10,11 @@ async function reassignGuestUserId(guestUserId: string, realUserId: string) {
       where: { userId: guestUserId },
       data: { userId: realUserId },
     }),
-    prisma.shoppingMemoryJob.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.productCurationJob.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.shoppingMemory.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.memoryObservation.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
     prisma.productInteraction.updateMany({
       where: { userId: guestUserId },
       data: { userId: realUserId },
     }),
     prisma.productCuration.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.shoppingProfileSummary.updateMany({
       where: { userId: guestUserId },
       data: { userId: realUserId },
     }),

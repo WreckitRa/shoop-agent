@@ -1,4 +1,4 @@
-/** Ask the Girls — shared types (client + server safe). */
+/** Ask your friends — shared types (client + server safe). */
 
 import type { LookScanPiece, LookScanVerdict } from "@/lib/tryon/look-scan-types";
 
@@ -26,12 +26,16 @@ export type LookAskSharePublic = {
   shoopVote: AskVoteChoice | null;
   shoopVerdict: LookScanVerdict | null;
   myVote: AskVoteChoice | null;
+  /** Asker's own strip vote (No / Meh / Almost / Love), if cast. */
+  ownerVote: AskVoteChoice | null;
   isOwner: boolean;
   votes: Array<{
     choice: AskVoteChoice;
     displayName: string;
     voterKey: string;
     isShoop?: boolean;
+    /** True when this row is the look owner (not a friend / Shoop). */
+    isOwner?: boolean;
   }>;
   tallies: Record<AskVoteChoice, number>;
   notes: Array<{

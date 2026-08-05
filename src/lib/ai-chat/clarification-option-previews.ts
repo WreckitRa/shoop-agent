@@ -4,9 +4,8 @@
  */
 import { createHash } from "node:crypto";
 import { kvGet, kvSetex } from "@/lib/cache/kv-store";
-import { logOptionPreview } from "@/lib/ai-chat/option-preview-log";
 import type { ClarificationOptionPreviewImage } from "@/lib/ai-chat/types";
-import { productUpid } from "@/lib/ai-chat/search/pool";
+import { productUpid } from "@/lib/ai-chat/product-upid";
 import { accessTokenForCatalogMcp } from "@/lib/shopify/catalog-auth";
 import {
   extractCatalogImageUrl,
@@ -18,7 +17,6 @@ import {
 
 const PREVIEW_DEADLINE_MS = 2500;
 const PREVIEW_CACHE_TTL_SEC = 5 * 24 * 60 * 60;
-const WARM_CANDIDATES_TTL_SEC = 10 * 60;
 const MAX_CONCURRENCY = 6;
 const PREVIEW_IMAGE_LIMIT = 4;
 const CATALOG_PAGE_LIMIT = 20;
@@ -43,13 +41,6 @@ function previewCacheKey(query: string, country: string): string {
     .digest("hex")
     .slice(0, 32);
   return `clarification-preview:${hash}`;
-}
-
-export function warmCandidatesCacheKey(
-  conversationId: string,
-  optionId: string,
-): string {
-  return `clarification-warm:${conversationId}:${optionId}`;
 }
 
 function normalizeImageUrl(raw: string | null | undefined): string | null {
@@ -93,10 +84,6 @@ function extractPreviewImages(
   }
 
   if (skippedNoImage > 0 && !images.length) {
-    logOptionPreview("extract_no_usable_images", {
-      productCount: products.length,
-      skippedNoImage,
-    });
   }
 
   return images;
@@ -130,17 +117,11 @@ async function fetchOneOptionPreview(params: {
   accessToken: string;
   shipsToCountry: string;
   context?: CatalogSearchContext;
-  conversationId: string;
   deadlineAt: number;
 }): Promise<OptionPreviewResult> {
-  const { option, accessToken, shipsToCountry, context, conversationId } =
-    params;
+  const { option, accessToken, shipsToCountry, context } = params;
 
   if (Date.now() >= params.deadlineAt) {
-    logOptionPreview("option_deadline_before_start", {
-      optionId: option.id,
-      query: option.previewQuery.slice(0, 80),
-    });
     return { optionId: option.id, images: [] };
   }
 
@@ -150,10 +131,6 @@ async function fetchOneOptionPreview(params: {
     if (cached) {
       const parsed = JSON.parse(cached) as ClarificationOptionPreviewImage[];
       if (Array.isArray(parsed) && parsed.length) {
-        logOptionPreview("cache_hit", {
-          optionId: option.id,
-          imageCount: parsed.length,
-        });
         return { optionId: option.id, images: parsed };
       }
     }
@@ -183,32 +160,13 @@ async function fetchOneOptionPreview(params: {
     const products = res.products ?? [];
     const images = extractPreviewImages(products);
 
-    logOptionPreview("catalog_result", {
-      optionId: option.id,
-      query: option.previewQuery.slice(0, 80),
-      productCount: products.length,
-      imageCount: images.length,
-    });
 
     if (images.length) {
       void kvSetex(cacheKey, PREVIEW_CACHE_TTL_SEC, JSON.stringify(images));
     }
 
-    if (products.length) {
-      void kvSetex(
-        warmCandidatesCacheKey(conversationId, option.id),
-        WARM_CANDIDATES_TTL_SEC,
-        JSON.stringify(products),
-      );
-    }
-
     return { optionId: option.id, images };
   } catch (err) {
-    logOptionPreview("catalog_error", {
-      optionId: option.id,
-      query: option.previewQuery.slice(0, 80),
-      error: String(err).slice(0, 200),
-    });
     return { optionId: option.id, images: [] };
   }
 }
@@ -231,18 +189,9 @@ export async function fetchClarificationOptionPreviews(params: {
   try {
     accessToken = await accessTokenForCatalogMcp();
   } catch (err) {
-    logOptionPreview("auth_error", {
-      error: String(err).slice(0, 200),
-    });
     return [];
   }
 
-  logOptionPreview("batch_start", {
-    conversationId: params.conversationId,
-    country: shipsToCountry,
-    optionCount: params.options.length,
-    deadlineMs: PREVIEW_DEADLINE_MS,
-  });
 
   const results = await mapWithConcurrency(
     params.options,
@@ -253,49 +202,11 @@ export async function fetchClarificationOptionPreviews(params: {
         accessToken,
         shipsToCountry,
         context: params.context,
-        conversationId: params.conversationId,
         deadlineAt,
       }),
   );
 
   const withImages = results.filter((r) => r.images.length > 0);
-  logOptionPreview("batch_done", {
-    conversationId: params.conversationId,
-    requested: params.options.length,
-    withImages: withImages.length,
-  });
 
   return withImages;
-}
-
-/** Load warm catalog candidates stashed during preview fetch. */
-export async function loadWarmCandidatesForOptions(params: {
-  conversationId: string;
-  optionIds: string[];
-}): Promise<CatalogProductSummary[]> {
-  if (!params.optionIds.length) return [];
-
-  const merged: CatalogProductSummary[] = [];
-  const seen = new Set<string>();
-
-  for (const optionId of params.optionIds) {
-    try {
-      const raw = await kvGet(
-        warmCandidatesCacheKey(params.conversationId, optionId),
-      );
-      if (!raw) continue;
-      const products = JSON.parse(raw) as CatalogProductSummary[];
-      if (!Array.isArray(products)) continue;
-      for (const product of products) {
-        const key = productUpid(product);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        merged.push(product);
-      }
-    } catch {
-      /* expired or corrupt */
-    }
-  }
-
-  return merged;
 }

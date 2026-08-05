@@ -14,8 +14,7 @@ import { detectRequestArea } from "@/lib/server/request-area";
  *
  * Returns the full typed shopper profile in one payload:
  *   identity (UserProfile), sizing (SizingProfile), category preferences,
- *   brand graph, recipients, active intents, taste tags, hard rules,
- *   and the canonical shopping-memory summary as a fallback.
+ *   brand graph, recipients, active intents, taste tags, and hard rules.
  *
  * Designed to back a "Your shopping profile" settings screen.
  */
@@ -36,8 +35,6 @@ export async function GET(req: Request) {
       tasteTags,
       hardNegatives,
       ownedProducts,
-      summary,
-      observationCount,
       savedAddress,
     ] = await Promise.all([
       prisma.userProfile.findUnique({ where: { userId } }),
@@ -70,8 +67,6 @@ export async function GET(req: Request) {
         where: { userId },
         orderBy: [{ isCurrent: "desc" }, { updatedAt: "desc" }],
       }),
-      prisma.shoppingProfileSummary.findUnique({ where: { userId } }),
-      prisma.memoryObservation.count({ where: { userId } }),
       loadDefaultSavedAddressLocale(userId),
     ]);
 
@@ -101,8 +96,6 @@ export async function GET(req: Request) {
       tasteTags,
       hardNegatives,
       ownedProducts,
-      summary,
-      observationCount,
     });
   } catch {
     return Response.json({ error: "Could not load profile." }, { status: 500 });

@@ -51,8 +51,8 @@ export function FashionAdminRunList({
 
       {runs.length === 0 ? (
         <div className="card px-6 py-12 text-center text-sm text-ink-muted">
-          No fashion catalog runs found yet. Run a fashion search in chat with{" "}
-          <code className="rounded bg-surface-subtle px-1">fashionMode</code>.
+          No fashion catalog runs found yet. Run a search in chat to populate
+          this list.
         </div>
       ) : (
         <div className="card overflow-hidden">

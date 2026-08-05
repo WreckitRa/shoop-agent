@@ -2,9 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   ageYearsFromBirthDate,
-  formatBottomSizeLabel,
-  formatShoeSizeLabel,
-  formatTopSizeLabel,
   styleEraFromAge,
   styleEraToAgeRange,
   styleErasForAge,
@@ -56,20 +53,5 @@ describe("ageYearsFromBirthDate", () => {
   it("computes age from ISO date", () => {
     const age = ageYearsFromBirthDate("1990-01-15");
     assert.ok(age != null && age >= 30);
-  });
-});
-
-describe("clothing-tag size labels", () => {
-  it("formats shoe sizes across US / EU / UK", () => {
-    assert.equal(formatShoeSizeLabel("43"), "US - 10, EU - 43, UK - 9");
-  });
-
-  it("formats bottom sizes across US / EU / MX", () => {
-    assert.equal(formatBottomSizeLabel("31"), "US - 31, EU - 47, MX - 39");
-    assert.equal(formatBottomSizeLabel("32x30"), "US - 32×30, EU - 48, MX - 40");
-  });
-
-  it("formats top sizes across US / EU / FR", () => {
-    assert.equal(formatTopSizeLabel("M"), "US - M, EU - 50, FR - 40");
   });
 });

@@ -196,8 +196,6 @@ function client(): PrismaClient {
 function hasShoppingDelegates(c: PrismaClient): boolean {
   const p = c as unknown as Record<string, { findUnique?: unknown; findMany?: unknown }>;
   const required = [
-    "shoppingProfileSummary",
-    "shoppingMemory",
     "userProfile",
     "sizingProfile",
     "categoryPreference",
@@ -207,7 +205,6 @@ function hasShoppingDelegates(c: PrismaClient): boolean {
     "tasteTag",
     "hardNegative",
     "ownedProduct",
-    "shoppingMemoryJob",
     "onboardingProjectionJob",
     "onboardingExtraNotesJob",
     "conversationContextSummary",

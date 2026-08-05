@@ -31,7 +31,7 @@ function summarizeRun(params: {
     0,
   );
   const survivorCount = params.catalogSearch.slots.reduce(
-    (n, s) => n + (s.verified_pool?.length ?? s.products?.length ?? 0),
+    (n, s) => n + (s.verified_pool?.length ?? 0),
     0,
   );
   return {

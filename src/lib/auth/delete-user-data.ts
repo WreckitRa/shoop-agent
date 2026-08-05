@@ -6,13 +6,8 @@ import { prisma } from "@/lib/ai-chat/db";
 export async function deleteAllUserData(userId: string) {
   await prisma.$transaction([
     prisma.conversation.deleteMany({ where: { userId } }),
-    prisma.shoppingMemoryJob.deleteMany({ where: { userId } }),
-    prisma.productCurationJob.deleteMany({ where: { userId } }),
     prisma.productCuration.deleteMany({ where: { userId } }),
-    prisma.shoppingMemory.deleteMany({ where: { userId } }),
-    prisma.memoryObservation.deleteMany({ where: { userId } }),
     prisma.productInteraction.deleteMany({ where: { userId } }),
-    prisma.shoppingProfileSummary.deleteMany({ where: { userId } }),
     prisma.cartSession.deleteMany({ where: { userId } }),
     prisma.savedAddress.deleteMany({ where: { userId } }),
     prisma.categoryPreference.deleteMany({ where: { userId } }),

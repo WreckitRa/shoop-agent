@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createLightweightMessage } from "@/lib/ai-chat/anthropic";
 import { logAiChat } from "@/lib/ai-chat/observability";
-import { stripJsonFence, stripNullFields } from "@/lib/ai-chat/shopping-memory/llm-json";
+import { stripJsonFence, stripNullFields } from "@/lib/ai-chat/llm-json";
 import { kvGet, kvSetex } from "@/lib/cache/kv-store";
 import { swatchColorFallbackFromLabel } from "@/lib/commerce/swatch-color-fallback";
 

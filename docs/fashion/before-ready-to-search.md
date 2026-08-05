@@ -3,7 +3,7 @@
 > **Audience:** engineer or AI reviewing how Shoop decides *whether* to search, and what it already knows about the shopper.  
 > **Scope:** fashion-memory chat pipeline from user message → router context assembly → clarification / off-topic / **handoff at `ready_to_search`**.  
 > **Not in scope:** planner, catalog fan-out, curation, or UI render after search — see [`ready-to-search-to-display.md`](./ready-to-search-to-display.md).  
-> **Parallel system:** general AI-chat `runSearchEngine` is a different path. This doc is **fashion-memory only** (`fashionMode: true`).  
+> **Scope note:** fashion-memory is the only chat path.  
 > **Source of truth:** `src/lib/ai-chat/run-fashion-chat-stream.ts`, `src/lib/fashion-memory/**`.  
 > **Date of capture:** 2026-07-30.
 
@@ -29,15 +29,14 @@ If nothing shoppable → `respond_off_topic`.
 
 | Layer | Path | Role |
 |--------|------|------|
-| Client | `src/components/chat/chat-store.ts` | Sends `fashionMode: true`; optional `guestFashionMemory`, clarification answers |
+| Client | `src/components/chat/chat-store.ts` | Always fashion send; optional `guestFashionMemory`, clarification answers |
 | Clarification UI | `src/components/chat/FashionRouterControls.tsx` | Renders `ask_clarification` chips from `metadata.fashionRouter` |
-| API | `src/app/api/chat/route.ts` | `fashionMode` send skips generic memory/curation workers |
-| Dispatch | `src/lib/ai-chat/run-chat-stream.ts` | Branches to `createFashionChatSseStream` |
+| API | `src/app/api/chat/route.ts` | Always `createFashionChatSseStream` |
 | Orchestrator | `src/lib/ai-chat/run-fashion-chat-stream.ts` | Context → `resolveFashionRouterTurn` → search **or** clarification SSE |
 
 ```mermaid
 flowchart TD
-  A["POST /api/chat fashionMode=true"] --> B["ensureConversation + skip prior pending clarifications"]
+  A["POST /api/chat"] --> B["ensureConversation + skip prior pending clarifications"]
   B --> C["Persist user message"]
   C --> D["assembleRouterContext"]
   D --> E["resolveFashionRouterTurn"]
@@ -792,11 +791,10 @@ See also [`doctrines.md`](./doctrines.md):
 
 | File | Role |
 |------|------|
-| `src/app/api/chat/route.ts` | HTTP entry |
-| `src/lib/ai-chat/run-chat-stream.ts` | Fashion branch |
-| `src/lib/ai-chat/run-fashion-chat-stream.ts` | SSE orchestrator |
+| `src/app/api/chat/route.ts` | HTTP entry → fashion SSE |
+| `src/lib/ai-chat/run-fashion-chat-stream.ts` | SSE orchestrator (send / edit / regenerate) |
 | `src/components/chat/FashionRouterControls.tsx` | Clarification UX |
-| `src/components/chat/chat-store.ts` | Client send + fashion flags |
+| `src/components/chat/chat-store.ts` | Client send + guest fashion memory |
 
 ### Router
 

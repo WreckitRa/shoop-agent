@@ -12,7 +12,7 @@ function isPersonUuid(value: string): boolean {
   );
 }
 
-/** Resolve roster short ids (#abcd), full uuids, or legacy refs to a person uuid. */
+/** Resolve roster short ids (#abcd) or full uuids to a person uuid. */
 export async function resolvePersonIdRef(
   userId: string,
   personRef: string,
@@ -245,19 +245,4 @@ export async function listPeopleForUser(userId: string): Promise<PersonRow[]> {
     .order("created_at", { ascending: true });
   if (rows.error) throw new Error(rows.error.message);
   return (rows.data ?? []) as PersonRow[];
-}
-
-/** Marks one-time intake as sent — intake never runs again for this person. */
-export async function markPersonIntakeCompleted(
-  userId: string,
-  personId: string,
-): Promise<void> {
-  const db = fashionMemoryDb();
-  const ts = new Date().toISOString();
-  const row = await db
-    .from("people")
-    .update({ intake_completed_at: ts, updated_at: ts })
-    .eq("user_id", userId)
-    .eq("id", personId);
-  if (row.error) throw new Error(row.error.message);
 }

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { logAiChat } from "@/lib/ai-chat/observability";
-import { readProductCategories } from "@/lib/ai-chat/search/shopifyTaxonomyMap";
+import { readProductCategories } from "@/lib/shopify/shopifyTaxonomyMap";
 import { accessTokenForCatalogMcp } from "@/lib/shopify/catalog-auth";
 import {
   searchCatalog,

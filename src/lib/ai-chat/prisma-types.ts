@@ -27,25 +27,3 @@ export type ConversationUpdateData = Partial<
     "model" | "temperature" | "maxTokens" | "responseStyle" | "systemPrompt"
   >
 >;
-
-/** Row shape from `prisma.shoppingMemory.findMany`. */
-export type ShoppingMemoryRow = Awaited<
-  ReturnType<PrismaDb["shoppingMemory"]["findMany"]>
->[number];
-
-/** Row shape from `prisma.memoryObservation.findMany`. */
-export type MemoryObservationRow = Awaited<
-  ReturnType<PrismaDb["memoryObservation"]["findMany"]>
->[number];
-
-/** Prisma enum unions used by shopping-memory mapping (derived from delegates). */
-export type MemoryObservationSignalType =
-  MemoryObservationRow["signalType"];
-export type MemoryObservationSource = MemoryObservationRow["source"];
-export type ShoppingMemoryScope = ShoppingMemoryRow["scope"];
-export type ShoppingMemoryType = ShoppingMemoryRow["type"];
-
-/** Result of `findUnique` on shopping profile (includes `null`). */
-export type ShoppingProfileSummaryRow = Awaited<
-  ReturnType<PrismaDb["shoppingProfileSummary"]["findUnique"]>
->;

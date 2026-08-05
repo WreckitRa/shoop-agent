@@ -146,78 +146,6 @@ model MessageVersion {
   @@schema("public")
 }
 
-// --- Shopping / user memory (see docs/chat/user-memory-guide.md) ---
-
-enum MemoryObservationSignalType {
-  profile
-  size
-  fit
-  style_like
-  style_dislike
-  brand_like
-  brand_dislike
-  budget
-  product_owned
-  product_feedback
-  purchase
-  product_return
-  wishlist
-  gift_recipient
-  shipping
-  occasion
-  constraint
-  hard_negative
-
-  @@schema("public")
-}
-
-enum MemoryStability {
-  temporary
-  medium
-  stable
-
-  @@schema("public")
-}
-
-enum MemoryObservationSource {
-  explicit
-  inferred
-  behavioral
-  purchase
-  product_return_source
-
-  @@schema("public")
-}
-
-enum ShoppingMemoryType {
-  profile
-  preference
-  dislike
-  size
-  fit
-  brand
-  budget
-  constraint
-  owned_product
-  recipient
-  intent
-  taste_tag
-
-  @@schema("public")
-}
-
-enum ShoppingMemoryScope {
-  global
-  category
-  brand
-  product_type
-  recipient
-  session
-  temporary
-
-  @@schema("public")
-}
-
 enum ProductInteractionAction {
   shown
   clicked
@@ -290,177 +218,6 @@ model ProductCuration {
   @@schema("public")
 }
 
-/// Negative-space + rejection trail feeding the Fit penalty (Stage 6).
-/// Captures why a pick was rejected so future searches can demote it.
-model FeedbackEvent {
-  id                String   @id @default(cuid())
-  userId            String
-  conversationId    String?
-  messageId         String?
-  productExternalId String?
-  upid              String?
-  /// Free-text rejection / feedback reason.
-  reason            String?  @db.Text
-  /// "global" | "category:shoes" | "recipient:wife" — scopes the avoid set.
-  scope             String   @default("global")
-  archetype         String?
-  /// Rejected attribute tokens (brand/material/color/style) for the Fit penalty.
-  attributes        String[] @default([])
-  createdAt         DateTime @default(now())
-
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, scope])
-  @@schema("public")
-}
-
-/// Per-source-query yield telemetry (Stage 6 learning flywheel). A nightly job
-/// folds these into per-category pattern weights so learned query angles
-/// replace guesses over time.
-model SearchQueryYield {
-  id               String   @id @default(cuid())
-  userId           String
-  conversationId   String?
-  searchKey        String?
-  queryText        String   @db.Text
-  archetype        String?
-  category         String?
-  /// Gift direction lane label — scopes learned angles per themed lane.
-  directionLabel   String?
-  rankingProfile   String?
-  /// Raw catalog hits this query returned.
-  rawCount         Int      @default(0)
-  /// Candidates this query contributed to the de-duped pool.
-  poolContribution Int      @default(0)
-  /// How many of its contributions survived availability verification.
-  verifiedSurvived Int      @default(0)
-  /// Picks shown that originated from this query.
-  picked           Int      @default(0)
-  /// Downstream conversions (patched post-turn).
-  endorsed         Int      @default(0)
-  purchased        Int      @default(0)
-  createdAt        DateTime @default(now())
-
-  @@index([userId, category, createdAt(sort: Desc)])
-  @@index([archetype, category])
-  @@index([archetype, directionLabel])
-  @@schema("public")
-}
-
-/// Persisted taste embedding (Voyage) for the buyer or a gift recipient. Stored
-/// as Float[] (cosine computed in app) to avoid a pgvector dependency.
-model TasteVector {
-  id         String   @id @default(cuid())
-  userId     String
-  /// "self" for the buyer; a Recipient label/id for gift models.
-  scopeKey   String   @default("self")
-  model      String
-  dim        Int
-  vector     Float[]
-  /// Hash of the source text used to build the vector (staleness check).
-  sourceHash String?
-  updatedAt  DateTime @updatedAt
-  createdAt  DateTime @default(now())
-
-  @@unique([userId, scopeKey, model])
-  @@index([userId])
-  @@schema("public")
-}
-
-/// Raw extracted signals (evidence trail).
-model MemoryObservation {
-  id             String                      @id @default(cuid())
-  userId         String
-  conversationId String?
-  messageId      String?
-  signalType     MemoryObservationSignalType
-  rawText        String                      @db.Text
-  normalizedText String                      @db.Text
-  entityType     String?
-  entityId       String?
-  entityName     String?
-  category       String?
-  subcategory    String?
-  brand          String?
-  attributes     Json                        @default("{}")
-  confidence     Float
-  importance     Float
-  stability      MemoryStability
-  source         MemoryObservationSource
-
-  createdAt DateTime @default(now())
-
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, signalType])
-  @@schema("public")
-}
-
-/// Canonical promoted facts for retrieval + prompts.
-model ShoppingMemory {
-  id                     String              @id @default(cuid())
-  userId                 String
-  memoryKey              String
-  value                  String              @db.Text
-  type                   ShoppingMemoryType
-  scope                  ShoppingMemoryScope
-  category               String?
-  subcategory            String?
-  brand                  String?
-  recipientId            String?
-  confidence             Float
-  importance             Float
-  isHardRule             Boolean             @default(false)
-  isActive               Boolean             @default(true)
-  evidenceCount          Int                 @default(1)
-  evidenceObservationIds String[]            @default([])
-  expiresAt              DateTime?
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  lastUsedAt             DateTime?
-
-  @@unique([userId, memoryKey])
-  @@index([userId, isActive, importance(sort: Desc)])
-  @@schema("public")
-}
-
-/// Compressed bullet summaries for `<user_shopping_profile>` injection.
-model ShoppingProfileSummary {
-  userId           String   @id
-  summary          String   @default("") @db.Text
-  styleSummary     String?  @db.Text
-  sizingSummary    String?  @db.Text
-  budgetSummary    String?  @db.Text
-  brandSummary     String?  @db.Text
-  dislikesSummary  String?  @db.Text
-  logisticsSummary String?  @db.Text
-  version          Int      @default(1)
-  updatedAt        DateTime @updatedAt
-
-  @@schema("public")
-}
-
-/// Durable post-turn work queue for shopping-memory extraction. The app is
-/// single-user today, but persisting jobs prevents memory updates from being
-/// lost when a serverless invocation ends after the chat stream closes.
-model ShoppingMemoryJob {
-  id             String              @id @default(cuid())
-  userId         String
-  conversationId String
-  messageId      String              @unique
-  text           String              @db.Text
-  status         BackgroundJobStatus @default(pending)
-  attempts       Int                 @default(0)
-  maxAttempts    Int                 @default(3)
-  lockedAt       DateTime?
-  processedAt    DateTime?
-  lastError      String?             @db.Text
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-
-  @@index([status, updatedAt])
-  @@index([userId, createdAt(sort: Desc)])
-  @@schema("public")
-}
-
 /// Durable, versioned projection work for onboarding. Canonical profile writes
 /// commit with this row; summary/fashion-memory projection happens afterward.
 model OnboardingProjectionJob {
@@ -498,51 +255,6 @@ model OnboardingExtraNotesJob {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  @@index([status, updatedAt])
-  @@index([userId, createdAt(sort: Desc)])
-  @@schema("public")
-}
-
-/// Durable post-turn queue for LLM intent-shift detection within a conversation.
-model ConversationIntentJob {
-  id             String              @id @default(cuid())
-  userId         String
-  conversationId String
-  messageId      String              @unique
-  text           String              @db.Text
-  status         BackgroundJobStatus @default(pending)
-  attempts       Int                 @default(0)
-  maxAttempts    Int                 @default(3)
-  lockedAt       DateTime?
-  processedAt    DateTime?
-  lastError      String?             @db.Text
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-
-  @@index([status, updatedAt])
-  @@index([conversationId, createdAt(sort: Desc)])
-  @@schema("public")
-}
-
-/// Durable post-search queue for the Opus/Sonnet curator. Survives chat SSE
-/// teardown so PDP insight and message metadata still upgrade after the stream.
-model ProductCurationJob {
-  id             String              @id @default(cuid())
-  userId         String
-  conversationId String
-  messageId      String
-  searchKey      String
-  payload        Json
-  status         BackgroundJobStatus @default(pending)
-  attempts       Int                 @default(0)
-  maxAttempts    Int                 @default(3)
-  lockedAt       DateTime?
-  processedAt    DateTime?
-  lastError      String?             @db.Text
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-
-  @@unique([messageId, searchKey])
   @@index([status, updatedAt])
   @@index([userId, createdAt(sort: Desc)])
   @@schema("public")
@@ -625,13 +337,12 @@ model SavedAddress {
   @@schema("public")
 }
 
-// --- Typed shopper-knowledge projections (see docs/chat/user-memory-guide.md §3) ---
+// --- Typed shopper-knowledge projections ---
 //
 // These tables are the FAST, EDITABLE, DETERMINISTIC face of the user profile.
-// They are projections derived from MemoryObservation + ShoppingMemory by the
-// projector (`src/lib/ai-chat/shopping-memory/projector.ts`). The raw evidence
-// trail stays in MemoryObservation; canonical promoted facts stay in
-// ShoppingMemory; these projections give the agent a typed schema to read at
+// They are populated from onboarding (`onboarding/memory-extract` →
+// `seed-fashion-memory.ts`) and turn-level extraction
+// (`fashion-memory/extraction/*`), giving the agent a typed schema to read at
 // retrieval time and to expose in a profile UI.
 
 enum BrandSentiment {
@@ -914,7 +625,7 @@ model Recipient {
   @@schema("public")
 }
 
-/// Active shopping mission (Layer 8). Replaces session-scoped ShoppingMemory rows.
+/// Active shopping mission (Layer 8) — typed, session-scoped shopping intent.
 model ShoppingIntent {
   id     String @id @default(cuid())
   userId String
@@ -1039,19 +750,13 @@ model HardNegative {
 enum PromptRunKind {
   main_chat
   curator
-  topic_guard
   catalog_search
   conversation_title
   conversation_summary
   memory_classify
   memory_extract
-  intent_shift
   suggested_prompt
   swatch_color
-  /// Haiku portfolio / budget-angle planners that craft catalog search queries.
-  search_query_planner
-  /// Full search pipeline snapshot for the debug panel (verify → judge → slots).
-  search_pipeline
 
   @@schema("public")
 }
@@ -1437,7 +1142,7 @@ model TryonFeedback {
   @@schema("public")
 }
 
-/// Public “Ask the Girls” discussion card for a dressed try-on + Studying Scan.
+/// Public “Ask your friends” discussion card for a dressed try-on + Studying Scan.
 model LookAskShare {
   id             String   @id @default(cuid())
   token          String   @unique

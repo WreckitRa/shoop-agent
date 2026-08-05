@@ -1184,10 +1184,7 @@ async function resolveFashionRouterTurnInner(
     // skip the gate_retry LLM (saves a Haiku call on the common path).
     // Keep LLM retry only when recipient is still unresolved (should not reach
     // here) or when we later expand blocking gaps beyond dept/size.
-    const deterministicOnly =
-      Boolean(person) &&
-      (gapExplain.missing_department ||
-        gapExplain.missing_size_buckets.length > 0);
+    const deterministicOnly = Boolean(person);
 
     if (deterministicOnly) {
       const filtered = filterQuestionsSatisfiedByFacts({
@@ -1527,12 +1524,3 @@ async function resolveFashionRouterTurnInner(
 }
 
 export { pendingBriefMeta, loadPendingBrief };
-
-/** @deprecated intake_completed_at is no longer written. */
-export async function persistIntakeCompleted(_params: {
-  userId: string;
-  personId: string;
-  guestSnapshot?: GuestFashionMemorySnapshot;
-}): Promise<void> {
-  // no-op — once-ever property is enforced by facts-in-PROFILES
-}

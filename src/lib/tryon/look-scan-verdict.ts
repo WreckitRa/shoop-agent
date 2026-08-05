@@ -9,7 +9,7 @@ import { logAiChat } from "@/lib/ai-chat/observability";
 import {
   parseLlmJsonObject,
   stripNullFields,
-} from "@/lib/ai-chat/shopping-memory/llm-json";
+} from "@/lib/ai-chat/llm-json";
 import { fetchAndResizeCurationImage } from "@/lib/fashion-memory/curation/curation-images";
 import { FASHION_CURATION_MODEL } from "@/lib/fashion-memory/models";
 import {

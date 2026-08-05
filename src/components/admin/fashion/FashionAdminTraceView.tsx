@@ -4,8 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/ai-chat/cn";
-import { QaDebugCriteriaPanel } from "@/components/qa/QaDebugCriteriaPanel";
-import { buildQaDebugCriteriaFromAdminDetail } from "@/lib/qa/debug-criteria";
 import type { FashionCatalogRunDetail } from "@/lib/admin/fashion-types";
 import type { FashionSlotCatalogProduct } from "@/lib/fashion-memory/catalog-search/types";
 import type { ProductScore } from "@/lib/fashion-memory/scoring/types";
@@ -209,10 +207,7 @@ export function FashionAdminTraceView({ detail }: { detail: FashionCatalogRunDet
 
   const slot = detail.catalogSearch.slots[slotIndex];
   const dropped = slot?.dropped ?? [];
-  const survivors =
-    slot?.verified_pool?.length
-      ? slot.verified_pool
-      : (slot?.products ?? []);
+  const survivors = slot?.verified_pool ?? [];
 
   const pipelineStages = useMemo(() => {
     const counts = new Map<string, number>();
@@ -446,12 +441,6 @@ export function FashionAdminTraceView({ detail }: { detail: FashionCatalogRunDet
 
       {tab === "overview" ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="card p-4 lg:col-span-2">
-            <h2 className="text-sm font-semibold text-ink">QA pass criteria</h2>
-            <div className="mt-3">
-              <QaDebugCriteriaPanel model={buildQaDebugCriteriaFromAdminDetail(detail)} />
-            </div>
-          </div>
           <div className="card p-4">
             <h2 className="text-sm font-semibold text-ink">Trace summary</h2>
             <pre className="mt-2 max-h-64 overflow-auto font-mono text-[11px] text-ink-muted">

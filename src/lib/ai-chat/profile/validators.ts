@@ -127,71 +127,6 @@ export const sizingProfilePatchSchema = z
   })
   .strict();
 
-export const recipientPostSchema = z
-  .object({
-    label: z.string().min(1).max(60),
-    name: z.string().max(120).optional(),
-    relationship: z.string().max(80).optional(),
-    ageRange: z.string().max(20).optional(),
-    birthDate: z.string().datetime().optional(),
-    knownPreferences: z.array(z.string().max(120)).max(20).optional(),
-    dislikes: z.array(z.string().max(120)).max(20).optional(),
-    favoriteBrands: z.array(z.string().max(80)).max(20).optional(),
-    dislikedBrands: z.array(z.string().max(80)).max(20).optional(),
-    sizes: z.record(z.string(), z.string().max(40)).optional(),
-    importantDates: z
-      .array(
-        z.object({
-          label: z.string().max(80),
-          date: z.string().max(40),
-        }),
-      )
-      .max(20)
-      .optional(),
-    giftHistory: z
-      .array(
-        z.object({
-          productName: z.string().max(280),
-          occasion: z.string().max(80).optional(),
-          reaction: z.enum(["loved", "liked", "neutral", "bad"]).optional(),
-          date: z.string().max(40).optional(),
-        }),
-      )
-      .max(50)
-      .optional(),
-    privacyLevel: z.enum(["normal", "sensitive"]).optional(),
-  })
-  .strict();
-
-export const recipientPatchSchema = recipientPostSchema.partial();
-
-export const intentPostSchema = z
-  .object({
-    intentName: z.string().min(1).max(240),
-    description: z.string().max(2000).optional(),
-    category: z.string().max(80).optional(),
-    subcategory: z.string().max(80).optional(),
-    recipientId: z.string().cuid().optional(),
-    constraints: z.record(z.string(), z.unknown()).optional(),
-    priority: z.enum(["low", "medium", "high"]).optional(),
-    neededBy: z.string().datetime().optional(),
-  })
-  .strict();
-
-export const intentPatchSchema = z
-  .object({
-    status: z.enum(["active", "paused", "completed", "expired"]).optional(),
-    intentName: z.string().min(1).max(240).optional(),
-    description: z.string().max(2000).optional(),
-    category: z.string().max(80).optional(),
-    subcategory: z.string().max(80).optional(),
-    recipientId: z.string().cuid().nullable().optional(),
-    constraints: z.record(z.string(), z.unknown()).optional(),
-    priority: z.enum(["low", "medium", "high"]).optional(),
-    neededBy: z.string().datetime().nullable().optional(),
-  })
-  .strict();
-
 export const hardNegativePostSchema = z
   .object({
     scope: z.enum([
@@ -233,8 +168,6 @@ export const brandPreferencePostSchema = z
   })
   .strict();
 
-export const brandPreferencePatchSchema = brandPreferencePostSchema.partial();
-
 export const ownedProductPostSchema = z
   .object({
     category: z.string().min(1).max(80),
@@ -249,5 +182,3 @@ export const ownedProductPostSchema = z
     notes: z.string().max(2000).optional().nullable(),
   })
   .strict();
-
-export const ownedProductPatchSchema = ownedProductPostSchema.partial();

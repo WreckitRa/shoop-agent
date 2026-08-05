@@ -40,8 +40,6 @@ Tick every checkbox. Do not skip ahead. When something fails: copy `trace_id` fr
 - [ ] **0.3** Open `.env` and make sure these lines exist (add if missing):
 
   ```bash
-  NEXT_PUBLIC_AGENT_DEBUG=1
-  AGENT_DEBUG=1
   VERIFY_TTL_HOURS=0.05
   # QA_USER_IDS=…   ← seed script writes this
   # AI_CHAT_ADMIN_TOKEN=…  ← needed for /admin/fashion

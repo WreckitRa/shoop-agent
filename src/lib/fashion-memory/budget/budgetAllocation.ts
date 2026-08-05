@@ -7,8 +7,8 @@ import type {
 } from "../search-planner/types";
 
 /** ±20% padding for single_item / multi_item per-item ceiling. */
-export const LEGACY_BUDGET_PAD_MAX = 1.2;
-export const LEGACY_BUDGET_PAD_MIN = 0.8;
+export const BUDGET_PAD_MAX = 1.2;
+export const BUDGET_PAD_MIN = 0.8;
 
 /** Allocation padding for outfit per-slot retrieval bounds. */
 export const ALLOCATION_PAD_MAX = 1.4;
@@ -399,7 +399,7 @@ function currenciesCompatible(
 
 /**
  * Resolve per-slot budget bounds from planner fractions.
- * Returns null for unstated budget or single_item (callers keep legacy path).
+ * Returns null for unstated budget or single_item (callers use flat pad path).
  */
 export function resolveAllocation(
   plan: FashionSearchPlan,
@@ -419,10 +419,10 @@ export function resolveAllocation(
     const total_max = ctx.max;
     if (total_max == null || !Number.isFinite(total_max)) return null;
 
-    const paddedMax = total_max * LEGACY_BUDGET_PAD_MAX;
+    const paddedMax = total_max * BUDGET_PAD_MAX;
     const paddedMin =
       ctx.min != null && ctx.min > 0
-        ? ctx.min * LEGACY_BUDGET_PAD_MIN
+        ? ctx.min * BUDGET_PAD_MIN
         : undefined;
 
     const per_slot: Record<string, SlotBudgetAllocation> = {};
@@ -459,10 +459,10 @@ export function resolveAllocation(
     const total_max = ctx.max;
     if (total_max == null || !Number.isFinite(total_max)) return null;
 
-    const paddedMax = total_max * LEGACY_BUDGET_PAD_MAX;
+    const paddedMax = total_max * BUDGET_PAD_MAX;
     const paddedMin =
       ctx.min != null && ctx.min > 0
-        ? ctx.min * LEGACY_BUDGET_PAD_MIN
+        ? ctx.min * BUDGET_PAD_MIN
         : undefined;
 
     const per_slot: Record<string, SlotBudgetAllocation> = {};
@@ -583,7 +583,7 @@ export function enforcedMaxMajor(params: {
   }
 
   if (ctx.max != null && Number.isFinite(ctx.max)) {
-    return ctx.max * LEGACY_BUDGET_PAD_MAX;
+    return ctx.max * BUDGET_PAD_MAX;
   }
   return null;
 }
@@ -645,13 +645,13 @@ export function priceBoundsForSlot(
 
   const price: { min?: number; max?: number } = {};
   if (ctx.max != null && Number.isFinite(ctx.max)) {
-    const enforced = ctx.max * LEGACY_BUDGET_PAD_MAX;
+    const enforced = ctx.max * BUDGET_PAD_MAX;
     price.max = toMinorUnits(
       purpose === "server_filter" ? guardMaxMajor(enforced) : enforced,
     );
   }
   if (ctx.min != null && Number.isFinite(ctx.min) && ctx.min > 0) {
-    price.min = toMinorUnits(ctx.min * LEGACY_BUDGET_PAD_MIN);
+    price.min = toMinorUnits(ctx.min * BUDGET_PAD_MIN);
   }
   if (price.min == null && price.max == null) return null;
   return price;

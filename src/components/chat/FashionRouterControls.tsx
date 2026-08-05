@@ -20,7 +20,7 @@ import type {
 
 function formatBundledAnswers(
   questions: FashionClarificationQuestion[],
-  answers: Record<string, FashionClarificationAnswer | string>,
+  answers: Record<string, FashionClarificationAnswer>,
   rideAlong?: { text: string; quick_options?: FashionClarificationQuestion["quick_options"] },
 ): string {
   const parts = questions
@@ -48,7 +48,7 @@ function FashionQuizAnsweredBanner({
   answers,
 }: {
   questions: FashionClarificationQuestion[];
-  answers?: Record<string, FashionClarificationAnswer | string>;
+  answers?: Record<string, FashionClarificationAnswer>;
 }) {
   const bits = questions
     .map((q) => {
@@ -88,10 +88,6 @@ function resolveQuestionAnswer(
   const chipIds = selectedIds.filter((id) => id !== CLARIFICATION_OTHER_OPTION_ID);
   const custom = freeText.trim();
   if (!chipIds.length && !(otherSelected && custom)) return null;
-  // If they typed free text without tapping Other, still accept it.
-  if (!chipIds.length && custom && !otherSelected) {
-    return { selected: [], customText: custom };
-  }
   return {
     selected: chipIds,
     ...(otherSelected && custom ? { customText: custom } : {}),
@@ -249,11 +245,6 @@ export const FashionRouterControls = memo(function FashionRouterControls({
 
   const isAnswered = answeredByMeta || answeredByFollowUp || submitted;
 
-  const legacyOptions =
-    fashionRouter.move === "ask_clarification" && !questions.length
-      ? asNormalizedOptions(fashionRouter.quick_options)
-      : [];
-
   const hasVisualCards = useMemo(
     () =>
       questions.some((q) =>
@@ -329,7 +320,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
   };
 
   const submitAnswers = (
-    finalAnswers: Record<string, FashionClarificationAnswer | string>,
+    finalAnswers: Record<string, FashionClarificationAnswer>,
   ) => {
     answerFashionClarification(messageId, finalAnswers);
     setSubmitted(true);
@@ -337,9 +328,9 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     void sendMessage();
   };
 
-  if (!isClarification && !legacyOptions.length) return null;
+  if (!isClarification) return null;
 
-  if (isAnswered && isClarification) {
+  if (isAnswered) {
     return (
       <FashionQuizAnsweredBanner
         questions={questions}
@@ -348,35 +339,8 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     );
   }
 
-  if (legacyOptions.length) {
-    return (
-      <div className="mt-3 flex flex-wrap gap-2">
-        {legacyOptions.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            disabled={isStreaming}
-            onClick={() => {
-              answerFashionClarification(messageId, {
-                [option.label]: {
-                  selected: [option.id],
-                },
-              });
-              setSubmitted(true);
-              setInput(option.label);
-              void sendMessage();
-            }}
-            className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink transition hover:border-brand/40 hover:bg-surface-tint disabled:opacity-50"
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-    );
-  }
-
   // Single exclusive chip question with no visual cards: one-tap submit.
-  if (!needsContinue && questions.length === 1) {
+  if (!needsContinue) {
     const q = questions[0]!;
     const selected = selections[q.text] ?? [];
     const otherOpen = selected.includes(CLARIFICATION_OTHER_OPTION_ID);

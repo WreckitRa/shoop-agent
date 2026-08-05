@@ -1,23 +1,9 @@
-import { prisma } from "../db";
-import { detectShoppingCategoryFromQuery } from "../shopping-memory/category-detector";
-
 /**
  * Same shape as Shopify's `SelectedOption`. Re-declared here to keep this
  * module dependency-free from the catalog client (so it can also be used
  * client-side if needed).
  */
 export type PreferredOption = { name: string; label: string };
-
-/** Search variant options first; inferred values override by option name. */
-export function mergePreferredOptions(
-  base: PreferredOption[],
-  override: PreferredOption[],
-): PreferredOption[] {
-  const map = new Map<string, string>();
-  for (const o of base) map.set(o.name, o.label);
-  for (const o of override) map.set(o.name, o.label);
-  return Array.from(map, ([name, label]) => ({ name, label }));
-}
 
 export type ProductOptionForMatching = {
   name: string;
@@ -43,8 +29,6 @@ export const EMPTY_USER_OPTION_HINTS: UserOptionHints = {
   dislikedColors: [],
   preferredMaterials: [],
 };
-
-const EMPTY_HINTS = EMPTY_USER_OPTION_HINTS;
 
 export type ProductPriceRangeHint = {
   min: { amount: number; currency: string };
@@ -318,7 +302,7 @@ export function inferPreferredOptions(
   const picked: PreferredOption[] = [];
 
   for (const option of options) {
-    if (!option.values?.length) continue;
+    if (!option.values.length) continue;
 
     let label: string | null = null;
 
@@ -391,54 +375,4 @@ export function inferPreferredOptions(
   }
 
   return picked;
-}
-
-/**
- * Load the structured option hints the matcher needs. One DB roundtrip
- * (parallel queries) per turn — the caller should cache the returned promise
- * across multiple searches in the same chat iteration.
- */
-export async function loadUserOptionHints(
-  userId: string,
-  queryHint: string,
-): Promise<UserOptionHints> {
-  if (!userId) return EMPTY_HINTS;
-  try {
-    const detectedCategories = detectShoppingCategoryFromQuery(queryHint);
-    const [sizing, categoryRows] = await Promise.all([
-      prisma.sizingProfile.findUnique({ where: { userId } }),
-      prisma.categoryPreference.findMany({
-        where: detectedCategories.length
-          ? { userId, category: { in: detectedCategories } }
-          : { userId },
-        orderBy: [{ confidence: "desc" }, { updatedAt: "desc" }],
-        take: 6,
-      }),
-    ]);
-
-    const preferredColors = new Set<string>();
-    const dislikedColors = new Set<string>();
-    const preferredMaterials = new Set<string>();
-    for (const row of categoryRows) {
-      for (const c of row.preferredColors) preferredColors.add(c);
-      for (const c of row.dislikedColors) dislikedColors.add(c);
-      for (const m of row.preferredMaterials) preferredMaterials.add(m);
-    }
-
-    return {
-      shoeEU: sizing?.shoeEU ?? null,
-      shoeUS: sizing?.shoeUS ?? null,
-      shoeUK: sizing?.shoeUK ?? null,
-      topUsualSize: sizing?.topUsualSize ?? null,
-      bottomUsualSize: sizing?.bottomUsualSize ?? null,
-      bottomWaist: sizing?.bottomWaist ?? null,
-      bottomInseam: sizing?.bottomInseam ?? null,
-      ringSize: sizing?.ringSize ?? null,
-      preferredColors: [...preferredColors],
-      dislikedColors: [...dislikedColors],
-      preferredMaterials: [...preferredMaterials],
-    };
-  } catch {
-    return EMPTY_HINTS;
-  }
 }

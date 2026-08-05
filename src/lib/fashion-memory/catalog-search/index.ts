@@ -24,16 +24,6 @@ export {
 } from "./search-catalog-for-plan";
 export { catalogSummaryToProductCard } from "./product-card";
 export {
-  buildFashionCatalogDebug,
-  fashionCatalogDebugForPersist,
-  fashionCatalogDebugFromSse,
-} from "./fashion-catalog-debug";
-export type {
-  FashionCatalogDebugV1,
-  FashionCatalogQueryDebug,
-  FashionCatalogSlotDebug,
-} from "./fashion-catalog-debug";
-export {
   FASHION_CATALOG_QUERY_TIMEOUT_MS,
   FASHION_CATALOG_TARGET_RESULTS,
 } from "./query-runner";

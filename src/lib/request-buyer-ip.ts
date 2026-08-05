@@ -1,6 +1,5 @@
 import { isIPv4, isIPv6 } from "node:net";
 import { headers } from "next/headers";
-import { logCheckoutBuyerIp } from "@/lib/shopify/checkout-buyer-ip-debug";
 
 function normalizeBuyerIp(raw: string): string | null {
   let s = raw.trim().replace(/^["']|["']$/g, "");
@@ -94,26 +93,15 @@ function cleanEnvBuyerIpRaw(raw: string): string {
 export async function getBuyerIpForShopifyMcp(): Promise<string> {
   const h = await headers();
 
-  logCheckoutBuyerIp("incoming proxy / client IP hints", {
-    xForwardedFor: h.get("x-forwarded-for") ?? "(absent)",
-    xRealIp: h.get("x-real-ip") ?? "(absent)",
-    cfConnectingIp: h.get("cf-connecting-ip") ?? "(absent)",
-    trueClientIp: h.get("true-client-ip") ?? "(absent)",
-    fastlyClientIp: h.get("fastly-client-ip") ?? "(absent)",
-    forwarded: h.get("forwarded") ?? "(absent)",
-    hasShopifyCheckoutBuyerIpEnv: Boolean(process.env.SHOPIFY_CHECKOUT_BUYER_IP?.trim()),
-  });
 
   const fromForwarded = h.get("forwarded");
   const fromXff = pickFromCommaList(h.get("x-forwarded-for"));
   if (fromXff) {
-    logCheckoutBuyerIp("chose IP from x-forwarded-for (first usable / public)", { ip: fromXff });
     return fromXff;
   }
 
   const fromForwardedParsed = pickFromForwardedHeader(fromForwarded);
   if (fromForwardedParsed) {
-    logCheckoutBuyerIp("chose IP from Forwarded header", { ip: fromForwardedParsed });
     return fromForwardedParsed;
   }
 
@@ -123,10 +111,9 @@ export async function getBuyerIpForShopifyMcp(): Promise<string> {
     ["true-client-ip", h.get("true-client-ip")],
     ["fastly-client-ip", h.get("fastly-client-ip")],
   ] as const;
-  for (const [name, raw] of singleHeaders) {
+  for (const [, raw] of singleHeaders) {
     const n = normalizeBuyerIp(raw ?? "");
     if (n && isUsableShopifyBuyerIp(n)) {
-      logCheckoutBuyerIp(`chose IP from ${name}`, { ip: n });
       return n;
     }
   }
@@ -140,9 +127,6 @@ export async function getBuyerIpForShopifyMcp(): Promise<string> {
       if (extracted) n = normalizeBuyerIp(extracted);
     }
     if (n && isUsableShopifyBuyerIp(n)) {
-      logCheckoutBuyerIp("chose IP from SHOPIFY_CHECKOUT_BUYER_IP (after skipping private x-forwarded-for)", {
-        ip: n,
-      });
       return n;
     }
     throw new Error(

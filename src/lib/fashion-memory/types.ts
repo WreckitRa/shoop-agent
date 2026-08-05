@@ -1,5 +1,5 @@
 /**
- * Fashion memory — standalone from generic shopping memory.
+ * Fashion memory — people, facts, and style signals for chat.
  * Documents DB row shapes and fashion_facts.value jsonb schemas.
  */
 

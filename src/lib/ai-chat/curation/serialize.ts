@@ -1,4 +1,4 @@
-import { normalizePickInsight } from "./pick-insight";
+import { normalizePickInsight } from "@/lib/commerce/pick-insight";
 import type { ProductCurationRow } from "./db";
 import type { CurationPdpInsight, CurationVerdict } from "../types";
 

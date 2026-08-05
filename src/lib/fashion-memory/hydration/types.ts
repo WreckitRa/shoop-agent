@@ -43,7 +43,7 @@ export type HydratedCandidate = FashionSlotCatalogProduct & {
   resolved_options?: SelectedOption[];
   /** Variant GID matching resolved_options — never the product GID. */
   selected_variant_id?: string;
-  /** API timeout/error — candidate was NOT verified (legacy flag on rare shells). */
+  /** API timeout/error — candidate was NOT verified. */
   hydration_failed?: boolean;
   /** Checkout flag only — false does NOT kill the candidate. */
   native_checkout?: boolean;

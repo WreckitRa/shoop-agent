@@ -1,6 +1,5 @@
 "use client";
 
-import { PickFindSimilarButton } from "@/components/chat/PickFindSimilarButton";
 import { PickReplyButton } from "@/components/chat/PickReplyButton";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useChatFocusHighlight } from "@/components/chat/ChatFocusHighlightContext";
@@ -20,14 +19,8 @@ import { ShoopFindCard } from "@/components/chat/ShoopFindCard";
 import { fittingRoomItemFromProductCard } from "@/components/tryon/fitting-room-item-builders";
 
 /** Expand the full PDP inline in chat below the picks row (card stays visible). */
-function useProductCardAction(
-  product: ProductCard,
-  opts?: { fashionPickSignals?: boolean },
-) {
+function useProductCardAction(product: ProductCard) {
   const conversationId = useChatStore((s) => s.activeConversationId);
-  const fashionMode = useChatStore((s) => s.fashionMode);
-  const recordFashionPick =
-    opts?.fashionPickSignals === true || fashionMode;
   const messageId = useChatMessageProductLink();
   const expand = useInlineProductStore((s) => s.expand);
   const collapse = useInlineProductStore((s) => s.collapse);
@@ -40,9 +33,7 @@ function useProductCardAction(
 
   const onOpen = () => {
     if (!messageId || isExpanded) return;
-    if (recordFashionPick) {
-      recordFashionPickSelection(product, conversationId);
-    }
+    recordFashionPickSelection(product, conversationId);
     if (conversationId && messageId) {
       stashChatFocusReturn({
         conversationId,
@@ -206,14 +197,8 @@ export function CuratedPickSkeleton({
   );
 }
 
-export function HeroPickCard({
-  product,
-  fashionPickSignals,
-}: {
-  product: ProductCard;
-  fashionPickSignals?: boolean;
-}) {
-  const link = useProductCardAction(product, { fashionPickSignals });
+export function HeroPickCard({ product }: { product: ProductCard }) {
+  const link = useProductCardAction(product);
   const buyerCurrency = useBuyerDisplayCurrency();
   const price = formatPrice(product, buyerCurrency);
 
@@ -232,7 +217,6 @@ export function HeroPickCard({
         testId="hero-pick"
         imagePriority
         imagePx={CATALOG_IMAGE_PX.lead}
-        footer={<PickFindSimilarButton pick={product} />}
       />
       {link.isExpanded ? (
         <InlineChatProductPanel onClose={link.collapse} />
@@ -282,13 +266,6 @@ export function CuratedPickCard({ pick }: { pick: CuratedPick }) {
         testId={`curated-pick-${pick.slot}`}
         imagePriority={isHero}
         imagePx={CATALOG_IMAGE_PX.lead}
-        footer={
-          <PickFindSimilarButton
-            pick={pick}
-            compact={!isHero}
-            className="shrink-0"
-          />
-        }
       />
     </div>
   );
@@ -317,7 +294,6 @@ export function GalleryPickCard({ pick }: { pick: CuratedPick }) {
         className={link.className}
         testId={`gallery-pick-${pick.id}`}
         imagePx={CATALOG_IMAGE_PX.scroll}
-        footer={<PickFindSimilarButton pick={pick} compact />}
       />
     </div>
   );
@@ -371,14 +347,8 @@ export function GalleryPickSkeleton() {
 /**
  * Lead find card — same rack style as curation results.
  */
-export function FashionLeadPickCard({
-  product,
-  fashionPickSignals,
-}: {
-  product: ProductCard;
-  fashionPickSignals?: boolean;
-}) {
-  const link = useProductCardAction(product, { fashionPickSignals });
+export function FashionLeadPickCard({ product }: { product: ProductCard }) {
+  const link = useProductCardAction(product);
   const buyerCurrency = useBuyerDisplayCurrency();
   const price = formatPrice(product, buyerCurrency);
   const rating =
@@ -401,7 +371,6 @@ export function FashionLeadPickCard({
       testId="fashion-lead-pick"
       imagePriority
       imagePx={CATALOG_IMAGE_PX.lead}
-      footer={<PickFindSimilarButton pick={product} className="shrink-0" />}
     />
   );
 }
@@ -412,13 +381,11 @@ export function FashionLeadPickCard({
 export function FashionStackPickCard({
   product,
   rankLabel,
-  fashionPickSignals,
 }: {
   product: ProductCard;
   rankLabel: string;
-  fashionPickSignals?: boolean;
 }) {
-  const link = useProductCardAction(product, { fashionPickSignals });
+  const link = useProductCardAction(product);
   const buyerCurrency = useBuyerDisplayCurrency();
   const price = formatPrice(product, buyerCurrency);
 
@@ -444,15 +411,13 @@ export function FashionStackPickCard({
 /** Compact rack card for horizontal scroll rows (verified rest / overflow). */
 export function ProductScrollCard({
   product,
-  fashionPickSignals,
   muted,
 }: {
   product: ProductCard;
-  fashionPickSignals?: boolean;
   /** Soften unverified / overflow finds. */
   muted?: boolean;
 }) {
-  const link = useProductCardAction(product, { fashionPickSignals });
+  const link = useProductCardAction(product);
   const buyerCurrency = useBuyerDisplayCurrency();
   const price = formatPrice(product, buyerCurrency);
 
@@ -476,14 +441,8 @@ export function ProductScrollCard({
   );
 }
 
-export function SecondaryPickCard({
-  product,
-  fashionPickSignals,
-}: {
-  product: ProductCard;
-  fashionPickSignals?: boolean;
-}) {
-  const link = useProductCardAction(product, { fashionPickSignals });
+export function SecondaryPickCard({ product }: { product: ProductCard }) {
+  const link = useProductCardAction(product);
   const buyerCurrency = useBuyerDisplayCurrency();
   const price = formatPrice(product, buyerCurrency);
 
@@ -500,7 +459,6 @@ export function SecondaryPickCard({
         className={cn(link.className, "mb-3")}
         testId="secondary-pick"
         imagePx={CATALOG_IMAGE_PX.scroll}
-        footer={<PickFindSimilarButton pick={product} />}
       />
       {link.isExpanded ? (
         <InlineChatProductPanel onClose={link.collapse} />

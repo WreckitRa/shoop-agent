@@ -129,6 +129,50 @@ describe("buildLookAskPublic reveal gating", () => {
     assert.equal(owner.shoopRevealed, true);
     assert.equal(owner.isOwner, true);
     assert.equal(owner.shoopVote, "almost");
+    assert.equal(owner.ownerVote, null);
+  });
+
+  it("surfaces owner strip vote with isOwner on the vote row", () => {
+    const owner = buildLookAskPublic({
+      share: {
+        ...baseShare,
+        votes: [
+          {
+            choice: "love",
+            displayName: "Sara",
+            voterKey: "user:owner-1",
+          },
+        ],
+      },
+      viewerUserId: "guest",
+      viewerVoterKey: "guest:x",
+    });
+    // Guest hasn't voted — sealed.
+    assert.equal(owner.shoopRevealed, false);
+    assert.equal(owner.ownerVote, null);
+
+    const friend = buildLookAskPublic({
+      share: {
+        ...baseShare,
+        votes: [
+          {
+            choice: "love",
+            displayName: "Sara",
+            voterKey: "user:owner-1",
+          },
+          {
+            choice: "meh",
+            displayName: "Maya",
+            voterKey: "guest:x",
+          },
+        ],
+      },
+      viewerUserId: null,
+      viewerVoterKey: "guest:x",
+    });
+    assert.equal(friend.shoopRevealed, true);
+    assert.equal(friend.ownerVote, "love");
+    assert.ok(friend.votes.some((v) => v.isOwner && v.choice === "love"));
   });
 
   it("tallies only known choices", () => {

@@ -156,7 +156,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, [refresh, refreshGuest]);
 
-  // Public Ask the Girls pages: silent guest — never block on auth modal.
+  // Public Ask-your-friends pages: silent guest — never block on auth modal.
   useEffect(() => {
     if (!isAskPage || user || guestActive || loading) return;
     if (askGuestBootRef.current) return;

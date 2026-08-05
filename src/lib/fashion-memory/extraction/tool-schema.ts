@@ -300,9 +300,6 @@ export function parseRecordFashionOpsResult(raw: unknown): {
   };
 }
 
-/** @deprecated Use RecordFashionOpsResult */
-export type FashionExtractionResult = RecordFashionOpsResult;
-
 export const RECORD_FASHION_OPS_TOOL = {
   name: RECORD_FASHION_OPS_TOOL_NAME,
   description:

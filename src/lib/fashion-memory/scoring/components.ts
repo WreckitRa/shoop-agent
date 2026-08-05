@@ -1,4 +1,4 @@
-import { readProductCategories } from "@/lib/ai-chat/search/shopifyTaxonomyMap";
+import { readProductCategories } from "@/lib/shopify/shopifyTaxonomyMap";
 import { extractCatalogAttributes } from "@/lib/shopify/catalog-attributes";
 import type { FashionSlotCatalogProduct } from "../catalog-search/types";
 import {

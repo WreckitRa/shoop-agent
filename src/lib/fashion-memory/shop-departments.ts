@@ -1,12 +1,10 @@
 /**
  * Shop-level department map — fills the gap when products lack Target gender
  * attributes and title tokens. Lookup order in resolveDepartmentEvidence:
- * attribute → shop_departments (mens/womens/kids only) → category → title.
+ * attribute → shop_departments seed (mens/womens/kids only) → category → title.
  *
- * `mixed` shops contribute nothing (unknown survives). Seeded from reviewed
- * allowlist annotations; DB table is the source of truth when available.
+ * `mixed` shops contribute nothing (unknown survives).
  */
-import { fashionMemoryDb } from "./db";
 
 export type ShopDepartment =
   | "mens"
@@ -159,7 +157,6 @@ function indexRows(rows: readonly ShopDepartmentRow[]): Index {
 }
 
 let cachedIndex: Index | null = null;
-let dbLoadAttempted = false;
 
 function seedIndex(): Index {
   return indexRows(SHOP_DEPARTMENT_SEED);
@@ -168,7 +165,6 @@ function seedIndex(): Index {
 /** Test helper — reset cache between cases. */
 export function resetShopDepartmentCacheForTests(): void {
   cachedIndex = null;
-  dbLoadAttempted = false;
 }
 
 /** Test helper — inject rows without DB. */
@@ -176,30 +172,9 @@ export function setShopDepartmentIndexForTests(
   rows: readonly ShopDepartmentRow[],
 ): void {
   cachedIndex = indexRows(rows);
-  dbLoadAttempted = true;
 }
 
-async function ensureIndex(): Promise<Index> {
-  if (cachedIndex) return cachedIndex;
-  if (!dbLoadAttempted) {
-    dbLoadAttempted = true;
-    try {
-      const { data, error } = await fashionMemoryDb()
-        .from("shop_departments")
-        .select("shop_gid, department, confidence, source_note, shop_domain");
-      if (!error && Array.isArray(data) && data.length > 0) {
-        cachedIndex = indexRows(data as ShopDepartmentRow[]);
-        return cachedIndex;
-      }
-    } catch {
-      // Fall through to seed — table may not exist yet.
-    }
-  }
-  cachedIndex = seedIndex();
-  return cachedIndex;
-}
-
-/** Sync lookup for hard-drops / scoring (seed first; DB warm via ensure). */
+/** Sync lookup for hard-drops / scoring (in-memory seed / test override). */
 export function lookupShopDepartmentSync(params: {
   shopGid?: string | null;
   shopDomain?: string | null;
@@ -217,12 +192,6 @@ export function lookupShopDepartmentSync(params: {
   }
   return null;
 }
-
-/** Warm cache from DB when available (call once per request if desired). */
-export async function warmShopDepartmentCache(): Promise<void> {
-  await ensureIndex();
-}
-
 /**
  * Map shop department onto search department mismatch.
  * `mixed` → null (no signal). `kids` mismatches adult mens/womens.

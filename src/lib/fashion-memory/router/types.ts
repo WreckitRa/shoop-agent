@@ -128,7 +128,7 @@ export type FashionClarificationOption = {
   previewImages?: import("@/lib/ai-chat/types").ClarificationOptionPreviewImage[];
 };
 
-/** Structured quiz answer — selected option ids (or legacy labels) + optional Other text. */
+/** Structured quiz answer — selected are option ids (and Other) + optional Other text. */
 export type FashionClarificationAnswer = {
   selected: string[];
   customText?: string;
@@ -153,16 +153,6 @@ export type FashionClarificationRideAlong = {
   quick_options: Array<string | FashionClarificationOption>;
   allow_multiple?: boolean;
   allow_other?: boolean;
-};
-
-/** @deprecated Use FashionClarificationQuestion — kept for apply-path aliases. */
-export type FashionIntakeQuestionField = FashionClarificationApplyField;
-
-/** @deprecated Use FashionClarificationQuestion. */
-export type FashionIntakeQuestion = {
-  field: FashionIntakeQuestionField;
-  question: string;
-  quick_options?: string[];
 };
 
 export type FashionRouterMove =
@@ -202,21 +192,10 @@ export type MessageFashionRouterMetaV1 = {
    * submits (or sends any follow-up). Survives page refresh.
    */
   status?: "pending" | "answered";
-  /**
-   * question.text → structured answer (or legacy plain string).
-   */
-  answers?: Record<string, FashionClarificationAnswer | string>;
+  /** question.text → structured answer. */
+  answers?: Record<string, FashionClarificationAnswer>;
   /** True when at least one option has previewQuery awaiting hydration. */
   expectsOptionPreviews?: boolean;
-  /** @deprecated Legacy flat clarification chips — prefer questions[]. */
-  missing?: string[];
-  /** @deprecated Legacy flat clarification chips — prefer questions[]. */
-  quick_options?: Array<string | FashionClarificationOption>;
-  /** @deprecated Legacy intake metadata — prefer questions[]. */
-  intake?: {
-    target_person_id: string;
-    questions: FashionIntakeQuestion[];
-  };
   trace_id?: string;
 };
 

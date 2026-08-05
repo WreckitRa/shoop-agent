@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { Bookmark, Clock, Heart, Settings } from "lucide-react";
+import { Bookmark, Clock, Heart, Share2 } from "lucide-react";
 import { useChatStore } from "@/components/chat/chat-store";
 import {
   sidebarBadgeClass,
@@ -15,7 +15,6 @@ import {
 } from "@/lib/client/coming-soon-toasts";
 import type { ToastPayload } from "@/lib/client/toast-store";
 import { useToastStore } from "@/lib/client/toast-store";
-import { useShowSettingsBadge } from "@/hooks/useUserIdentity";
 
 function MenuBadge({ count }: { count: number }) {
   return <span className={sidebarBadgeClass}>{count}</span>;
@@ -69,13 +68,16 @@ function SidebarMenuItem({
 }
 
 export function SidebarMenuSection() {
-  const showSettingsBadge = useShowSettingsBadge();
-
   return (
     <div className="mt-5">
       <p className={sidebarSectionLabelClass}>Menu</p>
       <nav>
         <SidebarMenuItem icon={Heart} label="Moodboard" href="/moodboard" />
+        <SidebarMenuItem
+          icon={Share2}
+          label="Shared cards"
+          href="/asks"
+        />
         <SidebarMenuItem
           icon={Clock}
           label="Orders"
@@ -85,12 +87,6 @@ export function SidebarMenuSection() {
           icon={Bookmark}
           label="My lists"
           comingSoonToast={LISTS_COMING_SOON_TOAST}
-        />
-        <SidebarMenuItem
-          icon={Settings}
-          label="Settings"
-          badge={showSettingsBadge ? 1 : undefined}
-          href="/profile"
         />
       </nav>
     </div>

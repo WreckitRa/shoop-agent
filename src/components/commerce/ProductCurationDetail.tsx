@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Loader2 } from "lucide-react";
-import { formatRetailerCheckDisplay } from "@/lib/ai-chat/curation/pick-insight";
+import { formatRetailerCheckDisplay } from "@/lib/commerce/pick-insight";
 import type { ProductCuration } from "@/components/commerce/use-product-curation";
 import { cn } from "@/lib/ai-chat/cn";
 

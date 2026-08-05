@@ -10,20 +10,10 @@ export type ChatSseHandlers = {
   ) => void;
   onAssistantMessage?: (messageId: string) => void;
   onTextDelta?: (text: string) => void;
-  onProductSearch?: (payload: Record<string, unknown>) => void;
-  /** Out-of-band patch when Opus curator finishes for a prior product_search. */
-  onProductSearchUpdate?: (payload: Record<string, unknown>) => void;
   /** Per-phase search engine progress line ({ searchKey, line }). */
   onNarrationLine?: (payload: Record<string, unknown>) => void;
-  onModeResolved?: (payload: Record<string, unknown>) => void;
-  /** Dev-only pipeline snapshots (requires AGENT_DEBUG=1). */
-  onAgentDebug?: (payload: Record<string, unknown>) => void;
-  /** Structured clarification chips — emitted before stream completes. */
-  onClarification?: (payload: Record<string, unknown>) => void;
   /** Late-hydrated preview collages for clarification options. */
   onOptionPreviews?: (payload: Record<string, unknown>) => void;
-  /** Gift direction picker — emitted before stream completes. */
-  onGiftDirections?: (payload: Record<string, unknown>) => void;
   /** Guest fashion memory delta — client persists to localStorage. */
   onFashionMemoryDelta?: (payload: Record<string, unknown>) => void;
   /** Guest fashion memory full snapshot — client replaces localStorage. */
@@ -112,29 +102,11 @@ export async function consumeChatSseStream(
               handlers.onTextDelta?.(payload.text);
             }
             break;
-          case "product_search":
-            handlers.onProductSearch?.(payload);
-            break;
-          case "product_search_update":
-            handlers.onProductSearchUpdate?.(payload);
-            break;
           case "narration_line":
             handlers.onNarrationLine?.(payload);
             break;
-          case "mode_resolved":
-            handlers.onModeResolved?.(payload);
-            break;
-          case "agent_debug":
-            handlers.onAgentDebug?.(payload);
-            break;
-          case "clarification":
-            handlers.onClarification?.(payload);
-            break;
           case "option_previews":
             handlers.onOptionPreviews?.(payload);
-            break;
-          case "gift_directions":
-            handlers.onGiftDirections?.(payload);
             break;
           case "fashion_memory_delta":
             handlers.onFashionMemoryDelta?.(payload);

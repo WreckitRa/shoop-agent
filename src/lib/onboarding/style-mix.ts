@@ -141,22 +141,3 @@ function capitalizeHeading(raw: string): string {
   if (!cleaned) return "Polished";
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1, 40);
 }
-
-export function formatStyleMixNarration(
-  mix: StyleMix,
-  preferredName?: string | null,
-): { title: string; body: string; locked: string } {
-  const name = preferredName?.trim() || "friend";
-  const axisLine = mix.axes
-    .map((a) => `${a.percent}% ${a.label}`)
-    .join(", ");
-  const heading =
-    mix.headingToward && mix.headingPercent
-      ? ` and you're heading somewhere ${mix.headingPercent}% more ${mix.headingToward}`
-      : "";
-  return {
-    title: `Meet your Shooping Cart, ${name}.`,
-    body: `Today you're ${axisLine}${heading}. Noted.\n\nI'll dress who you are, nudge you toward who you're becoming, and tell you the truth the whole way.`,
-    locked: "The better we know you, the better you look.",
-  };
-}

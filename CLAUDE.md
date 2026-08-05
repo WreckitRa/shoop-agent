@@ -1,86 +1,105 @@
-# Shoop pipeline rules (search + curation)
+# Shoop fashion pipeline rules
 
-Corrections from production traces become **regression tests** in `src/lib/ai-chat/search/fixtures/` and rules here.
+Fashion memory is the only chat path (`run-fashion-chat-stream.ts`). Corrections from
+production traces become **regression tests** in `src/lib/fashion-memory/fixtures/`
+and rules here.
+
+## Turn flow
+
+1. **Router** (`fashion-memory/router/*`, `llm-router.ts`) — one forced-tool LLM call per
+   turn: `respond_off_topic`, `ask_clarification`, or `ready_to_search` (→ `FashionSearchBrief`).
+   `intake/identity-gate.ts` resolves recipient/person before the LLM call; `intake/post-router.ts`
+   applies dedup, dodge-counting, and declined-gap tracking.
+2. **Search planner** (`fashion-memory/search-planner/*`) — turns a validated brief into
+   per-slot retrieval queries (`plan-from-brief.ts`, `query-builder.ts`, `deterministic-builder.ts`
+   fallback when the LLM planner fails).
+3. **Catalog search** (`fashion-memory/catalog-search/*`) — fans the plan out to the UCP
+   catalog per slot; no scoring/normalization at this stage.
+4. **Hard drops** (`fashion-memory/hard-drops/*`) — deterministic survivor gate
+   (`applyHardDropsForSlots` → `applyHardDrops`) for department/category/item-type/size
+   mismatches. Never scoring — a drop here means the product cannot be shown at all.
+5. **Scoring** (`fashion-memory/scoring/*`) — `scoreSlotProducts` ranks survivors
+   (`components.ts`, `attire-conflict.ts`, `palette-match.ts`, `weights.ts`).
+6. **Curation** (`fashion-memory/curation/*`) — `run-curation.ts` calls the curator LLM
+   (`build-input.ts`, `prompt.ts`, `tool-schema.ts`) with deterministic fallback
+   (`fallback.ts`) and voice fill (`voice.ts`); output validated (`validate.ts`) and
+   rendered (`presentation.ts`, `build-render-contract.ts`).
+7. **Try-on render** — `buildRenderContractWithTryon` (`lib/tryon/attach-render.ts`)
+   attaches avatar-fit imagery to the curation contract before it reaches the client.
 
 ## P0 — Trust / correctness
 
-### Constraint gate (`constraint-gate.ts`)
-- After scoring, before verify: drop color/gender violators.
-- Before tier judge: same gate — judge never sees violators.
-- After tier judge: auto-drop placements that violate must-have constraints.
-- **Rule:** Must-have color/gender violation = auto-drop, never tier-2 demotion.
+### Hard drops are final (`hard-drops/apply-hard-drops.ts`, `orchestrator.ts`)
+- Department/category/item-type/size mismatches are dropped before scoring ever runs.
+- **Rule:** a hard-drop violator never reaches curation, even as a tier-2 demotion.
+- Excessive-drop and price-bound "junk fill" ratios are tripwires
+  (`EXCESSIVE_DROP_RATIO`, `JUNK_FILL_RATIO`) logged via `recordPipelineEvent` /
+  `logAiChat("warn", ...)` — investigate before trusting a slot's survivors.
 
-### Size availability (`verify.ts`)
-- When `brief.variantConstraints.size` is set, only `exactMatch === true` survives verify.
+### Brief invariants (`observability/invariants.ts`)
+- `coerceBriefRequestTypeForOutfitLanguage` upgrades single/multi-item briefs to
+  `outfit` when the user said "outfit"/"look"/"head to toe".
+- `checkBriefInvariants` fires `invariant_warning` pipeline events for
+  accessories-coercion, unknown garment families, and occasion language dropped
+  from the brief — these surface on `/flagged`.
 
-### Narrator (`engine.ts` → `buildEngineToolResultPayload`)
-- Chat model receives only `placements` + `allowed_product_ids`.
-- `ruled_out` merges scoring-gate drops, pre/post-judge drops, and judge omissions.
-- **Rule:** Narrator must not mention product ids outside `allowed_product_ids`.
+### Identity gate (`intake/identity-gate.ts`, `people.ts`)
+- Recipient resolution (existing roster person vs. `"new"`) happens in code before
+  the router LLM call registers stated facts — never trust the LLM to invent a
+  `recipient_person_id`.
 
-### checkedItems (`pick-insight.ts`)
-- Only list checks deterministic code ran (`buildHonestCheckedItems`).
-
-### Portfolio gender (`query-hygiene.ts`)
-- Self-shopping: every wave gets gender prefix via `ensureGenderPrefixInQuery`.
-- Discovery waves: `anchorMustHavesInQuery` — relax nice-to-haves, never must-haves.
+### Narration contract (`curation/presentation.ts`, `build-render-contract.ts`)
+- The client only ever receives `fashionCatalogSearch` / `fashionRouter` metadata —
+  never raw pre-hard-drop or pre-score pools.
+- `ruled_out` / `dropped` on each slot carries hard-drop + suspicion reasons for
+  the debug panel, never product ids outside the slot's survivor pool.
 
 ## P1 — Quality
 
-### Brief provenance (`brief-provenance.ts`, `archetype.ts`)
-- Tag fields: `user_stated` | `persona_inferred` | `profile_default`.
-- Downstream uses `brief.provenance` to weight and explain honestly.
+### Budget (`fashion-memory/budget/*`)
+- `budgetAllocation.ts` resolves per-slot caps (`padded_max`, `guardMaxMajor`)
+  from the brief's `budget_context`; `budget-raise-ask.ts` handles mid-thread
+  budget-raise clarifications.
+- Currency conversion goes through `prefetchFxRates` before hard drops filter on price.
 
-### Occasion disambiguation (`brief-occasion.ts`, `brief-enrichment.ts`)
-- Resolve ambiguous "work/office" against `workEnvironment` + `lifestyleTags`.
-- Record resolution in `brief.provenance.occasionResolution`.
+### Scoring components (`scoring/components.ts`, `weights.ts`)
+- `scoreProduct` blends shopify rank, palette match, attire-conflict penalties, and
+  price-outlier suspicion into a single `final` score used for stable ranking
+  (`stableSortProducts`, ties broken by original index).
 
-### Constraint scoring (`scoring.ts`)
-- `constraintFitPenalty` reduces fit score; must-haves weighted 70% vs nice-to-haves 30% in `attributeFit`.
+### Curation degradation (`curation/degradation.ts`, `fallback.ts`)
+- When the curator LLM fails or times out (`CURATION_HARD_MS`,
+  `CURATION_SHRINK_RETRY_MS`), `buildDeterministicFallback` + `validateAndRepairFallback`
+  keep the rack honest instead of hallucinating picks.
 
-### Funnel sizing (`constants.ts`, `engine.ts`)
-- Verify target: 15–20 (`displayLimit + 6`, cap 20).
-- `TIER_JUDGE_CANDIDATE_LIMIT` default 18 (env `TIER_JUDGE_CANDIDATE_LIMIT`).
+### Clarification hygiene (`intake/clarification-dedup.ts`, `intake/dodge-counter.ts`)
+- `checkReaskAfterAnswer` blocks re-asking something the user already answered.
+- Gaps declined twice (`isGapDeclined`) stop blocking search — proceed with
+  `knowledge_state` marked unconfirmed rather than looping the user.
 
-### Judge rating confidence (`rating-confidence.ts`)
-- Clamp LLM `confidence` using Bayesian review-count literacy.
-
-### Expertise retrieval (`expertise-corpus.ts`, `prompt-assembler.ts`)
-- Category-keyed precedents in tier judge prompt; wire `contextTag` from engine → `assignSlots` → `runTierJudge`.
-
-### Judge ruled-out (`tier-judge.ts`, `slotting.ts`)
-- Track judge omissions as `gate: judge_omission` in `ruled_out`.
-
-### Memory hygiene (`memory-hygiene.ts`, `context.ts`)
-- Dedupe canonical memories, expire stale intents, filter empty recipients.
-- Scope priority: session > category > global.
+### Memory extraction (`fashion-memory/extraction/*`, `onboarding/memory-extract/*`)
+- Onboarding profile → fashion memory via `seed-fashion-memory.ts` (Prisma profile
+  projection).
+- Turn-level extraction runs through `extraction/gate.ts` (cost gate — short acks
+  only extract when the preceding assistant message was soliciting) and
+  `extraction/spawn.ts` (detached, never blocks the SSE stream).
 
 ## P2 — Observability
 
-### Per-stage latency (`engine.ts`)
-- `stageMs`: portfolio, pool, score, verify, slot, total — logged and in audit summary.
+### Pipeline trace (`observability/trace.ts`, `pipeline-event-payloads.ts`)
+- Every stage (router, planner, catalog-search, hard-drops, scoring, curation)
+  emits `recordPipelineEvent` rows keyed by `traceId`; compact/truncated copies
+  land on `MessageMetadata.fashionPipelineEvents` for the debug panel.
 
-### Gate metrics (`pipeline-metrics.ts`)
-- `gateMetrics`: constraintGate, verify counts, gift/shipping drops, judge drops — in logs + audit.
-
-## Verdict-first narration (`narrator-contract.ts`)
-
-- Tool result includes `narration_contract`, `curation_stats`, `expertise_principles`, `hero_product_id`.
-- Lead with premise-check + **Buy**/**Wait** verdict referencing the buyer — not spec recitation.
-- State kill count from `curation_stats` + `rejection_summary` (deterministic ruled-outs).
-- **Never** end with a closing narrowing question — decide from profile, escape hatch after.
-
-## Anchor brands (`brand-anchors.ts`)
-
-- Scoring bonus for recognizable anchors; anchor portfolio query; hero slot prefers anchor when tier-equivalent.
-- Rack shape: 1–2 anchor brands + room for a gem.
-
-## Expertise corpus (`expertise-corpus.ts`)
-
-- 30+ Flusser-grade principles across fashion, footwear, tech, beauty, home, gifts.
-- Wired to tier judge AND narrator via `getExpertisePrinciplesForNarrator`.
+### Prompt cache + latency (`observability/prompt-cache-metrics.ts`, `curation/latency-metrics.ts`)
+- Track prompt-cache hit rate and curator LLM call latency; curation has hard/soft
+  time cutoffs (`pipeline-cutoffs.ts`) that trigger the deterministic fallback path.
 
 ## Regression discipline
 
-- Fixture: `src/lib/ai-chat/search/fixtures/blazer-trace-fixture.ts`
+- Fixtures: `src/lib/fashion-memory/fixtures/*.test.ts` (accessories, department
+  enforcement, joe-incident, person-identity, pre-search-v2, voice-stage-b, etc.) —
+  each encodes a specific production trace correction.
+- E2E golden traces: `e2e/e2e.test.ts` (`npm run test:e2e`, update goldens with
+  `npm run test:e2e:golden`).
 - Run: `npm test`

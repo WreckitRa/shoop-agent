@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { computeStyleMix, formatStyleMixNarration } from "./style-mix";
+import { computeStyleMix } from "./style-mix";
 
 describe("computeStyleMix", () => {
   it("weights worn picks more than aspirational", () => {
@@ -38,25 +38,5 @@ describe("computeStyleMix", () => {
       mix.axes.map((a) => a.label).sort(),
       ["Classic", "Minimal", "Parisian"].sort(),
     );
-  });
-});
-
-describe("formatStyleMixNarration", () => {
-  it("includes the shopper name", () => {
-    const copy = formatStyleMixNarration(
-      {
-        axes: [
-          { label: "Parisian", percent: 50 },
-          { label: "Minimal", percent: 30 },
-          { label: "Romantic", percent: 20 },
-        ],
-        headingToward: "Polished",
-        headingPercent: 25,
-      },
-      "Dania",
-    );
-    assert.match(copy.title, /Dania/);
-    assert.match(copy.body, /50% Parisian/);
-    assert.match(copy.locked, /better we know you/i);
   });
 });

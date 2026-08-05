@@ -58,6 +58,10 @@ type TryOnDrawerState = {
   /** Look id when a curated look preview job is running. */
   previewLookId: string | null;
   previewLookTitle: string | null;
+  /** Ask-your-friends share token for the current try-on generation (if shared). */
+  askShareToken: string | null;
+  /** Owner's No / Meh / Almost / Love strip vote for the current look. */
+  ownerVerdict: "no" | "meh" | "almost" | "love" | null;
 
   openFittingRoom: () => void;
   addToFittingRoom: (item: FittingRoomItem) => AddToFittingRoomResult;
@@ -87,6 +91,14 @@ type TryOnDrawerState = {
   openAvatarViewer: () => Promise<void>;
   close: () => void;
   sendFeedback: (rating: 1 | -1, generationId?: string) => void;
+  setAskShareToken: (token: string | null) => void;
+  /**
+   * Persist the owner's strip vote locally and upsert onto the Ask share when
+   * one exists for this try-on.
+   */
+  setOwnerVerdict: (choice: "no" | "meh" | "almost" | "love") => void;
+  /** Load share + existing owner vote for a completed try-on job. */
+  hydrateAskShareForJob: (generationId: string | null) => void;
 
   isInRack: (id: string) => boolean;
   isActive: (id: string) => boolean;
@@ -347,6 +359,8 @@ async function startActiveOutfitRender(generation: number) {
     variants: [],
     lookSteps: [],
     partialNote: null,
+    askShareToken: null,
+    ownerVerdict: null,
   });
 
   try {
@@ -418,6 +432,8 @@ async function startLookTryonJob(
     partialNote: null,
     previewLookId: params.lookId,
     previewLookTitle: params.title,
+    askShareToken: null,
+    ownerVerdict: null,
   });
 
   try {
@@ -508,6 +524,8 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   renderGeneration: 0,
   previewLookId: null,
   previewLookTitle: null,
+  askShareToken: null,
+  ownerVerdict: null,
 
   openFittingRoom: () => {
     syncChromeForTryOnDrawer(true);
@@ -923,6 +941,53 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ generation_id: id, rating }),
     });
+  },
+
+  setAskShareToken: (token) => {
+    set({ askShareToken: token });
+  },
+
+  setOwnerVerdict: (choice) => {
+    set({ ownerVerdict: choice });
+    const token = get().askShareToken;
+    if (!token) return;
+    void fetch(`/api/ask/${token}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        choice,
+        displayName: "You",
+        voterKey: "owner-pending",
+      }),
+    }).catch(() => undefined);
+  },
+
+  hydrateAskShareForJob: (generationId) => {
+    if (!generationId) {
+      set({ askShareToken: null, ownerVerdict: null });
+      return;
+    }
+    void fetch(
+      `/api/ask/mine?generationId=${encodeURIComponent(generationId)}`,
+      { cache: "no-store" },
+    )
+      .then(async (res) => {
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          share?: {
+            token: string;
+            ownerVote: "no" | "meh" | "almost" | "love" | null;
+          } | null;
+        };
+        // Only apply if we're still on the same job.
+        if (get().jobId !== generationId) return;
+        if (!body.share) return;
+        set({
+          askShareToken: body.share.token,
+          ownerVerdict: body.share.ownerVote ?? get().ownerVerdict,
+        });
+      })
+      .catch(() => undefined);
   },
 
   isInRack: (id) => get().rackIds.includes(id),

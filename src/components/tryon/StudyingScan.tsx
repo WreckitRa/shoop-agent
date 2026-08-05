@@ -188,6 +188,8 @@ export function StudyingScan({
           ? imageUrl
           : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 
+      const ownerVote = useTryOnDrawerStore.getState().ownerVerdict;
+
       const res = await guestFetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -197,20 +199,26 @@ export function StudyingScan({
           verdict,
           generationId: jobId,
           conversationId,
+          ownerVote,
         }),
       });
       const body = (await res.json().catch(() => null)) as {
         error?: string;
         url?: string;
         askPath?: string;
+        token?: string;
       } | null;
       if (!res.ok || !body?.url) {
         throw new Error(body?.error ?? "Couldn't create the share link.");
       }
 
+      if (body.token) {
+        useTryOnDrawerStore.getState().setAskShareToken(body.token);
+      }
+
       try {
         await navigator.clipboard.writeText(body.url);
-        setShareHint("Link copied — send it to the girls");
+        setShareHint("Link copied — send it to your friends");
       } catch {
         setShareHint(body.url);
       }
@@ -368,7 +376,7 @@ export function StudyingScan({
                 disabled={shareBusy}
                 onClick={() => void shareAskTheGirls()}
               >
-                {shareBusy ? "Making the card…" : "Ask the girls →"}
+                {shareBusy ? "Making the card…" : "Ask your friends →"}
               </button>
               {shareHint ? (
                 <p className="text-center text-[10px] font-semibold text-[var(--fitting-quiet)]">

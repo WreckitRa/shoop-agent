@@ -1,4 +1,4 @@
-/** Client helpers for Ask the Girls voter identity + display name. */
+/** Client helpers for Ask-your-friends voter identity + display name. */
 
 const VOTER_KEY = "shoop_ask_voter_id";
 const NAME_KEY = "shoop_ask_display_name";

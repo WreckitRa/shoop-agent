@@ -7,17 +7,8 @@ import {
   mergeOptionPreviewsIntoFashionRouter,
 } from "@/lib/fashion-memory/router/clarification-defaults";
 import { prisma } from "@/lib/ai-chat/db";
-import { logOptionPreview } from "@/lib/ai-chat/option-preview-log";
 import { runOptionPreviews } from "@/lib/ai-chat/schedule-option-previews";
-import {
-  collectPreviewRequests,
-  mergeOptionPreviewsIntoClarification,
-} from "@/lib/ai-chat/search-clarification";
-import {
-  collectGiftDirectionPreviewRequests,
-  mergeOptionPreviewsIntoGiftDirections,
-} from "@/lib/ai-chat/search/gift-directions";
-import { loadBuyerCatalogContext } from "@/lib/ai-chat/shopping-memory/search-hints";
+import { loadBuyerCatalogContext } from "@/lib/ai-chat/buyer-catalog/search-hints";
 import {
   clearOptionPreviewExpectations,
   messageExpectsOptionPreviews,
@@ -65,17 +56,9 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
         });
       }),
     );
-    logOptionPreview("rehydrate_skip_no_shipping_country", {
-      conversationId: params.conversationId,
-      messageCount: stale.length,
-    });
     return;
   }
 
-  logOptionPreview("rehydrate_start", {
-    conversationId: params.conversationId,
-    messageCount: stale.length,
-  });
 
   const buyerPromise = loadBuyerCatalogContext(
     params.userId,
@@ -86,13 +69,9 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
   await Promise.allSettled(
     stale.map(async (row) => {
       const meta = row.metadata as MessageMetadata;
-      const options = meta.clarification
-        ? collectPreviewRequests(meta.clarification)
-        : meta.giftDirections
-          ? collectGiftDirectionPreviewRequests(meta.giftDirections)
-          : meta.fashionRouter
-            ? collectFashionPreviewRequests(meta.fashionRouter)
-            : [];
+      const options = meta.fashionRouter
+        ? collectFashionPreviewRequests(meta.fashionRouter)
+        : [];
 
       if (!options.length) return;
 
@@ -104,20 +83,6 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
         fallbackShippingCountry: params.shippingCountry,
         push: () => {},
         applyPreviews: (previewMap) => {
-          if (meta.clarification) {
-            const merged = mergeOptionPreviewsIntoClarification(
-              meta.clarification,
-              previewMap,
-            );
-            return { clarification: merged };
-          }
-          if (meta.giftDirections) {
-            const merged = mergeOptionPreviewsIntoGiftDirections(
-              meta.giftDirections,
-              previewMap,
-            );
-            return { giftDirections: merged };
-          }
           if (meta.fashionRouter) {
             const merged = mergeOptionPreviewsIntoFashionRouter(
               meta.fashionRouter,
@@ -131,8 +96,4 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
     }),
   );
 
-  logOptionPreview("rehydrate_done", {
-    conversationId: params.conversationId,
-    messageCount: stale.length,
-  });
 }

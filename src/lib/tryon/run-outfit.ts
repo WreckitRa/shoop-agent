@@ -24,7 +24,6 @@ import {
 } from "./providers";
 import { resolvePickFromSearch } from "./run-single";
 import { persistProviderImage } from "./storage";
-import { logTryonDress } from "./dress-log";
 import { TRYON_DISCLAIMER } from "./types";
 import type {
   GarmentType,
@@ -232,11 +231,6 @@ export async function startOutfitTryon(params: {
     (it) => !chain.some((c) => c.ref === it.ref),
   );
   if (dropped.length) {
-    logTryonDress("warn", "outfit_chain_dropped_unsupported", {
-      look_id: params.lookId,
-      dropped: dropped.map((d) => ({ ref: d.ref, garment: d.garment })),
-      kept: chain.map((c) => ({ ref: c.ref, garment: c.garment, type: c.type })),
-    });
   }
 
   const cacheKey = chain.map((c) => c.ref).join("|");
@@ -265,16 +259,6 @@ export async function startOutfitTryon(params: {
     });
     if (cached) {
       const variants = variantsFromOutfitChildren(cached.children);
-      logTryonDress("info", "outfit_compare_cache_hit", {
-        parent_job_id: cached.parent.id,
-        look_id: params.lookId,
-        search_id: params.searchId,
-        providers: variants.map((v) => ({
-          key: v.provider_key,
-          status: v.status,
-          ms: v.ms,
-        })),
-      });
       return {
         jobId: cached.parent.id,
         compare: true,
@@ -300,14 +284,6 @@ export async function startOutfitTryon(params: {
       skipCapCheck: true,
     });
 
-    logTryonDress("info", "outfit_compare_started", {
-      parent_job_id: parent.id,
-      look_id: params.lookId,
-      search_id: params.searchId,
-      avatar_version: avatar.version,
-      providers: providerKeys,
-      garment_count: chain.length,
-    });
 
     void processCompareOutfitJob({
       compareParentId: parent.id,
@@ -329,12 +305,6 @@ export async function startOutfitTryon(params: {
     userId: params.userId,
   });
   if (cached?.outputUrl) {
-    logTryonDress("info", "outfit_cache_hit", {
-      job_id: cached.id,
-      look_id: params.lookId,
-      provider: cached.provider,
-      ms: cached.ms,
-    });
     return { jobId: cached.id, disclaimer: TRYON_DISCLAIMER };
   }
 
@@ -360,14 +330,6 @@ export async function startOutfitTryon(params: {
     steps: buildOutfitProgressSteps(chain, items),
   });
 
-  logTryonDress("info", "outfit_started", {
-    job_id: parent.id,
-    look_id: params.lookId,
-    search_id: params.searchId,
-    provider_key: providerKey,
-    provider: provider.name,
-    garment_count: chain.length,
-  });
 
   void processOutfitChain({
     parentJobId: parent.id,
@@ -386,11 +348,6 @@ async function processCompareOutfitJob(
 ): Promise<void> {
   await updateGeneration(params.compareParentId, { status: "processing" });
 
-  logTryonDress("info", "outfit_compare_processing", {
-    parent_job_id: params.compareParentId,
-    look_id: params.lookId,
-    providers: params.providerKeys,
-  });
 
   await Promise.all(
     params.providerKeys.map(async (providerKey) => {
@@ -437,20 +394,6 @@ async function processCompareOutfitJob(
     ms: parentMs,
   });
 
-  logTryonDress(anySuccess ? "info" : "error", "outfit_compare_finished", {
-    parent_job_id: params.compareParentId,
-    look_id: params.lookId,
-    status: anySuccess ? "completed" : "failed",
-    ms: parentMs,
-    providers: children.map((c) => ({
-      key: (c.inputRefs.provider_key as DressProviderKey | undefined) ?? "unknown",
-      provider: c.provider,
-      job_id: c.id,
-      status: c.status,
-      ms: c.ms,
-      error: c.error ? String(c.error).slice(0, 120) : undefined,
-    })),
-  });
 }
 
 async function processOutfitChain(
@@ -481,14 +424,6 @@ async function processOutfitChain(
     title: string;
   }>;
 
-  logTryonDress("info", "outfit_chain_processing", {
-    job_id: params.parentJobId,
-    look_id: params.lookId,
-    provider_key: params.providerKey,
-    provider: provider.name,
-    step_count: params.chain.length,
-    dressable_count: dressable.length,
-  });
 
   // FASHN: one product image per call — collage all pieces into a single
   // product_image / garment_image (docs: "include multiple products in the same image").
@@ -501,10 +436,6 @@ async function processOutfitChain(
       totalStarted,
     });
     if (collageOk) return;
-    logTryonDress("warn", "outfit_collage_fallback_to_chain", {
-      job_id: params.parentJobId,
-      look_id: params.lookId,
-    });
   }
 
   await processOutfitSequentialChain({
@@ -591,14 +522,6 @@ async function processOutfitCollage(
         : undefined;
     }
 
-    logTryonDress("info", "outfit_collage_processing", {
-      job_id: stepGen.id,
-      parent_job_id: parentJobId,
-      provider_key: params.providerKey,
-      piece_count: dressable.length,
-      collage_w: collage.width,
-      collage_h: collage.height,
-    });
 
     const result = await provider.dress({
       avatarUrl: params.avatarUrl,
@@ -644,14 +567,6 @@ async function processOutfitCollage(
       costEstimate: dressCostEstimateForProvider(provider.name),
     });
 
-    logTryonDress("info", "outfit_collage_completed", {
-      job_id: parentJobId,
-      step_job_id: stepGen.id,
-      provider_key: params.providerKey,
-      look_id: params.lookId,
-      ms: totalMs,
-      piece_count: dressable.length,
-    });
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -659,11 +574,6 @@ async function processOutfitCollage(
       status: "failed",
       error: message,
       ms: Date.now() - started,
-    });
-    logTryonDress("error", "outfit_collage_failed", {
-      job_id: stepGen.id,
-      parent_job_id: parentJobId,
-      error: message.slice(0, 300),
     });
     for (const row of progress?.steps ?? []) {
       row.status = "pending";
@@ -694,11 +604,6 @@ async function processOutfitSequentialChain(
   for (let i = 0; i < params.chain.length; i++) {
     const step = params.chain[i];
     if (step.accessory) {
-      logTryonDress("info", "outfit_step_skip_accessory_sequential", {
-        parent_job_id: params.parentJobId,
-        ref: step.ref,
-        garment: step.garment,
-      });
       if (progress?.steps[i]) {
         progress.steps[i].status = "completed";
         progress.steps[i].note = "Included in full-look collage when available.";
@@ -708,12 +613,6 @@ async function processOutfitSequentialChain(
     const item = params.items.find((it) => it.ref === step.ref);
     const garmentImageUrl = item?.imageUrl;
     if (!garmentImageUrl) {
-      logTryonDress("warn", "outfit_step_skipped_no_image", {
-        parent_job_id: params.parentJobId,
-        ref: step.ref,
-        garment: step.garment,
-        step_index: i,
-      });
       if (progress?.steps[i]) {
         progress.steps[i].status = "failed";
       }
@@ -773,14 +672,6 @@ async function processOutfitSequentialChain(
         avatarBytes = undefined;
       }
 
-      logTryonDress("info", "outfit_step_processing", {
-        job_id: stepGen.id,
-        parent_job_id: params.parentJobId,
-        provider_key: params.providerKey,
-        ref: step.ref,
-        step_index: i,
-        step_total: params.chain.length,
-      });
 
       const result = await provider.dress({
         avatarUrl: currentModelUrl,
@@ -819,14 +710,6 @@ async function processOutfitSequentialChain(
         progress.steps[i].status = "completed";
         progress.steps[i].image_url = persisted.signedUrl;
       }
-      logTryonDress("info", "outfit_step_completed", {
-        job_id: stepGen.id,
-        parent_job_id: params.parentJobId,
-        provider_key: params.providerKey,
-        ref: step.ref,
-        step_index: i,
-        ms,
-      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const ms = Date.now() - started;
@@ -840,15 +723,6 @@ async function processOutfitSequentialChain(
         progress.steps[i].note = `Couldn't add the ${step.garment}.`;
       }
       partialNote = `Couldn't add the ${step.garment} — here's how far we got.`;
-      logTryonDress("error", "outfit_step_failed", {
-        job_id: stepGen.id,
-        parent_job_id: params.parentJobId,
-        provider_key: params.providerKey,
-        ref: step.ref,
-        step_index: i,
-        ms,
-        error: message.slice(0, 300),
-      });
       break;
     }
   }
@@ -865,23 +739,10 @@ async function processOutfitSequentialChain(
       error: partialNote,
     });
     if (progress) progress.partial_note = partialNote;
-    logTryonDress("info", "outfit_chain_completed", {
-      job_id: params.parentJobId,
-      provider_key: params.providerKey,
-      look_id: params.lookId,
-      ms: totalMs,
-      partial: Boolean(partialNote),
-    });
   } else {
     await updateGeneration(params.parentJobId, {
       status: "failed",
       error: "Couldn't dress this look — try another combination.",
-      ms: totalMs,
-    });
-    logTryonDress("error", "outfit_chain_failed", {
-      job_id: params.parentJobId,
-      provider_key: params.providerKey,
-      look_id: params.lookId,
       ms: totalMs,
     });
   }
@@ -1041,19 +902,6 @@ export async function pollOutfitTryon(params: {
     const status = aggregateCompareStatus(variants);
     const final_image_url = firstCompletedImage(variants);
 
-    logTryonDress("info", "outfit_poll_status", {
-      job_id: params.jobId,
-      mode: "compare",
-      status,
-      look_id: row.lookId,
-      providers: variants.map((v) => ({
-        key: v.provider_key,
-        status: v.status,
-        ms: v.ms,
-        has_image: Boolean(v.image_url),
-        error: v.error,
-      })),
-    });
 
     return {
       status,
@@ -1072,15 +920,6 @@ export async function pollOutfitTryon(params: {
 
   const progress = outfitProgress.get(params.jobId);
 
-  logTryonDress("info", "outfit_poll_status", {
-    job_id: params.jobId,
-    mode: "single",
-    status: row.status,
-    look_id: row.lookId,
-    provider: row.provider,
-    ms: row.ms,
-    error: row.error ? String(row.error).slice(0, 120) : undefined,
-  });
 
   return {
     status: row.status,
@@ -1099,9 +938,6 @@ function formatOutfitFailureMessage(stored: string | null | undefined): string {
   const msg = stored.trim();
   if (/timed out|aborted/i.test(msg)) {
     return "This look is taking too long — try again in a moment.";
-  }
-  if (process.env.NODE_ENV === "development" || process.env.AGENT_DEBUG === "1") {
-    return msg.length > 240 ? `${msg.slice(0, 240)}…` : msg;
   }
   return "Couldn't dress this look — try another combination.";
 }

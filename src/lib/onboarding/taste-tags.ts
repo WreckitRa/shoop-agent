@@ -18,19 +18,3 @@ export function tagsFromFreeText(text: string | undefined, max = 16): string[] {
   const single = normalizeTasteTag(text);
   return single ? [single] : [];
 }
-
-export function tasteTagsForPatch(
-  styleLikes: string,
-  styleAvoids: string,
-): Array<{ tag: string; polarity: "positive" | "negative" }> {
-  return [
-    ...tagsFromFreeText(styleLikes).map((tag) => ({
-      tag,
-      polarity: "positive" as const,
-    })),
-    ...tagsFromFreeText(styleAvoids).map((tag) => ({
-      tag,
-      polarity: "negative" as const,
-    })),
-  ];
-}

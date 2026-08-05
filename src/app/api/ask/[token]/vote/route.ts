@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
-import { prisma } from "@/lib/ai-chat/db";
 import { loadShareByToken } from "@/lib/ask/create-share";
+import { upsertOwnerAskVote } from "@/lib/ask/owner-vote";
 import { buildLookAskPublic } from "@/lib/ask/public-payload";
 import { ASK_VOTE_CHOICES } from "@/lib/ask/types";
+import { prisma } from "@/lib/ai-chat/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,31 @@ export async function POST(req: Request, ctx: Ctx) {
   // Prefer stable auth-based key when signed in / guest-sessioned.
   const voterKey =
     viewerUserId ? `user:${viewerUserId}` : parsed.data.voterKey;
+
+  const isOwner = Boolean(viewerUserId) && viewerUserId === share.ownerUserId;
+
+  // Owner strip vote — create or change freely; display name is the asker.
+  if (isOwner && viewerUserId) {
+    await upsertOwnerAskVote({
+      shareId: share.id,
+      ownerUserId: viewerUserId,
+      askerName: share.askerName,
+      choice: parsed.data.choice,
+    });
+
+    const fresh = await loadShareByToken(token);
+    if (!fresh) {
+      return Response.json({ error: "Not found." }, { status: 404 });
+    }
+    return Response.json({
+      ok: true,
+      share: buildLookAskPublic({
+        share: fresh,
+        viewerUserId,
+        viewerVoterKey: voterKey,
+      }),
+    });
+  }
 
   const existing = await prisma.lookAskVote.findUnique({
     where: {

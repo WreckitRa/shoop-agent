@@ -60,10 +60,6 @@ export async function countGapAsksSinceReset(params: {
           count += 1;
         }
       }
-      // Legacy flat missing[]
-      if (!questions.length && router.missing?.includes(params.gap)) {
-        count += 1;
-      }
     }
   }
   return count;

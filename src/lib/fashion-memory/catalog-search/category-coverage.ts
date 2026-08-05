@@ -1,5 +1,5 @@
 import type { CatalogProductSummary } from "@/lib/shopify/catalog";
-import { readProductCategories } from "@/lib/ai-chat/search/shopifyTaxonomyMap";
+import { readProductCategories } from "@/lib/shopify/shopifyTaxonomyMap";
 import type { FashionSlotCatalogProduct } from "./types";
 
 export type CategoryHedgeCoverage = {

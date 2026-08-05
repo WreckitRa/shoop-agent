@@ -3,11 +3,9 @@ import {
   departmentFromRelation,
   type PersonDepartment,
 } from "../department";
-import { optionLabels } from "../router/clarification-defaults";
 import { safeTrim } from "../safe-trim";
 import type {
   FashionClarificationQuestion,
-  FashionIntakeQuestion,
   FashionSearchBrief,
   FashionStatedFacts,
 } from "../router/types";
@@ -17,19 +15,12 @@ import {
   intakeFieldForBucket,
   isAmbiguousDepartmentGarment,
   sizeBucketsForGarments,
-  type IntakeSizeField,
   type SizeGarmentBucket,
 } from "./garment-size-fields";
 import type { IntakeProfileHints } from "./account-profile-bridge";
 
-/** @deprecated Prefer PersonDepartment — same value set. */
+/** Intake vocabulary for person department (alias of PersonDepartment). */
 export type GenderPresentation = PersonDepartment;
-
-export type FashionIntakePayload = {
-  reply: string;
-  target_person_id: string;
-  questions: FashionIntakeQuestion[];
-};
 
 export type FashionBlockingClarification = {
   reply: string;
@@ -38,8 +29,6 @@ export type FashionBlockingClarification = {
 };
 
 const MAX_INTAKE_QUESTIONS = 4;
-
-export type FashionIntakeQuestionField = FashionIntakeQuestion["field"];
 
 export function getGenderPresentation(
   facts: FashionFactRow[],
@@ -98,10 +87,6 @@ export function missingSizeBucketsForGarments(
     (bucket) =>
       !hasSizeForBucket(facts, bucket, hints) && !statedBuckets.has(bucket),
   );
-}
-
-export function intakeAlreadyDone(person: PersonRow): boolean {
-  return Boolean(person.intake_completed_at?.trim());
 }
 
 export function garmentsForIntakeGate(brief: FashionSearchBrief): string[] {
@@ -165,27 +150,6 @@ export function needsIntake(params: {
   });
 }
 
-function sizeQuestionForField(
-  field: IntakeSizeField,
-  personLabel?: string,
-): FashionIntakeQuestion {
-  const clar = sizeClarificationForBucket(
-    field === "size_tops"
-      ? "tops"
-      : field === "size_bottoms"
-        ? "bottoms"
-        : field === "size_shoes"
-          ? "shoes"
-          : "dresses",
-    personLabel,
-  );
-  return {
-    field,
-    question: clar.text,
-    quick_options: optionLabels(clar.quick_options),
-  };
-}
-
 function sizeClarificationForBucket(
   bucket: SizeGarmentBucket,
   personLabel?: string,
@@ -233,84 +197,6 @@ function sizeClarificationForBucket(
         quick_options: ["XS", "S", "M", "L", "XL", "Other"],
       };
   }
-}
-
-export function buildIntakeQuestions(params: {
-  brief: FashionSearchBrief;
-  facts: FashionFactRow[];
-  personLabel?: string;
-  person?: Pick<PersonRow, "relation"> | null;
-  profileHints?: IntakeProfileHints | null;
-}): FashionIntakeQuestion[] {
-  const questions: FashionIntakeQuestion[] = [];
-
-  if (
-    missingGenderForIntake({
-      facts: params.facts,
-      brief: params.brief,
-      profileHints: params.profileHints,
-      person: params.person,
-    })
-  ) {
-    const who = params.personLabel?.trim();
-    questions.push({
-      field: "gender_presentation",
-      question:
-        who && who !== "you"
-          ? `Which section should I shop for ${who}?`
-          : "Which section should I shop for you?",
-      quick_options: ["Men's", "Women's", "Mix it", "Other"],
-    });
-  }
-
-  const garments = garmentsForIntakeGate(params.brief);
-  const department =
-    params.brief.department_scope ??
-    getGenderPresentation(params.facts) ??
-    departmentFromRelation(params.person?.relation);
-  const missingBuckets = missingSizeBucketsForGarments(
-    params.facts,
-    garments,
-    params.profileHints,
-    department,
-  );
-  for (const bucket of missingBuckets) {
-    if (questions.length >= MAX_INTAKE_QUESTIONS) break;
-    questions.push(
-      sizeQuestionForField(intakeFieldForBucket(bucket), params.personLabel),
-    );
-  }
-
-  return questions.slice(0, MAX_INTAKE_QUESTIONS);
-}
-
-export function buildIntakePayload(params: {
-  brief: FashionSearchBrief;
-  facts: FashionFactRow[];
-  targetPersonId: string;
-  personLabel?: string;
-  person?: PersonRow;
-  profileHints?: IntakeProfileHints | null;
-}): FashionIntakePayload {
-  const blocking = buildBlockingClarification({
-    brief: params.brief,
-    facts: params.facts,
-    targetPersonId: params.targetPersonId,
-    personLabel: params.personLabel,
-    person: params.person,
-    profileHints: params.profileHints,
-  });
-  return {
-    reply: blocking.reply,
-    target_person_id: blocking.target_person_id,
-    questions: blocking.questions
-      .filter((q) => q.field)
-      .map((q) => ({
-        field: q.field!,
-        question: q.text,
-        quick_options: optionLabels(q.quick_options),
-      })),
-  };
 }
 
 /** Deterministic department + size checklist used as gate fallback templates. */

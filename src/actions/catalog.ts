@@ -1,7 +1,7 @@
 "use server";
 
 import { getAuthContext } from "@/lib/auth/session";
-import { loadBuyerCatalogContext } from "@/lib/ai-chat/shopping-memory/search-hints";
+import { loadBuyerCatalogContext } from "@/lib/ai-chat/buyer-catalog/search-hints";
 import { accessTokenForCatalogMcp } from "@/lib/shopify/catalog-auth";
 import {
   buildCatalogCallContext,

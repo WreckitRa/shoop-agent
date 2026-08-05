@@ -10,19 +10,3 @@ export function getAnthropicApiKey(): string {
   }
   return key;
 }
-
-export function getDatabaseUrl(): string {
-  const url = stripEnv(process.env.DATABASE_URL);
-  if (!url) {
-    throw new Error("DATABASE_URL is not configured");
-  }
-  return url;
-}
-
-/**
- * Voyage AI key for the Fit-scoring embeddings (Stage 3). Optional: when
- * unset, the search engine degrades Fit to deterministic attribute matching.
- */
-export function getVoyageApiKey(): string | undefined {
-  return stripEnv(process.env.VOYAGE_API_KEY);
-}

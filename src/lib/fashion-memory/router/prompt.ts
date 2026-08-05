@@ -300,7 +300,7 @@ GENERAL
 - The current date matters for seasonality and occasions — use it when
   filling occasion_context and style_direction.`;
 
-/** @deprecated Use ROUTER_PROMPT_STATIC + buildFashionRouterContextBlock. */
+/** Full router prompt template (static + context placeholders) — hashed in docs/fashion/prompt-hashes.json. */
 const ROUTER_PROMPT_BODY = `${ROUTER_PROMPT_STATIC}
 
 --- CONTEXT ---

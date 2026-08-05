@@ -9,7 +9,7 @@
 import type { Message } from "@anthropic-ai/sdk/resources/messages/messages";
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { FASHION_CURATION_VOICE_MODEL } from "../models";
-import { stripJsonFence } from "@/lib/ai-chat/shopping-memory/llm-json";
+import { stripJsonFence } from "@/lib/ai-chat/llm-json";
 import { tracedLLMCall } from "../observability/traced-llm-call";
 import {
   CURATION_VOICE_TOOL_NAME,

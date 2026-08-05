@@ -305,6 +305,11 @@ export function TryOnDrawer() {
   const removeFromAvatar = useTryOnDrawerStore((s) => s.removeFromAvatar);
   const sendFeedback = useTryOnDrawerStore((s) => s.sendFeedback);
   const jobId = useTryOnDrawerStore((s) => s.jobId);
+  const verdict = useTryOnDrawerStore((s) => s.ownerVerdict);
+  const setOwnerVerdict = useTryOnDrawerStore((s) => s.setOwnerVerdict);
+  const hydrateAskShareForJob = useTryOnDrawerStore(
+    (s) => s.hydrateAskShareForJob,
+  );
 
   const panelRef = useRef<HTMLDivElement>(null);
   const conversationId = useChatStore((s) => s.activeConversationId);
@@ -313,8 +318,6 @@ export function TryOnDrawer() {
 
   const [dropGlow, setDropGlow] = useState(false);
   const [lastDroppedId, setLastDroppedId] = useState<string | null>(null);
-  const [verdict, setVerdict] = useState<Verdict | null>(null);
-  const [helpRating, setHelpRating] = useState<1 | -1 | null>(null);
   const [heartedIds, setHeartedIds] = useState<Set<string>>(() => new Set());
   const [moodCount, setMoodCount] = useState<number | null>(null);
   const [twinEl, setTwinEl] = useState<HTMLDivElement | null>(null);
@@ -338,8 +341,6 @@ export function TryOnDrawer() {
 
   useEffect(() => {
     if (!open) return;
-    setVerdict(null);
-    setHelpRating(null);
     void guestFetch("/api/tryon/moodboard", { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return;
@@ -348,6 +349,11 @@ export function TryOnDrawer() {
       })
       .catch(() => undefined);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !jobId || status !== "completed") return;
+    hydrateAskShareForJob(jobId);
+  }, [open, jobId, status, hydrateAskShareForJob]);
 
   useEffect(() => {
     if (!open) return;
@@ -425,7 +431,7 @@ export function TryOnDrawer() {
   };
 
   const onVerdict = (next: Verdict) => {
-    setVerdict(next);
+    setOwnerVerdict(next);
     if (next === "love") {
       if (jobId) sendFeedback(1);
       setMoodCount((n) => (typeof n === "number" ? n + 1 : n));
@@ -434,7 +440,7 @@ export function TryOnDrawer() {
 
   const onDecide = () => {
     if (jobId) sendFeedback(1);
-    setVerdict("love");
+    setOwnerVerdict("love");
     close();
     router.push("/moodboard");
   };
@@ -442,13 +448,7 @@ export function TryOnDrawer() {
   if (!open) return null;
 
   return (
-    <div
-      className="shoop-croom-overlay"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-    >
+    <div className="shoop-croom-overlay" role="presentation">
       <div
         ref={panelRef}
         role="dialog"
@@ -678,35 +678,6 @@ export function TryOnDrawer() {
                 {label}
               </button>
             ))}
-          </div>
-
-          <div className="shoop-help-row">
-            <button
-              type="button"
-              className={cn(
-                "shoop-help-chip",
-                helpRating === 1 && "shoop-help-chip--on",
-              )}
-              onClick={() => {
-                setHelpRating(1);
-                sendFeedback(1);
-              }}
-            >
-              👍 Helpful
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "shoop-help-chip",
-                helpRating === -1 && "shoop-help-chip--on",
-              )}
-              onClick={() => {
-                setHelpRating(-1);
-                sendFeedback(-1);
-              }}
-            >
-              👎 Not quite
-            </button>
           </div>
 
           {compare && variants.length > 0 && status !== "failed" ? (

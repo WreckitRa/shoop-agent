@@ -1,5 +1,4 @@
 import { getShoppingAgentProfileUrl } from "@/lib/env";
-import { logCheckoutBuyerIp } from "@/lib/shopify/checkout-buyer-ip-debug";
 import { getMcpEndpoint } from "@/lib/shopify/mcp-endpoint";
 import {
   extractCheckoutFromMcpStructuredContent,
@@ -170,16 +169,6 @@ export async function createCheckout(
       : {}),
   };
   const meta = shoppingMeta();
-
-  const hdrsPreview = ucpBearerAndBuyerIpHeaders(accessToken, buyerIp);
-  logCheckoutBuyerIp("create_checkout → outbound JSON-RPC", {
-    mcpEndpoint,
-    buyerIp,
-    headerKeys: Object.keys(hdrsPreview),
-    storefrontBuyerIpHeaderLen: hdrsPreview["Shopify-Storefront-Buyer-IP"]?.length ?? 0,
-    shopifyBuyerIpHeaderLen: hdrsPreview["Shopify-Buyer-IP"]?.length ?? 0,
-    note: "Trying minimal create_checkout payloads first, then mirrored checkout if merchant requires it.",
-  });
 
   const attempts: Record<string, unknown>[] = [];
   if (options.buyerEmail?.trim()) {

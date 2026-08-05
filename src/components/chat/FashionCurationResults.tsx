@@ -113,12 +113,14 @@ function CuratedPickCard({
   compact = false,
   onOpen,
   selected,
+  hideTryOnOverlay = false,
 }: {
   pick: RenderPick;
   searchId: string;
   compact?: boolean;
   onOpen: () => void;
   selected?: boolean;
+  hideTryOnOverlay?: boolean;
 }) {
   const meta = whyMeta(pick);
   const item = fittingRoomItemFromSearchPick({ pick, searchId });
@@ -136,6 +138,7 @@ function CuratedPickCard({
       fittingItem={item}
       tryonAvailable={pick.tryon?.available}
       tryonCta={pick.tryon?.cta}
+      hideTryOnOverlay={hideTryOnOverlay}
     />
   );
 }
@@ -379,7 +382,13 @@ export const FashionCurationResults = memo(function FashionCurationResults({
   };
 
   const mode = render.meta.mode;
-  const isOutfit = mode === "outfit" && (render.looks?.length ?? 0) > 0;
+  // Prefer composed looks whenever the curator delivered them — even if the
+  // brief was mis-tagged multi_item (outfit language should have coerced).
+  const hasComposedLooks =
+    (render.looks?.length ?? 0) > 0 &&
+    (render.looks?.some((l) => (l.item_refs?.length ?? 0) > 0) ?? false);
+  const isOutfit =
+    hasComposedLooks && (mode === "outfit" || mode === "multi_item");
   const isCapsule =
     mode === "capsule" && (render.capsule_outfits?.length ?? 0) > 0;
 
@@ -436,6 +445,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
                       pick={pick}
                       searchId={searchId}
                       compact
+                      hideTryOnOverlay
                       selected={selectedProductId === pick.id}
                       onOpen={() => openProduct(pick)}
                     />
@@ -503,6 +513,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
                         pick={pick}
                         searchId={searchId}
                         compact
+                        hideTryOnOverlay
                         selected={selectedProductId === pick.id}
                         onOpen={() => openProduct(pick)}
                       />

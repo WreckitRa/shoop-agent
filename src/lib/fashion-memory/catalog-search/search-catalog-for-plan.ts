@@ -695,7 +695,6 @@ export async function searchFashionCatalogPlan(
   let hydration_ms = 0;
   let curation_ms = 0;
   let curation;
-  let curation_debug;
   let pools: Map<string, SlotPool> | undefined;
 
   if (params.accessToken != null && params.profile != null) {
@@ -895,8 +894,6 @@ export async function searchFashionCatalogPlan(
     });
     curation = curationResult.presentation;
     curation_ms = Date.now() - curationStarted;
-    curation_debug = curationResult.debug;
-
     recordPipelineEvent({
       traceId: params.traceId,
       stage: "curation",
@@ -983,7 +980,6 @@ export async function searchFashionCatalogPlan(
     budget_tension,
     curation,
     curation_ms,
-    curation_debug,
   };
 }
 

@@ -20,7 +20,7 @@ export function isShortAckMessage(text: string): boolean {
 export function assistantWasSoliciting(message: FashionGateMessage): boolean {
   if (message.role !== "assistant") return false;
   if (message.content.includes("?")) return true;
-  if (message.metadata?.clarification) return true;
+  if (message.metadata?.fashionRouter?.move === "ask_clarification") return true;
   return false;
 }
 

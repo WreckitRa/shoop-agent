@@ -9,8 +9,11 @@ import {
   ChevronRight,
   Clock,
   Heart,
+  LogIn,
+  LogOut,
   Plus,
   Settings,
+  Share2,
 } from "lucide-react";
 import { isConversationSummaryVisible } from "@/lib/ai-chat/conversation-visibility";
 import { useChatStore } from "@/components/chat/chat-store";
@@ -34,6 +37,8 @@ import { ShoopIcon, ShoopSidebarBrand } from "@/components/brand/ShoopBrand";
 import { isChatRoutePathname, NEW_CHAT_PATH } from "@/lib/shared/chatRoutes";
 import { useShowSettingsBadge } from "@/hooks/useUserIdentity";
 import { useToastStore } from "@/lib/client/toast-store";
+import { openAuthModal, useGuestMode } from "@/hooks/useGuestMode";
+import { prepareClientForSignedOut } from "@/lib/client/identity-sync";
 import { cn } from "@/lib/ai-chat/cn";
 
 export {
@@ -72,9 +77,22 @@ function CollapsedSidebarExpandTrigger() {
 function SidebarCollapsedRail({ onNewShoop }: { onNewShoop: () => void }) {
   const showToast = useToastStore((s) => s.show);
   const showSettingsBadge = useShowSettingsBadge();
+  const { isGuest } = useGuestMode();
+  const [logoutBusy, setLogoutBusy] = useState(false);
+
+  const logout = async () => {
+    setLogoutBusy(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      await prepareClientForSignedOut();
+      window.dispatchEvent(new Event("shoop-auth-changed"));
+    } finally {
+      setLogoutBusy(false);
+    }
+  };
 
   return (
-    <div className="hidden w-full flex-col items-center lg:flex">
+    <div className="flex h-full w-full flex-col items-center">
       <CollapsedSidebarExpandTrigger />
 
       <button
@@ -98,6 +116,15 @@ function SidebarCollapsedRail({ onNewShoop }: { onNewShoop: () => void }) {
         <Heart className={sidebarRailIconClass} strokeWidth={1.75} />
       </Link>
 
+      <Link
+        href="/asks"
+        title="Shared cards"
+        aria-label="Shared cards"
+        className={cn(sidebarRailButtonClass, "my-0.5")}
+      >
+        <Share2 className={sidebarRailIconClass} strokeWidth={1.75} />
+      </Link>
+
       <button
         type="button"
         title="Orders"
@@ -118,15 +145,43 @@ function SidebarCollapsedRail({ onNewShoop }: { onNewShoop: () => void }) {
         <Bookmark className={sidebarRailIconClass} strokeWidth={1.75} />
       </button>
 
-      <Link
-        href="/profile"
-        title="Settings"
-        aria-label="Settings"
-        className={cn(sidebarRailButtonClass, "my-0.5")}
-      >
-        <Settings className={sidebarRailIconClass} strokeWidth={1.75} />
-        {showSettingsBadge ? <RailBadge count={1} /> : null}
-      </Link>
+      <div className="mt-auto flex flex-col items-center gap-0.5 pb-1 pt-3">
+        <Link
+          href="/profile"
+          title="Settings"
+          aria-label="Settings"
+          className={cn(sidebarRailButtonClass, "my-0.5")}
+        >
+          <Settings className={sidebarRailIconClass} strokeWidth={1.75} />
+          {showSettingsBadge ? <RailBadge count={1} /> : null}
+        </Link>
+
+        {isGuest ? (
+          <button
+            type="button"
+            title="Sign in"
+            aria-label="Sign in"
+            onClick={() => openAuthModal("login")}
+            className={cn(sidebarRailButtonClass, "my-0.5")}
+          >
+            <LogIn className={sidebarRailIconClass} strokeWidth={1.75} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            title="Log out"
+            aria-label="Log out"
+            disabled={logoutBusy}
+            onClick={() => void logout()}
+            className={cn(
+              sidebarRailButtonClass,
+              "my-0.5 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50",
+            )}
+          >
+            <LogOut className={sidebarRailIconClass} strokeWidth={1.75} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -186,7 +241,9 @@ export const ChatSidebar = memo(function ChatSidebar() {
         )}
       >
         {sidebarCollapsed ? (
-          <SidebarCollapsedRail onNewShoop={handleNewShoop} />
+          <div className="hidden min-h-0 flex-1 flex-col lg:flex">
+            <SidebarCollapsedRail onNewShoop={handleNewShoop} />
+          </div>
         ) : null}
 
         <div

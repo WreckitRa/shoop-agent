@@ -5,7 +5,6 @@ import {
 } from "../config";
 import { buildOutfitCollagePrompt } from "../dress/outfit-collage";
 import { buildTryonDressPromptCompact } from "../dress/prompt";
-import { logTryonDress } from "../dress-log";
 import { fetchImageBytes } from "./image-utils";
 import { runFashnPrediction } from "./fashn-api";
 import type { GarmentType } from "../types";
@@ -96,47 +95,13 @@ export class FashnTryOnProvider implements TryOnProvider {
               generation_mode: isCollage ? "balanced" : "fast",
             };
 
-        const started = Date.now();
-        logTryonDress("info", "provider_api_call", {
-          provider_key: "fashn",
-          provider: FASHN_MODEL,
-          garment_type: input.garmentType,
-          category: useV16 ? category : undefined,
-          outfit_collage: isCollage,
-          collage_pieces: input.outfitCollage?.titles.length,
-          has_product_context: Boolean(input.product),
-          prompt_version: input.product?.prompt_version,
-          prompt_chars: useV16 ? undefined : prompt.length,
-          product_id: input.product?.product_id,
-          selected_color: input.product?.selected_color,
-          selected_size: input.product?.selected_size,
-          material_notes: input.product?.material_notes?.length,
-          style_notes: input.product?.style_notes?.length,
-          fit_notes: input.product?.fit_notes?.length,
-          chain_step:
-            !isCollage && input.chain != null
-              ? `${input.chain.stepIndex + 1}/${input.chain.stepTotal}`
-              : undefined,
-        });
         const imageUrl = await runFashnPrediction({
           modelName: FASHN_MODEL,
           inputs,
         });
-        logTryonDress("info", "provider_api_done", {
-          provider_key: "fashn",
-          provider: FASHN_MODEL,
-          latency_ms: Date.now() - started,
-          outfit_collage: isCollage,
-        });
         return { imageUrl };
       } catch (error) {
         lastError = error;
-        logTryonDress("warn", "provider_api_retry", {
-          provider_key: "fashn",
-          provider: FASHN_MODEL,
-          attempt,
-          error: String(error).slice(0, 300),
-        });
         if (attempt >= TRYON_PROVIDER_RETRIES) break;
       }
     }

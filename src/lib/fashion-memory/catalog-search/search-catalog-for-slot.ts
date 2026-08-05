@@ -73,7 +73,6 @@ export async function searchCatalogForSlot(
     : undefined;
 
   const queryLogs: FashionCatalogQueryLog[] = [];
-  const catalogById: Record<string, Record<string, unknown>> = {};
 
   const primaryPlans = buildVariantFilterPlans({
     garment: params.slot.garment,
@@ -91,7 +90,6 @@ export async function searchCatalogForSlot(
     hits: VariantQueryHit[];
     plans: ReturnType<typeof buildVariantFilterPlans>;
     hedgeLogs: FashionCatalogQueryLog[];
-    hedgeCatalog: Record<string, Record<string, unknown>>;
   }> | null = null;
   let hedgeStarted = false;
 
@@ -99,14 +97,12 @@ export async function searchCatalogForSlot(
     hits: VariantQueryHit[];
     plans: ReturnType<typeof buildVariantFilterPlans>;
     hedgeLogs: FashionCatalogQueryLog[];
-    hedgeCatalog: Record<string, Record<string, unknown>>;
   }> => {
     if (hedgeStarted || params.liftRetryOnly || !spareVariants[0]) {
       return Promise.resolve({
         hits: [],
         plans: [],
         hedgeLogs: [],
-        hedgeCatalog: {},
       });
     }
     hedgeStarted = true;
@@ -127,7 +123,6 @@ export async function searchCatalogForSlot(
       raced: true,
     });
     const hedgeLogs: FashionCatalogQueryLog[] = [];
-    const hedgeCatalog: Record<string, Record<string, unknown>> = {};
     return fanOutQueryVariants({
       accessToken: params.accessToken,
       slotId: params.slot.slot_id,
@@ -138,7 +133,6 @@ export async function searchCatalogForSlot(
       signal: params.signal,
       abortScope: params.abortScope,
       queryLogs: hedgeLogs,
-      catalogById: hedgeCatalog,
       reformulation: false,
       variantIndexOffset: CATALOG_PRIMARY_QUERY_COUNT,
       traceId: params.traceId,
@@ -148,7 +142,6 @@ export async function searchCatalogForSlot(
       hits,
       plans: sparePlans,
       hedgeLogs,
-      hedgeCatalog,
     }));
   };
 
@@ -162,7 +155,6 @@ export async function searchCatalogForSlot(
     signal: params.signal,
     abortScope: params.abortScope,
     queryLogs,
-    catalogById,
     reformulation: false,
     traceId: params.traceId,
     slotBudgetMeta,
@@ -216,10 +208,8 @@ export async function searchCatalogForSlot(
         hits: spareHits,
         plans: sparePlans,
         hedgeLogs,
-        hedgeCatalog,
       } = await hedgePromise;
       queryLogs.push(...hedgeLogs);
-      Object.assign(catalogById, hedgeCatalog);
       hits = [...hits, ...spareHits];
       if (sparePlans.length) {
         spareIndicesFired.push(CATALOG_PRIMARY_QUERY_COUNT);
@@ -264,7 +254,6 @@ export async function searchCatalogForSlot(
         signal: params.signal,
         abortScope: params.abortScope,
         queryLogs,
-        catalogById,
         reformulation: false,
         variantIndexOffset: CATALOG_PRIMARY_QUERY_COUNT + i,
         traceId: params.traceId,
@@ -340,7 +329,6 @@ export async function searchCatalogForSlot(
         signal: params.signal,
         abortScope: params.abortScope,
         queryLogs,
-        catalogById,
         reformulation: true,
         variantIndexOffset: allVariants.length,
         traceId: params.traceId,
@@ -395,7 +383,6 @@ export async function searchCatalogForSlot(
       reformulated,
     },
     query_logs: queryLogs,
-    catalog_by_id: catalogById,
   };
 }
 
@@ -423,7 +410,6 @@ async function fanOutQueryVariants(params: {
   signal?: AbortSignal;
   abortScope?: AbortScope;
   queryLogs: FashionCatalogQueryLog[];
-  catalogById: Record<string, Record<string, unknown>>;
   reformulation: boolean;
   variantIndexOffset?: number;
   traceId?: string | null;
@@ -468,7 +454,6 @@ async function fanOutQueryVariants(params: {
     const plan = result.plan;
     if (result.status === "fulfilled") {
       params.queryLogs.push(result.value.log);
-      Object.assign(params.catalogById, result.value.catalogById);
       hits.push({
         variantIndex: offset + result.idx,
         products: result.value.products,

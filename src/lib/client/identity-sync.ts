@@ -51,7 +51,6 @@ export function resetChatForNewIdentity() {
     input: "",
     queuedSendText: null,
     error: null,
-    selectedCategories: [],
     loadingList: false,
     loadingMessages: false,
   });

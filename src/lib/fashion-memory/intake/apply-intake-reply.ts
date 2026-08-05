@@ -13,7 +13,6 @@ import type {
   FashionClarificationAnswer,
   FashionClarificationOption,
   FashionClarificationQuestion,
-  FashionIntakeQuestion,
   MessageFashionRouterMetaV1,
 } from "../router/types";
 import type { FashionFactRow, PersonRelation } from "../types";
@@ -23,7 +22,7 @@ import { parseDepartmentAnswer } from "./identity-gate";
 
 type ApplyQuestion = {
   text: string;
-  field?: FashionIntakeQuestion["field"] | FashionClarificationQuestion["field"];
+  field?: FashionClarificationQuestion["field"];
   gap?: FashionClarificationQuestion["gap"];
   garment_type?: string;
   quick_options?: Array<string | FashionClarificationOption>;
@@ -31,30 +30,21 @@ type ApplyQuestion = {
 };
 
 function asApplyQuestions(
-  questions: FashionClarificationQuestion[] | FashionIntakeQuestion[],
+  questions: FashionClarificationQuestion[],
 ): ApplyQuestion[] {
-  return questions.map((q) => {
-    if ("text" in q && "gap" in q) {
-      return {
-        text: q.text,
-        field: q.field,
-        gap: q.gap,
-        garment_type: q.garment_type,
-        quick_options: q.quick_options,
-        allow_multiple: q.allow_multiple,
-      };
-    }
-    return {
-      text: q.question,
-      field: q.field,
-      quick_options: q.quick_options,
-    };
-  });
+  return questions.map((q) => ({
+    text: q.text,
+    field: q.field,
+    gap: q.gap,
+    garment_type: q.garment_type,
+    quick_options: q.quick_options,
+    allow_multiple: q.allow_multiple,
+  }));
 }
 
-/** Flatten structured / legacy answers into field|gap|text → display string. */
+/** Flatten structured answers into field|gap|text → display string. */
 export function flattenClarificationAnswers(
-  answers: Record<string, FashionClarificationAnswer | string> | undefined,
+  answers: Record<string, FashionClarificationAnswer> | undefined,
   questions: ApplyQuestion[],
 ): Record<string, string> {
   if (!answers) return {};
@@ -198,17 +188,6 @@ export function parseClarificationAnswersFromMessage(
   return out;
 }
 
-/** @deprecated alias */
-export function parseIntakeAnswersFromMessage(
-  userMessage: string,
-  questions: FashionIntakeQuestion[],
-): Record<string, string> {
-  return parseClarificationAnswersFromMessage(
-    userMessage,
-    asApplyQuestions(questions),
-  );
-}
-
 function parseSizeValue(raw: string): {
   system: "alpha" | "eu" | "us" | "uk";
   value: string | number;
@@ -253,7 +232,7 @@ function inferRelationFromText(text: string): PersonRelation {
 export async function loadPriorClarificationTurn(conversationId: string): Promise<{
   targetPersonId: string | null;
   questions: ApplyQuestion[];
-  answers?: Record<string, FashionClarificationAnswer | string>;
+  answers?: Record<string, FashionClarificationAnswer>;
 } | null> {
   const rows = await prisma.message.findMany({
     where: { conversationId, role: "assistant" },
@@ -271,32 +250,6 @@ export async function loadPriorClarificationTurn(conversationId: string): Promis
         targetPersonId: router.target_person_id ?? null,
         questions: asApplyQuestions(router.questions),
         answers: router.answers,
-      };
-    }
-
-    // Legacy run_intake metadata — dated feature flag; remove after 2026-10-13.
-    // TODO(remove-by:2026-10-13): delete this branch once logs show zero hits.
-    const legacy = router as MessageFashionRouterMetaV1 & {
-      move?: string;
-      intake?: { target_person_id: string; questions: FashionIntakeQuestion[] };
-    };
-    const runIntakeLegacyEnabled =
-      process.env.FASHION_RUN_INTAKE_LEGACY !== "0" &&
-      process.env.FASHION_RUN_INTAKE_LEGACY !== "false";
-    if (
-      runIntakeLegacyEnabled &&
-      (legacy.move as string) === "run_intake" &&
-      legacy.intake?.questions?.length
-    ) {
-      const { logAiChat } = await import("@/lib/ai-chat/observability");
-      logAiChat("info", "fashion_run_intake_legacy_hit", {
-        conversationId,
-        target_person_id: legacy.intake.target_person_id,
-        question_count: legacy.intake.questions.length,
-      });
-      return {
-        targetPersonId: legacy.intake.target_person_id,
-        questions: asApplyQuestions(legacy.intake.questions),
       };
     }
   }

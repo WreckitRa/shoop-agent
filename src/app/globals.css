@@ -65,7 +65,7 @@
   }
 }
 
-/* Chat composer — refined luxury input */
+/* Chat composer — recessed / pressed-in field (default state) */
 .shoop-buybrief-box {
   position: relative;
   width: 100%;
@@ -74,8 +74,8 @@
   background: #ffffff;
   padding: 16px 18px 12px;
   box-shadow:
-    inset 0 3px 6px -2px rgba(14, 14, 17, 0.12),
-    0 18px 40px -24px rgba(14, 14, 17, 0.3);
+    inset 0 3px 5px -1px rgba(14, 14, 17, 0.22),
+    inset 0 1px 2px rgba(14, 14, 17, 0.08);
   transition:
     box-shadow 200ms ease-out,
     border-color 200ms ease-out;
@@ -84,8 +84,8 @@
 .shoop-buybrief-box:focus-within {
   border-color: #d6d6de;
   box-shadow:
-    inset 0 3px 6px -2px rgba(14, 14, 17, 0.16),
-    0 18px 40px -24px rgba(14, 14, 17, 0.35);
+    inset 0 3px 6px -1px rgba(14, 14, 17, 0.28),
+    inset 0 1px 2px rgba(14, 14, 17, 0.1);
 }
 
 .shoop-buybrief-box--hero {
@@ -94,15 +94,15 @@
   border-radius: 20px;
   padding: 18px 20px;
   box-shadow:
-    inset 0 3px 6px -2px rgba(14, 14, 17, 0.16),
-    0 18px 40px -24px rgba(14, 14, 17, 0.3);
+    inset 0 3px 5px -1px rgba(14, 14, 17, 0.22),
+    inset 0 1px 2px rgba(14, 14, 17, 0.08);
 }
 
 .shoop-buybrief-box--hero:focus-within {
   border-color: #d6d6de;
   box-shadow:
-    inset 0 3px 6px -2px rgba(14, 14, 17, 0.18),
-    0 18px 40px -24px rgba(14, 14, 17, 0.35);
+    inset 0 3px 6px -1px rgba(14, 14, 17, 0.28),
+    inset 0 1px 2px rgba(14, 14, 17, 0.1);
 }
 
 .shoop-hero-composer {
@@ -1997,18 +1997,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 12px;
   background: rgba(244, 244, 246, 0.72);
   backdrop-filter: blur(6px);
 }
 
 .shoop-croom {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 250px minmax(0, 290px);
+  grid-template-columns: minmax(0, 1fr) 250px minmax(0, 1.15fr);
   grid-template-rows: minmax(0, 1fr);
-  width: min(960px, 100%);
-  height: min(720px, calc(100dvh - 32px));
-  max-height: min(720px, calc(100dvh - 32px));
+  width: min(1400px, 94vw);
+  height: min(960px, 94dvh);
+  max-height: calc(100dvh - 16px);
   overflow: hidden;
   border: 1px solid var(--hairline);
   border-radius: 20px;
@@ -2020,8 +2020,9 @@
   .shoop-croom {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: none;
+    width: calc(100vw - 16px);
     height: auto;
-    max-height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 16px);
     overflow-y: auto;
   }
 }
@@ -2297,8 +2298,9 @@
 .shoop-twin {
   position: relative;
   flex: none;
-  height: 330px;
-  min-height: 330px;
+  width: 100%;
+  height: min(560px, calc(100dvh - 200px));
+  min-height: 420px;
   overflow: hidden;
   border-radius: 14px;
   background: linear-gradient(180deg, #fafafb, #efeff2);
@@ -2313,8 +2315,8 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: top;
+  object-fit: contain;
+  object-position: center bottom;
 }
 
 .shoop-twin__tag {
@@ -2390,30 +2392,6 @@
 .shoop-vbtn--almost.on {
   background: #edf7f1;
   border-color: #b8d4c4;
-}
-
-.shoop-help-row {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-  margin-top: 8px;
-}
-
-.shoop-help-chip {
-  border: 1px dashed #d6d6de;
-  border-radius: 999px;
-  background: #fff;
-  padding: 5px 11px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-
-.shoop-help-chip--on {
-  border-style: solid;
-  border-color: var(--ink);
-  color: var(--ink);
 }
 
 /* ─── Studying Scan (mirror try-on verdict) ─── */
@@ -2957,123 +2935,187 @@
   }
 }
 
-/* ─── Ask the Girls (public share card) ─── */
+/* ─── Ask your friends (public share card) ─── */
 .shoop-ask-shell {
   display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   justify-content: center;
-  padding: 8px 16px 32px;
+  align-items: stretch;
+  padding: max(6px, env(safe-area-inset-top)) 10px
+    max(6px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 
 .shoop-ask-card {
+  display: flex;
+  flex-direction: column;
   width: min(400px, 100%);
+  max-height: 100%;
+  min-height: 0;
   background: #fff;
   border: 1px solid var(--hairline, #eaeaee);
-  border-radius: 18px;
+  border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 16px 36px -18px rgba(14, 14, 17, 0.3);
 }
 
 .shoop-ask-im {
   position: relative;
-  height: 300px;
+  flex: 1 1 auto;
+  min-height: 120px;
+  height: auto;
   background: var(--surface-tint, #f5f5f7);
   overflow: hidden;
+}
+
+.shoop-ask-imhit {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
 }
 
 .shoop-ask-im img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: top;
-  transition:
-    transform 0.45s cubic-bezier(0.2, 0.8, 0.3, 1),
-    object-position 0.45s;
+  object-fit: contain;
+  object-position: center bottom;
+  pointer-events: none;
 }
 
-.shoop-ask-im img.p1 {
-  transform: scale(1.6);
-  object-position: 50% 28%;
-}
-
-.shoop-ask-im img.p2 {
-  transform: scale(1.15) scaleX(-1);
-  object-position: 60% 12%;
-}
-
-.shoop-ask-tap {
+.shoop-ask-fullbtn {
   position: absolute;
-  top: 0;
-  bottom: 56px;
-  width: 34%;
-  z-index: 3;
+  top: 12px;
+  left: 10px;
+  z-index: 4;
   border: none;
-  background: transparent;
+  border-radius: 999px;
+  background: rgba(14, 14, 17, 0.88);
+  padding: 6px 11px;
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
   cursor: pointer;
 }
 
-.shoop-ask-tap.l {
-  left: 0;
-}
-.shoop-ask-tap.r {
-  right: 0;
+.shoop-ask-fullbtn:hover {
+  background: var(--ink);
 }
 
-.shoop-ask-dots {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+.shoop-ask-fs {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
   display: flex;
-  gap: 5px;
+  flex-direction: column;
+  background: rgba(14, 14, 17, 0.94);
+  backdrop-filter: blur(8px);
+}
+
+.shoop-ask-fs__bar {
+  display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.92);
+  justify-content: space-between;
+  gap: 12px;
+  padding: max(12px, env(safe-area-inset-top)) 16px 10px;
+  flex-shrink: 0;
+}
+
+.shoop-ask-fs__zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 999px;
-  padding: 6px 9px;
-  z-index: 4;
-}
-
-.shoop-ask-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #d6d6de;
-}
-
-.shoop-ask-dot.on {
-  background: var(--ink);
-  transform: scale(1.3);
-}
-
-.shoop-ask-poselab {
-  font-size: 7.5px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  color: var(--ink-muted);
-  margin-left: 3px;
-}
-
-.shoop-ask-plus {
-  position: absolute;
-  bottom: 64px;
-  right: 10px;
-  background: var(--ink);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 6px;
   color: #fff;
-  border-radius: 999px;
-  font-size: 7.5px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  padding: 4px 9px;
-  z-index: 4;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.shoop-ask-plus i {
-  font-style: normal;
-  color: #ff8a90;
+.shoop-ask-fs__zoom button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.shoop-ask-fs__zoom button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.shoop-ask-fs__zoom span {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.shoop-ask-fs__stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y pinch-zoom;
+  padding: 8px 16px;
+  cursor: zoom-in;
+}
+
+.shoop-ask-fs__stage img {
+  max-width: min(720px, 100%);
+  max-height: calc(100dvh - 120px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fff;
+  transform-origin: center center;
+  transition: transform 120ms ease-out;
+}
+
+.shoop-ask-fs__close {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+}
+
+.shoop-ask-fs__hint {
+  margin: 0;
+  padding: 8px 16px max(14px, env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
 }
 
 .shoop-ask-kill {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 12px;
+  right: 12px;
   z-index: 4;
   background: rgba(255, 255, 255, 0.94);
   border-radius: 999px;
@@ -3088,24 +3130,22 @@
 }
 
 .shoop-ask-id {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
-  background: rgba(255, 255, 255, 0.94);
-  border-radius: 10px;
-  padding: 7px 11px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  z-index: 4;
+  gap: 8px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--hairline, #eaeaee);
+  background: #fff;
+  padding: 7px 12px;
 }
 
 .shoop-ask-id b {
   font-family: var(--font-display, Archivo, system-ui, sans-serif);
   font-weight: 900;
-  font-size: 11.5px;
+  font-size: 11px;
   letter-spacing: 0.02em;
+  color: var(--ink);
 }
 
 .shoop-ask-id i {
@@ -3114,19 +3154,21 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   color: var(--brand);
+  flex-shrink: 0;
 }
 
 .shoop-ask-body {
-  padding: 12px 13px 13px;
+  flex-shrink: 0;
+  padding: 8px 12px 10px;
 }
 
 .shoop-ask-q {
   font-family: var(--font-whisper, Fraunces, Georgia, serif);
   font-style: italic;
-  font-size: 13.5px;
+  font-size: 12.5px;
   text-align: center;
   color: #374151;
-  margin-bottom: 10px;
+  margin-bottom: 7px;
 }
 
 .shoop-ask-q b {
@@ -3136,8 +3178,8 @@
 
 .shoop-ask-seal {
   border: 1.5px dashed var(--brand);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 10px;
+  padding: 7px 10px;
   text-align: center;
   position: relative;
   background: #fff7f7;
@@ -3173,17 +3215,17 @@
 
 .shoop-ask-votes {
   display: flex;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 5px;
+  margin-top: 7px;
 }
 
 .shoop-ask-vb {
   flex: 1;
   border: 1px solid var(--hairline);
   background: #fff;
-  border-radius: 10px;
-  height: 38px;
-  font-size: 11px;
+  border-radius: 9px;
+  height: 34px;
+  font-size: 10.5px;
   font-weight: 800;
   cursor: pointer;
   color: var(--ink);
@@ -3199,17 +3241,17 @@
 }
 
 .shoop-ask-vfoot {
-  font-size: 8.5px;
+  font-size: 8px;
   color: var(--ink-muted);
   text-align: center;
-  margin-top: 8px;
+  margin-top: 6px;
   letter-spacing: 0.03em;
 }
 
 .shoop-ask-poll {
   border: 1px solid var(--hairline);
-  border-radius: 12px;
-  padding: 11px 12px;
+  border-radius: 10px;
+  padding: 8px 10px;
   background: #fff;
 }
 
@@ -3338,10 +3380,18 @@
   letter-spacing: 0.02em;
 }
 
+.shoop-ask-prow .av.asker:not(.you) {
+  background: var(--ink) !important;
+  color: #fff;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--ink);
+}
+
 .shoop-ask-shooprow {
-  margin-top: 10px;
+  margin-top: 8px;
   border-top: 1px dashed var(--hairline);
-  padding-top: 10px;
+  padding-top: 8px;
+  max-height: 56px;
+  overflow: hidden;
 }
 
 .shoop-ask-shooprow .svlab {
@@ -3369,12 +3419,15 @@
 }
 
 .shoop-ask-notes {
-  margin-top: 10px;
+  margin-top: 8px;
   border-top: 1px dashed var(--hairline);
-  padding-top: 9px;
+  padding-top: 7px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  max-height: 68px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .shoop-ask-notes .noterow {
@@ -3451,25 +3504,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 10px;
+  margin-top: 8px;
   width: 100%;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--ink);
   color: #fff;
-  height: 46px;
+  height: 40px;
   font-family: var(--font-display, Archivo, system-ui, sans-serif);
   font-weight: 800;
-  font-size: 13px;
+  font-size: 12px;
   text-decoration: none;
   box-shadow: 0 6px 14px -8px rgba(14, 14, 17, 0.35);
 }
 
 .shoop-ask-detsub {
-  font-size: 9px;
+  font-size: 8.5px;
   color: var(--ink-muted);
   text-align: center;
-  margin-top: 6px;
+  margin-top: 4px;
   letter-spacing: 0.04em;
 }
 
@@ -3477,8 +3530,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
   border-top: 1px solid var(--hairline);
-  padding: 9px 13px;
+  padding: 7px 12px;
   background: #fcfcfd;
 }
 
@@ -3509,6 +3563,39 @@
 .shoop-ask-cfoot .joinlink:hover {
   background: var(--ink);
   color: #fff;
+}
+
+@media (max-height: 740px) {
+  .shoop-ask-detonate,
+  .shoop-ask-detsub {
+    display: none;
+  }
+
+  .shoop-ask-cfoot .tag {
+    display: none;
+  }
+
+  .shoop-ask-avg {
+    display: none;
+  }
+
+  .shoop-ask-notes {
+    max-height: 44px;
+  }
+}
+
+@media (max-height: 640px) {
+  .shoop-ask-seal .s2,
+  .shoop-ask-vfoot,
+  .shoop-ask-shooprow,
+  .shoop-ask-clash,
+  .shoop-ask-notes {
+    display: none;
+  }
+
+  .shoop-ask-im {
+    min-height: 100px;
+  }
 }
 
 .shoop-ask-namegate {

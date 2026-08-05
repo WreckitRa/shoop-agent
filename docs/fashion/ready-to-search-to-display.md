@@ -5,7 +5,7 @@
 > **Scope:** fashion-memory chat pipeline **after** the router emits `ready_to_search`, through catalog retrieval, curation, and UI render.  
 > **Not in scope:** router clarification / preference loading — see [`before-ready-to-search.md`](./before-ready-to-search.md) and [`router.md`](./router.md).  
 > **Why v1.1:** flat 45s turn budget used to **skip** curation (`fashion_turn_budget_skip_curation`) → outfit looks missing — see [`qa-incident-curation-skip-0e1c21fa.md`](./qa-incident-curation-skip-0e1c21fa.md).  
-> **Parallel system:** general AI-chat `runSearchEngine` (Voyage + tier judge) is a different path — this doc is **fashion-memory only**.  
+> **Scope note:** fashion-memory is the only chat path.  
 > **Source of truth:** `src/lib/ai-chat/run-fashion-chat-stream.ts`, `src/lib/fashion-memory/**`, especially `pipeline-cutoffs.ts`.  
 > **Date of capture:** 2026-07-30.
 
@@ -595,7 +595,7 @@ Persisted on assistant message metadata:
 11. **Dual UI path:** missing `render` falls back to raw `FashionCatalogResults` (worse UX).
 12. **Brand narration** is a hard stream rule — silent substitution forbidden.
 13. **Guest vs auth:** guest memory snapshot vs server facts; recipient must resolve before search.
-14. **Separate from `runSearchEngine`:** constraint gates / narrator contracts there do **not** apply here (and vice versa).
+14. **Single chat path:** fashion-memory owns router → planner → catalog → curation → render.
 
 ---
 
@@ -630,7 +630,7 @@ Persisted on assistant message metadata:
 
 ## 17. Prompt for an improvement-review AI
 
-> Review Shoop’s fashion-memory Find Pipeline v1.1 from `ready_to_search` through on-screen finds (document above). Propose concrete improvements prioritized by: (1) final pick quality vs brief, (2) end-to-end latency/cost under pocket budgets, (3) honesty when inventory is thin or budget is tight, (4) outfit/capsule coherence (looks never empty). Prefer changes that fit Anthropic (Haiku planner / **Sonnet** Stage A curator / Haiku Stage B voice) + Shopify catalog MCP. Call out what to keep (never-skip Stage A, provisional rack, lean image budgets, style-phrase sanitize). Include eval ideas (fixtures, kill-rate metrics, curation veto rate, Stage A rung distribution) and migration risk. Do not confuse this with the general `runSearchEngine` path unless proposing intentional unification.
+> Review Shoop’s fashion-memory Find Pipeline v1.1 from `ready_to_search` through on-screen finds (document above). Propose concrete improvements prioritized by: (1) final pick quality vs brief, (2) end-to-end latency/cost under pocket budgets, (3) honesty when inventory is thin or budget is tight, (4) outfit/capsule coherence (looks never empty). Prefer changes that fit Anthropic (Haiku planner / **Sonnet** Stage A curator / Haiku Stage B voice) + Shopify catalog MCP. Call out what to keep (never-skip Stage A, provisional rack, lean image budgets, style-phrase sanitize). Include eval ideas (fixtures, kill-rate metrics, curation veto rate, Stage A rung distribution) and migration risk.
 
 ---
 

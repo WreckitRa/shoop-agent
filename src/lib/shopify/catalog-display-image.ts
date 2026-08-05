@@ -39,5 +39,4 @@ export const CATALOG_IMAGE_PX = {
   stack: 240,
   scroll: 280,
   thumb: 144,
-  debug: 96,
 } as const;

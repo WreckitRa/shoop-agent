@@ -24,6 +24,8 @@ type Props = {
   fittingItem: FittingRoomItem;
   tryonAvailable?: boolean;
   tryonCta?: "tryon" | "create_avatar" | "hidden";
+  /** Hide hover try-on overlay (e.g. look/capsule cards that use a section CTA). */
+  hideTryOnOverlay?: boolean;
   className?: string;
   testId?: string;
   imagePriority?: boolean;
@@ -48,6 +50,7 @@ export function ShoopFindCard({
   fittingItem,
   tryonAvailable,
   tryonCta,
+  hideTryOnOverlay = false,
   className,
   testId,
   imagePriority = false,
@@ -94,12 +97,14 @@ export function ShoopFindCard({
         {priceLabel ? (
           <span className="shoop-vitem__price">{priceLabel}</span>
         ) : null}
-        <FittingRoomAction
-          item={fittingItem}
-          variant="overlay"
-          tryonAvailable={tryonAvailable}
-          tryonCta={tryonCta}
-        />
+        {!hideTryOnOverlay ? (
+          <FittingRoomAction
+            item={fittingItem}
+            variant="overlay"
+            tryonAvailable={tryonAvailable}
+            tryonCta={tryonCta}
+          />
+        ) : null}
       </div>
       <button
         type="button"

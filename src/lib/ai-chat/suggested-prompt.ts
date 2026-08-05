@@ -229,14 +229,4 @@ export async function generateSuggestedPrompt(
   }
 }
 
-export function invalidateSuggestedPromptCache(
-  userId: string,
-  conversationId?: string | null,
-): void {
-  if (conversationId) {
-    promptCache.delete(cacheKey(userId, conversationId));
-  }
-  promptCache.delete(cacheKey(userId, null));
-}
-
-export { FALLBACK_PROMPTS, pickFallback };
+export { pickFallback };

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { AskVoteChoice, LookAskSharePublic } from "./types";
 import { ASK_VOTE_CHOICES } from "./types";
 import type { LookScanVerdict } from "@/lib/tryon/look-scan-types";
+import { ownerVoterKey } from "./owner-vote";
 
 export function generateAskToken(): string {
   return randomBytes(8).toString("base64url").slice(0, 10);
@@ -56,6 +57,7 @@ export function buildLookAskPublic(params: {
   const isOwner =
     Boolean(viewerUserId) && viewerUserId === share.ownerUserId;
 
+  const ownerKey = ownerVoterKey(share.ownerUserId);
   const myVoteRow =
     viewerVoterKey ?
       share.votes.find((v) => v.voterKey === viewerVoterKey)
@@ -64,6 +66,13 @@ export function buildLookAskPublic(params: {
     myVoteRow &&
     (ASK_VOTE_CHOICES as readonly string[]).includes(myVoteRow.choice) ?
       (myVoteRow.choice as AskVoteChoice)
+    : null;
+
+  const ownerVoteRow = share.votes.find((v) => v.voterKey === ownerKey);
+  const ownerVote =
+    ownerVoteRow &&
+    (ASK_VOTE_CHOICES as readonly string[]).includes(ownerVoteRow.choice) ?
+      (ownerVoteRow.choice as AskVoteChoice)
     : null;
 
   const shoopRevealed = isOwner || Boolean(myVote);
@@ -91,6 +100,7 @@ export function buildLookAskPublic(params: {
       choice: v.choice as AskVoteChoice,
       displayName: v.displayName,
       voterKey: v.voterKey,
+      isOwner: v.voterKey === ownerKey,
     }));
 
   if (shoopRevealed) {
@@ -114,6 +124,7 @@ export function buildLookAskPublic(params: {
       shoopRevealed ? (share.shoopVote as AskVoteChoice) : null,
     shoopVerdict: shoopRevealed ? verdict : null,
     myVote,
+    ownerVote: shoopRevealed ? ownerVote : null,
     isOwner,
     votes,
     tallies,

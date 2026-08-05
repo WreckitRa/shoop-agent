@@ -239,27 +239,6 @@ export function checkReaskAfterAnswer(params: {
   return hit;
 }
 
-/** @deprecated Prefer checkReaskAfterAnswer + filterQuestionsSatisfiedByConversation. */
-export function assertNoReaskAfterAnswer(params: {
-  questions: FashionClarificationQuestion[];
-  stated?: FashionStatedFacts | null;
-  answeredLedger?: AnsweredGapEntry[];
-  facts?: FashionFactRow[];
-  profileHints?: IntakeProfileHints | null;
-  personId?: string | null;
-  traceId?: string | null;
-}): FashionClarificationQuestion[] {
-  checkReaskAfterAnswer(params);
-  return filterQuestionsSatisfiedByConversation({
-    questions: params.questions,
-    facts: params.facts ?? [],
-    brief: { stated_facts: params.stated ?? undefined },
-    profileHints: params.profileHints,
-    answeredLedger: params.answeredLedger,
-    traceId: params.traceId,
-  });
-}
-
 /**
  * Gaps answered this turn (stated_facts / clarification apply) must not
  * count toward the dodge counter — an answered question is not a dodge.

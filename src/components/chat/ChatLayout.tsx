@@ -14,10 +14,6 @@ import { useInlineProductStore } from "@/components/chat/inline-product-store";
 import { useChatScrollFocus } from "@/components/chat/useChatScrollFocus";
 import { parseChatFocusFromSearchParams } from "@/lib/shared/chatFocus";
 import { AppShell } from "@/components/layout/AppShell";
-import {
-  AgentDebugPanel,
-  AgentDebugToggleRail,
-} from "@/components/chat/AgentDebugPanel";
 
 export const ChatLayout = memo(function ChatLayout() {
   const searchParams = useSearchParams();
@@ -73,7 +69,6 @@ export const ChatLayout = memo(function ChatLayout() {
       <ChatFocusHighlightProvider highlight={focusHighlight}>
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <AgentDebugToggleRail />
             <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
               {error ? (
                 <div
@@ -140,7 +135,6 @@ export const ChatLayout = memo(function ChatLayout() {
               )}
             </div>
           </div>
-          <AgentDebugPanel />
         </div>
       </ChatFocusHighlightProvider>
     </AppShell>

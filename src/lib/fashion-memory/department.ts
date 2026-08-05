@@ -24,8 +24,8 @@ export type PersonDepartment =
   | "mixed";
 
 /**
- * @deprecated Prefer `PersonDepartment`. Kept as alias for brief/person imports.
- * Does NOT include `unisex` — migrate legacy storage via `coercePersonDepartment`.
+ * Alias of `PersonDepartment` for brief/person imports.
+ * Does NOT include `unisex` — coerce via `coercePersonDepartment`.
  */
 export type FashionDepartment = PersonDepartment;
 
@@ -52,7 +52,7 @@ export function coercePersonDepartment(
 ): PersonDepartment | null {
   if (!value) return null;
   const v = value.trim().toLowerCase();
-  if (v === "unisex") return "mixed"; // legacy person rows
+  if (v === "unisex") return "mixed";
   if ((PERSON_DEPARTMENTS as readonly string[]).includes(v)) {
     return v as PersonDepartment;
   }

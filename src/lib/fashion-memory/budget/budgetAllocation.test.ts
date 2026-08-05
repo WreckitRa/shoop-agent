@@ -4,7 +4,7 @@ import {
   ALLOCATION_PAD_MAX,
   BUDGET_ASSEMBLY_TOLERANCE,
   CAPSULE_PIECE_PAD,
-  LEGACY_BUDGET_PAD_MAX,
+  BUDGET_PAD_MAX,
   RELEVANCE_GUARD_MULTIPLIER,
   priceBoundsForSlot,
   resolveAllocation,
@@ -325,7 +325,7 @@ describe("single_item_unchanged", () => {
     });
     assert.equal(
       filters.price?.max,
-      Math.round(100 * LEGACY_BUDGET_PAD_MAX * RELEVANCE_GUARD_MULTIPLIER * 100),
+      Math.round(100 * BUDGET_PAD_MAX * RELEVANCE_GUARD_MULTIPLIER * 100),
     );
   });
 });
@@ -398,7 +398,7 @@ describe("multi_item_per_item_assumption", () => {
         allocation,
         profileCurrency: "USD",
       });
-      assert.equal(bounds?.max, Math.round(100 * LEGACY_BUDGET_PAD_MAX * 100));
+      assert.equal(bounds?.max, Math.round(100 * BUDGET_PAD_MAX * 100));
     }
   });
 });

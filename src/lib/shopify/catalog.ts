@@ -46,7 +46,6 @@ export type CatalogSearchFilters = {
   /**
    * Taxonomy category filter. Each entry is a Shopify taxonomy GID string
    * (e.g. `gid://shopify/TaxonomyCategory/aa-1-13-8`). Multiple values use OR logic.
-   * @see docs/search-improvements.md §2.1
    */
   categories?: string[];
   /**

@@ -1,4 +1,4 @@
-import { normalizePickInsight } from "@/lib/ai-chat/curation/pick-insight";
+import { normalizePickInsight } from "@/lib/commerce/pick-insight";
 import type { CuratedPick, CurationSlot } from "@/lib/ai-chat/types";
 import type {
   FashionCuratedPick,

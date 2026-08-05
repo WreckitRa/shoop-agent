@@ -1,8 +1,13 @@
 import { prisma } from "@/lib/ai-chat/db";
 import { getOnboardingStatus } from "@/lib/onboarding/status";
-import type { LookScanPiece, LookScanVerdict } from "@/lib/tryon/look-scan-types";
+import type {
+  LookScanPiece,
+  LookScanVerdict,
+} from "@/lib/tryon/look-scan-types";
 import { mapVerdictToShoopVote } from "./map-shoop-vote";
+import { upsertOwnerAskVote } from "./owner-vote";
 import { generateAskToken } from "./public-payload";
+import { isAskVoteChoice, type AskVoteChoice } from "./types";
 
 export type CreateLookAskInput = {
   userId: string;
@@ -12,13 +17,14 @@ export type CreateLookAskInput = {
   generationId?: string | null;
   conversationId?: string | null;
   killCount?: number | null;
+  /** Owner's strip vote to seed on the shared card. */
+  ownerVote?: AskVoteChoice | null;
 };
 
 export async function createLookAskShare(input: CreateLookAskInput) {
   const shoopVote = mapVerdictToShoopVote(input.verdict);
   const status = await getOnboardingStatus(input.userId);
-  const askerName =
-    status.profile?.preferredName?.trim() || "A friend";
+  const askerName = status.profile?.preferredName?.trim() || "A friend";
 
   const agg = await prisma.lookAskShare.aggregate({
     _max: { serial: true },
@@ -52,7 +58,7 @@ export async function createLookAskShare(input: CreateLookAskInput) {
         `**Verdict: ${title}**`,
         body,
         ``,
-        `Ask the girls — share the card and let them vote before they peek at mine.`,
+        `Ask your friends — share the card and let them vote before they peek at mine.`,
       ].join("\n");
 
       // Token known; metadata URL filled after we know origin on the client —
@@ -96,11 +102,24 @@ export async function createLookAskShare(input: CreateLookAskInput) {
       askerName,
       serial,
       killCount:
-        typeof input.killCount === "number" && Number.isFinite(input.killCount) ?
-          Math.max(0, Math.round(input.killCount))
-        : null,
+        typeof input.killCount === "number" && Number.isFinite(input.killCount)
+          ? Math.max(0, Math.round(input.killCount))
+          : null,
     },
   });
+
+  const ownerVote =
+    input.ownerVote && isAskVoteChoice(input.ownerVote) ?
+      input.ownerVote
+    : null;
+  if (ownerVote) {
+    await upsertOwnerAskVote({
+      shareId: share.id,
+      ownerUserId: input.userId,
+      askerName,
+      choice: ownerVote,
+    });
+  }
 
   return share;
 }

@@ -55,7 +55,7 @@ export type EvaluateBudgetLiftParams = {
     budget_dropped_pool?: FashionSlotCatalogProduct[];
   }>;
   hardDropMetrics: HardDropMetrics[];
-  /** @deprecated count-based — kept for secondary signals / legacy fixtures */
+  /** Optional raw fetch counts — secondary starvation signal. */
   rawCounts?: Map<string, number>;
   budgetDrops?: Map<string, number>;
 };
@@ -87,7 +87,7 @@ export function evaluateBudgetLift(
     const p10 = market?.p10;
     const budgetStarved = p10 != null && p10 > perItemCeiling;
 
-    // Secondary: thin survivors with budget drops (legacy junk-fill-blind path).
+    // Secondary: thin survivors with budget drops.
     const survivorCount = slot.products.length;
     const budgetDropCount =
       params.budgetDrops?.get(slot.slot_id) ??

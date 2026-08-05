@@ -1,6 +1,6 @@
 /**
  * ML-inferred catalog attributes (Material, Style, Occasion, …).
- * See docs/search-improvements.md §2.6 — variable accuracy, often absent.
+ * Variable accuracy — often absent from a given listing.
  */
 
 export type CatalogInferredAttribute = {

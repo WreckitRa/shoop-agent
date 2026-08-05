@@ -48,17 +48,3 @@ export async function getAuthContext(): Promise<AuthContext> {
     response: Response.json({ error: "Sign in required." }, { status: 401 }),
   };
 }
-
-export async function requireUserId(): Promise<string> {
-  const ctx = await getAuthContext();
-  if (!ctx.ok) throw new UnauthorizedError();
-  return ctx.userId;
-}
-
-export class UnauthorizedError extends Error {
-  readonly name = "UnauthorizedError";
-}
-
-export function unauthorizedJson() {
-  return Response.json({ error: "Sign in required." }, { status: 401 });
-}

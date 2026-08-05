@@ -329,11 +329,10 @@ export function ensureRideAlongDefaults(
 }
 
 export function formatClarificationAnswerDisplay(
-  answer: FashionClarificationAnswer | string | undefined,
+  answer: FashionClarificationAnswer | undefined,
   options?: Array<string | FashionClarificationOption>,
 ): string {
   if (answer == null) return "";
-  if (typeof answer === "string") return answer.trim();
 
   const opts = asNormalizedOptions(options);
   const byId = new Map(opts.map((o) => [o.id, o.label]));
@@ -351,7 +350,7 @@ export function formatClarificationAnswerDisplay(
 }
 
 export function answerHasContent(
-  answer: FashionClarificationAnswer | string | undefined,
+  answer: FashionClarificationAnswer | undefined,
 ): boolean {
   return Boolean(formatClarificationAnswerDisplay(answer));
 }

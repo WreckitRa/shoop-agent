@@ -1,13 +1,7 @@
 import { prisma } from "./db";
 import type { InputJsonValue } from "./prisma-types";
-import type {
-  CuratedPick,
-  MessageMetadata,
-  MessageStatus,
-  ResponseStyle,
-} from "./types";
+import type { MessageMetadata, MessageStatus, ResponseStyle } from "./types";
 import { mergeOptionPreviewMetadata } from "./merge-option-preview-metadata";
-import { preserveEnhancedProductSearchOnPersist } from "./merge-product-search-metadata";
 import {
   AI_CHAT_DEFAULT_USER_ID,
   AI_CHAT_DEFAULT_MODEL,
@@ -163,47 +157,6 @@ export function kickConversationTitleRename(conversationId: string) {
     .finally(() => clearTimeout(timeout));
 }
 
-/** Patch one product-search invocation after a detached curator pass finishes. */
-export async function patchAssistantProductSearchCuration(params: {
-  messageId: string;
-  searchKey: string;
-  curatedPicks: CuratedPick[];
-  curationFallback: boolean;
-}): Promise<void> {
-  const row = await prisma.message.findUnique({
-    where: { id: params.messageId },
-    select: { metadata: true },
-  });
-  if (!row) return;
-
-  const meta = (row.metadata ?? {}) as MessageMetadata;
-  const ps = meta.productSearch;
-  if (!ps?.searches?.length) return;
-
-  let touched = false;
-  const searches = ps.searches.map((inv) => {
-    if (inv.searchKey !== params.searchKey) return inv;
-    touched = true;
-    return {
-      ...inv,
-      curatedPicks: params.curatedPicks,
-      curationFallback: params.curationFallback,
-      curationPending: false,
-    };
-  });
-  if (!touched) return;
-
-  await prisma.message.update({
-    where: { id: params.messageId },
-    data: {
-      metadata: {
-        ...meta,
-        productSearch: { version: 1, searches },
-      } as InputJsonValue,
-    },
-  });
-}
-
 export async function persistAssistantFinal(params: {
   messageId: string;
   content: string;
@@ -222,16 +175,6 @@ export async function persistAssistantFinal(params: {
   const existingMeta = (row?.metadata as MessageMetadata | null) ?? null;
 
   let metadata = params.metadata;
-  if (metadata?.productSearch) {
-    metadata = {
-      ...metadata,
-      productSearch: preserveEnhancedProductSearchOnPersist(
-        metadata.productSearch,
-        existingMeta?.productSearch,
-      ),
-    };
-  }
-
   if (metadata && existingMeta) {
     metadata = mergeOptionPreviewMetadata(
       existingMeta,
@@ -262,11 +205,10 @@ export async function skipPendingClarificationsForConversation(
   opts?: {
     /** Fashion quiz message that was just answered via chips. */
     fashionClarificationMessageId?: string;
-    /** question.text → structured answer (or legacy plain string). */
+    /** question.text → structured answer. */
     fashionClarificationAnswers?: Record<
       string,
-      | string
-      | { selected: string[]; customText?: string }
+      { selected: string[]; customText?: string }
     >;
   },
 ) {
@@ -287,13 +229,6 @@ export async function skipPendingClarificationsForConversation(
 
     let nextMeta: MessageMetadata | null = null;
 
-    if (meta.clarification?.status === "pending") {
-      nextMeta = {
-        ...meta,
-        clarification: { ...meta.clarification, status: "skipped" },
-      };
-    }
-
     const fashion = meta.fashionRouter;
     if (
       fashion?.move === "ask_clarification" &&
@@ -303,7 +238,7 @@ export async function skipPendingClarificationsForConversation(
         opts?.fashionClarificationMessageId != null &&
         opts.fashionClarificationMessageId === row.id;
       nextMeta = {
-        ...(nextMeta ?? meta),
+        ...meta,
         fashionRouter: {
           ...fashion,
           status: "answered",

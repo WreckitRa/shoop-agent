@@ -18,6 +18,7 @@ const bodySchema = z
     generationId: z.string().max(80).optional().nullable(),
     conversationId: z.string().max(80).optional().nullable(),
     killCount: z.number().int().min(0).max(9999).optional().nullable(),
+    ownerVote: z.enum(["no", "meh", "almost", "love"]).optional().nullable(),
     pieces: z
       .array(
         z
@@ -86,6 +87,7 @@ export async function POST(req: Request) {
       generationId: parsed.data.generationId,
       conversationId: parsed.data.conversationId,
       killCount: parsed.data.killCount,
+      ownerVote: parsed.data.ownerVote,
     });
 
     const origin = new URL(req.url).origin;

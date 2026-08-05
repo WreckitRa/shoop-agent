@@ -1,10 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { prisma } from "@/lib/ai-chat/db";
-import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
 import { messagePatchSchema } from "@/lib/ai-chat/validators";
 import { messageToDTO } from "@/lib/ai-chat/serialize";
-import type { MessageMetadata } from "@/lib/ai-chat/types";
 import { getAuthContext } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -26,9 +24,8 @@ function isAuthorizedDirectMessageMutation(req: Request): boolean {
 /**
  * PATCH a single message. Edit + clarification-submit + regenerate now flow
  * through `/api/chat` (single SSE round-trip with optimistic UI). This handler
- * is intentionally minimal:
- *   - `clarificationSkip`: dismisses a pending clarification (no LLM call).
- *   - `status` / `content`: restricted admin-only direct mutation.
+ * is intentionally minimal: `status` / `content` restricted admin-only direct
+ * mutation.
  */
 export async function PATCH(req: Request, ctx: RouteCtx) {
   try {
@@ -54,30 +51,7 @@ export async function PATCH(req: Request, ctx: RouteCtx) {
       return Response.json({ error: "Not found." }, { status: 404 });
     }
 
-    const { status, content, clarificationSkip } = parsed.data;
-
-    if (clarificationSkip) {
-      if (msg.role !== "assistant") {
-        return Response.json(
-          { error: "Only assistant messages support clarification." },
-          { status: 400 },
-        );
-      }
-      const meta = msg.metadata as MessageMetadata | null;
-      if (meta?.clarification?.status !== "pending") {
-        return Response.json({ error: "No pending clarification." }, { status: 400 });
-      }
-      const updated = await prisma.message.update({
-        where: { id: messageId },
-        data: {
-          metadata: {
-            ...meta,
-            clarification: { ...meta.clarification, status: "skipped" },
-          } as InputJsonValue,
-        },
-      });
-      return Response.json(messageToDTO(updated));
-    }
+    const { status, content } = parsed.data;
 
     if (status === undefined && content === undefined) {
       return Response.json({ error: "Nothing to update." }, { status: 400 });

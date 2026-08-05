@@ -7,7 +7,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params;
   return {
     title: "Should they get it? · Shoop",
-    description: "Vote before you peek — Ask the Girls.",
+    description: "Vote before you peek — Ask your friends.",
     robots: { index: false, follow: false },
     openGraph: {
       title: "Should they get it? · Shoop",
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function AskLookPage({ params }: Props) {
   const { token } = await params;
   return (
-    <main className="min-h-0 flex-1 overflow-y-auto bg-[#E9E9EE] py-6">
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#E9E9EE]">
       <AskLookCard token={token} />
     </main>
   );

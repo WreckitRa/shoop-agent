@@ -47,11 +47,7 @@ const FashionProductCards = memo(function FashionProductCards({
         <div role="list" aria-label={listLabel}>
           <div className="shoop-vrack !mt-0">
             {verified.map((product) => (
-              <ProductScrollCard
-                key={product.id}
-                product={product}
-                fashionPickSignals
-              />
+              <ProductScrollCard key={product.id} product={product} />
             ))}
           </div>
           {verifiedExpanded ? (
@@ -67,12 +63,7 @@ const FashionProductCards = memo(function FashionProductCards({
           </p>
           <div className="shoop-vrack !mt-0" role="list" aria-label={`${listLabel} — unverified`}>
             {overflow.map((product) => (
-              <ProductScrollCard
-                key={product.id}
-                product={product}
-                fashionPickSignals
-                muted
-              />
+              <ProductScrollCard key={product.id} product={product} muted />
             ))}
           </div>
           {overflowExpanded ? (

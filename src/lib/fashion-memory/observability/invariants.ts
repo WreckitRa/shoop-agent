@@ -1,4 +1,3 @@
-import { logAiChat } from "@/lib/ai-chat/observability";
 import {
   detectAccessoriesCoercion,
   latestUserText,
@@ -40,17 +39,10 @@ function warnInvariant(params: {
   code: string;
   detail: Record<string, unknown>;
 }): void {
-  if (process.env.NODE_ENV === "development") {
-    console.warn("[fashion:invariant]", params.code, params.detail);
-  }
   recordPipelineEvent({
     traceId: params.traceId,
     stage: "invariant_warning",
     payload: { code: params.code, ...params.detail },
-  });
-  logAiChat("warn", "fashion_invariant_warning", {
-    code: params.code,
-    ...params.detail,
   });
 }
 
@@ -59,11 +51,47 @@ export type BriefInvariantTrip =
   | "accessories_coerced"
   | "unknown_garment_family"
   | "outfit_language_single_item_brief"
+  | "outfit_language_multi_item_brief"
   | "occasion_language_missing_from_brief"
   | "reask_after_answer";
 
 /** Re-export: clarification reask of conversation-known facts. */
 export { checkReaskAfterAnswer } from "../intake/clarification-dedup";
+
+/**
+ * When the user said "outfit" / "look" / "head to toe" but the router
+ * classified as single_item or multi_item, upgrade to outfit so planning +
+ * curation deliver THREE LOOKS instead of a flat rack.
+ */
+export function coerceBriefRequestTypeForOutfitLanguage(params: {
+  traceId?: string | null;
+  messages: FashionRouterContext["conversationMessages"];
+  brief: FashionSearchBrief;
+}): FashionSearchBrief {
+  if (!threadMentionsOutfit(params.messages)) return params.brief;
+  if (
+    params.brief.request_type === "outfit" ||
+    params.brief.request_type === "capsule"
+  ) {
+    return params.brief;
+  }
+
+  const from = params.brief.request_type;
+  warnInvariant({
+    traceId: params.traceId,
+    code:
+      from === "multi_item"
+        ? "outfit_language_multi_item_brief"
+        : "outfit_language_single_item_brief",
+    detail: {
+      request_type: from,
+      coerced_to: "outfit",
+      occasion_context: params.brief.occasion_context,
+    },
+  });
+
+  return { ...params.brief, request_type: "outfit" };
+}
 
 export function checkBriefInvariants(params: {
   traceId?: string | null;
@@ -75,17 +103,22 @@ export function checkBriefInvariants(params: {
 
   if (
     threadMentionsOutfit(params.messages) &&
-    params.brief.request_type === "single_item"
+    (params.brief.request_type === "single_item" ||
+      params.brief.request_type === "multi_item")
   ) {
+    const code =
+      params.brief.request_type === "multi_item"
+        ? "outfit_language_multi_item_brief"
+        : "outfit_language_single_item_brief";
     warnInvariant({
       traceId: params.traceId,
-      code: "outfit_language_single_item_brief",
+      code,
       detail: {
         request_type: params.brief.request_type,
         occasion_context: params.brief.occasion_context,
       },
     });
-    tripped.push("outfit_language_single_item_brief");
+    tripped.push(code);
   }
 
   if (

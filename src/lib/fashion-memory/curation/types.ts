@@ -153,7 +153,6 @@ export type FashionCurationResult = {
   presentation: FashionCurationPresentation;
   curation_ms: number;
   registry: CurationRefRegistry;
-  debug: import("./fashion-curation-debug").FashionCurationDebugV1;
 };
 
 export type RunFashionCurationParams = {

@@ -70,13 +70,6 @@ export const PRE_CURATION_POCKET_MS = envMs(
   30_000,
 );
 
-/** Legacy flat turn budgets (Phase 0 / reporting only). */
-export const TURN_BUDGET_PHASE0_MS = envMs("FASHION_TURN_BUDGET_PHASE0_MS", 60_000);
-export const TURN_BUDGET_PHASE1_MS = envMs(
-  "FASHION_TURN_BUDGET_PHASE1_MS",
-  STAGE_A_EARMARK_MS + PRE_CURATION_POCKET_MS,
-);
-
 /** Feature flag: split pick vs voice (Phase 1). Default on. */
 export const FASHION_CURATION_SPLIT_ENABLED =
   process.env.FASHION_CURATION_SPLIT_ENABLED !== "0" &&

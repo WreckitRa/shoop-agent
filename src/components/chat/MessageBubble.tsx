@@ -3,23 +3,17 @@
 import { memo, type ReactNode } from "react";
 import { ShoopIcon } from "@/components/brand/ShoopBrand";
 import { useChatStore } from "@/components/chat/chat-store";
-import { ClarificationControls } from "@/components/chat/ClarificationControls";
-import { GiftDirectionChips } from "@/components/chat/GiftDirectionChips";
 import { ChatMessageProductLinkProvider } from "@/components/chat/ChatMessageProductLinkContext";
 import { ComposerReplyChip } from "@/components/chat/ComposerReplyChip";
 import { CurationLoader } from "@/components/chat/CurationLoader";
 import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
-import { ProductSearchResults } from "@/components/chat/ProductSearchResults";
 import { FashionCatalogResults } from "@/components/chat/FashionCatalogResults";
 import { FashionCurationResults } from "@/components/chat/FashionCurationResults";
 import { FashionRouterControls } from "@/components/chat/FashionRouterControls";
 import { cn } from "@/lib/ai-chat/cn";
 import { hydratedCandidateToProductCard } from "@/lib/fashion-memory/catalog-search/product-card";
 import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
-import type {
-  ChatMessage,
-  MessageProductSearchV1,
-} from "@/lib/ai-chat/types";
+import type { ChatMessage } from "@/lib/ai-chat/types";
 
 function fashionCatalogHasResults(
   catalogSearch: MessageFashionCatalogSearchMetaV1 | undefined,
@@ -33,7 +27,6 @@ function fashionCatalogHasResults(
 
 /** Real product thumbnails streamed in mid-search, to seed the loader rack. */
 function collectStreamedImages(
-  productSearch: MessageProductSearchV1 | undefined,
   fashionCatalogSearch: MessageFashionCatalogSearchMetaV1 | undefined,
   fashionPreviewImages: string[],
 ): string[] {
@@ -48,15 +41,6 @@ function collectStreamedImages(
   for (const url of fashionPreviewImages) {
     add(url);
     if (images.length >= 24) return images;
-  }
-
-  if (productSearch?.searches.length) {
-    for (const search of productSearch.searches) {
-      for (const product of search.products) {
-        add(product.imageUrl);
-        if (images.length >= 24) return images;
-      }
-    }
   }
 
   for (const slot of fashionCatalogSearch?.slots ?? []) {
@@ -90,12 +74,8 @@ export const MessageBubble = memo(function MessageBubble({
   const assistantPlain =
     assistantLiveText !== undefined ? assistantLiveText : message.content;
 
-  const productSearch = message.metadata?.productSearch;
   const fashionCatalogSearch = message.metadata?.fashionCatalogSearch;
   const fashionRouter = message.metadata?.fashionRouter;
-  const clarification = message.metadata?.clarification;
-  const giftDirections = message.metadata?.giftDirections;
-  const shoppingMode = message.metadata?.shoppingMode;
   const lookAsk = message.metadata?.lookAsk;
   const streamingFashionPipeline = useChatStore((s) => s.streamingFashionPipeline);
   const streamingFashionPreviewImages = useChatStore(
@@ -111,7 +91,6 @@ export const MessageBubble = memo(function MessageBubble({
     !fashionCatalogHasResults(fashionCatalogSearch);
 
   const loaderImages = collectStreamedImages(
-    productSearch,
     fashionCatalogSearch,
     streamingFashionPreviewImages,
   );
@@ -152,30 +131,11 @@ export const MessageBubble = memo(function MessageBubble({
               />
             ) : message.status === "streaming" && assistantPlain === "" ? (
               <>
-                {clarification?.status === "pending" ? (
-                  <>
-                    <AssistantLine>
-                      <p className="text-sm text-ink-soft">
-                        Here are a few quick questions so I can narrow this down.
-                      </p>
-                    </AssistantLine>
-                    <ClarificationControls
-                      messageId={message.id}
-                      clarification={clarification}
-                    />
-                  </>
-                ) : giftDirections?.status === "pending" ? (
-                  <GiftDirectionChips
-                    messageId={message.id}
-                    giftDirections={giftDirections}
-                  />
-                ) : (
-                  <CurationLoader
-                    hasSearch={Boolean(productSearch?.searches.length)}
-                    productImages={loaderImages}
-                    droppedImages={streamingFashionDroppedImages}
-                  />
-                )}
+                <CurationLoader
+                  hasSearch={fashionCatalogHasResults(fashionCatalogSearch)}
+                  productImages={loaderImages}
+                  droppedImages={streamingFashionDroppedImages}
+                />
                 <StatusRibbon
                   message={message}
                   streamPlain=""
@@ -188,24 +148,6 @@ export const MessageBubble = memo(function MessageBubble({
                   <AssistantLine>
                     <MarkdownRenderer source={assistantPlain} />
                   </AssistantLine>
-                ) : clarification?.status === "pending" ? (
-                  <AssistantLine>
-                    <p className="text-sm text-ink-soft">
-                      Here are a few quick questions so I can narrow this down.
-                    </p>
-                  </AssistantLine>
-                ) : null}
-                {clarification?.status === "pending" ? (
-                  <ClarificationControls
-                    messageId={message.id}
-                    clarification={clarification}
-                  />
-                ) : null}
-                {giftDirections?.status === "pending" ? (
-                  <GiftDirectionChips
-                    messageId={message.id}
-                    giftDirections={giftDirections}
-                  />
                 ) : null}
                 <StatusRibbon
                   message={message}
@@ -219,25 +161,13 @@ export const MessageBubble = memo(function MessageBubble({
                   <AssistantLine>
                     <MarkdownRenderer source={message.content} />
                   </AssistantLine>
-                ) : productSearch?.searches.length ? null : (
+                ) : fashionCatalogHasResults(fashionCatalogSearch) ? null : (
                   <AssistantLine>
                     <p className="text-sm text-ink-soft">
                       Here are a few quick questions so I can narrow this down.
                     </p>
                   </AssistantLine>
                 )}
-                {clarification ? (
-                  <ClarificationControls
-                    messageId={message.id}
-                    clarification={clarification}
-                  />
-                ) : null}
-                {giftDirections ? (
-                  <GiftDirectionChips
-                    messageId={message.id}
-                    giftDirections={giftDirections}
-                  />
-                ) : null}
                 {fashionRouter ? (
                   <FashionRouterControls
                     messageId={message.id}
@@ -260,17 +190,6 @@ export const MessageBubble = memo(function MessageBubble({
             <a href={lookAsk.askPath}>Open discussion →</a>
           </div>
         </div>
-      ) : null}
-
-      {!isUser && productSearch?.searches.length ? (
-        <ChatMessageProductLinkProvider messageId={message.id}>
-          <div className="mt-4 w-full">
-            <ProductSearchResults
-              data={productSearch}
-              shoppingMode={shoppingMode?.mode}
-            />
-          </div>
-        </ChatMessageProductLinkProvider>
       ) : null}
 
       {!isUser && fashionCatalogSearch?.curation && fashionCatalogSearch.render ? (
@@ -306,8 +225,6 @@ function StatusRibbon({
   streamPlain: string;
   hideWriting?: boolean;
 }) {
-  if (message.role !== "assistant") return null;
-
   if (message.status === "streaming" && streamPlain !== "" && !hideWriting) {
     return (
       <div className="mt-2 text-xs text-ink-muted">

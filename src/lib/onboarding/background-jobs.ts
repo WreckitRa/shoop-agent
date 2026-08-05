@@ -1,9 +1,8 @@
 import type { InteractiveTransactionClient } from "@/lib/ai-chat/prisma-types";
 import { prisma } from "@/lib/ai-chat/db";
 import { logAiChat } from "@/lib/ai-chat/observability";
-import { extractShoppingMemory } from "@/lib/ai-chat/shopping-memory/extractor";
-import { writeMemoryFromExtraction } from "@/lib/ai-chat/shopping-memory/writer";
-import { refreshTypedProfileIntoShoppingView } from "@/lib/onboarding/sync-profile-summary";
+import { extractOnboardingProfile } from "@/lib/onboarding/memory-extract/extractor";
+import { projectExtractionToTypedTables } from "@/lib/onboarding/memory-extract/projector";
 import { seedOnboardingIntoFashionMemory } from "@/lib/onboarding/seed-fashion-memory";
 import { loadOnboardingProjectionSnapshot } from "@/lib/onboarding/projection-snapshot";
 
@@ -135,10 +134,10 @@ async function claimExtraNotes(): Promise<ExtraNotesJob | null> {
 async function processProjection(job: ProjectionJob): Promise<void> {
   try {
     const snapshot = await loadOnboardingProjectionSnapshot(job.userId);
-    const [, fashionResult] = await Promise.all([
-      refreshTypedProfileIntoShoppingView(job.userId, snapshot),
-      seedOnboardingIntoFashionMemory(job.userId, snapshot),
-    ]);
+    const fashionResult = await seedOnboardingIntoFashionMemory(
+      job.userId,
+      snapshot,
+    );
     if (!fashionResult.ok && fashionResult.reason !== "not_auth_user") {
       throw new Error(fashionResult.reason ?? "fashion_projection_failed");
     }
@@ -180,7 +179,7 @@ async function processExtraNotes(job: ExtraNotesJob): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), NOTES_TIMEOUT_MS);
   try {
-    const extraction = await extractShoppingMemory(
+    const extraction = await extractOnboardingProfile(
       `The user added optional notes after reviewing their onboarding profile.
 Extract useful shopping memories, owned products, recipients, and preferences.
 Do not emit profileUpdates or activeIntent and do not reinterpret identity fields.
@@ -199,7 +198,15 @@ ${job.text}`,
       },
     );
     if (extraction) {
-      await writeMemoryFromExtraction(job.userId, null, null, extraction);
+      await projectExtractionToTypedTables({ userId: job.userId, extraction });
+      const snapshot = await loadOnboardingProjectionSnapshot(job.userId);
+      const fashionResult = await seedOnboardingIntoFashionMemory(
+        job.userId,
+        snapshot,
+      );
+      if (!fashionResult.ok && fashionResult.reason !== "not_auth_user") {
+        throw new Error(fashionResult.reason ?? "fashion_projection_failed");
+      }
     }
     await prisma.onboardingExtraNotesJob.update({
       where: { id: job.id },

@@ -1,6 +1,5 @@
 import {
   buildCatalogCallContext,
-  buildSearchCatalogRequest,
   CATALOG_SEARCH_PAGE_LIMIT,
   type CatalogProductSummary,
   type CatalogSearchContext,
@@ -14,9 +13,6 @@ import {
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { consumeQaFault } from "@/lib/qa/faults";
 import { recordPipelineEvent } from "../observability/trace";
-import { catalogSummaryToProductCard } from "./product-card";
-import { pipelineProductFromSummary, serializeCatalogForDebug } from "@/lib/ai-chat/search/pipeline-debug";
-import type { FashionCatalogPageCall } from "./fashion-catalog-debug";
 import type { FashionCatalogQueryLog } from "./types";
 
 function parseFashionCatalogQueryTimeoutMs(raw: string | undefined): number {
@@ -49,7 +45,6 @@ export type RunCatalogQueryParams = {
 export type RunCatalogQueryResult = {
   products: CatalogProductSummary[];
   log: FashionCatalogQueryLog;
-  catalogById: Record<string, Record<string, unknown>>;
 };
 
 export async function runCatalogQueryWithTimeout(
@@ -75,7 +70,7 @@ export async function runCatalogQueryWithTimeout(
       duration_ms: Date.now() - started,
       error: "qa_fault:fail_one_lane",
     };
-    return { products: [], log, catalogById: {} };
+    return { products: [], log };
   }
 
   const opSignal = params.abortScope?.fork();
@@ -86,7 +81,7 @@ export async function runCatalogQueryWithTimeout(
   const progress: FetchProgress = { pagesCompleted: 0, lastHttpStatus: null };
 
   try {
-    const { products, catalogCalls, partialTimeout } = await fetchCatalogQueryProducts(
+    const { products, partialTimeout } = await fetchCatalogQueryProducts(
       {
         accessToken: params.accessToken,
         query: params.query,
@@ -98,15 +93,6 @@ export async function runCatalogQueryWithTimeout(
       progress,
     );
 
-    const debugProducts = products.map(pipelineProductFromSummary);
-    const product_cards = products.map(catalogSummaryToProductCard);
-    const catalogById: Record<string, Record<string, unknown>> = {};
-    for (const product of products) {
-      const id = product.id?.trim();
-      if (!id || catalogById[id]) continue;
-      catalogById[id] = serializeCatalogForDebug(product);
-    }
-
     const log: FashionCatalogQueryLog = {
       slot_id: params.slotId,
       variant_index: params.variantIndex,
@@ -115,9 +101,8 @@ export async function runCatalogQueryWithTimeout(
       status: "ok",
       raw_count: products.length,
       duration_ms: Date.now() - started,
-      catalog_calls: catalogCalls,
-      products: debugProducts,
-      product_cards,
+      // Slim id list for shopify-rank scoring — not full product snapshots.
+      products: products.map((p) => ({ id: p.id })),
       ...(partialTimeout
         ? { error: "pagination_stopped_early: query timeout budget exhausted" }
         : {}),
@@ -133,7 +118,7 @@ export async function runCatalogQueryWithTimeout(
       reformulation: log.reformulation,
     });
 
-    return { products, log, catalogById };
+    return { products, log };
   } catch (err) {
     const elapsed = Date.now() - started;
     const parentAborted = params.signal?.aborted === true;
@@ -198,7 +183,7 @@ export async function runCatalogQueryWithTimeout(
       },
     });
 
-    return { products: [], log, catalogById: {} };
+    return { products: [], log };
   }
 }
 
@@ -223,7 +208,6 @@ async function fetchCatalogQueryProducts(
   progress: FetchProgress,
 ): Promise<{
   products: CatalogProductSummary[];
-  catalogCalls: FashionCatalogPageCall[];
   partialTimeout?: boolean;
 }> {
   const context = buildCatalogCallContext(
@@ -233,23 +217,11 @@ async function fetchCatalogQueryProducts(
   );
 
   const out: CatalogProductSummary[] = [];
-  const catalogCalls: FashionCatalogPageCall[] = [];
   let cursor: string | undefined;
-  let page = 0;
   let partialTimeout = false;
 
   try {
     while (out.length < FASHION_CATALOG_TARGET_RESULTS) {
-      const request = buildSearchCatalogRequest(
-        params.query,
-        params.filters,
-        {
-          context,
-          limit: CATALOG_SEARCH_PAGE_LIMIT,
-          cursor,
-        },
-      );
-
       const res = await resolveSearchCatalog()(
         params.accessToken,
         params.query,
@@ -273,14 +245,6 @@ async function fetchCatalogQueryProducts(
       const hasNext = pagination?.has_next_page === true;
       cursor = pagination?.cursor?.trim() || undefined;
 
-      catalogCalls.push({
-        page,
-        request,
-        product_count: pageProducts.length,
-        has_next_page: hasNext,
-      });
-      page += 1;
-
       if (
         !hasNext ||
         !cursor ||
@@ -300,7 +264,6 @@ async function fetchCatalogQueryProducts(
 
   return {
     products: out.slice(0, FASHION_CATALOG_TARGET_RESULTS),
-    catalogCalls,
     partialTimeout,
   };
 }

@@ -96,10 +96,11 @@ export function TryOnLookButton({
       <div className="mt-3">
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-full border border-hairline px-3 py-1 text-xs font-medium text-ink transition hover:bg-surface-tint"
+          className="shoop-quiz-apply"
           onClick={() => openCreateFlow()}
         >
-          Create your avatar to try them on
+          Create your avatar
+          <span aria-hidden>→</span>
         </button>
       </div>
     );
@@ -110,7 +111,7 @@ export function TryOnLookButton({
       <button
         type="button"
         data-tryon-trigger
-        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium disabled:opacity-50"
+        className="shoop-quiz-apply"
         disabled={busy}
         onClick={() =>
           openLookTryOn({
@@ -122,6 +123,7 @@ export function TryOnLookButton({
         }
       >
         See look on you
+        <span aria-hidden>→</span>
       </button>
     </div>
   );

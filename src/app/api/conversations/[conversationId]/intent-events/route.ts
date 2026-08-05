@@ -1,5 +1,4 @@
 import { listIntentEventsSince } from "@/lib/ai-chat/intent-branch/list";
-import { logIntentBranch } from "@/lib/ai-chat/intent-branch/debug-log";
 import { prisma } from "@/lib/ai-chat/db";
 import { getAuthContext } from "@/lib/auth/session";
 
@@ -28,17 +27,6 @@ export async function GET(req: Request, ctx: RouteCtx) {
     }
 
     const branches = await listIntentEventsSince(conversationId, since);
-    logIntentBranch("intent_events_poll", {
-      conversationId,
-      since: since.toISOString(),
-      branchCount: branches.length,
-      branches: branches.map((b) => ({
-        id: b.id,
-        index: b.index,
-        title: b.title,
-        sourceMessageId: b.sourceMessageId,
-      })),
-    });
     return Response.json({ branches });
   } catch {
     return Response.json({ error: "Failed to load intent events." }, { status: 500 });
