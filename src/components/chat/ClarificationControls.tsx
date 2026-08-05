@@ -1,7 +1,6 @@
 "use client";
 
 import { memo, useCallback, useMemo, useState } from "react";
-import { ArrowRight } from "lucide-react";
 import {
   BudgetRangeControl,
   budgetRangeToAnswer,
@@ -18,6 +17,10 @@ import {
 import { ClarificationOptionCard } from "@/components/chat/ClarificationOptionCard";
 import { OptionPreviewCarousel } from "@/components/chat/OptionPreviewCarousel";
 import { CLARIFICATION_OTHER_OPTION_ID, type ClarificationQuestion, type MessageClarificationV1 } from "@/lib/ai-chat/types";
+
+function looksLikeColorPrompt(text: string): boolean {
+  return /\b(color|colours?|palette|shade|tones?)\b/i.test(text);
+}
 
 function ClarificationStatusBanner({
   clarification,
@@ -43,8 +46,8 @@ function ClarificationStatusBanner({
     }
     if (!bits.length) return null;
     return (
-      <div className="mt-3 rounded-2xl border border-hairline bg-surface-tint px-4 py-3 text-xs text-ink-soft">
-        <p className="font-medium text-ink">Your selections</p>
+      <div className="shoop-qcardz text-xs text-ink-soft">
+        <p className="shoop-qcardz__q">Your selections</p>
         <ul className="mt-1.5 list-inside list-disc space-y-0.5">
           {bits.map((line) => (
             <li key={line}>{line}</li>
@@ -201,125 +204,144 @@ export const ClarificationControls = memo(function ClarificationControls({
   }
 
   return (
-    <div className="mt-4 space-y-4 rounded-2xl border border-hairline bg-surface-subtle/60 px-4 py-4 sm:px-5">
-      <p className="text-xs font-medium text-ink-secondary">
-        Quick choices — optional fields can be left blank
-      </p>
+    <div className="shoop-qcardz">
+      {questions.map((q: ClarificationQuestion) => {
+        const preferPalette = looksLikeColorPrompt(q.prompt);
+        const cardOptions = q.options.filter(
+          (o) =>
+            o.id !== CLARIFICATION_OTHER_OPTION_ID &&
+            (preferPalette ||
+              o.previewQuery?.trim() ||
+              /surprise/i.test(o.label) ||
+              o.id === "surprise_me"),
+        );
+        const chipOptions = q.options.filter(
+          (o) =>
+            o.id === CLARIFICATION_OTHER_OPTION_ID ||
+            (!preferPalette &&
+              !o.previewQuery?.trim() &&
+              !/surprise/i.test(o.label) &&
+              o.id !== "surprise_me"),
+        );
+        const hasVisualRow = cardOptions.length > 0;
 
-      {questions.map((q: ClarificationQuestion) => (
-        <div key={q.id} className="space-y-2.5">
-          <p className="text-sm font-medium text-ink">
-            {q.prompt}
-            {q.optional ? (
-              <span className="ml-1.5 font-normal text-ink-muted">
-                (optional)
-              </span>
-            ) : null}
-            {q.allowMultiple ? (
-              <span className="ml-1.5 font-normal text-ink-muted">
-                (choose any that apply)
-              </span>
-            ) : null}
-          </p>
-
-          {isBudgetSliderQuestion(q) && q.budgetSlider ? (
-            <BudgetRangeControl
-              question={q}
-              value={budgetRanges[q.id] ?? initialBudgetRangeValue(q)}
-              disabled={busy}
-              onChange={(value) =>
-                setBudgetRanges((current) => ({ ...current, [q.id]: value }))
-              }
-            />
-          ) : (
-            <>
-              {(() => {
-                const cardOptions = q.options.filter(
-                  (o) =>
-                    o.previewQuery?.trim() &&
-                    o.id !== CLARIFICATION_OTHER_OPTION_ID,
-                );
-                const chipOptions = q.options.filter(
-                  (o) =>
-                    !o.previewQuery?.trim() ||
-                    o.id === CLARIFICATION_OTHER_OPTION_ID,
-                );
-                return (
-                  <>
-                    {cardOptions.length ? (
-                      <OptionPreviewCarousel title="Explore ideas">
-                        {cardOptions.map((o) => {
-                          const on = (selections[q.id] ?? []).includes(o.id);
-                          return (
-                            <ClarificationOptionCard
-                              key={o.id}
-                              optionId={o.id}
-                              label={o.label}
-                              selected={on}
-                              disabled={busy}
-                              previewQuery={o.previewQuery}
-                              previewImages={o.previewImages}
-                              onToggle={() => toggleOption(q, o.id)}
-                            />
-                          );
-                        })}
-                      </OptionPreviewCarousel>
-                    ) : null}
-                    {chipOptions.length ? (
-                      <div className="shoop-quiz-chips">
-                        {chipOptions.map((o) => {
-                          const on = (selections[q.id] ?? []).includes(o.id);
-                          return (
-                            <button
-                              key={o.id}
-                              type="button"
-                              disabled={busy}
-                              aria-pressed={on}
-                              onClick={() => toggleOption(q, o.id)}
-                              className={
-                                on
-                                  ? "shoop-quiz-chip shoop-quiz-chip--active"
-                                  : "shoop-quiz-chip"
-                              }
-                            >
-                              {o.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </>
-                );
-              })()}
-              {questionAllowsOther(q) &&
-              (selections[q.id] ?? []).includes(CLARIFICATION_OTHER_OPTION_ID) ? (
-                <input
-                  type="text"
-                  disabled={busy}
-                  autoFocus
-                  placeholder="Tell us more…"
-                  aria-label={`Custom answer for ${q.prompt}`}
-                  value={custom[q.id] ?? ""}
-                  onChange={(e) =>
-                    setCustom((c) => ({ ...c, [q.id]: e.target.value }))
-                  }
-                  className="shoop-quiz-other-input"
-                />
+        return (
+          <div key={q.id} className="shoop-qcardz__block">
+            <p className="shoop-qcardz__q">
+              {q.prompt}
+              {q.optional ? (
+                <span className="ml-1.5 font-normal text-ink-muted">
+                  (optional)
+                </span>
               ) : null}
-            </>
-          )}
-        </div>
-      ))}
+              {q.allowMultiple ? (
+                <span className="ml-1.5 font-normal text-ink-muted">
+                  (choose any that apply)
+                </span>
+              ) : null}
+            </p>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
+            {isBudgetSliderQuestion(q) && q.budgetSlider ? (
+              <BudgetRangeControl
+                question={q}
+                value={budgetRanges[q.id] ?? initialBudgetRangeValue(q)}
+                disabled={busy}
+                onChange={(value) =>
+                  setBudgetRanges((current) => ({ ...current, [q.id]: value }))
+                }
+              />
+            ) : (
+              <>
+                {hasVisualRow ? (
+                  <OptionPreviewCarousel bare>
+                    {cardOptions.map((o) => {
+                      const on = (selections[q.id] ?? []).includes(o.id);
+                      return (
+                        <ClarificationOptionCard
+                          key={o.id}
+                          optionId={o.id}
+                          label={o.label}
+                          selected={on}
+                          disabled={busy}
+                          previewQuery={o.previewQuery}
+                          previewImages={o.previewImages}
+                          preferPalette={preferPalette}
+                          onToggle={() => toggleOption(q, o.id)}
+                        />
+                      );
+                    })}
+                    {chipOptions
+                      .filter((o) => o.id === CLARIFICATION_OTHER_OPTION_ID)
+                      .map((o) => {
+                        const on = (selections[q.id] ?? []).includes(o.id);
+                        return (
+                          <ClarificationOptionCard
+                            key={o.id}
+                            optionId={o.id}
+                            label={o.label}
+                            selected={on}
+                            disabled={busy}
+                            onToggle={() => toggleOption(q, o.id)}
+                          />
+                        );
+                      })}
+                  </OptionPreviewCarousel>
+                ) : null}
+                {chipOptions.filter((o) =>
+                  hasVisualRow ? o.id !== CLARIFICATION_OTHER_OPTION_ID : true,
+                ).length ? (
+                  <div className="shoop-quiz-chips flex flex-wrap gap-2">
+                    {chipOptions
+                      .filter((o) =>
+                        hasVisualRow
+                          ? o.id !== CLARIFICATION_OTHER_OPTION_ID
+                          : true,
+                      )
+                      .map((o) => {
+                        const on = (selections[q.id] ?? []).includes(o.id);
+                        return (
+                          <ClarificationOptionCard
+                            key={o.id}
+                            optionId={o.id}
+                            label={o.label}
+                            selected={on}
+                            disabled={busy}
+                            onToggle={() => toggleOption(q, o.id)}
+                          />
+                        );
+                      })}
+                  </div>
+                ) : null}
+                {questionAllowsOther(q) &&
+                (selections[q.id] ?? []).includes(CLARIFICATION_OTHER_OPTION_ID) ? (
+                  <input
+                    type="text"
+                    disabled={busy}
+                    autoFocus
+                    placeholder="Tell us more…"
+                    aria-label={`Custom answer for ${q.prompt}`}
+                    value={custom[q.id] ?? ""}
+                    onChange={(e) =>
+                      setCustom((c) => ({ ...c, [q.id]: e.target.value }))
+                    }
+                    className="shoop-quiz-other-input"
+                  />
+                ) : null}
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
           disabled={busy || !canSubmit}
           onClick={() => void submitClarification(messageId, buildAnswers())}
           className="shoop-quiz-apply"
         >
-          Apply & continue
-          <ArrowRight className="size-3.5" strokeWidth={2.25} aria-hidden />
+          Show me the rack
+          <span aria-hidden>→</span>
         </button>
         <button
           type="button"

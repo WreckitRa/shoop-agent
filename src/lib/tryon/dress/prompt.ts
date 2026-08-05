@@ -1,16 +1,16 @@
 import type { GarmentType } from "../types";
 import type { TryonProductContext } from "./product-context";
 
-export const TRYON_DRESS_PROMPT_VERSION = "v3" as const;
+export const TRYON_DRESS_PROMPT_VERSION = "v4" as const;
 
 const PLACEMENT: Record<GarmentType, string> = {
-  top: "Place on the upper body only — match neckline, sleeve length, hem, and shoulder seams from the product reference.",
+  top: "REPLACE the existing upper-body clothing completely with this product — do not layer it on top of the current shirt/top. Match neckline, sleeve length, hem, and shoulder seams from the product reference.",
   bottom:
-    "Place on the lower body only — match waist rise, inseam, leg opening, and hip/thigh fit from the product reference.",
+    "REPLACE the existing lower-body clothing completely with this product — do not layer it on top of the current pants/skirt. Match waist rise, inseam, leg opening, and hip/thigh fit from the product reference.",
   shoes:
     "Place on both feet — match sole thickness, toe shape, and ankle coverage; ground contact must look natural.",
   dress:
-    "Dress as one continuous garment over torso and skirt/pant — preserve waist seam and silhouette from the product reference.",
+    "REPLACE the full current outfit with this one-piece — remove the existing top and bottom, then dress as one continuous garment. Preserve waist seam and silhouette from the product reference.",
   outerwear:
     "Layer as outerwear over the current outfit — match collar/lapel, closure, length, and sleeve volume without erasing layers underneath.",
 };
@@ -82,16 +82,35 @@ export function buildTryonDressPromptCompact(
   if (chain && chain.stepTotal > 1) {
     if (chain.stepIndex === 0) {
       parts.push(
-        `Outfit base layer (step 1 of ${chain.stepTotal}): establish this garment; later steps will add more pieces on top of this result.`,
+        `Outfit base layer (step 1 of ${chain.stepTotal}): REPLACE whatever the person currently wears in this region with this garment; later steps will add more pieces on top of this result.`,
       );
-    } else {
+    } else if (
+      product.garment_type === "outerwear" ||
+      product.garment_type === "shoes"
+    ) {
       const prior =
         chain.priorGarmentTitles?.filter(Boolean).slice(0, 6).join("; ") ||
         "all previously applied garments";
       parts.push(
         `CRITICAL multi-garment try-on step ${chain.stepIndex + 1} of ${chain.stepTotal}: the model_image already shows the person wearing ${prior}. ADD only this new ${product.garment_type}. Do NOT remove, replace, recolor, or cover previously worn garments. Keep prior layers fully visible and unchanged except where this new piece naturally overlaps.`,
       );
+    } else {
+      // Same-region replace mid-chain (e.g. swap a top while keeping prior bottom).
+      const prior =
+        chain.priorGarmentTitles?.filter(Boolean).slice(0, 6).join("; ") ||
+        "previously applied garments";
+      parts.push(
+        `CRITICAL multi-garment try-on step ${chain.stepIndex + 1} of ${chain.stepTotal}: REPLACE only the ${product.garment_type} region with this product. Keep other garments (${prior}) fully visible and unchanged.`,
+      );
     }
+  } else if (
+    product.garment_type === "top" ||
+    product.garment_type === "bottom" ||
+    product.garment_type === "dress"
+  ) {
+    parts.push(
+      "The model_image may already show street clothes — remove/replace that clothing in this region; do not leave the original garment visible underneath.",
+    );
   }
 
   // FASHN prompts stay concise — soft cap ~900 chars.

@@ -220,6 +220,7 @@ describe("fashn avatar prompt", () => {
     assert.match(prompt ?? "", /tall stature/);
     assert.doesNotMatch(prompt ?? "", /skin|hair/i);
     assert.match(prompt ?? "", /neutral standing pose/);
+    assert.match(prompt ?? "", /plain fitted white crewneck/i);
     assert.match(prompt ?? "", /no beautification/);
   });
 });
@@ -286,7 +287,7 @@ describe("dress prompt", () => {
       },
       occasionContext: "smart casual office",
     });
-    assert.equal(product.prompt_version, "v3");
+    assert.equal(product.prompt_version, "v4");
     assert.ok(product.material_notes.some((n) => /Merino/i.test(n)));
     assert.ok(product.fit_notes.some((n) => /Fit/i.test(n)));
     assert.deepEqual(product.normalized_colors, ["navy"]);
@@ -299,7 +300,8 @@ describe("dress prompt", () => {
     assert.match(prompt, /Theory/);
     assert.match(prompt, /Merino/);
     assert.match(prompt, /Preserve exact color/);
-    assert.match(prompt, /upper body/);
+    assert.match(prompt, /REPLACE the existing upper-body/i);
+    assert.match(prompt, /do not leave the original garment/i);
     assert.doesNotMatch(prompt, /face|pose|background/i);
   });
 

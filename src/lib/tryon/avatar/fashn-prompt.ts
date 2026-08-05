@@ -4,7 +4,7 @@ import type { AvatarAttributes } from "../types";
  * Versioned avatar prompt for FASHN face-to-model.
  * Bump when attribute→phrase maps or fidelity rules change.
  */
-export const TRYON_AVATAR_PROMPT_VERSION = "v2" as const;
+export const TRYON_AVATAR_PROMPT_VERSION = "v3" as const;
 
 const BODY_SHAPE_PHRASE: Record<
   NonNullable<AvatarAttributes["body_shape"]>,
@@ -82,8 +82,13 @@ export function buildFashnAvatarPrompt(
     );
   }
 
-  // Pose that dress try-on can use cleanly.
+  // Pose + base wardrobe that dress try-on can replace cleanly.
+  // FASHN layers products onto whatever the model already wears — street clothes
+  // on the saved avatar cause "clothes on clothes". Keep a plain fitted base.
   parts.push("neutral standing pose, arms relaxed at sides");
+  parts.push(
+    "wearing a plain fitted white crewneck t-shirt and simple dark fitted trousers, no jacket, no logos, no busy patterns",
+  );
   parts.push(FIDELITY_RULE);
 
   return parts.length ? parts.join(", ") : undefined;

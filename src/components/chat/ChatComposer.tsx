@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { ComposerReplyChip } from "@/components/chat/ComposerReplyChip";
 import { FeelingMoodPicker } from "@/components/chat/FeelingMoodPicker";
@@ -10,12 +10,13 @@ import { SelectedCategoryChips } from "@/components/chat/SelectedCategoryChips";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useSuggestedPrompt } from "@/components/chat/useSuggestedPrompt";
 import { ShoopIcon } from "@/components/brand/ShoopBrand";
+import { cn } from "@/lib/ai-chat/cn";
 
 const HOME_PLACEHOLDERS = [
-  "Beach wedding in Sardinia in May — guest, under $400, polished but not overdressed…",
-  "Rebuild my work wardrobe — warm undertone, creative office, $600 total…",
-  "Find everyday sneakers for wide feet — lots of walking, minimal, under $180…",
-  "Anniversary gift for my wife — sculptural jewelry, gold, thoughtful, under $300…",
+  '"Day house party outfit… cool and comfy, under $250."',
+  '"Beach wedding in Sardinia in May — guest, under $400."',
+  '"Rebuild my work wardrobe — creative office, $600 total."',
+  '"Everyday sneakers for wide feet — minimal, under $180."',
 ] as const;
 
 export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
@@ -105,6 +106,10 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
     });
   }, [resize, sendMessage]);
 
+  const focusAsk = useCallback(() => {
+    ta.current?.focus({ preventScroll: true });
+  }, []);
+
   const canSubmit = input.trim().length > 0;
   const placeholder = isStreaming
     ? "Type your next message…"
@@ -116,14 +121,14 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
     <div
       className={
         isHeroComposer
-          ? "w-full"
+          ? "w-full max-w-[640px]"
           : "shrink-0 bg-page pb-[max(12px,env(safe-area-inset-bottom))] pt-3"
       }
     >
       <div
         className={
           isHeroComposer
-            ? "shoop-hero-composer flex w-full flex-col gap-2 sm:gap-3"
+            ? "flex w-full flex-col gap-2 sm:gap-3"
             : "mx-auto flex w-full max-w-page-narrow flex-col gap-3 shoop-page-x"
         }
       >
@@ -153,12 +158,15 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
             />
           ) : null}
           {isHeroComposer ? (
-            <p className="shoop-ask-label mb-2">Ask me anything</p>
+            <p className="shoop-ask-label">
+              <ShoopIcon size={22} className="rounded-[6px]" />
+              ASK ME ANYTHING
+            </p>
           ) : null}
           <div>
             <textarea
               ref={ta}
-              rows={isHeroComposer ? 1 : isHomeEmpty ? 1 : 2}
+              rows={isHeroComposer ? 2 : isHomeEmpty ? 1 : 2}
               placeholder={placeholder}
               value={input}
               aria-busy={isStreaming || undefined}
@@ -173,16 +181,69 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
                   if (canSubmit) onSend();
                 }
               }}
-              className="shoop-composer-textarea shoop-textarea-placeholder max-h-[200px] min-h-[28px] w-full resize-none overflow-hidden border-0 bg-transparent text-[16px] font-normal leading-[24px] text-ink outline-none md:text-[15px] md:leading-6"
+              className={cn(
+                "shoop-composer-textarea shoop-textarea-placeholder max-h-[200px] w-full resize-none overflow-hidden border-0 bg-transparent font-normal text-ink outline-none",
+                isHeroComposer
+                  ? "min-h-[44px] text-[15px] leading-[1.5] md:text-[15px]"
+                  : "min-h-[28px] text-[16px] leading-[24px] md:text-[15px] md:leading-6",
+              )}
             />
           </div>
-          <div className="shoop-composer-actions mt-2.5 flex h-11 items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-              <ReceiptPlusButton />
-              {!isHomeEmpty ? <FeelingMoodPicker /> : null}
-            </div>
+          <div
+            className={cn(
+              "mt-3 flex items-center justify-between gap-2",
+              isHeroComposer ? "min-h-11" : "shoop-composer-actions h-11",
+            )}
+          >
+            {isHeroComposer ? (
+              <div
+                className="flex min-w-0 flex-wrap items-center gap-2"
+                role="group"
+                aria-label="Ask shortcuts"
+              >
+                <ReceiptPlusButton variant="door" />
+                <button
+                  type="button"
+                  className="shoop-ask-door"
+                  onClick={() => {
+                    setInput(
+                      "Find me this look — I'll describe it (or share a photo next).",
+                    );
+                    focusAsk();
+                  }}
+                >
+                  📷 Find me this
+                </button>
+                <button
+                  type="button"
+                  className="shoop-ask-door"
+                  onClick={focusAsk}
+                >
+                  💬 Just tell me
+                </button>
+              </div>
+            ) : (
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                <ReceiptPlusButton />
+                <FeelingMoodPicker />
+              </div>
+            )}
             {isStreaming ? (
               <StopButton onStop={() => void stopGeneration()} />
+            ) : isHeroComposer ? (
+              <button
+                type="button"
+                disabled={!canSubmit}
+                onClick={onSend}
+                className="shoop-shoop-btn disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Shoop it
+                <ArrowRight
+                  className="shoop-shoop-btn__arr size-3.5"
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
+              </button>
             ) : (
               <SendIconButton disabled={!canSubmit} onClick={onSend} />
             )}
@@ -195,7 +256,7 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
           </p>
         ) : null}
 
-        {isFirstMessage ? <ComposerLegalFooter /> : null}
+        {isFirstMessage && !isHeroComposer ? <ComposerLegalFooter /> : null}
       </div>
     </div>
   );
@@ -241,8 +302,23 @@ function SendIconButton({
       aria-label="Send message"
       className="shoop-composer-send shoop-composer-send--icon flex h-11 w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed"
     >
-      <ArrowUp className="size-4 text-white" strokeWidth={1.75} aria-hidden />
+      <ArrowUpIcon />
     </button>
+  );
+}
+
+function ArrowUpIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="size-4 text-white"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      aria-hidden
+    >
+      <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

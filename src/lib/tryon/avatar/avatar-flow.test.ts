@@ -21,9 +21,9 @@ import { buildFashionExtractionPrompt } from "@/lib/fashion-memory/extraction/pr
 import { buildPersonShortIdMap } from "@/lib/fashion-memory/extraction/context-format";
 import type { FashionFactRow, PersonRow } from "@/lib/fashion-memory/types";
 
-describe("avatar prompt v2 — body_shape + bust", () => {
+describe("avatar prompt v3 — body_shape + bust", () => {
   it("bumps prompt version", () => {
-    assert.equal(TRYON_AVATAR_PROMPT_VERSION, "v2");
+    assert.equal(TRYON_AVATAR_PROMPT_VERSION, "v3");
   });
 
   it("Tailored: triangle + full bust maps to visual phrases", () => {

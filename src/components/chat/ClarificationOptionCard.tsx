@@ -12,6 +12,38 @@ function displayLabel(label: string): string {
   return label.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").trim() || label;
 }
 
+function splitLabel(label: string): { title: string; subtitle?: string } {
+  const clean = displayLabel(label);
+  const parts = clean.split(/\s*[—–\n]\s*/);
+  if (parts.length >= 2 && parts[0]!.trim().length > 0 && parts[0]!.length < 48) {
+    return {
+      title: parts[0]!.trim(),
+      subtitle: parts.slice(1).join(" — ").trim() || undefined,
+    };
+  }
+  // "TITLE soft description" where TITLE is short caps-ish head
+  const m = clean.match(/^(.{2,28}?)\s{2,}(.+)$/);
+  if (m) return { title: m[1]!.trim(), subtitle: m[2]!.trim() };
+  return { title: clean };
+}
+
+const COLOR_DOTS: Record<string, string[]> = {
+  neutrals: ["#F2F2EE", "#CFCFC9", "#8A8A93", "#2B2B30"],
+  earth: ["#8A9B6E", "#C9A874", "#A0703C", "#6B5B3E"],
+  cool: ["#8FA6C9", "#5C7A8A", "#3E5C50", "#23305F"],
+  warm: ["#E8C4A8", "#D4A373", "#B86B4A", "#6B3A2A"],
+  default: ["#F2F2EE", "#CFCFC9", "#8A8A93", "#2B2B30"],
+};
+
+function dotsForLabel(label: string): string[] {
+  const l = label.toLowerCase();
+  if (/neutral|gray|black|white/.test(l)) return COLOR_DOTS.neutrals;
+  if (/earth|olive|tan|rust|warm/.test(l)) return COLOR_DOTS.earth;
+  if (/cool|navy|blue|green/.test(l)) return COLOR_DOTS.cool;
+  if (/warm/.test(l)) return COLOR_DOTS.warm;
+  return COLOR_DOTS.default;
+}
+
 type ClarificationOptionCardProps = {
   optionId: string;
   label: string;
@@ -19,6 +51,8 @@ type ClarificationOptionCardProps = {
   disabled: boolean;
   previewQuery?: string;
   previewImages?: ClarificationOptionPreviewImage[];
+  /** Color / palette questions → swatch tiles even when previewQuery exists */
+  preferPalette?: boolean;
   onToggle: () => void;
 };
 
@@ -59,12 +93,20 @@ export const ClarificationOptionCard = memo(function ClarificationOptionCard({
   disabled,
   previewQuery,
   previewImages,
+  preferPalette = false,
   onToggle,
 }: ClarificationOptionCardProps) {
   const hasPreviewImages = (previewImages?.length ?? 0) > 0;
+  const isOther = optionId === CLARIFICATION_OTHER_OPTION_ID;
+  const isSurprise = /surprise/i.test(label) || optionId === "surprise_me";
+  const looksPaletteLabel =
+    preferPalette ||
+    /neutral|earth|cool|warm|tone|palette|color/i.test(label);
   const expectsPreview = Boolean(
     (previewQuery?.trim() || hasPreviewImages) &&
-      optionId !== CLARIFICATION_OTHER_OPTION_ID,
+      !isOther &&
+      !isSurprise &&
+      !preferPalette,
   );
   const [imageIndex, setImageIndex] = useState(0);
   const heroImage = previewImages?.[imageIndex];
@@ -103,6 +145,8 @@ export const ClarificationOptionCard = memo(function ClarificationOptionCard({
     return true;
   }, [expectsPreview, fallbackToChip, hasImages, imageFailed]);
 
+  const { title, subtitle } = splitLabel(label);
+
   const handleImageError = () => {
     const nextIndex = imageIndex + 1;
     if (previewImages && nextIndex < previewImages.length) {
@@ -116,6 +160,61 @@ export const ClarificationOptionCard = memo(function ClarificationOptionCard({
       setFallbackToChip(true);
     }
   };
+
+  if (isOther) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        aria-pressed={selected}
+        onClick={onToggle}
+        className={
+          selected
+            ? "shoop-quiz-type-chip shoop-quiz-type-chip--active"
+            : "shoop-quiz-type-chip"
+        }
+      >
+        or type it…
+      </button>
+    );
+  }
+
+  if (isSurprise || (!showVisualCard && looksPaletteLabel) || preferPalette) {
+    const surprise = isSurprise;
+    const { title: t, subtitle: s } = splitLabel(label);
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        aria-pressed={selected}
+        onClick={onToggle}
+        className={cn(
+          "shoop-paltile",
+          surprise && "shoop-paltile--surprise",
+          selected && "shoop-paltile--on",
+        )}
+      >
+        <span className="shoop-paltile__title">
+          {surprise ? t || "Surprise me" : t}
+        </span>
+        {s || surprise ? (
+          <span className="shoop-paltile__body">
+            {s ||
+              (surprise
+                ? "I know your palette… trust the stylist"
+                : null)}
+          </span>
+        ) : null}
+        {!surprise ? (
+          <div className="shoop-paltile__dots" aria-hidden>
+            {dotsForLabel(label).map((c) => (
+              <span key={c} style={{ background: c }} />
+            ))}
+          </div>
+        ) : null}
+      </button>
+    );
+  }
 
   if (!showVisualCard) {
     return (
@@ -167,7 +266,10 @@ export const ClarificationOptionCard = memo(function ClarificationOptionCard({
         ) : null}
 
         <div className="shoop-explore-card__caption">
-          <span className="shoop-explore-card__label">{displayLabel(label)}</span>
+          <span className="shoop-explore-card__label">{title}</span>
+          {subtitle ? (
+            <span className="shoop-explore-card__sub">{subtitle}</span>
+          ) : null}
         </div>
       </div>
     </button>

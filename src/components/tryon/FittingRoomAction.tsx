@@ -12,6 +12,8 @@ type FittingRoomActionProps = {
   item: FittingRoomItem;
   className?: string;
   compact?: boolean;
+  /** Wireframe hover overlay on find cards */
+  variant?: "default" | "overlay";
   /** When set, show create-avatar CTA from pick contract even if item is tryonSupported. */
   tryonAvailable?: boolean;
   tryonCta?: "tryon" | "create_avatar" | "hidden";
@@ -21,6 +23,7 @@ export function FittingRoomAction({
   item,
   className,
   compact = false,
+  variant = "default",
   tryonAvailable,
   tryonCta,
 }: FittingRoomActionProps) {
@@ -39,6 +42,21 @@ export function FittingRoomAction({
   if (cta === "hidden") return null;
 
   if (cta === "create_avatar") {
+    if (variant === "overlay") {
+      return (
+        <button
+          type="button"
+          data-tryon-trigger
+          className={cn("shoop-tryb", className)}
+          onClick={(e) => {
+            e.stopPropagation();
+            openCreateFlow();
+          }}
+        >
+          CREATE AVATAR →
+        </button>
+      );
+    }
     return (
       <button
         type="button"
@@ -58,10 +76,33 @@ export function FittingRoomAction({
     );
   }
 
+  const overlayLabel = isInRack
+    ? "IN FITTING ROOM"
+    : rackFull
+      ? "ROOM FULL"
+      : "TRY ON ME →";
+
   const label =
     isInRack ? "In fitting room"
     : rackFull ? "Fitting room full"
     : "Add to fitting room";
+
+  if (variant === "overlay") {
+    return (
+      <button
+        type="button"
+        data-tryon-trigger
+        disabled={isInRack || rackFull}
+        className={cn("shoop-tryb", className)}
+        onClick={(e) => {
+          e.stopPropagation();
+          addToFittingRoom(item);
+        }}
+      >
+        {overlayLabel}
+      </button>
+    );
+  }
 
   return (
     <button

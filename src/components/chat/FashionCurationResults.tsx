@@ -9,8 +9,8 @@ import type {
 } from "@/lib/fashion-memory/types/render-contract";
 import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
 import { cn } from "@/lib/ai-chat/cn";
-import { TryOnPickButton } from "@/components/tryon/TryOnPickButton";
 import { TryOnLookButton } from "@/components/tryon/TryOnLookButton";
+import { ShoopFindCard } from "@/components/chat/ShoopFindCard";
 import { FittingRoomAction } from "@/components/tryon/FittingRoomAction";
 import { fittingRoomItemFromProductCard, fittingRoomItemFromSearchPick } from "@/components/tryon/fitting-room-item-builders";
 import { capsuleLookId } from "@/lib/tryon/outfit-ids";
@@ -25,6 +25,10 @@ import {
 import { buildInlineProductState } from "@/lib/shared/productPanelParams";
 import { stashChatFocusReturn } from "@/lib/shared/chatFocus";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
+import {
+  resolveTryonCta,
+  useSelfAvatarStore,
+} from "@/components/tryon/self-avatar-store";
 
 function formatPrice(price: { amount: number; currency: string }) {
   return new Intl.NumberFormat(undefined, {
@@ -97,6 +101,14 @@ function useOpenFashionProduct() {
   );
 }
 
+function whyMeta(pick: RenderPick): string {
+  if (pick.stylist_line?.trim()) return pick.stylist_line.trim();
+  const bits = pick.badges
+    .map((badge) => badgeLabel(badge))
+    .filter((label): label is string => Boolean(label));
+  return bits.join(" · ");
+}
+
 function CuratedPickCard({
   pick,
   searchId,
@@ -110,74 +122,93 @@ function CuratedPickCard({
   onOpen: () => void;
   selected?: boolean;
 }) {
+  const meta = whyMeta(pick);
+  const item = fittingRoomItemFromSearchPick({ pick, searchId });
+  const priceLabel = pick.displayPrice ? formatPrice(pick.displayPrice) : null;
+
   return (
-    <article
-      className={cn(
-        "flex shrink-0 flex-col overflow-hidden rounded-[14px] border bg-white shadow-[0_12px_28px_-20px_rgba(14,14,17,0.28)] transition-transform duration-150 hover:-translate-y-0.5",
-        compact ? "w-[11rem]" : "w-[14rem]",
-        selected
-          ? "border-ink ring-1 ring-ink/20"
-          : "border-hairline",
-      )}
-    >
+    <ShoopFindCard
+      title={pick.title}
+      imageUrl={pick.imageUrl}
+      priceLabel={priceLabel}
+      meta={meta || null}
+      selected={selected}
+      compact={compact}
+      onOpen={onOpen}
+      fittingItem={item}
+      tryonAvailable={pick.tryon?.available}
+      tryonCta={pick.tryon?.cta}
+    />
+  );
+}
+
+function ChangingRoomCta({
+  picks,
+  searchId,
+  lookId,
+  title,
+}: {
+  picks: RenderPick[];
+  searchId: string;
+  lookId: string;
+  title: string;
+}) {
+  const openLookTryOn = useTryOnDrawerStore((s) => s.openLookTryOn);
+  const addManyToFittingRoom = useTryOnDrawerStore((s) => s.addManyToFittingRoom);
+  const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
+  const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
+  const avatarStatus = useSelfAvatarStore((s) => s.status);
+
+  if (!picks.length) return null;
+
+  const items = picks.map((pick) =>
+    fittingRoomItemFromSearchPick({ pick, searchId }),
+  );
+  const anyTryon = picks.some((p) => p.tryon?.available !== false);
+  const wantsAvatar = picks.some((p) => p.tryon?.cta === "create_avatar");
+  const cta = resolveTryonCta({
+    available: anyTryon,
+    cta: wantsAvatar ? "create_avatar" : undefined,
+    avatarStatus,
+  });
+
+  if (cta === "hidden") return null;
+
+  if (cta === "create_avatar") {
+    return (
       <button
         type="button"
-        className="text-left"
-        onClick={onOpen}
-        aria-expanded={selected}
+        className="shoop-quiz-apply"
+        onClick={() => openCreateFlow()}
       >
-        <div className="relative aspect-[3/4] bg-surface-tint">
-          {pick.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={pick.imageUrl}
-              alt={pick.title}
-              className="size-full object-cover"
-            />
-          ) : (
-            <div className="flex size-full items-center justify-center text-xs text-ink-muted">
-              No image
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col gap-2 p-3">
-          <div>
-            <p className="line-clamp-2 text-sm font-medium text-ink">
-              {pick.title}
-            </p>
-            {pick.displayPrice ? (
-              <p className="mt-0.5 text-xs text-ink-muted">
-                {formatPrice(pick.displayPrice)}
-              </p>
-            ) : null}
-          </div>
-          {pick.stylist_line ? (
-            <p className="text-xs leading-5 text-ink-secondary">
-              {pick.stylist_line}
-            </p>
-          ) : null}
-          {pick.badges.length ? (
-            <div className="flex flex-wrap gap-1">
-              {pick.badges.map((badge, i) => {
-                const label = badgeLabel(badge);
-                if (!label) return null;
-                return (
-                  <span
-                    key={i}
-                    className="rounded-full bg-surface-tint px-2 py-0.5 text-[10px] text-ink-muted"
-                  >
-                    {label}
-                  </span>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
+        Create your avatar
+        <span aria-hidden>→</span>
       </button>
-      <div className="px-3 pb-3">
-        <TryOnPickButton pick={pick} searchId={searchId} />
-      </div>
-    </article>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      data-tryon-trigger
+      className="shoop-quiz-apply"
+      onClick={() => {
+        if (anyTryon) {
+          openLookTryOn({
+            searchId,
+            lookId,
+            title,
+            items,
+          });
+          return;
+        }
+        addManyToFittingRoom(items);
+        openFittingRoom();
+      }}
+    >
+      Take the look to the changing room
+      <span aria-hidden>→</span>
+    </button>
   );
 }
 
@@ -471,7 +502,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
                   ${look.total.toFixed(0)} total
                 </p>
               </div>
-              <div className="flex gap-3 overflow-x-auto pb-1">
+              <div className="shoop-vrack !mt-0">
                 {look.item_refs.map((ref) => {
                   const pick = resolveLookPick(ref);
                   if (!pick) return null;
@@ -538,7 +569,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
                     </p>
                   ) : null}
                 </div>
-                <div className="flex gap-3 overflow-x-auto pb-1">
+                <div className="shoop-vrack !mt-0">
                   {outfit.item_refs.map((ref) => {
                     const pick = resolveLookPick(ref);
                     if (!pick) return null;
@@ -576,9 +607,8 @@ export const FashionCurationResults = memo(function FashionCurationResults({
       ) : null}
 
       {!isOutfit && !isCapsule ? (
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-ink">Top picks</h3>
-          <div className="flex gap-3 overflow-x-auto pb-1">
+        <div>
+          <div className="shoop-vrack">
             {render.tiers.picks.map((pick) => (
               <CuratedPickCard
                 key={pick.ref}
@@ -589,6 +619,17 @@ export const FashionCurationResults = memo(function FashionCurationResults({
               />
             ))}
           </div>
+          {render.narration.thin_note ? (
+            <p className="shoop-pickline">{render.narration.thin_note}</p>
+          ) : render.narration.brand_note ? (
+            <p className="shoop-pickline">{render.narration.brand_note}</p>
+          ) : null}
+          <ChangingRoomCta
+            picks={render.tiers.picks}
+            searchId={searchId}
+            lookId={`rack:${searchId}`}
+            title="Your rack"
+          />
           {panel}
         </div>
       ) : null}

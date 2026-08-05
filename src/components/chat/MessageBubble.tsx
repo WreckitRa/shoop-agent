@@ -1,6 +1,7 @@
 "use client";
 
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
+import { ShoopIcon } from "@/components/brand/ShoopBrand";
 import { useChatStore } from "@/components/chat/chat-store";
 import { ClarificationControls } from "@/components/chat/ClarificationControls";
 import { GiftDirectionChips } from "@/components/chat/GiftDirectionChips";
@@ -68,6 +69,15 @@ function collectStreamedImages(
   return images;
 }
 
+function AssistantLine({ children }: { children: ReactNode }) {
+  return (
+    <div className="shoop-chat-assistant">
+      <ShoopIcon size={24} className="shoop-chat-assistant__mark" />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
 export const MessageBubble = memo(function MessageBubble({
   message,
   assistantLiveText,
@@ -121,10 +131,8 @@ export const MessageBubble = memo(function MessageBubble({
               className="max-w-full"
             />
           ) : null}
-          <div className="rounded-[20px_20px_6px_20px] bg-surface-tint px-4 py-2.5 text-ink">
-            <p className="whitespace-pre-wrap text-[15px] leading-relaxed">
-              {message.content}
-            </p>
+          <div className="shoop-chat-user">
+            <p className="whitespace-pre-wrap">{message.content}</p>
           </div>
         </div>
       ) : (
@@ -145,9 +153,11 @@ export const MessageBubble = memo(function MessageBubble({
               <>
                 {clarification?.status === "pending" ? (
                   <>
-                    <p className="text-sm text-ink-soft">
-                      Here are a few quick questions so I can narrow this down.
-                    </p>
+                    <AssistantLine>
+                      <p className="text-sm text-ink-soft">
+                        Here are a few quick questions so I can narrow this down.
+                      </p>
+                    </AssistantLine>
                     <ClarificationControls
                       messageId={message.id}
                       clarification={clarification}
@@ -174,11 +184,15 @@ export const MessageBubble = memo(function MessageBubble({
             ) : message.status === "streaming" ? (
               <>
                 {message.content.trim() || assistantPlain.trim() ? (
-                  <MarkdownRenderer source={assistantPlain} />
+                  <AssistantLine>
+                    <MarkdownRenderer source={assistantPlain} />
+                  </AssistantLine>
                 ) : clarification?.status === "pending" ? (
-                  <p className="text-sm text-ink-soft">
-                    Here are a few quick questions so I can narrow this down.
-                  </p>
+                  <AssistantLine>
+                    <p className="text-sm text-ink-soft">
+                      Here are a few quick questions so I can narrow this down.
+                    </p>
+                  </AssistantLine>
                 ) : null}
                 {clarification?.status === "pending" ? (
                   <ClarificationControls
@@ -201,11 +215,15 @@ export const MessageBubble = memo(function MessageBubble({
             ) : (
               <>
                 {message.content.trim() ? (
-                  <MarkdownRenderer source={message.content} />
+                  <AssistantLine>
+                    <MarkdownRenderer source={message.content} />
+                  </AssistantLine>
                 ) : productSearch?.searches.length ? null : (
-                  <p className="text-sm text-ink-soft">
-                    Here are a few quick questions so I can narrow this down.
-                  </p>
+                  <AssistantLine>
+                    <p className="text-sm text-ink-soft">
+                      Here are a few quick questions so I can narrow this down.
+                    </p>
+                  </AssistantLine>
                 )}
                 {clarification ? (
                   <ClarificationControls

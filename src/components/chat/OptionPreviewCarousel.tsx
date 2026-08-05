@@ -6,10 +6,13 @@ import { cn } from "@/lib/ai-chat/cn";
 
 export const OptionPreviewCarousel = memo(function OptionPreviewCarousel({
   title = "Explore ideas",
+  bare = false,
   children,
   className,
 }: {
   title?: string;
+  /** Hide header — wireframe quiz rows have no “Explore ideas” chrome */
+  bare?: boolean;
   children: ReactNode;
   className?: string;
 }) {
@@ -49,30 +52,38 @@ export const OptionPreviewCarousel = memo(function OptionPreviewCarousel({
   };
 
   return (
-    <section className={cn("shoop-explore-section", className)}>
-      <div className="shoop-explore-section__header">
-        <h2 className="shoop-explore-section__title">{title}</h2>
-        <div className="shoop-explore-section__nav">
-          <button
-            type="button"
-            aria-label="Previous page"
-            disabled={!canScrollLeft}
-            onClick={() => scrollByPage(-1)}
-            className="shoop-explore-nav-btn"
-          >
-            <ChevronLeft className="size-4" strokeWidth={2} aria-hidden />
-          </button>
-          <button
-            type="button"
-            aria-label="Next page"
-            disabled={!canScrollRight}
-            onClick={() => scrollByPage(1)}
-            className="shoop-explore-nav-btn"
-          >
-            <ChevronRight className="size-4" strokeWidth={2} aria-hidden />
-          </button>
+    <section
+      className={cn(
+        "shoop-explore-section",
+        bare && "shoop-explore-section--bare",
+        className,
+      )}
+    >
+      {!bare ? (
+        <div className="shoop-explore-section__header">
+          <h2 className="shoop-explore-section__title">{title}</h2>
+          <div className="shoop-explore-section__nav">
+            <button
+              type="button"
+              aria-label="Previous page"
+              disabled={!canScrollLeft}
+              onClick={() => scrollByPage(-1)}
+              className="shoop-explore-nav-btn"
+            >
+              <ChevronLeft className="size-4" strokeWidth={2} aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label="Next page"
+              disabled={!canScrollRight}
+              onClick={() => scrollByPage(1)}
+              className="shoop-explore-nav-btn"
+            >
+              <ChevronRight className="size-4" strokeWidth={2} aria-hidden />
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="shoop-explore-track-wrap">
         <div

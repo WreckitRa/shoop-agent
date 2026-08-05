@@ -1,11 +1,9 @@
 "use client";
 
 import { memo, useMemo, useState } from "react";
-import { ArrowRight } from "lucide-react";
 import { ClarificationOptionCard } from "@/components/chat/ClarificationOptionCard";
 import { OptionPreviewCarousel } from "@/components/chat/OptionPreviewCarousel";
 import { useChatStore } from "@/components/chat/chat-store";
-import { cn } from "@/lib/ai-chat/cn";
 import {
   asNormalizedOptions,
   CLARIFICATION_OTHER_OPTION,
@@ -64,15 +62,15 @@ function FashionQuizAnsweredBanner({
 
   if (!bits.length) {
     return (
-      <div className="mt-3 rounded-2xl border border-hairline bg-surface-tint px-4 py-3 text-xs text-ink-soft">
+      <div className="shoop-qcardz text-xs text-ink-soft">
         You already answered this quiz.
       </div>
     );
   }
 
   return (
-    <div className="mt-3 rounded-2xl border border-hairline bg-surface-tint px-4 py-3 text-xs text-ink-soft">
-      <p className="font-medium text-ink">Your selections</p>
+    <div className="shoop-qcardz text-xs text-ink-soft">
+      <p className="shoop-qcardz__q">Your selections</p>
       <ul className="mt-1.5 list-inside list-disc space-y-0.5">
         {bits.map((line) => (
           <li key={line}>{line}</li>
@@ -100,6 +98,10 @@ function resolveQuestionAnswer(
   };
 }
 
+function looksLikeColorQuestion(text: string): boolean {
+  return /\b(color|colours?|palette|shade|tones?)\b/i.test(text);
+}
+
 function QuestionOptions({
   question,
   selectedIds,
@@ -119,23 +121,31 @@ function QuestionOptions({
     question.quick_options ?? [{ id: CLARIFICATION_OTHER_OPTION_ID, label: CLARIFICATION_OTHER_OPTION }],
   );
   const allowMultiple = Boolean(question.allow_multiple);
-  const cardOptions = options.filter(
+  const preferPalette = looksLikeColorQuestion(question.text);
+  const visualOptions = options.filter(
     (o) =>
-      o.previewQuery?.trim() &&
-      o.id !== CLARIFICATION_OTHER_OPTION_ID,
+      o.id !== CLARIFICATION_OTHER_OPTION_ID &&
+      (preferPalette ||
+        o.previewQuery?.trim() ||
+        /surprise/i.test(o.label) ||
+        o.id === "surprise_me"),
   );
   const chipOptions = options.filter(
     (o) =>
-      !o.previewQuery?.trim() ||
-      o.id === CLARIFICATION_OTHER_OPTION_ID,
+      o.id === CLARIFICATION_OTHER_OPTION_ID ||
+      (!preferPalette &&
+        !o.previewQuery?.trim() &&
+        !/surprise/i.test(o.label) &&
+        o.id !== "surprise_me"),
   );
   const otherSelected = selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID);
+  const hasVisualRow = visualOptions.length > 0;
 
   return (
     <div className="space-y-2">
-      {cardOptions.length ? (
-        <OptionPreviewCarousel title="Explore ideas">
-          {cardOptions.map((o) => (
+      {hasVisualRow ? (
+        <OptionPreviewCarousel bare>
+          {visualOptions.map((o) => (
             <ClarificationOptionCard
               key={o.id}
               optionId={o.id}
@@ -144,33 +154,42 @@ function QuestionOptions({
               disabled={disabled}
               previewQuery={o.previewQuery}
               previewImages={o.previewImages}
+              preferPalette={preferPalette}
               onToggle={() => onToggle(o.id)}
             />
           ))}
+          {chipOptions
+            .filter((o) => o.id === CLARIFICATION_OTHER_OPTION_ID)
+            .map((option) => (
+              <ClarificationOptionCard
+                key={option.id}
+                optionId={option.id}
+                label={option.label}
+                selected={selectedIds.includes(option.id)}
+                disabled={disabled}
+                onToggle={() => onToggle(option.id)}
+              />
+            ))}
         </OptionPreviewCarousel>
       ) : null}
-      {chipOptions.length ? (
-        <div className="flex flex-wrap gap-2">
-          {chipOptions.map((option) => {
-            const selected = selectedIds.includes(option.id);
-            return (
-              <button
+      {chipOptions.filter((o) =>
+        hasVisualRow ? o.id !== CLARIFICATION_OTHER_OPTION_ID : true,
+      ).length ? (
+        <div className="shoop-quiz-chips flex flex-wrap gap-2">
+          {chipOptions
+            .filter((o) =>
+              hasVisualRow ? o.id !== CLARIFICATION_OTHER_OPTION_ID : true,
+            )
+            .map((option) => (
+              <ClarificationOptionCard
                 key={option.id}
-                type="button"
+                optionId={option.id}
+                label={option.label}
+                selected={selectedIds.includes(option.id)}
                 disabled={disabled}
-                aria-pressed={selected}
-                onClick={() => onToggle(option.id)}
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50",
-                  selected
-                    ? "border-brand bg-brand/10 text-brand"
-                    : "border-hairline bg-surface text-ink hover:border-brand/40",
-                )}
-              >
-                {option.label}
-              </button>
-            );
-          })}
+                onToggle={() => onToggle(option.id)}
+              />
+            ))}
         </div>
       ) : null}
       {allowMultiple ? (
@@ -183,7 +202,7 @@ function QuestionOptions({
           onChange={(e) => onFreeText(e.target.value)}
           disabled={disabled}
           placeholder="Type your answer…"
-          className="w-full rounded-xl border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-brand/40 focus:outline-none disabled:opacity-50"
+          className="shoop-quiz-other-input"
           autoFocus
         />
       ) : null}
@@ -362,27 +381,29 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     const selected = selections[q.text] ?? [];
     const otherOpen = selected.includes(CLARIFICATION_OTHER_OPTION_ID);
     return (
-      <div className="mt-3 space-y-2">
-        <p className="text-sm text-ink">{q.text}</p>
-        <QuestionOptions
-          question={q}
-          selectedIds={selected}
-          freeText={freeTexts[q.text] ?? ""}
-          disabled={isStreaming || submitted}
-          onToggle={(optionId) => {
-            if (optionId === CLARIFICATION_OTHER_OPTION_ID) {
-              toggleOption(q.text, optionId, false);
-              return;
-            }
-            submitAnswers({
-              [q.text]: { selected: [optionId] },
-            });
-          }}
-          onFreeText={(text) => {
-            toggleOption(q.text, CLARIFICATION_OTHER_OPTION_ID, false);
-            setFreeTexts({ [q.text]: text });
-          }}
-        />
+      <div className="shoop-qcardz">
+        <div className="shoop-qcardz__block">
+          <p className="shoop-qcardz__q">{q.text}</p>
+          <QuestionOptions
+            question={q}
+            selectedIds={selected}
+            freeText={freeTexts[q.text] ?? ""}
+            disabled={isStreaming || submitted}
+            onToggle={(optionId) => {
+              if (optionId === CLARIFICATION_OTHER_OPTION_ID) {
+                toggleOption(q.text, optionId, false);
+                return;
+              }
+              submitAnswers({
+                [q.text]: { selected: [optionId] },
+              });
+            }}
+            onFreeText={(text) => {
+              toggleOption(q.text, CLARIFICATION_OTHER_OPTION_ID, false);
+              setFreeTexts({ [q.text]: text });
+            }}
+          />
+        </div>
         {otherOpen ? (
           <button
             type="button"
@@ -396,10 +417,10 @@ export const FashionRouterControls = memo(function FashionRouterControls({
                 [q.text]: { selected: [], customText: typed },
               });
             }}
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            className="shoop-quiz-apply mt-3"
           >
-            Continue
-            <ArrowRight className="size-3.5" strokeWidth={2.25} />
+            Show me the rack
+            <span aria-hidden>→</span>
           </button>
         ) : null}
       </div>
@@ -407,10 +428,10 @@ export const FashionRouterControls = memo(function FashionRouterControls({
   }
 
   return (
-    <div className="mt-3 space-y-3 rounded-2xl border border-hairline bg-surface-tint/60 p-3">
+    <div className="shoop-qcardz">
       {questions.map((q) => (
-        <div key={q.text} className="space-y-2">
-          <p className="text-sm text-ink">{q.text}</p>
+        <div key={q.text} className="shoop-qcardz__block">
+          <p className="shoop-qcardz__q">{q.text}</p>
           <QuestionOptions
             question={q}
             selectedIds={selections[q.text] ?? []}
@@ -433,8 +454,8 @@ export const FashionRouterControls = memo(function FashionRouterControls({
         </div>
       ))}
       {rideAlong ? (
-        <div className="space-y-2">
-          <p className="text-sm text-ink-soft">{rideAlong.text}</p>
+        <div className="shoop-qcardz__block">
+          <p className="shoop-qcardz__q">{rideAlong.text}</p>
           <QuestionOptions
             question={{
               text: rideAlong.text,
@@ -473,10 +494,10 @@ export const FashionRouterControls = memo(function FashionRouterControls({
           if (!Object.keys(resolvedAnswers).length) return;
           submitAnswers(resolvedAnswers);
         }}
-        className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+        className="shoop-quiz-apply mt-4"
       >
-        Continue
-        <ArrowRight className="size-3.5" strokeWidth={2.25} />
+        Show me the rack
+        <span aria-hidden>→</span>
       </button>
     </div>
   );

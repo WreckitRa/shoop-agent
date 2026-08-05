@@ -74,7 +74,9 @@ export class FashnTryOnProvider implements TryOnProvider {
             })
           : input.product
             ? buildTryonDressPromptCompact(input.product, input.chain)
-            : `Apply the ${GARMENT_PROMPT[input.garmentType]} naturally. Preserve fabric, color, pattern, and structure from the product image.`;
+            : input.garmentType === "outerwear" || input.garmentType === "shoes"
+              ? `Apply the ${GARMENT_PROMPT[input.garmentType]} naturally. Preserve fabric, color, pattern, and structure from the product image.`
+              : `REPLACE the person's current ${GARMENT_PROMPT[input.garmentType]} with the product — do not layer over existing clothes. Preserve fabric, color, pattern, and structure from the product image.`;
 
         const category = garmentCategory(input.garmentType, input.outfitCollage);
 
