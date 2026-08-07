@@ -107,8 +107,9 @@ This repo includes [`railway.json`](./railway.json) for zero-config deploys via
    - `DATABASE_URL` — Supabase Session Pooler URL (see comments in
      `.env.example`).
    - `ANTHROPIC_API_KEY`, Supabase keys, and Shopify catalog credentials.
-4. Each deploy runs `npm run db:deploy` (`prisma db push`) as a pre-deploy
-   step to sync the schema, then starts the app. Health checks hit
+4. Each deploy runs `npm run db:deploy` during the **build** step (not
+   pre-deploy — Railway's pre-deploy window is too short for Prisma + SQL)
+   to sync the schema, then starts the app. Health checks hit
    `/api/health`.
 
 Railway sets `PORT` and `HOSTNAME` automatically; the standalone server picks
