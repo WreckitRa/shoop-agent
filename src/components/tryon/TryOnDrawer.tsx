@@ -9,12 +9,9 @@ import {
   type DragEvent,
 } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
-import { ShoopIcon } from "@/components/brand/ShoopBrand";
 import { cn } from "@/lib/ai-chat/cn";
 import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
-import type { RenderPickBadge } from "@/lib/fashion-memory/types/render-contract";
 import { StudyingScan } from "./StudyingScan";
 import { TryOnComparePanel } from "./TryOnComparePanel";
 import {
@@ -24,42 +21,22 @@ import {
 import { useChatStore } from "@/components/chat/chat-store";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
 import { buildInlineProductState } from "@/lib/shared/productPanelParams";
-import { stashChatFocusReturn } from "@/lib/shared/chatFocus";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { useCartStore } from "@/components/cart/cart-store";
 
 const DRAG_MIME = "application/x-shoop-fitting-item";
 
-type Verdict = "no" | "meh" | "almost" | "love";
+type MoodPeekItem = {
+  id: string;
+  imageUrl: string;
+  title?: string;
+};
 
 function formatPrice(price: { amount: number; currency: string }) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: price.currency,
   }).format(price.amount / 100);
-}
-
-function badgeFact(
-  badge: RenderPickBadge,
-): { label: string; good: boolean } | null {
-  switch (badge.kind) {
-    case "size_converted":
-      return {
-        label: `${badge.merchant_label} — your ${badge.from}`,
-        good: true,
-      };
-    case "size_unknown":
-      return { label: "check sizing", good: false };
-    case "material_suspected":
-      return { label: `may contain ${badge.material}`, good: false };
-    case "photo_color":
-      return { label: `photo shows: ${badge.color}`, good: false };
-    case "near_budget_lifted":
-      return { label: "slightly over budget", good: false };
-    case "brand_unconfirmed":
-      return { label: "brand unconfirmed", good: false };
-    default:
-      return null;
-  }
 }
 
 function GarmentShadows({ items }: { items: FittingRoomItem[] }) {
@@ -131,97 +108,93 @@ function StageStatusLine() {
         <>Rendering {previewLookTitle} on you…</>
       : <>Rendering {activeIds.length} piece{activeIds.length === 1 ? "" : "s"} on you…</>;
   }
-  if (status === "completed") return <>Here's how it looks on you</>;
-  if (status === "failed") return <>Couldn't finish this try-on</>;
+  if (status === "completed") return <>Here&apos;s how it looks on you</>;
+  if (status === "failed") return <>Couldn&apos;t finish this try-on</>;
   if (status === "idle") return <>Drop clothes on me</>;
   return null;
 }
 
-function StylistPanel({
-  activeItems,
-  lastDropped,
-  onDecide,
+function MoodboardPeek({
+  localHearts,
+  count,
+  onNavigate,
 }: {
-  activeItems: FittingRoomItem[];
-  lastDropped: FittingRoomItem | null;
-  onDecide: () => void;
+  localHearts: MoodPeekItem[];
+  count: number | null;
+  onNavigate: () => void;
 }) {
-  const facts = useMemo(() => {
-    const out: Array<{ label: string; good: boolean }> = [];
-    const seen = new Set<string>();
-    for (const item of activeItems) {
-      for (const badge of item.badges ?? []) {
-        const fact = badgeFact(badge);
-        if (!fact || seen.has(fact.label)) continue;
-        seen.add(fact.label);
-        out.push(fact);
-      }
-    }
-    return out.slice(0, 6);
-  }, [activeItems]);
+  const [remote, setRemote] = useState<MoodPeekItem[]>([]);
+  const [remoteTotal, setRemoteTotal] = useState(0);
 
-  const line = useMemo(() => {
-    if (lastDropped) {
-      return (
-        <>
-          Adding the <b>{lastDropped.title}</b>
-          {activeItems.length > 1 ?
-            "… this slots right into the look."
-          : "… let's see how it sits on you."}
-        </>
-      );
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await guestFetch("/api/tryon/moodboard", {
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) return;
+        const body = (await res.json()) as {
+          items?: Array<{ generationId: string; imageUrl: string; title: string }>;
+        };
+        if (cancelled) return;
+        const items = body.items ?? [];
+        setRemoteTotal(items.length);
+        setRemote(
+          items
+            .filter((i) => i.imageUrl)
+            .slice(0, 4)
+            .map((i) => ({
+              id: i.generationId,
+              imageUrl: i.imageUrl,
+              title: i.title,
+            })),
+        );
+      } catch {
+        /* sneak peek is best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const previews = useMemo(() => {
+    const seen = new Set<string>();
+    const out: MoodPeekItem[] = [];
+    for (const item of [...localHearts, ...remote]) {
+      if (!item.imageUrl || seen.has(item.imageUrl)) continue;
+      seen.add(item.imageUrl);
+      out.push(item);
+      if (out.length >= 4) break;
     }
-    if (!activeItems.length) {
-      return (
-        <>
-          Drag pieces from <b>THE RAIL</b> onto the mirror — I'll tell you what
-          I'd say if we were standing here together.
-        </>
-      );
-    }
-    const names = activeItems.map((i) => i.title).slice(0, 3);
-    const joined =
-      names.length === 1 ? names[0]!
-      : names.length === 2 ? `${names[0]} with the ${names[1]}`
-      : `${names[0]}, ${names[1]}, and ${names[2]}`;
-    return (
-      <>
-        The <b>{joined}</b> reads like the brief — relaxed where it should be,
-        intentional where it counts.
-      </>
-    );
-  }, [activeItems, lastDropped]);
+    return out;
+  }, [localHearts, remote]);
+
+  const n = Math.max(count ?? 0, remoteTotal, previews.length);
 
   return (
-    <div className="shoop-croom__side relative">
-      <div className="shoop-stylist-say">
-        <div className="shoop-stylist-say__sh">
-          <ShoopIcon size={18} className="rounded-[5px]" />
-          WHAT I&apos;D TELL YOU IN THE MIRROR
-        </div>
-        <p>{line}</p>
-        {facts.length ? (
-          <div className="shoop-fitfacts">
-            {facts.map((fact) => (
-              <span
-                key={fact.label}
-                className={cn("shoop-ff", fact.good && "shoop-ff--good")}
-              >
-                {fact.label}
-              </span>
-            ))}
-          </div>
-        ) : null}
+    <div className="shoop-cboard">
+      <div className="shoop-cboard__top">
+        <h3>My moodboard</h3>
+        <span className="shoop-cboard__count">{n}</span>
       </div>
-      <button
-        type="button"
-        className="shoop-quiz-apply mt-3.5"
-        onClick={onDecide}
-        disabled={!activeItems.length}
+      <Link
+        href="/moodboard"
+        className="shoop-cboard__peek"
+        onClick={onNavigate}
+        aria-label={`My moodboard, ${n} items`}
       >
-        Love it… decide
-        <span aria-hidden>→</span>
-      </button>
+        {previews.map((item) => (
+          <span key={item.id} className="shoop-cboard__tile">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.imageUrl} alt="" />
+          </span>
+        ))}
+        <span className="shoop-cboard__tile shoop-cboard__tile--more">
+          {n > 4 ? `+${n - 4}` : "+"}
+        </span>
+      </Link>
     </div>
   );
 }
@@ -231,6 +204,7 @@ function RailHanger({
   wearing,
   hearted,
   onHeart,
+  onWear,
   onUnwear,
   onDragStart,
 }: {
@@ -238,14 +212,28 @@ function RailHanger({
   wearing: boolean;
   hearted: boolean;
   onHeart: () => void;
+  onWear: () => void;
   onUnwear: () => void;
   onDragStart: (event: DragEvent, id: string) => void;
 }) {
   return (
     <div
-      className="shoop-h2g"
+      className={cn("shoop-h2g", wearing && "shoop-h2g--worn")}
       draggable
+      role="button"
+      tabIndex={0}
       onDragStart={(e) => onDragStart(e, item.id)}
+      onClick={() => {
+        if (wearing) onUnwear();
+        else onWear();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (wearing) onUnwear();
+          else onWear();
+        }
+      }}
     >
       <span className="shoop-h2g__sw">
         {item.imageUrl ? (
@@ -255,28 +243,13 @@ function RailHanger({
       </span>
       <div className="shoop-h2g__hi">
         <b>{item.title}</b>
-        {item.price ? <i>{formatPrice(item.price)}</i> : null}
-        {wearing ? (
-          <span className="shoop-h2g__wear-row">
-            <span className="shoop-h2g__wr">WEARING</span>
-            <button
-              type="button"
-              className="shoop-h2g__uw"
-              onClick={(e) => {
-                e.stopPropagation();
-                onUnwear();
-              }}
-            >
-              Unwear
-            </button>
-          </span>
-        ) : null}
+        <i>{item.price ? formatPrice(item.price) : "—"}</i>
       </div>
+      <span className="shoop-h2g__grip">{wearing ? "On" : "Drag"}</span>
       <button
         type="button"
         className={cn("shoop-h2g__hb", hearted && "shoop-h2g__hb--on")}
-        aria-label={hearted ? "Saved to moodboard" : "Save to moodboard"}
-        aria-pressed={hearted}
+        aria-label={hearted ? "Remove from moodboard" : "Save to moodboard"}
         onClick={(e) => {
           e.stopPropagation();
           onHeart();
@@ -305,16 +278,15 @@ export function TryOnDrawer() {
   const removeFromAvatar = useTryOnDrawerStore((s) => s.removeFromAvatar);
   const sendFeedback = useTryOnDrawerStore((s) => s.sendFeedback);
   const jobId = useTryOnDrawerStore((s) => s.jobId);
-  const verdict = useTryOnDrawerStore((s) => s.ownerVerdict);
-  const setOwnerVerdict = useTryOnDrawerStore((s) => s.setOwnerVerdict);
   const hydrateAskShareForJob = useTryOnDrawerStore(
     (s) => s.hydrateAskShareForJob,
   );
 
   const panelRef = useRef<HTMLDivElement>(null);
-  const conversationId = useChatStore((s) => s.activeConversationId);
   const expandProduct = useInlineProductStore((s) => s.expand);
-  const router = useRouter();
+  const setChatInput = useChatStore((s) => s.setInput);
+  const sendChatMessage = useChatStore((s) => s.sendMessage);
+  const requestComposerFocus = useChatStore((s) => s.requestComposerFocus);
 
   const [dropGlow, setDropGlow] = useState(false);
   const [lastDroppedId, setLastDroppedId] = useState<string | null>(null);
@@ -322,6 +294,13 @@ export function TryOnDrawer() {
   const [moodCount, setMoodCount] = useState<number | null>(null);
   const [twinEl, setTwinEl] = useState<HTMLDivElement | null>(null);
   const [scanScanning, setScanScanning] = useState(false);
+  const [dressFlash, setDressFlash] = useState<string | null>(null);
+  const [moodBusy, setMoodBusy] = useState(false);
+  const [cartBusy, setCartBusy] = useState(false);
+  const [actionHint, setActionHint] = useState<string | null>(null);
+  const [roomChat, setRoomChat] = useState("");
+  const [roomChatBusy, setRoomChatBusy] = useState(false);
+  const addCartItem = useCartStore((s) => s.addItem);
 
   const activeItems = activeIds
     .map((id) => itemsById[id])
@@ -329,8 +308,6 @@ export function TryOnDrawer() {
   const rackItems = rackIds
     .map((id) => itemsById[id])
     .filter(Boolean) as FittingRoomItem[];
-  const lastDropped =
-    lastDroppedId ? (itemsById[lastDroppedId] ?? null) : null;
 
   const busy =
     status === "loading_avatar" ||
@@ -339,65 +316,63 @@ export function TryOnDrawer() {
   const showResult = Boolean(resultUrl) && status === "completed";
   const mirrorSrc = showResult ? resultUrl! : avatarUrl;
 
+  const localHeartPreviews = useMemo(() => {
+    const out: MoodPeekItem[] = [];
+    for (const id of heartedIds) {
+      const item = itemsById[id];
+      if (item?.imageUrl) {
+        out.push({ id, imageUrl: item.imageUrl, title: item.title });
+      }
+    }
+    return out;
+  }, [heartedIds, itemsById]);
+
   useEffect(() => {
-    if (!open) return;
-    void guestFetch("/api/tryon/moodboard", { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const body = (await res.json()) as { items?: unknown[] };
-        setMoodCount(body.items?.length ?? 0);
-      })
-      .catch(() => undefined);
+    setActionHint(null);
+  }, [resultUrl]);
+
+  useEffect(() => {
+    if (!open) setRoomChat("");
   }, [open]);
 
   useEffect(() => {
-    if (!open || !jobId || status !== "completed") return;
+    if (!open || !jobId) return;
     hydrateAskShareForJob(jobId);
-  }, [open, jobId, status, hydrateAskShareForJob]);
+  }, [open, jobId, hydrateAskShareForJob]);
 
   useEffect(() => {
     if (!open) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
     };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
-
-  const openItemProduct = (item: FittingRoomItem) => {
-    const productId = item.productId;
-    const messageId = item.messageSearchId;
-    if (!productId || !messageId) return;
-    close();
-    if (conversationId) {
-      stashChatFocusReturn({
-        conversationId,
-        messageId,
-        productId,
-      });
-    }
-    expandProduct(
-      buildInlineProductState(productId, {
-        messageId,
-        title: item.title,
-        imageUrl: item.imageUrl,
-        preferredOptions: item.preferredOptions,
-        featuredVariant: item.featuredVariant,
-        displayPrice: item.price,
-      }),
-    );
-  };
 
   const dressItem = useCallback(
     (id: string) => {
       const item = itemsById[id];
       if (!item) return;
+      const replaced = activeIds
+        .map((aid) => itemsById[aid])
+        .find(
+          (other) =>
+            other &&
+            other.id !== id &&
+            other.garment &&
+            item.garment &&
+            other.garment === item.garment,
+        );
       setLastDroppedId(id);
-      // Drag-drop replaces same garment slot so hangers feel instant.
+      setDressFlash(
+        replaced
+          ? `Swapping ${replaced.title} → ${item.title}`
+          : `Putting on ${item.title}`,
+      );
+      window.setTimeout(() => setDressFlash(null), 2200);
       tryOnItem(id, { replaceSameType: true });
     },
-    [itemsById, tryOnItem],
+    [itemsById, tryOnItem, activeIds],
   );
 
   const onDragStart = (event: DragEvent, id: string) => {
@@ -430,22 +405,110 @@ export function TryOnDrawer() {
     });
   };
 
-  const onVerdict = (next: Verdict) => {
-    setOwnerVerdict(next);
-    if (next === "love") {
-      if (jobId) sendFeedback(1);
-      setMoodCount((n) => (typeof n === "number" ? n + 1 : n));
+  const sendRoomChat = async () => {
+    const text = roomChat.trim();
+    if (!text || roomChatBusy) return;
+    setRoomChatBusy(true);
+    try {
+      const worn = activeItems.map((i) => i.title).filter(Boolean);
+      const payload =
+        worn.length > 0
+          ? `About this try-on look (${worn.join(", ")}): ${text}`
+          : text;
+      setChatInput(payload);
+      setRoomChat("");
+      close();
+      requestComposerFocus();
+      await sendChatMessage();
+    } finally {
+      setRoomChatBusy(false);
     }
   };
 
-  const onDecide = () => {
-    if (jobId) sendFeedback(1);
-    setOwnerVerdict("love");
-    close();
-    router.push("/moodboard");
+  const addLookToMoodboard = () => {
+    setActionHint(null);
+    setMoodBusy(true);
+    try {
+      if (jobId) sendFeedback(1);
+      for (const item of activeItems) {
+        setHeartedIds((prev) => new Set(prev).add(item.id));
+      }
+      setMoodCount((n) =>
+        typeof n === "number" ? n + Math.max(1, activeItems.length) : activeItems.length || 1,
+      );
+      setActionHint("Saved to your moodboard");
+    } finally {
+      setMoodBusy(false);
+    }
+  };
+
+  const addLookToCart = async () => {
+    setActionHint(null);
+    setCartBusy(true);
+    try {
+      let added = 0;
+      let skipped = 0;
+      for (const item of activeItems) {
+        const variant = item.featuredVariant;
+        if (!variant?.id || !variant.checkoutUrl) {
+          skipped += 1;
+          continue;
+        }
+        const ok = await addCartItem({
+          variantId: variant.id,
+          checkoutUrl: variant.checkoutUrl,
+          quantity: 1,
+          product: {
+            title: item.title,
+            imageUrl: item.imageUrl,
+            productId: item.productId,
+            priceCents: item.price?.amount ?? variant.price?.amount ?? null,
+            currency: item.price?.currency ?? variant.price?.currency ?? null,
+          },
+        });
+        if (ok) added += 1;
+        else skipped += 1;
+      }
+      if (added > 0 && skipped === 0) {
+        setActionHint(
+          added === 1 ? "Added to cart" : `Added ${added} pieces to cart`,
+        );
+      } else if (added > 0) {
+        setActionHint(
+          `Added ${added} · ${skipped} need a size on the product page`,
+        );
+      } else {
+        setActionHint("Open a piece to pick a size, then add to cart");
+      }
+    } finally {
+      setCartBusy(false);
+    }
+  };
+
+  const openItemProduct = (item: FittingRoomItem) => {
+    const productId = item.productId ?? item.id;
+    const messageId =
+      item.messageSearchId ??
+      (item.provenance.kind === "search" ? item.provenance.searchId : null);
+    if (!messageId) return;
+    expandProduct(
+      buildInlineProductState(productId, {
+        messageId,
+        title: item.title,
+        imageUrl: item.imageUrl,
+        preferredOptions: item.preferredOptions,
+        featuredVariant: item.featuredVariant,
+        displayPrice: item.price,
+      }),
+    );
   };
 
   if (!open) return null;
+
+  const dressedLabel =
+    activeItems.length === 0
+      ? "Nothing on yet"
+      : `${activeItems.length} piece${activeItems.length > 1 ? "s" : ""} on`;
 
   return (
     <div className="shoop-croom-overlay" role="presentation">
@@ -466,50 +529,87 @@ export function TryOnDrawer() {
           <X className="size-4" strokeWidth={2} />
         </button>
 
-        <StylistPanel
-          activeItems={activeItems}
-          lastDropped={lastDropped}
-          onDecide={onDecide}
-        />
+        <aside className="shoop-croom__side">
+          <div className="shoop-croom__eyebrow">
+            <span className="shoop-croom__dot" aria-hidden />
+            <h1>What I&apos;d tell you in the mirror</h1>
+          </div>
 
-        <div className="shoop-croom__rail">
-          <div className="shoop-rh">
-            THE RAIL
-            <span>drag onto me · ♥ to board</span>
+          <div className="shoop-croom__rail-block">
+            <div className="shoop-rh">
+              <h2>The Rail</h2>
+              <span>
+                {rackItems.length
+                  ? `${rackItems.length} piece${rackItems.length > 1 ? "s" : ""} pulled`
+                  : "empty"}
+              </span>
+            </div>
+            <div className="shoop-hangrail">
+              {rackItems.length ? (
+                rackItems.map((item) => (
+                  <RailHanger
+                    key={item.id}
+                    item={item}
+                    wearing={activeIds.includes(item.id)}
+                    hearted={heartedIds.has(item.id)}
+                    onHeart={() => heartItem(item.id)}
+                    onWear={() => dressItem(item.id)}
+                    onUnwear={() => removeFromAvatar(item.id)}
+                    onDragStart={onDragStart}
+                  />
+                ))
+              ) : (
+                <p className="py-4 text-center text-[11px] text-ink-muted">
+                  Add pieces from the rack — they hang here.
+                </p>
+              )}
+            </div>
+            <div className="shoop-draghint">
+              Drag a piece onto the mirror <b>· or tap to try it</b>
+            </div>
           </div>
-          <div className="shoop-hangrail">
-            {rackItems.length ? (
-              rackItems.map((item) => (
-                <RailHanger
-                  key={item.id}
-                  item={item}
-                  wearing={activeIds.includes(item.id)}
-                  hearted={heartedIds.has(item.id)}
-                  onHeart={() => heartItem(item.id)}
-                  onUnwear={() => removeFromAvatar(item.id)}
-                  onDragStart={onDragStart}
-                />
-              ))
-            ) : (
-              <p className="py-4 text-center text-[11px] text-ink-muted">
-                Add pieces from the rack — they hang here.
-              </p>
-            )}
-          </div>
-          <div className="shoop-draghint">
-            grab a hanger → drop it on the mirror
-          </div>
-          <Link href="/moodboard" className="shoop-mooddock" onClick={close}>
-            <span>My Moodboard</span>
-            <span className="shoop-mooddock__n">{moodCount ?? "·"}</span>
-          </Link>
-        </div>
+
+          <MoodboardPeek
+            localHearts={localHeartPreviews}
+            count={moodCount}
+            onNavigate={close}
+          />
+
+          <form
+            className="shoop-croom__ask"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void sendRoomChat();
+            }}
+          >
+            <div className="shoop-croom__askbox">
+              <input
+                type="text"
+                value={roomChat}
+                onChange={(e) => setRoomChat(e.target.value)}
+                placeholder="Tell me what you're looking for..."
+                aria-label="Tell Shoop what you're looking for"
+                disabled={roomChatBusy}
+              />
+              <button
+                type="submit"
+                className="shoop-croom__ask-send"
+                disabled={roomChatBusy || !roomChat.trim()}
+                aria-label="Send"
+              >
+                →
+              </button>
+            </div>
+          </form>
+        </aside>
 
         <div className="shoop-croom__mirror">
-          <div className="shoop-croom__mirror-scroll">
-          <div className="shoop-twinlbl">
-            <ShoopIcon size={18} className="rounded-[5px]" />
-            THE MIRROR · DROP CLOTHES ON ME
+          <div className="shoop-croom__mhead">
+            <div className="shoop-croom__mlbl">
+              <span className="shoop-croom__dot" aria-hidden />
+              <h2>The Mirror</h2>
+            </div>
+            <span className="shoop-croom__dressed">{dressedLabel}</span>
           </div>
 
           <div
@@ -518,6 +618,8 @@ export function TryOnDrawer() {
               "shoop-twin",
               dropGlow && "shoop-twin--glow",
               scanScanning && "shoop-twin--scanning",
+              showResult && "shoop-twin--studied",
+              Boolean(dressFlash) && "shoop-twin--dressing",
             )}
             onDragOver={(e) => {
               e.preventDefault();
@@ -604,11 +706,7 @@ export function TryOnDrawer() {
               <>
                 <div className="absolute inset-0 bg-ink/15 backdrop-brightness-95" />
                 <GarmentShadows
-                  items={
-                    activeItems.length ?
-                      activeItems
-                    : rackItems
-                  }
+                  items={activeItems.length ? activeItems : rackItems}
                 />
                 <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-ink/55 via-ink/20 to-transparent px-4 pb-10 pt-16">
                   <div className="flex items-center gap-2 text-white">
@@ -624,86 +722,85 @@ export function TryOnDrawer() {
               </>
             ) : null}
 
-            <span className="shoop-twin__tag">{TRYON_DISCLAIMER}</span>
-            <span className="shoop-twin__state">
-              DRESSED {activeIds.length} ✓
-            </span>
+            {dropGlow ? (
+              <div className="shoop-twin__dropcue" aria-hidden>
+                <span>Drop it on me</span>
+              </div>
+            ) : null}
+
+            {!showResult ? (
+              <span className="shoop-twin__tag">{TRYON_DISCLAIMER}</span>
+            ) : null}
+
+            {dressFlash ? (
+              <div className="shoop-twin__dress-flash" role="status">
+                {dressFlash}
+              </div>
+            ) : null}
           </div>
 
           {error ? (
-            <p className="mt-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700">
+            <p className="mx-4 mt-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700">
               {error}
             </p>
           ) : null}
 
           {partialNote && !error && status === "completed" ? (
-            <p className="mt-2 text-center text-xs text-ink-muted">
+            <p className="mx-4 mt-2 text-center text-xs text-ink-muted">
               {partialNote}
             </p>
           ) : null}
 
-          {showResult && resultUrl ? (
-            <StudyingScan
-              imageUrl={resultUrl}
-              frameEl={twinEl}
-              onScanningChange={setScanScanning}
-              pieces={activeItems.map((item) => ({
-                title: item.title,
-                priceLabel: item.price ? formatPrice(item.price) : undefined,
-                garment: item.garment,
-              }))}
-              className="mt-3"
-            />
-          ) : null}
-
-          <div className="shoop-verdict-strip">
-            {(
-              [
-                ["no", "No"],
-                ["meh", "Meh"],
-                ["almost", "Almost"],
-                ["love", "♥ Love it"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={cn(
-                  "shoop-vbtn",
-                  `shoop-vbtn--${key}`,
-                  verdict === key && "on",
-                )}
-                onClick={() => onVerdict(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {compare && variants.length > 0 && status !== "failed" ? (
-            <div className="mt-4">
-              <TryOnComparePanel
-                variants={variants}
-                items={activeItems.map((item) => ({
-                  ref: item.id,
+          <div className="shoop-croom__readout">
+            {showResult && resultUrl ? (
+              <StudyingScan
+                key={resultUrl}
+                imageUrl={resultUrl}
+                frameEl={twinEl}
+                onScanningChange={setScanScanning}
+                pieces={activeItems.map((item) => ({
                   title: item.title,
-                  price: item.price,
+                  priceLabel: item.price ? formatPrice(item.price) : undefined,
+                  garment: item.garment,
                 }))}
-                badgesByRef={Object.fromEntries(
-                  activeItems
-                    .filter((item) => item.badges?.length)
-                    .map((item) => [item.id, item.badges!]),
-                )}
-                onOpenProduct={(ref) => {
-                  const item = itemsById[ref];
-                  if (item) openItemProduct(item);
-                }}
-                onFeedback={(generationId, rating) =>
-                  sendFeedback(rating, generationId)
-                }
+                onAddToMoodboard={addLookToMoodboard}
+                onAddToCart={addLookToCart}
+                moodBusy={moodBusy}
+                cartBusy={cartBusy}
+                actionHint={actionHint}
               />
-            </div>
-          ) : null}
+            ) : (
+              <p className="shoop-sscan__empty">
+                {busy
+                  ? "Dressing your twin — Shoop's take lands here when the look is ready."
+                  : "Pull something off the rail and I'll tell you what I'd say if we were standing here together."}
+              </p>
+            )}
+
+            {compare && variants.length > 0 && status !== "failed" ? (
+              <div className="mt-3">
+                <TryOnComparePanel
+                  variants={variants}
+                  items={activeItems.map((item) => ({
+                    ref: item.id,
+                    title: item.title,
+                    price: item.price,
+                  }))}
+                  badgesByRef={Object.fromEntries(
+                    activeItems
+                      .filter((item) => item.badges?.length)
+                      .map((item) => [item.id, item.badges!]),
+                  )}
+                  onOpenProduct={(ref) => {
+                    const item = itemsById[ref];
+                    if (item) openItemProduct(item);
+                  }}
+                  onFeedback={(generationId, rating) =>
+                    sendFeedback(rating, generationId)
+                  }
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

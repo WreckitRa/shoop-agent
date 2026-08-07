@@ -25,6 +25,9 @@ type Props = {
   selectedIds: string[];
   maxPicks: number;
   loading?: boolean;
+  loadingMore?: boolean;
+  hasMore?: boolean;
+  onSeeMore?: () => void;
   onToggle: (card: OutfitGridCard) => void;
   why: string;
   onContinue?: () => void;
@@ -49,6 +52,9 @@ export function TasteOutfitGridStep({
   selectedIds,
   maxPicks,
   loading,
+  loadingMore,
+  hasMore,
+  onSeeMore,
   onToggle,
   why,
   onContinue,
@@ -174,8 +180,35 @@ export function TasteOutfitGridStep({
               </button>
             );
           })}
+          {loadingMore
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={`more-skel-${i}`}
+                  className="mb-3.5 animate-pulse break-inside-avoid rounded-[14px] bg-[#E9E9EE]"
+                  style={{ aspectRatio: i % 2 === 0 ? "4/5" : "3/4" }}
+                />
+              ))
+            : null}
         </div>
       )}
+
+      {hasMore && onSeeMore && !loading ? (
+        <div className="mt-5 max-w-[680px]">
+          <button
+            type="button"
+            onClick={onSeeMore}
+            disabled={loadingMore || busy}
+            className="inline-flex h-12 items-center gap-2 rounded-[14px] border-[1.5px] border-[var(--fitting-ink)] bg-white px-5 font-display text-[13.5px] font-extrabold text-[var(--fitting-ink)] transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-12px_rgba(14,14,17,0.35)] disabled:opacity-50"
+          >
+            {loadingMore ? "Loading more…" : "See more styles"}
+            {!loadingMore ? (
+              <span aria-hidden className="text-[15px] leading-none">
+                ↓
+              </span>
+            ) : null}
+          </button>
+        </div>
+      ) : null}
 
       <p className="mt-3 max-w-[480px] text-[11.5px] leading-[1.6] text-[var(--fitting-quiet)]">
         {why}

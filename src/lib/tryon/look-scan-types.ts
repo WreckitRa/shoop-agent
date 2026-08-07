@@ -16,6 +16,11 @@ export type LookScanVerdict = {
     palette: "pass" | "caution" | "fail";
     nolist: "pass" | "caution" | "fail";
   };
+  /**
+   * Shoop's sealed poll choice for Ask-your-friends.
+   * Optional for older payloads; mapper infers when missing.
+   */
+  vote?: "no" | "meh" | "almost" | "love";
 };
 
 /** Convert **bold** markers to safe HTML <b> for the whisper/verdict UI. */

@@ -123,12 +123,36 @@ describe("inhouse outfit catalog", () => {
   });
 
   it("buildOutfitGridDeck is sync-compatible async", async () => {
-    const deck = await buildOutfitGridDeck({
+    const page = await buildOutfitGridDeck({
       mode: "worn",
       genderPresentation: "androgynous",
       styleEra: "23_29",
     });
-    assert.equal(deck.length, 9);
-    assert.ok(deck.filter((c) => c.imageUrl).length >= 8);
+    assert.equal(page.deck.length, 9);
+    assert.ok(page.deck.filter((c) => c.imageUrl).length >= 8);
+    assert.equal(typeof page.hasMore, "boolean");
+  });
+
+  it("See more pages exclude already-shown styles", async () => {
+    const first = await buildOutfitGridDeck({
+      mode: "worn",
+      genderPresentation: "feminine",
+      styleEra: "30s",
+    });
+    assert.equal(first.deck.length, 9);
+    assert.equal(first.hasMore, true);
+
+    const second = await buildOutfitGridDeck({
+      mode: "worn",
+      genderPresentation: "feminine",
+      styleEra: "30s",
+      excludeLookIds: first.deck.map((c) => c.id),
+    });
+    assert.ok(second.deck.length >= 1);
+    const firstIds = new Set(first.deck.map((c) => c.id));
+    for (const card of second.deck) {
+      assert.ok(!firstIds.has(card.id));
+      assert.ok(card.imageUrl);
+    }
   });
 });

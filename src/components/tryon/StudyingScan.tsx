@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ShoopIcon } from "@/components/brand/ShoopBrand";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { cn } from "@/lib/ai-chat/cn";
@@ -29,15 +28,58 @@ const FALLBACK_WHISPERS = [
 
 type Phase = "idle" | "scanning" | "done" | "error";
 
+type CheckKey = "fit" | "palette" | "nolist";
+
 type Props = {
   imageUrl: string;
   pieces: LookScanPiece[];
   className?: string;
-  /** Existing mirror twin — scan band + annotations portal into this. */
+  /** Existing mirror twin — scan chrome portals into this. */
   frameEl: HTMLElement | null;
-  /** So the twin can toggle `.shoop-twin--scanning`. */
   onScanningChange?: (scanning: boolean) => void;
+  onAddToMoodboard?: () => void;
+  onAddToCart?: () => void | Promise<void>;
+  moodBusy?: boolean;
+  cartBusy?: boolean;
+  actionHint?: string | null;
 };
+
+function toneColor(
+  tone: "idle" | "busy" | "pass" | "caution" | "fail",
+): string {
+  if (tone === "pass") return "#16A34A";
+  if (tone === "caution") return "#C98A0E";
+  if (tone === "fail") return "#E42831";
+  if (tone === "busy") return "#E42831";
+  return "#D4D4D8";
+}
+
+function notesFromVerdict(verdict: LookScanVerdict): Array<{
+  tone: "pass" | "caution" | "fail";
+  html: string;
+}> {
+  const sentences = verdict.verdict_body
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const tones: Array<"pass" | "caution" | "fail"> = [
+    verdict.checks.fit,
+    verdict.checks.palette,
+    verdict.checks.nolist,
+  ];
+  if (!sentences.length) {
+    return [
+      {
+        tone: verdict.checks.fit,
+        html: formatScanEmphasis(verdict.verdict_title),
+      },
+    ];
+  }
+  return sentences.slice(0, 5).map((s, i) => ({
+    tone: tones[Math.min(i, tones.length - 1)]!,
+    html: formatScanEmphasis(s),
+  }));
+}
 
 export function StudyingScan({
   imageUrl,
@@ -45,6 +87,11 @@ export function StudyingScan({
   className,
   frameEl,
   onScanningChange,
+  onAddToMoodboard,
+  onAddToCart,
+  moodBusy,
+  cartBusy,
+  actionHint,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [whisper, setWhisper] = useState<string>(FALLBACK_WHISPERS[0]);
@@ -136,6 +183,7 @@ export function StudyingScan({
     verdictReadyRef.current = null;
     choreographyDoneRef.current = false;
     setError(null);
+    setShareHint(null);
     setPhase("scanning");
     resetVisuals();
     runChoreography(FALLBACK_WHISPERS);
@@ -144,10 +192,9 @@ export function StudyingScan({
     abortRef.current = ac;
 
     try {
-      const absoluteUrl =
-        /^https?:\/\//i.test(imageUrl)
-          ? imageUrl
-          : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+      const absoluteUrl = /^https?:\/\//i.test(imageUrl)
+        ? imageUrl
+        : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 
       const res = await guestFetch("/api/tryon/look-scan", {
         method: "POST",
@@ -183,10 +230,9 @@ export function StudyingScan({
     setShareBusy(true);
     setShareHint(null);
     try {
-      const absoluteUrl =
-        /^https?:\/\//i.test(imageUrl)
-          ? imageUrl
-          : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+      const absoluteUrl = /^https?:\/\//i.test(imageUrl)
+        ? imageUrl
+        : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 
       const ownerVote = useTryOnDrawerStore.getState().ownerVerdict;
 
@@ -237,6 +283,13 @@ export function StudyingScan({
   }
 
   useEffect(() => {
+    if (!imageUrl) return;
+    void startScan();
+    // Auto-study each new dressed look.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startScan closes over latest pieces/imageUrl
+  }, [imageUrl]);
+
+  useEffect(() => {
     return () => {
       abortRef.current?.abort();
       clearTimers();
@@ -249,157 +302,190 @@ export function StudyingScan({
   }, [phase, onScanningChange]);
 
   const annos = verdict?.annotations ?? FALLBACK_ANNOS;
-  const showChrome =
+  const showOnAvatar =
     phase === "scanning" || phase === "done" || phase === "error";
 
+  function checkTone(
+    key: CheckKey,
+  ): "idle" | "busy" | "pass" | "caution" | "fail" {
+    if (phase === "done" && verdict) {
+      const v = verdict.checks[key];
+      if (v === "fail") return "fail";
+      if (v === "caution") return "caution";
+      return "pass";
+    }
+    if (checks[key] === "busy") return "busy";
+    if (checks[key] === "tied") return "pass";
+    return "idle";
+  }
+
   const overlays: ReactNode =
-    showChrome && frameEl
+    showOnAvatar && frameEl
       ? createPortal(
           <>
             <div className="shoop-sscan__band" aria-hidden>
               <div className="shoop-sscan__line" />
             </div>
-            {annos.map((label, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "shoop-sscan__anno",
-                  `shoop-sscan__anno--${i + 1}`,
-                  annoLit[i] && "lit",
-                  i === 3 && phase === "done" && "keep",
-                )}
-              >
-                {i % 2 === 1 ? <span className="tick" /> : null}
-                <span>{label}</span>
-                {i % 2 === 0 ? <span className="tick" /> : null}
+
+            {phase === "scanning"
+              ? annos.map((label, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "shoop-sscan__anno",
+                      `shoop-sscan__anno--${i + 1}`,
+                      annoLit[i] && "lit",
+                    )}
+                  >
+                    {i % 2 === 1 ? <span className="tick" /> : null}
+                    <span>{label}</span>
+                    {i % 2 === 0 ? <span className="tick" /> : null}
+                  </div>
+                ))
+              : null}
+
+            <div
+              className={cn(
+                "shoop-sscan__chips",
+                (phase === "done" || phase === "scanning") && "on",
+              )}
+            >
+              {(
+                [
+                  ["fit", "Fit"],
+                  ["palette", "Palette"],
+                  ["nolist", "No-list"],
+                ] as const
+              ).map(([key, label]) => {
+                const tone = checkTone(key);
+                return (
+                  <span key={key} className="shoop-sscan__chip">
+                    <i style={{ background: toneColor(tone) }} aria-hidden />
+                    {label}
+                  </span>
+                );
+              })}
+            </div>
+
+            <div
+              className={cn(
+                "shoop-sscan__whisper shoop-sscan__whisper--stage",
+                phase === "scanning" && "on",
+                whisperDim && "dim",
+              )}
+              dangerouslySetInnerHTML={{
+                __html:
+                  phase === "error"
+                    ? "couldn't finish the scan..."
+                    : whisper.includes("<b>")
+                      ? whisper
+                      : formatScanEmphasis(whisper),
+              }}
+            />
+
+            {verdict && phase === "done" ? (
+              <div className="shoop-sscan__overlay on">
+                <div className="shoop-sscan__overlay-k">Verdict</div>
+                <h3
+                  dangerouslySetInnerHTML={{
+                    __html: formatScanEmphasis(verdict.verdict_title),
+                  }}
+                />
               </div>
-            ))}
+            ) : null}
+
+            {phase === "error" && error ? (
+              <p className="shoop-sscan__on-err">{error}</p>
+            ) : null}
           </>,
           frameEl,
         )
       : null;
 
-  return (
-    <div className={cn("shoop-sscan", className)}>
-      {overlays}
-      <div className="shoop-sscan__hd">
-        <span className="shoop-sscan__t">THE STUDYING SCAN</span>
-      </div>
+  const notes = verdict && phase === "done" ? notesFromVerdict(verdict) : [];
+  const actionsReady = phase === "done" && Boolean(verdict);
 
-      {phase === "idle" ? (
+  return (
+    <div className={cn("shoop-sscan shoop-sscan--readout", className)}>
+      {overlays}
+
+      {phase === "idle" || phase === "scanning" ? (
+        <p className="shoop-sscan__empty">
+          {phase === "scanning"
+            ? "Studying this look on you…"
+            : "Pull something off the rail and I'll tell you what I'd say if we were standing here together."}
+        </p>
+      ) : null}
+
+      {notes.length ? (
+        <ul className="shoop-sscan__notes">
+          {notes.map((n, i) => (
+            <li key={i}>
+              <i style={{ background: toneColor(n.tone) }} aria-hidden />
+              <span dangerouslySetInnerHTML={{ __html: n.html }} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {phase === "error" ? (
         <button
           type="button"
-          className="shoop-sscan__start"
+          className="shoop-sscan__replay"
           onClick={() => void startScan()}
         >
-          Study this look →
+          Try the scan again
         </button>
       ) : null}
 
-      {showChrome ? (
-        <>
-          <div
-            className={cn("shoop-sscan__whisper", whisperDim && "dim")}
-            dangerouslySetInnerHTML={{
-              __html:
-                phase === "error"
-                  ? "couldn't finish the scan..."
-                  : whisper.includes("<b>")
-                    ? whisper
-                    : formatScanEmphasis(whisper),
-            }}
-          />
+      <div className="shoop-sscan__actions-row">
+        <button
+          type="button"
+          className="shoop-sscan__btn shoop-sscan__btn--primary"
+          disabled={!actionsReady || shareBusy}
+          onClick={() => void shareAskTheGirls()}
+        >
+          <i aria-hidden />
+          {shareBusy ? "Making the card…" : "Ask your friends"}
+        </button>
+        <button
+          type="button"
+          className="shoop-sscan__btn shoop-sscan__btn--ghost"
+          disabled={!actionsReady || moodBusy || !onAddToMoodboard}
+          onClick={() => onAddToMoodboard?.()}
+        >
+          {moodBusy ? "Saving…" : "Add to moodboard"}
+        </button>
+        <button
+          type="button"
+          className="shoop-sscan__btn shoop-sscan__btn--ghost"
+          disabled={!actionsReady || cartBusy || !onAddToCart}
+          onClick={() => void onAddToCart?.()}
+        >
+          {cartBusy ? "Adding…" : "Add to cart"}
+        </button>
+      </div>
 
-          <div
-            className="shoop-sscan__checks"
-            aria-hidden={phase === "error"}
-          >
-            {(
-              [
-                ["fit", "FIT"],
-                ["palette", "PALETTE"],
-                ["nolist", "NO-LIST"],
-              ] as const
-            ).map(([key, label]) => (
-              <div
-                key={key}
-                className={cn(
-                  "shoop-sscan__chk",
-                  checks[key] === "busy" && "busy",
-                  checks[key] === "tied" && "tied",
-                  phase === "done" &&
-                    verdict?.checks[key === "nolist" ? "nolist" : key] ===
-                      "fail" &&
-                    "fail",
-                  phase === "done" &&
-                    verdict?.checks[key === "nolist" ? "nolist" : key] ===
-                      "caution" &&
-                    "caution",
-                )}
-              >
-                <span className="knot" />
-                <i>{label}</i>
-              </div>
-            ))}
-          </div>
+      {actionHint ? (
+        <p className="shoop-sscan__fine shoop-sscan__fine--hint">{actionHint}</p>
+      ) : null}
+      {shareHint ? (
+        <p className="shoop-sscan__fine shoop-sscan__fine--hint">{shareHint}</p>
+      ) : (
+        <p className="shoop-sscan__fine">
+          AI visualization · actual fit and details may differ. They vote before
+          they see mine.
+        </p>
+      )}
 
-          {phase === "error" && error ? (
-            <p className="shoop-sscan__err">{error}</p>
-          ) : null}
-
-          {verdict && phase === "done" ? (
-            <div className={cn("shoop-sscan__verdict", "show")}>
-              <ShoopIcon size={26} className="shrink-0 rounded-[7px]" />
-              <div>
-                <div className="shoop-sscan__vv">
-                  Verdict:{" "}
-                  <em
-                    dangerouslySetInnerHTML={{
-                      __html: formatScanEmphasis(verdict.verdict_title),
-                    }}
-                  />
-                </div>
-                <p
-                  dangerouslySetInnerHTML={{
-                    __html: formatScanEmphasis(verdict.verdict_body),
-                  }}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {verdict && phase === "done" ? (
-            <div className="mt-3 space-y-2">
-              <button
-                type="button"
-                className="shoop-sscan__ask"
-                disabled={shareBusy}
-                onClick={() => void shareAskTheGirls()}
-              >
-                {shareBusy ? "Making the card…" : "Ask your friends →"}
-              </button>
-              {shareHint ? (
-                <p className="text-center text-[10px] font-semibold text-[var(--fitting-quiet)]">
-                  {shareHint}
-                </p>
-              ) : (
-                <p className="text-center text-[10px] text-[var(--fitting-quiet)]">
-                  They vote before they peek at mine.
-                </p>
-              )}
-            </div>
-          ) : null}
-
-          {(phase === "done" || phase === "error") && (
-            <button
-              type="button"
-              className="shoop-sscan__replay"
-              onClick={() => void startScan()}
-            >
-              {phase === "error" ? "Try the scan again" : "Replay the scan"}
-            </button>
-          )}
-        </>
+      {actionsReady ? (
+        <button
+          type="button"
+          className="shoop-sscan__replay"
+          onClick={() => void startScan()}
+        >
+          Replay the scan
+        </button>
       ) : null}
     </div>
   );

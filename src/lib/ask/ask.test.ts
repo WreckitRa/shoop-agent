@@ -55,6 +55,45 @@ describe("mapVerdictToShoopVote", () => {
       "love",
     );
   });
+
+  it("maps buy language to love even when body says fine/ok", () => {
+    assert.equal(
+      mapVerdictToShoopVote(
+        verdict({
+          verdict_title: "Buy this",
+          verdict_body: "The length is fine and the knit looks okay — **buy it**.",
+          checks: { fit: "pass", palette: "pass", nolist: "pass" },
+        }),
+      ),
+      "love",
+    );
+  });
+
+  it("does not treat fine/ok alone as meh", () => {
+    assert.equal(
+      mapVerdictToShoopVote(
+        verdict({
+          verdict_title: "Quiet win",
+          verdict_body: "Fit is fine. Palette is okay. Clean and wearable.",
+          checks: { fit: "pass", palette: "pass", nolist: "pass" },
+        }),
+      ),
+      "love",
+    );
+  });
+
+  it("honors explicit vote from the scan", () => {
+    assert.equal(
+      mapVerdictToShoopVote(
+        verdict({
+          verdict_title: "Soft take",
+          verdict_body: "Fine for now.",
+          vote: "love",
+        }),
+      ),
+      "love",
+    );
+  });
 });
 
 describe("buildLookAskPublic reveal gating", () => {

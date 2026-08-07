@@ -24,6 +24,12 @@ export const WATCH_COMING_SOON_TOAST: ToastPayload = {
   body: "Price and availability alerts for products you care about are on the way.",
 };
 
+export const HOLD_COMING_SOON_TOAST: ToastPayload = {
+  emoji: "⏳",
+  title: "The Hold is coming",
+  body: "Soon I'll watch price, your size, and delivery for seven days after you say yes.",
+};
+
 export const LINK_COPIED_TOAST: ToastPayload = {
   emoji: "🔗",
   title: "Link copied",

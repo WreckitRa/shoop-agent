@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/ai-chat/cn";
 import {
@@ -227,22 +228,31 @@ export function CartDrawer() {
               </div>
             </div>
           ) : null}
-          <div className="mt-4 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              disabled={mutating || itemCount === 0}
-              onClick={() => void clearCart()}
-              className="btn-secondary h-10 px-4 text-body-sm disabled:opacity-50"
-            >
-              Clear all
-            </button>
-            <button
-              type="button"
+          <div className="mt-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                disabled={mutating || itemCount === 0}
+                onClick={() => void clearCart()}
+                className="btn-secondary h-10 px-4 text-body-sm disabled:opacity-50"
+              >
+                Clear all
+              </button>
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                className="rounded-lg px-3 py-2 text-body-sm font-medium text-ink-soft transition hover:bg-surface-tint hover:text-ink"
+              >
+                Keep shopping
+              </button>
+            </div>
+            <Link
+              href="/moodboard?tab=cart"
               onClick={() => setDrawerOpen(false)}
-              className="rounded-lg px-3 py-2 text-body-sm font-medium text-ink-soft transition hover:bg-surface-tint hover:text-ink"
+              className="text-center text-[12px] font-semibold text-ink underline-offset-2 hover:underline"
             >
-              Keep shopping
-            </button>
+              Open full cart →
+            </Link>
           </div>
         </footer>
       </div>

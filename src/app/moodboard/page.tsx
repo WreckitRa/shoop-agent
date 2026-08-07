@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { PageShell } from "@/components/layout/PageShell";
-import { MoodboardView } from "@/components/moodboard/MoodboardView";
+import { DecideHub } from "@/components/moodboard/DecideHub";
 import { createPageMetadata } from "@/lib/seo/site";
 
 export const metadata: Metadata = createPageMetadata({
   title: "Moodboard",
-  description: "Looks you loved — try-ons saved from your fitting room.",
+  description:
+    "My moodboard, The Hold, and My cart — looks you loved and what you're buying.",
   path: "/moodboard",
   noIndex: true,
 });
@@ -14,9 +16,9 @@ export default function MoodboardPage() {
   return (
     <PageShell>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
-        <div className="shoop-page-x mx-auto w-full max-w-page-wide py-4 md:py-5">
-          <MoodboardView />
-        </div>
+        <Suspense fallback={null}>
+          <DecideHub />
+        </Suspense>
       </div>
     </PageShell>
   );

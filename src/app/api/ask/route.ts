@@ -42,6 +42,7 @@ const bodySchema = z
           palette: z.enum(["pass", "caution", "fail"]),
           nolist: z.enum(["pass", "caution", "fail"]),
         }),
+        vote: z.enum(["no", "meh", "almost", "love"]).optional(),
       })
       .strict(),
   })

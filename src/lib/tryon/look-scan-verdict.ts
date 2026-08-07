@@ -24,6 +24,7 @@ export type { LookScanPiece, LookScanVerdict } from "@/lib/tryon/look-scan-types
 export { formatScanEmphasis } from "@/lib/tryon/look-scan-types";
 
 const checkEnum = z.enum(["pass", "caution", "fail"]);
+const voteEnum = z.enum(["no", "meh", "almost", "love"]);
 
 const verdictSchema = z.object({
   verdict_title: z.string().min(1).max(80),
@@ -35,6 +36,7 @@ const verdictSchema = z.object({
     palette: checkEnum,
     nolist: checkEnum,
   }),
+  vote: voteEnum.optional(),
 });
 
 const FALLBACK_ANNOS = [
@@ -141,29 +143,31 @@ function piecesBlock(pieces: LookScanPiece[]): string {
   ].join("\n");
 }
 
-const SYSTEM = `You are Shoop's mirror stylist. You study a try-on photo of the shopper wearing an outfit and deliver a short, specific verdict.
+const SYSTEM = `You are Shoop — the shopper's stylist. You study a try-on photo of them wearing an outfit and deliver YOUR verdict as Shoop (third-person stylist voice), never as if you were the shopper talking about themselves.
 
 Return ONLY a JSON object (no markdown fence) with this exact shape and these exact keys:
 {
   "verdict_title": "short headline after 'Verdict:' — e.g. Love-it territory",
-  "verdict_body": "2–4 sentences. Use **double asterisks** around the one or two key phrases the shopper must notice.",
+  "verdict_body": "2–4 sentences of Shoop's take. Use **double asterisks** around the one or two key phrases the shopper must notice.",
   "annotations": ["label1", "label2", "label3", "label4"],
   "whispers": ["line1", "line2", "line3", "line4"],
   "checks": {
     "fit": "pass",
     "palette": "pass",
     "nolist": "pass"
-  }
+  },
+  "vote": "love"
 }
 
 Field rules (required — never omit):
-- verdict_title: string, ≤12 words
-- verdict_body: string, under ~70 words
+- verdict_title: string, ≤12 words — Shoop's headline, not the shopper quoting themselves
+- verdict_body: string, under ~70 words — write as Shoop advising them ("I'd keep…", "Skip…", "This works because…"), never "I feel / I love / I'd wear this" as the shopper
 - annotations: exactly 4 short scan labels, ≤5 words each
-- whispers: exactly 4 rotating status lines (intimate, lowercase; **bold** sparingly)
+- whispers: exactly 4 rotating status lines (intimate, lowercase; **bold** sparingly) — Shoop thinking aloud while scanning
 - checks.fit / checks.palette / checks.nolist: each exactly "pass", "caution", or "fail"
+- vote: exactly one of "love" | "almost" | "meh" | "no" — MUST match the headline/body. If you say buy / get it / love it → "love". If you say wait / fix / almost → "almost". If shrug / meh / mid → "meh". If hard pass / skip / veto → "no". Never contradict yourself (e.g. title says Buy but vote is meh).
 
-Match the shopper's honesty preference (gentle / straight / no-mercy). Be specific to THIS photo and THESE pieces. Honor hard no-list and taste vetoes. Never invent review counts or prices you weren't given.`;
+Match the shopper's honesty preference (gentle / straight / no-mercy). Be specific to THIS photo and THESE pieces. Honor hard no-list and taste vetoes. Never invent review counts or prices you weren't given. The verdict is what Shoop thinks — not a guess at what the shopper would say.`;
 
 function asTrimmedString(v: unknown): string | undefined {
   if (typeof v === "string") {
@@ -215,6 +219,16 @@ function coerceCheck(v: unknown): "pass" | "caution" | "fail" | undefined {
     return "caution";
   }
   if (t === "fail" || t === "no" || t === "bad" || t === "conflict") return "fail";
+  return undefined;
+}
+
+function coerceVote(v: unknown): "no" | "meh" | "almost" | "love" | undefined {
+  if (typeof v !== "string") return undefined;
+  const t = v.trim().toLowerCase();
+  if (t === "love" || t === "yes" || t === "buy" || t === "heart") return "love";
+  if (t === "almost" || t === "wait" || t === "close") return "almost";
+  if (t === "meh" || t === "mid") return "meh";
+  if (t === "no" || t === "pass" || t === "skip") return "no";
   return undefined;
 }
 
@@ -295,12 +309,15 @@ export function coerceLookScanPayload(raw: unknown): unknown {
     coerceCheck(checksObj.veto) ??
     "pass";
 
+  const vote = coerceVote(pick("vote", "shoop_vote", "shoopVote", "choice", "poll"));
+
   return {
     verdict_title: title?.slice(0, 80),
     verdict_body: body?.slice(0, 600),
     annotations,
     whispers,
     checks: { fit, palette, nolist },
+    ...(vote ? { vote } : {}),
   };
 }
 
@@ -333,7 +350,7 @@ Honesty mode: ${voice ?? "balanced"}
 
 ${piecesBlock(params.pieces)}
 
-Study the try-on photo and return the JSON verdict with ALL required keys.`;
+Study the try-on photo and return Shoop's JSON verdict (stylist opinion) with ALL required keys. Do not roleplay as the shopper.`;
 
   try {
     const anthropic = getAnthropicClient();
@@ -395,6 +412,7 @@ Study the try-on photo and return the JSON verdict with ALL required keys.`;
       annotations: v.annotations.map((a) => a.trim()) as LookScanVerdict["annotations"],
       whispers: v.whispers.map((w) => w.trim()) as LookScanVerdict["whispers"],
       checks: v.checks,
+      ...(v.vote ? { vote: v.vote } : {}),
     };
   } catch (error) {
     if (params.signal?.aborted) return null;

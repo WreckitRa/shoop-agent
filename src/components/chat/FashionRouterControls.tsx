@@ -84,14 +84,16 @@ function resolveQuestionAnswer(
   selectedIds: string[],
   freeText: string,
 ): FashionClarificationAnswer | null {
-  const otherSelected = selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID);
-  const chipIds = selectedIds.filter((id) => id !== CLARIFICATION_OTHER_OPTION_ID);
   const custom = freeText.trim();
-  if (!chipIds.length && !(otherSelected && custom)) return null;
-  return {
-    selected: chipIds,
-    ...(otherSelected && custom ? { customText: custom } : {}),
-  };
+  const chipIds = selectedIds.filter((id) => id !== CLARIFICATION_OTHER_OPTION_ID);
+  if (custom) {
+    return {
+      selected: chipIds,
+      customText: custom,
+    };
+  }
+  if (!chipIds.length) return null;
+  return { selected: chipIds };
 }
 
 function looksLikeColorQuestion(text: string): boolean {
@@ -105,6 +107,7 @@ function QuestionOptions({
   disabled,
   onToggle,
   onFreeText,
+  onFreeTextSubmit,
 }: {
   question: FashionClarificationQuestion;
   selectedIds: string[];
@@ -112,6 +115,7 @@ function QuestionOptions({
   disabled: boolean;
   onToggle: (optionId: string) => void;
   onFreeText: (text: string) => void;
+  onFreeTextSubmit?: () => void;
 }) {
   const options = asNormalizedOptions(
     question.quick_options ?? [{ id: CLARIFICATION_OTHER_OPTION_ID, label: CLARIFICATION_OTHER_OPTION }],
@@ -128,14 +132,14 @@ function QuestionOptions({
   );
   const chipOptions = options.filter(
     (o) =>
-      o.id === CLARIFICATION_OTHER_OPTION_ID ||
-      (!preferPalette &&
-        !o.previewQuery?.trim() &&
-        !/surprise/i.test(o.label) &&
-        o.id !== "surprise_me"),
+      o.id !== CLARIFICATION_OTHER_OPTION_ID &&
+      !preferPalette &&
+      !o.previewQuery?.trim() &&
+      !/surprise/i.test(o.label) &&
+      o.id !== "surprise_me",
   );
-  const otherSelected = selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID);
   const hasVisualRow = visualOptions.length > 0;
+  const canSubmitTyped = Boolean(freeText.trim()) && !disabled;
 
   return (
     <div className="space-y-2">
@@ -154,54 +158,40 @@ function QuestionOptions({
               onToggle={() => onToggle(o.id)}
             />
           ))}
-          {chipOptions
-            .filter((o) => o.id === CLARIFICATION_OTHER_OPTION_ID)
-            .map((option) => (
-              <ClarificationOptionCard
-                key={option.id}
-                optionId={option.id}
-                label={option.label}
-                selected={selectedIds.includes(option.id)}
-                disabled={disabled}
-                onToggle={() => onToggle(option.id)}
-              />
-            ))}
         </OptionPreviewCarousel>
       ) : null}
-      {chipOptions.filter((o) =>
-        hasVisualRow ? o.id !== CLARIFICATION_OTHER_OPTION_ID : true,
-      ).length ? (
+      {chipOptions.length ? (
         <div className="shoop-quiz-chips flex flex-wrap gap-2">
-          {chipOptions
-            .filter((o) =>
-              hasVisualRow ? o.id !== CLARIFICATION_OTHER_OPTION_ID : true,
-            )
-            .map((option) => (
-              <ClarificationOptionCard
-                key={option.id}
-                optionId={option.id}
-                label={option.label}
-                selected={selectedIds.includes(option.id)}
-                disabled={disabled}
-                onToggle={() => onToggle(option.id)}
-              />
-            ))}
+          {chipOptions.map((option) => (
+            <ClarificationOptionCard
+              key={option.id}
+              optionId={option.id}
+              label={option.label}
+              selected={selectedIds.includes(option.id)}
+              disabled={disabled}
+              onToggle={() => onToggle(option.id)}
+            />
+          ))}
         </div>
       ) : null}
       {allowMultiple ? (
         <p className="text-[11px] text-ink-muted">Choose any that apply</p>
       ) : null}
-      {otherSelected ? (
-        <input
-          type="text"
-          value={freeText}
-          onChange={(e) => onFreeText(e.target.value)}
-          disabled={disabled}
-          placeholder="Type your answer…"
-          className="shoop-quiz-other-input"
-          autoFocus
-        />
-      ) : null}
+      <input
+        type="text"
+        value={freeText}
+        onChange={(e) => onFreeText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          if (!canSubmitTyped) return;
+          onFreeTextSubmit?.();
+        }}
+        disabled={disabled}
+        placeholder="or type it…"
+        aria-label="Type your own answer"
+        className="shoop-quiz-other-input"
+      />
     </div>
   );
 }
@@ -343,7 +333,13 @@ export const FashionRouterControls = memo(function FashionRouterControls({
   if (!needsContinue) {
     const q = questions[0]!;
     const selected = selections[q.text] ?? [];
-    const otherOpen = selected.includes(CLARIFICATION_OTHER_OPTION_ID);
+    const typed = freeTexts[q.text]?.trim() ?? "";
+    const submitTyped = () => {
+      if (!typed) return;
+      submitAnswers({
+        [q.text]: { selected: [], customText: typed },
+      });
+    };
     return (
       <div className="shoop-qcardz">
         <div className="shoop-qcardz__block">
@@ -354,33 +350,21 @@ export const FashionRouterControls = memo(function FashionRouterControls({
             freeText={freeTexts[q.text] ?? ""}
             disabled={isStreaming || submitted}
             onToggle={(optionId) => {
-              if (optionId === CLARIFICATION_OTHER_OPTION_ID) {
-                toggleOption(q.text, optionId, false);
-                return;
-              }
               submitAnswers({
                 [q.text]: { selected: [optionId] },
               });
             }}
             onFreeText={(text) => {
-              toggleOption(q.text, CLARIFICATION_OTHER_OPTION_ID, false);
               setFreeTexts({ [q.text]: text });
             }}
+            onFreeTextSubmit={submitTyped}
           />
         </div>
-        {otherOpen ? (
+        {typed ? (
           <button
             type="button"
-            disabled={
-              !freeTexts[q.text]?.trim() || isStreaming || submitted
-            }
-            onClick={() => {
-              const typed = freeTexts[q.text]?.trim();
-              if (!typed) return;
-              submitAnswers({
-                [q.text]: { selected: [], customText: typed },
-              });
-            }}
+            disabled={isStreaming || submitted}
+            onClick={submitTyped}
             className="shoop-quiz-apply mt-3"
           >
             Show me the rack
@@ -405,14 +389,14 @@ export const FashionRouterControls = memo(function FashionRouterControls({
               toggleOption(q.text, optionId, Boolean(q.allow_multiple))
             }
             onFreeText={(text) => {
-              setSelections((prev) => {
-                const cur = prev[q.text] ?? [];
-                const withOther = cur.includes(CLARIFICATION_OTHER_OPTION_ID)
-                  ? cur
-                  : [...cur, CLARIFICATION_OTHER_OPTION_ID];
-                return { ...prev, [q.text]: withOther };
-              });
+              if (!q.allow_multiple) {
+                setSelections((prev) => ({ ...prev, [q.text]: [] }));
+              }
               setFreeTexts((prev) => ({ ...prev, [q.text]: text }));
+            }}
+            onFreeTextSubmit={() => {
+              if (!canSubmit || isStreaming || submitted) return;
+              submitAnswers(resolvedAnswers);
             }}
           />
         </div>
@@ -439,14 +423,20 @@ export const FashionRouterControls = memo(function FashionRouterControls({
               )
             }
             onFreeText={(text) => {
-              setSelections((prev) => {
-                const cur = prev[rideAlong.text] ?? [];
-                const withOther = cur.includes(CLARIFICATION_OTHER_OPTION_ID)
-                  ? cur
-                  : [...cur, CLARIFICATION_OTHER_OPTION_ID];
-                return { ...prev, [rideAlong.text]: withOther };
-              });
-              setFreeTexts((prev) => ({ ...prev, [rideAlong.text]: text }));
+              if (!rideAlong.allow_multiple) {
+                setSelections((prev) => ({
+                  ...prev,
+                  [rideAlong.text]: [],
+                }));
+              }
+              setFreeTexts((prev) => ({
+                ...prev,
+                [rideAlong.text]: text,
+              }));
+            }}
+            onFreeTextSubmit={() => {
+              if (!canSubmit || isStreaming || submitted) return;
+              submitAnswers(resolvedAnswers);
             }}
           />
         </div>

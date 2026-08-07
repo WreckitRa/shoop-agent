@@ -19,6 +19,8 @@ import {
   type OutfitStyleLook,
 } from "@/lib/onboarding/outfit-style-catalog";
 
+export const OUTFIT_DECK_PAGE_SIZE = 9;
+
 export type OutfitDeckContext = {
   /** Quiz step only — does not gate which styles exist in the library. */
   mode: OutfitGridMode;
@@ -34,6 +36,13 @@ export type OutfitDeckContext = {
   wornTasteTags?: string[];
   /** Style ids already picked on worn — hard-exclude on wanted deck. */
   wornLookIds?: string[];
+  /** Already-shown style ids (pagination / See more). */
+  excludeLookIds?: string[];
+};
+
+export type OutfitDeckPage = {
+  deck: OutfitGridCard[];
+  hasMore: boolean;
 };
 
 export type OutfitGridCard = {
@@ -368,6 +377,7 @@ function rankPool(
 
 /**
  * Fill 9 matrix cells from the full style library (no worn/wanted asset lock).
+ * Pass `excludeLookIds` to page beyond the first screen (See more).
  */
 export function selectInhouseDeck(
   ctx: OutfitDeckContext,
@@ -378,10 +388,20 @@ export function selectInhouseDeck(
   const usedColors = new Map<string, number>();
   const usedFormality = new Map<string, number>();
   const deck: OutfitGridCard[] = [];
+  const excludeIds = new Set(
+    (ctx.excludeLookIds ?? []).map((id) => id.trim()).filter(Boolean),
+  );
+  const paging = excludeIds.size > 0;
 
   // Full library, but gender is enforced hard in scoring.
   const pool = [...looks];
   const bucket = genderBucketFromPresentation(ctx.genderPresentation);
+
+  for (const look of pool) {
+    if (!excludeIds.has(look.id)) continue;
+    used.add(look.id);
+    used.add(look.imageUrl);
+  }
 
   for (const cell of matrix) {
     const pickWithDiversity = (ranked: Ranked[]): Ranked | null => {
@@ -444,6 +464,8 @@ export function selectInhouseDeck(
     }
 
     if (!chosen) {
+      // Don't pad empty tiles on See-more pages — return only real looks.
+      if (paging) continue;
       deck.push({
         id: `empty:${ctx.mode}:${cell.cell}`,
         productId: "",
@@ -475,22 +497,49 @@ export function selectInhouseDeck(
   return deck;
 }
 
+function outfitDeckHasMore(
+  ctx: OutfitDeckContext,
+  shownIds: Iterable<string>,
+  looks: readonly OutfitStyleLook[] = getInhouseOutfitLooks(),
+): boolean {
+  const shown = new Set(
+    [...shownIds, ...(ctx.excludeLookIds ?? []), ...(ctx.wornLookIds ?? [])]
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+  const bucket = genderBucketFromPresentation(ctx.genderPresentation);
+  return looks.some(
+    (look) => !shown.has(look.id) && genderAllowed(look, bucket, false),
+  );
+}
+
 export async function buildOutfitGridDeck(
   ctx: OutfitDeckContext,
   options: { signal?: AbortSignal } = {},
-): Promise<OutfitGridCard[]> {
+): Promise<OutfitDeckPage> {
   if (options.signal?.aborted) {
     throw new Error("Aborted");
   }
-  const deck = selectInhouseDeck(ctx);
+  const selected = selectInhouseDeck(ctx);
+  const deck = (
+    ctx.excludeLookIds?.length
+      ? selected.filter((c) => Boolean(c.imageUrl))
+      : selected
+  ).slice(0, OUTFIT_DECK_PAGE_SIZE);
+  const hasMore = outfitDeckHasMore(
+    ctx,
+    deck.map((c) => c.id),
+  );
   logAiChat("info", "onboarding_outfit_deck_built", {
     source: "inhouse_catalog",
     mode: ctx.mode,
     filled: deck.filter((c) => c.imageUrl).length,
+    pageExclude: ctx.excludeLookIds?.length ?? 0,
+    hasMore,
     gender: ctx.genderPresentation ?? null,
     eras: ctx.styleEra ?? null,
   });
-  return deck.slice(0, 9);
+  return { deck, hasMore };
 }
 
 /** Count looks eligible for a gender (styles are mode-agnostic). */

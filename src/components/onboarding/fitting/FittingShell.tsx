@@ -44,7 +44,7 @@ export function FittingShell({
       : SEWN_PCT[Math.max(sewnIdx, nowIdx)] ?? 3;
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-x-hidden overflow-y-auto bg-gradient-to-b from-white to-[#F7F7F9] text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white">
+    <div className="fixed inset-0 z-[110] overflow-x-hidden overflow-y-auto bg-gradient-to-b from-white to-[#F7F7F9] text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white">
       <div className="relative z-[5] flex items-center justify-between px-6 py-[22px] sm:px-10">
         <ShoopLogo className="h-[22px]" />
         <div className="flex items-center gap-3.5 text-xs font-semibold tracking-[0.02em] text-[var(--fitting-quiet)]">
@@ -74,7 +74,7 @@ export function FittingShell({
         </div>
       </div>
 
-      <div className="mx-auto grid min-h-[calc(100dvh-90px)] max-w-[1280px] grid-cols-1 gap-0 px-4 pb-12 pt-2 md:grid-cols-[48px_1fr] md:px-6 lg:grid-cols-[64px_1fr_372px] lg:px-10">
+      <div className="mx-auto grid min-h-[calc(100dvh-90px)] max-w-[1280px] grid-cols-1 gap-0 px-4 pb-12 pt-2 md:grid-cols-[48px_1fr] md:gap-x-4 md:px-6 lg:grid-cols-[64px_minmax(0,1fr)_minmax(300px,372px)] lg:gap-x-8 lg:px-10">
         {/* stitch rail */}
         <div className="relative hidden md:block">
           <div
@@ -132,12 +132,12 @@ export function FittingShell({
         </div>
 
         {/* question stage */}
-        <div className="relative px-2 pb-8 pt-4 md:px-8 md:pl-12 lg:px-14 lg:pl-[90px] lg:pt-[30px]">
+        <div className="relative min-w-0 px-2 pb-8 pt-4 md:px-8 md:pl-12 lg:px-10 lg:pl-14 lg:pt-[30px]">
           {children}
         </div>
 
         {/* mirror */}
-        <div className="hidden lg:block">
+        <div className="hidden min-w-0 lg:block lg:pl-2">
           <FittingMirror
             mirror={mirror}
             onTell={step === "verdict" ? undefined : onTell}

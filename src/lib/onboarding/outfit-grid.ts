@@ -5,9 +5,11 @@
 
 export type {
   OutfitDeckContext,
+  OutfitDeckPage,
   OutfitGridCard,
 } from "./outfit-grid-inhouse";
 export {
+  OUTFIT_DECK_PAGE_SIZE,
   buildOutfitGridDeck,
   countInhouseCoverage,
   genderBucketFromPresentation,

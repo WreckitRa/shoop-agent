@@ -1,5 +1,6 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { cn } from "@/lib/ai-chat/cn";
 import type { FittingRoomItem } from "@/lib/tryon/fitting-room-types";
 import { useTryOnDrawerStore } from "./tryon-drawer-store";
@@ -28,7 +29,9 @@ export function FittingRoomAction({
   tryonCta,
 }: FittingRoomActionProps) {
   const addToFittingRoom = useTryOnDrawerStore((s) => s.addToFittingRoom);
+  const tryOnItem = useTryOnDrawerStore((s) => s.tryOnItem);
   const isInRack = useTryOnDrawerStore((s) => s.isInRack(item.id));
+  const isActive = useTryOnDrawerStore((s) => s.isActive(item.id));
   const rackFull = useTryOnDrawerStore((s) => s.isRackFull());
   const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
   const avatarStatus = useSelfAvatarStore((s) => s.status);
@@ -76,28 +79,36 @@ export function FittingRoomAction({
     );
   }
 
-  const overlayLabel = isInRack
-    ? "IN FITTING ROOM"
-    : rackFull
+  const blockedFull = rackFull && !isInRack;
+
+  const overlayLabel = isActive
+    ? "ON YOU"
+    : blockedFull
       ? "ROOM FULL"
       : "TRY ON ME →";
 
-  const label =
-    isInRack ? "In fitting room"
-    : rackFull ? "Fitting room full"
-    : "Add to fitting room";
+  const label = isActive
+    ? "On you"
+    : blockedFull
+      ? "Fitting room full"
+      : "Try on me";
+
+  const dressNow = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (isActive || blockedFull) return;
+    addToFittingRoom(item);
+    // Dress immediately — don't make the user drag from the rail again.
+    tryOnItem(item.id, { replaceSameType: true });
+  };
 
   if (variant === "overlay") {
     return (
       <button
         type="button"
         data-tryon-trigger
-        disabled={isInRack || rackFull}
+        disabled={isActive || blockedFull}
         className={cn("shoop-tryb", className)}
-        onClick={(e) => {
-          e.stopPropagation();
-          addToFittingRoom(item);
-        }}
+        onClick={dressNow}
       >
         {overlayLabel}
       </button>
@@ -108,19 +119,16 @@ export function FittingRoomAction({
     <button
       type="button"
       data-tryon-trigger
-      disabled={isInRack || rackFull}
+      disabled={isActive || blockedFull}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition disabled:cursor-default disabled:opacity-60",
-        isInRack
+        isActive
           ? "border-success/30 bg-success-tint text-success-dark"
           : "border-hairline text-ink hover:bg-surface-tint",
         compact && "px-2.5 py-0.5 text-[11px]",
         className,
       )}
-      onClick={(e) => {
-        e.stopPropagation();
-        addToFittingRoom(item);
-      }}
+      onClick={dressNow}
     >
       {label}
     </button>

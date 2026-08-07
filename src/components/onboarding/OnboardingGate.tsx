@@ -521,6 +521,11 @@ export function OnboardingGate() {
   );
   const [wornLoading, setWornLoading] = useState(false);
   const [aspirationalLoading, setAspirationalLoading] = useState(false);
+  const [wornLoadingMore, setWornLoadingMore] = useState(false);
+  const [aspirationalLoadingMore, setAspirationalLoadingMore] =
+    useState(false);
+  const [wornHasMore, setWornHasMore] = useState(false);
+  const [aspirationalHasMore, setAspirationalHasMore] = useState(false);
   const [wornPicks, setWornPicks] = useState<OutfitGridCard[]>([]);
   const [aspirationalPicks, setAspirationalPicks] = useState<OutfitGridCard[]>(
     [],
@@ -947,14 +952,24 @@ export function OnboardingGate() {
   }, [budgetPhilosophies]);
 
   const loadOutfitDeck = useCallback(
-    async (mode: "worn" | "aspirational") => {
+    async (mode: "worn" | "aspirational", opts?: { more?: boolean }) => {
+      const more = Boolean(opts?.more);
       const inFlight =
         mode === "worn" ? wornDeckInFlightRef : aspirationalDeckInFlightRef;
       if (inFlight.current) return;
       inFlight.current = true;
       const setLoadingState =
-        mode === "worn" ? setWornLoading : setAspirationalLoading;
+        mode === "worn"
+          ? more
+            ? setWornLoadingMore
+            : setWornLoading
+          : more
+            ? setAspirationalLoadingMore
+            : setAspirationalLoading;
       const setDeck = mode === "worn" ? setWornDeck : setAspirationalDeck;
+      const setHasMore =
+        mode === "worn" ? setWornHasMore : setAspirationalHasMore;
+      const currentDeck = mode === "worn" ? wornDeck : aspirationalDeck;
       setLoadingState(true);
       try {
         const params = new URLSearchParams({ mode });
@@ -989,17 +1004,42 @@ export function OnboardingGate() {
             wornPicks.map((p) => p.id).filter(Boolean).join(","),
           );
         }
+        if (more && currentDeck.length) {
+          params.set(
+            "excludeLookIds",
+            currentDeck.map((c) => c.id).filter(Boolean).join(","),
+          );
+        }
         const res = await fetch(`/api/onboarding/taste?${params}`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("deck");
-        const json = (await res.json()) as { deck: OutfitGridCard[] };
+        const json = (await res.json()) as {
+          deck: OutfitGridCard[];
+          hasMore?: boolean;
+        };
+        const next = json.deck ?? [];
         // Keep worn picks + closet when (re)loading decks
-        if (mode === "aspirational") setAspirationalPicks([]);
-        setDeck(json.deck ?? []);
+        if (!more && mode === "aspirational") setAspirationalPicks([]);
+        if (more) {
+          setDeck((prev) => {
+            const seen = new Set(prev.map((c) => c.id));
+            return [...prev, ...next.filter((c) => c.id && !seen.has(c.id))];
+          });
+        } else {
+          setDeck(next);
+        }
+        // Prefer server flag; if omitted (stale response), assume more when we got a full page.
+        const serverHasMore = json.hasMore;
+        setHasMore(
+          typeof serverHasMore === "boolean"
+            ? serverHasMore
+            : next.length >= 9,
+        );
       } catch {
-        if (mode === "aspirational") setAspirationalPicks([]);
-        setDeck([]);
+        if (!more && mode === "aspirational") setAspirationalPicks([]);
+        if (!more) setDeck([]);
+        if (!more) setHasMore(false);
       } finally {
         inFlight.current = false;
         setLoadingState(false);
@@ -1015,6 +1055,8 @@ export function OnboardingGate() {
       shippingCountry,
       currency,
       wornPicks,
+      wornDeck,
+      aspirationalDeck,
     ],
   );
 
@@ -1029,6 +1071,30 @@ export function OnboardingGate() {
       void loadOutfitDeck("aspirational");
     }
   }, [step, aspirationalDeck.length, loadOutfitDeck]);
+
+  // If the first page loaded before hasMore was wired (or a stale response),
+  // still offer See more — the next fetch will hide it when exhausted.
+  useEffect(() => {
+    if (
+      step === "worn" &&
+      wornDeck.length === 9 &&
+      !wornHasMore &&
+      !wornLoading
+    ) {
+      setWornHasMore(true);
+    }
+  }, [step, wornDeck.length, wornHasMore, wornLoading]);
+
+  useEffect(() => {
+    if (
+      step === "wanted" &&
+      aspirationalDeck.length === 9 &&
+      !aspirationalHasMore &&
+      !aspirationalLoading
+    ) {
+      setAspirationalHasMore(true);
+    }
+  }, [step, aspirationalDeck.length, aspirationalHasMore, aspirationalLoading]);
 
   useEffect(() => {
     return () => {
@@ -2269,6 +2335,9 @@ export function OnboardingGate() {
             selectedIds={wornPicks.map((p) => p.id)}
             maxPicks={3}
             loading={wornLoading}
+            loadingMore={wornLoadingMore}
+            hasMore={wornHasMore}
+            onSeeMore={() => void loadOutfitDeck("worn", { more: true })}
             onToggle={(card) =>
               setWornPicks((prev) => togglePick(prev, card, 3))
             }
@@ -2285,6 +2354,11 @@ export function OnboardingGate() {
             selectedIds={aspirationalPicks.map((p) => p.id)}
             maxPicks={2}
             loading={aspirationalLoading}
+            loadingMore={aspirationalLoadingMore}
+            hasMore={aspirationalHasMore}
+            onSeeMore={() =>
+              void loadOutfitDeck("aspirational", { more: true })
+            }
             onToggle={(card) =>
               setAspirationalPicks((prev) => togglePick(prev, card, 2))
             }
