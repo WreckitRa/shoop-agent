@@ -98,6 +98,8 @@ export const FashionCatalogResults = memo(function FashionCatalogResults({
           overflowItemToProductCard,
         );
 
+        if (!survivors.length && !overflow.length) return null;
+
         return (
           <div key={slot.slot_id} className="space-y-3">
             <div className="flex flex-wrap items-baseline gap-2">

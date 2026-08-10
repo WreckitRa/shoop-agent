@@ -2,7 +2,7 @@ import type { CatalogProductSummary } from "@/lib/shopify/catalog";
 import { colorWordsInQuery } from "../search-planner/validator";
 import type { CatalogLane } from "./category-hedge";
 import { normalizeCatalogHit } from "./normalize-hit";
-import type { FashionSlotCatalogProduct } from "./types";
+import type { FashionSlotCatalogProduct, FashionSlotCatalogResult } from "./types";
 import { catalogDedupeKey } from "./product-id";
 
 export type VariantQueryHit = {
@@ -82,6 +82,33 @@ export function dedupeSlotCatalogHits(
   }
 
   return [...byKey.values()];
+}
+
+/**
+ * First-slot-wins exclusivity across plan slots (same UPID cannot appear in
+ * two rails). Call after scoring so earlier/anchor slots keep the product.
+ */
+export function dedupeProductsAcrossSlots(
+  slots: FashionSlotCatalogResult[],
+): FashionSlotCatalogResult[] {
+  const claimed = new Set<string>();
+  return slots.map((slot) => {
+    const products: FashionSlotCatalogProduct[] = [];
+    for (const p of slot.products) {
+      const key = (p.upid || p.id || "").trim();
+      if (!key || claimed.has(key)) continue;
+      claimed.add(key);
+      products.push(p);
+    }
+    return {
+      ...slot,
+      products,
+      counts: {
+        ...slot.counts,
+        unique_products: products.length,
+      },
+    };
+  });
 }
 
 export function perVariantRawCounts(hits: VariantQueryHit[]): number[] {

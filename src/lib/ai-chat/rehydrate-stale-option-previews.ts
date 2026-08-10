@@ -1,9 +1,11 @@
 /**
- * Backfill preview images for messages that have previewQuery but lost images
+ * Backfill preview images / palettes for messages that lost enrichment
  * (e.g. race before persist merge). Safe to call on conversation load.
  */
 import {
+  collectFashionPaletteRequests,
   collectFashionPreviewRequests,
+  mergeOptionPalettesIntoFashionRouter,
   mergeOptionPreviewsIntoFashionRouter,
 } from "@/lib/fashion-memory/router/clarification-defaults";
 import { prisma } from "@/lib/ai-chat/db";
@@ -35,11 +37,13 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
 
   const stale = rows.filter((row) => {
     const meta = row.metadata as MessageMetadata | null;
-    return (
-      meta &&
+    if (!meta?.fashionRouter) return false;
+    const needsImages =
       messageExpectsOptionPreviews(meta) &&
-      !messageHasOptionPreviewImages(meta)
-    );
+      !messageHasOptionPreviewImages(meta);
+    const needsPalettes =
+      collectFashionPaletteRequests(meta.fashionRouter).length > 0;
+    return needsImages || needsPalettes;
   });
 
   if (!stale.length) return;
@@ -56,9 +60,8 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
         });
       }),
     );
-    return;
+    // Still try palettes (no shipping country required).
   }
-
 
   const buyerPromise = loadBuyerCatalogContext(
     params.userId,
@@ -69,31 +72,42 @@ export async function rehydrateStaleOptionPreviewsForConversation(params: {
   await Promise.allSettled(
     stale.map(async (row) => {
       const meta = row.metadata as MessageMetadata;
-      const options = meta.fashionRouter
+      if (!meta.fashionRouter) return;
+
+      const options = params.shippingCountry?.trim()
         ? collectFashionPreviewRequests(meta.fashionRouter)
         : [];
+      const paletteOptions = collectFashionPaletteRequests(meta.fashionRouter);
 
-      if (!options.length) return;
+      if (!options.length && !paletteOptions.length) return;
 
+      let fashionRouterState = meta.fashionRouter;
       await runOptionPreviews({
         messageId: row.id,
         conversationId: params.conversationId,
+        userId: params.userId,
         options,
+        paletteOptions,
         getBuyerContext: () => buyerPromise,
         fallbackShippingCountry: params.shippingCountry,
         push: () => {},
         applyPreviews: (previewMap) => {
-          if (meta.fashionRouter) {
-            const merged = mergeOptionPreviewsIntoFashionRouter(
-              meta.fashionRouter,
-              previewMap,
-            );
-            return { fashionRouter: merged };
-          }
-          return {};
+          const merged = mergeOptionPreviewsIntoFashionRouter(
+            fashionRouterState,
+            previewMap,
+          );
+          fashionRouterState = merged;
+          return { fashionRouter: merged };
+        },
+        applyPalettes: (paletteMap) => {
+          const merged = mergeOptionPalettesIntoFashionRouter(
+            fashionRouterState,
+            paletteMap,
+          );
+          fashionRouterState = merged;
+          return { fashionRouter: merged };
         },
       });
     }),
   );
-
 }

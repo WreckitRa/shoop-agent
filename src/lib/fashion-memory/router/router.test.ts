@@ -32,6 +32,8 @@ describe("buildFashionRouterPrompt", () => {
     assert.match(prompt, /three moves/);
     assert.match(prompt, /ACCESSORIES are garments too/);
     assert.match(prompt, /GENERAL PRINCIPLE/);
+    assert.match(prompt, /interpret INTENT/);
+    assert.match(prompt, /ALWAYS include `brief` on ask_clarification/);
     assert.doesNotMatch(prompt, /run_intake/);
     assert.match(prompt, /#abcd self \(Raphael\)/);
     assert.match(prompt, /CURRENT DATE: 2026-07-08/);

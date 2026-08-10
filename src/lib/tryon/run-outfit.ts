@@ -32,6 +32,7 @@ import type {
   TryonLookStepContract,
 } from "./types";
 import { parseCapsuleLookId } from "./outfit-ids";
+import { resolveTryonPersonId } from "./resolve-person";
 import {
   buildOutfitGarmentCollage,
 } from "./dress/outfit-collage";
@@ -206,7 +207,10 @@ export async function startOutfitTryon(params: {
   const itemRefs = resolveOutfitItemRefs(state, params.lookId);
   if (!itemRefs?.length) throw new Error("Look not found");
 
-  const personId = state.plan.brief.recipient_person_id;
+  const personId = await resolveTryonPersonId(
+    params.userId,
+    state.plan.brief.recipient_person_id,
+  );
   const avatar = await getStoredAvatar(params.userId, personId);
   if (!avatar) throw new Error("Avatar required");
 
@@ -276,6 +280,8 @@ export async function startOutfitTryon(params: {
         refs: chain.map((c) => c.ref),
         look_id: params.lookId,
         provider_keys: providerKeys,
+        titles: items.map((it) => it.title).filter(Boolean),
+        garments: items.map((it) => it.garment).filter(Boolean),
       },
       searchId: params.searchId,
       productRef: cacheKey,
@@ -319,6 +325,8 @@ export async function startOutfitTryon(params: {
       refs: chain.map((c) => c.ref),
       look_id: params.lookId,
       provider_key: providerKey,
+      titles: items.map((it) => it.title).filter(Boolean),
+      garments: items.map((it) => it.garment).filter(Boolean),
     },
     searchId: params.searchId,
     productRef: cacheKey,
@@ -824,6 +832,8 @@ export async function startResolvedOutfitTryon(params: {
         refs: chain.map((c) => c.ref),
         look_id: params.lookId,
         provider_keys: providerKeys,
+        titles: outfitItems.map((it) => it.title).filter(Boolean),
+        garments: outfitItems.map((it) => it.garment).filter(Boolean),
       },
       searchId: params.searchId,
       productRef: cacheKey,
@@ -866,6 +876,8 @@ export async function startResolvedOutfitTryon(params: {
       refs: chain.map((c) => c.ref),
       look_id: params.lookId,
       provider_key: providerKey,
+      titles: outfitItems.map((it) => it.title).filter(Boolean),
+      garments: outfitItems.map((it) => it.garment).filter(Boolean),
     },
     searchId: params.searchId,
     productRef: cacheKey,

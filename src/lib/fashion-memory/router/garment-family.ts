@@ -15,7 +15,7 @@ const CLOTHING_FAMILY_RE =
 
 /** Common shopping nouns that should escalate when unmapped (not silent coerce). */
 const COMMON_UNMAPPED_FAMILY_RE =
-  /\b(swimwear|swimsuit|bikini|sleepwear|pajamas?|pyjamas?|maternity|sportswear|costume|lingerie|athleisure|activewear|cover-?up)\b/i;
+  /\b(sleepwear|pajamas?|pyjamas?|maternity|sportswear|costume|lingerie|athleisure|activewear)\b/i;
 
 export function userMentionsAccessories(text: string): boolean {
   return ACCESSORY_NOUN_RE.test(text);

@@ -26,7 +26,7 @@ Everything else is skippable.
 
 ## 2. Flow overview
 
-**Live UI** (`OnboardingGate` + fitting steps): name → spend → photo/body → worn grid → wanted grid → loves/vetoes → honesty → verdict/card.
+**Live UI** (`OnboardingGate` + fitting steps): name → spend → photo/body → worn grid → wanted grid → loves/vetoes → honesty → **trusted circle** → verdict/card.
 
 | Step | Screen |
 |------|--------|
@@ -36,9 +36,10 @@ Everything else is skippable.
 | `worn` / `wanted` | `TasteOutfitGridStep` |
 | `nolist` | `TasteLovesVetoesStep` |
 | `honesty` | `TasteHonestyStep` |
+| `circle` | `TasteCircleStep` (up to 3 first names → `FashionPerson` friends) |
 | `verdict` | `FittingVerdictStep` (+ `CardForgeStep` / avatar hosts as needed) |
 
-Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v1`.
+Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v2`.
 
 ---
 
@@ -66,6 +67,7 @@ Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v1`.
 | Lifestyle / world chips | Optional multi-select |
 | Country / city / currency / sizes | Skip allowed; sizes can wait until checkout |
 | Taste / grids / loves | Advance without picks |
+| Trusted circle | Skip — “I’d rather decide later” |
 | Photo / card forge | Skip → complete without avatar |
 
 ---
@@ -308,7 +310,7 @@ User answers (wizard / AI paste)
 |------|------|
 | `src/components/onboarding/OnboardingGate.tsx` | Wizard orchestrator, validation, saves |
 | `src/components/onboarding/YouIdentityStep.tsx` | Name / gender / DOB / era / world |
-| `src/components/onboarding/Taste*.tsx` | Spend, grids, loves, honesty |
+| `src/components/onboarding/Taste*.tsx` | Spend, grids, loves, honesty, trusted circle |
 | `src/components/onboarding/fitting/*` | Photo + verdict |
 | `src/components/onboarding/CardForgeStep.tsx` | Avatar forge |
 | `src/lib/onboarding/status.ts` | Required fields, patch, complete |

@@ -126,6 +126,8 @@ export type FashionClarificationOption = {
   /** Catalog search phrase → visual card collage (styles/directions only). */
   previewQuery?: string;
   previewImages?: import("@/lib/ai-chat/types").ClarificationOptionPreviewImage[];
+  /** LLM-resolved hex swatches for color/palette chips (exactly 3–4). */
+  paletteColors?: string[];
 };
 
 /** Structured quiz answer — selected are option ids (and Other) + optional Other text. */
@@ -171,6 +173,11 @@ export type FashionRouterResult =
       stated_facts?: FashionStatedFacts;
       /** Set by gate when clarifying for a known recipient. */
       target_person_id?: string;
+      /**
+       * Provisional shopping brief when WHAT is known — parked as
+       * fashionPendingBrief so size answers do not invent a new request.
+       */
+      brief?: FashionSearchBrief;
     }
   | { move: "ready_to_search"; brief: FashionSearchBrief };
 

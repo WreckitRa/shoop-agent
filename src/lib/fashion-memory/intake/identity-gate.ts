@@ -90,10 +90,8 @@ export function missingSizeBucketsForGarments(
 }
 
 export function garmentsForIntakeGate(brief: FashionSearchBrief): string[] {
-  if (brief.garments.length) return brief.garments;
-  if (brief.request_type === "outfit") return ["shirt", "trousers", "shoes"];
-  if (brief.request_type === "capsule") return ["top", "bottom", "shoes"];
-  return ["top"];
+  // Never invent shirt/trousers/shoes — empty means ask WHAT, not invent sizes.
+  return brief.garments;
 }
 
 /** True when gender is still unknown for this recipient/brief. */

@@ -25,4 +25,4 @@ export {
   dedupeConsecutiveUserMessages,
 } from "./message-dedupe";
 export { buildFallbackBriefFromContext } from "./fallback-brief";
-export { checkBriefInvariants, checkPlanInvariants, coerceBriefRequestTypeForOutfitLanguage } from "./invariants";
+export { checkBriefInvariants, checkPlanInvariants } from "./invariants";

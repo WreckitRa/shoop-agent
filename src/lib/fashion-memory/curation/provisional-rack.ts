@@ -14,6 +14,7 @@ export function buildProvisionalPresentation(params: {
   plan: FashionSearchPlan;
   slots: FashionSlotCatalogResult[];
   pools?: Map<string, SlotPool>;
+  traceId?: string | null;
 }): FashionCurationPresentation | null {
   const slotData = params.slots
     .map((slot) => {
@@ -77,5 +78,6 @@ export function buildProvisionalPresentation(params: {
     vetoedRefs: new Set(),
     lookMembership,
     fallback: true,
+    traceId: params.traceId,
   });
 }

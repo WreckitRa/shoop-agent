@@ -37,6 +37,15 @@ function colorFor(name: string) {
   return AVATAR_COLORS[h]!;
 }
 
+function isPlaceholderName(name: string | null | undefined) {
+  const n = name?.trim().toLowerCase();
+  return !n || n === "you";
+}
+
+function firstName(name: string) {
+  return name.trim().split(/\s+/)[0] || name.trim();
+}
+
 type Props = {
   token: string;
   initialShare?: LookAskSharePublic | null;
@@ -48,9 +57,10 @@ export function AskLookCard({ token, initialShare }: Props) {
   );
   const [loading, setLoading] = useState(!initialShare);
   const [error, setError] = useState<string | null>(null);
-  const [nameDraft, setNameDraft] = useState(
-    () => getAskDisplayName() ?? "",
-  );
+  const [nameDraft, setNameDraft] = useState(() => {
+    const stored = getAskDisplayName();
+    return isPlaceholderName(stored) ? "" : (stored ?? "");
+  });
   const [needName, setNeedName] = useState(false);
   const [pendingChoice, setPendingChoice] = useState<AskVoteChoice | null>(
     null,
@@ -164,8 +174,10 @@ export function AskLookCard({ token, initialShare }: Props) {
   }
 
   function onVoteClick(choice: AskVoteChoice) {
-    const name = getAskDisplayName() || nameDraft.trim();
-    if (!name) {
+    const stored = getAskDisplayName();
+    const name =
+      (!isPlaceholderName(stored) ? stored : null) || nameDraft.trim();
+    if (!name || isPlaceholderName(name)) {
       setPendingChoice(choice);
       setNeedName(true);
       return;
@@ -176,7 +188,7 @@ export function AskLookCard({ token, initialShare }: Props) {
 
   function confirmName() {
     const name = nameDraft.trim();
-    if (!name) return;
+    if (!name || isPlaceholderName(name)) return;
     setAskDisplayName(name);
     setNeedName(false);
     if (pendingChoice) void submitVote(pendingChoice, name);
@@ -185,7 +197,13 @@ export function AskLookCard({ token, initialShare }: Props) {
   async function addNote() {
     const body = noteDraft.trim();
     if (!body || !share) return;
-    const name = getAskDisplayName() || nameDraft.trim() || "You";
+    const stored = getAskDisplayName();
+    const name =
+      (!isPlaceholderName(stored) ? stored : null) || nameDraft.trim();
+    if (!name || isPlaceholderName(name)) {
+      setNeedName(true);
+      return;
+    }
     setAskDisplayName(name);
     setBusy(true);
     try {
@@ -355,55 +373,71 @@ export function AskLookCard({ token, initialShare }: Props) {
                         className={cn("pl", c === "love" && "love")}
                       >
                         {ASK_VOTE_LABELS[c]}
-                        {share.myVote === c ? (
-                          <span className="youtag"> YOU</span>
-                        ) : share.ownerVote === c ? (
+                        {share.ownerVote === c ? (
                           <span className="youtag">
                             {" "}
-                            {share.askerName.split(" ")[0]?.toUpperCase()}
+                            {firstName(share.askerName).toUpperCase()}
                           </span>
+                        ) : share.myVote === c ? (
+                          <span className="youtag"> YOU</span>
                         ) : null}
                       </span>
                       <span className="pbar">
                         <i style={{ width: `${pct}%` }} />
                       </span>
                       <span className="avs">
-                        {voters.map((v) =>
-                          v.isShoop ? (
-                            <span
-                              key={v.voterKey}
-                              className="av bot"
-                              title="Shoop voted"
-                            >
-                              <ShoopIcon size={14} className="!rounded-full" />
-                            </span>
-                          ) : (
+                        {voters.map((v) => {
+                          if (v.isShoop) {
+                            return (
+                              <span
+                                key={v.voterKey}
+                                className="av bot"
+                                title="Shoop voted"
+                              >
+                                <ShoopIcon
+                                  size={14}
+                                  className="!rounded-full"
+                                />
+                              </span>
+                            );
+                          }
+                          const askerLabel =
+                            share.askerName.trim() ||
+                            (isPlaceholderName(v.displayName)
+                              ? "Friend"
+                              : v.displayName.trim());
+                          // Asker's vote always shows their name — never "YOU",
+                          // including when the asker opens their own shared link.
+                          const isSelf =
+                            v.voterKey === voterKey && !v.isOwner;
+                          const labelName = v.isOwner
+                            ? askerLabel
+                            : isSelf
+                              ? "You"
+                              : v.displayName;
+                          return (
                             <span
                               key={v.voterKey}
                               className={cn(
                                 "av",
-                                (v.voterKey === voterKey || v.isOwner) && "you",
+                                isSelf && "you",
                                 v.isOwner && "asker",
                               )}
                               style={
-                                v.voterKey === voterKey || v.isOwner
+                                isSelf || v.isOwner
                                   ? undefined
                                   : { background: colorFor(v.displayName) }
                               }
                               title={
                                 v.isOwner
-                                  ? `${v.displayName} (asker)`
-                                  : v.displayName
+                                  ? `${askerLabel} (asker)`
+                                  : labelName
                               }
                             >
-                              {v.voterKey === voterKey
-                                ? "YOU"
-                                : v.isOwner
-                                  ? initial(share.askerName)
-                                  : initial(v.displayName)}
+                              {isSelf ? "YOU" : initial(labelName)}
                             </span>
-                          ),
-                        )}
+                          );
+                        })}
                       </span>
                     </div>
                   );

@@ -30,6 +30,7 @@ import { aggregateCompareStatus } from "./compare-variants";
 import { TRYON_DISCLAIMER } from "./types";
 import type { TryonCompareVariant, TryonPickContract } from "./types";
 import type { TryOnProviderInput } from "./providers/types";
+import { resolveTryonPersonId } from "./resolve-person";
 
 export function resolvePickFromSearch(
   state: NonNullable<Awaited<ReturnType<typeof loadSearchState>>>,
@@ -141,7 +142,10 @@ export async function startSingleTryon(params: {
   const resolved = resolvePickFromSearch(state, params.ref);
   if (!resolved?.imageUrl) throw new Error("Pick not found");
 
-  const personId = state.plan.brief.recipient_person_id;
+  const personId = await resolveTryonPersonId(
+    params.userId,
+    state.plan.brief.recipient_person_id,
+  );
   if (!(await isTryonEnabledForUser(params.userId))) {
     throw new Error("Try-on not enabled");
   }
@@ -183,6 +187,7 @@ export async function startSingleTryon(params: {
         garment_type: garmentType,
         ref: params.ref,
         provider_keys: providerKeys,
+        title: resolved.title,
       },
       searchId: params.searchId,
       productRef: params.ref,
@@ -244,6 +249,7 @@ export async function startSingleTryon(params: {
       garment_type: garmentType,
       ref: params.ref,
       provider_key: providerKey,
+      title: resolved.title,
     },
     searchId: params.searchId,
     productRef: params.ref,

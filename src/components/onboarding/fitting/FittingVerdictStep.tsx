@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { cn } from "@/lib/ai-chat/cn";
 import {
   FittingCta,
   FittingTitle,
@@ -16,12 +18,14 @@ type Props = {
   build: BuildKey | null;
   vetoCount: number;
   developPct: number;
+  /** Trusted Circle first names from onboarding. */
+  circleNames?: string[];
   /** FASHN dress of one worn pick onto the twin. */
   dressStatus?: "idle" | "dressing" | "ready" | "error";
   dressStyleLabel?: string | null;
   busy?: boolean;
   onMeetTwin: () => void;
-  onShare?: () => void;
+  onShare?: (selectedCircle: string[]) => void;
   shareCopied?: boolean;
 };
 
@@ -49,6 +53,7 @@ export function FittingVerdictStep({
   build,
   vetoCount,
   developPct,
+  circleNames = [],
   dressStatus = "idle",
   dressStyleLabel = null,
   busy,
@@ -56,6 +61,15 @@ export function FittingVerdictStep({
   onShare,
   shareCopied,
 }: Props) {
+  const cleanedCircle = circleNames.map((n) => n.trim()).filter(Boolean);
+  const cleanedKey = cleanedCircle.join("\0");
+  const [selectedCircle, setSelectedCircle] = useState<string[]>(cleanedCircle);
+
+  useEffect(() => {
+    setSelectedCircle(cleanedCircle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when names change
+  }, [cleanedKey]);
+
   const first =
     preferredName.trim().charAt(0).toUpperCase() +
     preferredName.trim().slice(1).toLowerCase();
@@ -80,6 +94,12 @@ export function FittingVerdictStep({
     stealLabels[0] !== wornLabels[0]
       ? `You live in <b>${wornLabels.join(" + ") || "your comfort zone"}</b> but you're drawn to <b>${stealLabels.join(" + ")}</b>... that gap is exactly where I'll push you, one piece at a time.`
       : "Your reality and your wishlist already agree... my job is to sharpen it.";
+
+  function toggleCircle(name: string) {
+    setSelectedCircle((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+    );
+  }
 
   return (
     <section>
@@ -134,6 +154,55 @@ export function FittingVerdictStep({
           dangerouslySetInnerHTML={{ __html: gap }}
         />
 
+        <div className="mt-4 border-t border-white/12 pt-3.5">
+          {cleanedCircle.length ? (
+            <>
+              <div className="mb-2.5 text-[10.5px] font-extrabold tracking-[0.14em] text-[#FF8A90]">
+                SEND IT TO YOUR TRUSTED CIRCLE
+              </div>
+              <div className="flex flex-wrap">
+                {cleanedCircle.map((name) => {
+                  const on = selectedCircle.includes(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => toggleCircle(name)}
+                      className={cn(
+                        "mb-1.5 mr-1.5 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-white/30 py-1.5 pl-1.5 pr-3.5 text-[12.5px] font-bold text-white transition-all",
+                        on && "border-white bg-white text-[var(--fitting-ink)]",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "grid size-[22px] place-items-center rounded-full bg-white/16 text-[10px] font-extrabold",
+                          on && "bg-[var(--fitting-ink)] text-white",
+                        )}
+                      >
+                        {name.charAt(0).toUpperCase()}
+                      </span>
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-xs text-[#B9B9C2]">
+                They vote in one tap. No signup, no app. Your verdict stays
+                sealed until they do.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="mb-2.5 text-[10.5px] font-extrabold tracking-[0.14em] text-[#FF8A90]">
+                SEND IT TO SOMEONE
+              </div>
+              <p className="text-[13px] text-[#D6D6DE]">
+                You skipped the circle... add a name and this becomes one tap.
+              </p>
+            </>
+          )}
+        </div>
+
         <div className="mt-[18px] flex flex-wrap items-center gap-3 border-t border-white/12 pt-3.5">
           <FittingCta onClick={onMeetTwin} disabled={busy}>
             {busy ? "Opening…" : "Meet your twin in the Mirror"}
@@ -141,10 +210,14 @@ export function FittingVerdictStep({
           {onShare ? (
             <button
               type="button"
-              onClick={onShare}
+              onClick={() => onShare(selectedCircle)}
               className="h-[46px] rounded-xl border-[1.5px] border-white bg-transparent px-5 font-display text-[13px] font-extrabold text-white transition hover:bg-white hover:text-[var(--fitting-ink)]"
             >
-              {shareCopied ? "Copied ✓" : "Share my verdict"}
+              {shareCopied
+                ? "Copied ✓"
+                : cleanedCircle.length && selectedCircle.length
+                  ? "Ask my circle"
+                  : "Share my verdict"}
             </button>
           ) : null}
         </div>

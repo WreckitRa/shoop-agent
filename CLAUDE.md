@@ -4,6 +4,26 @@ Fashion memory is the only chat path (`run-fashion-chat-stream.ts`). Corrections
 production traces become **regression tests** in `src/lib/fashion-memory/fixtures/`
 and rules here.
 
+## Layer ownership (stop patching the wrong stage)
+
+A bad find is attributable to **exactly one** layer. Do not add another validator
+or a prompt ban when the failure is upstream.
+
+| Layer | Job | Owner | Failure mode |
+|-------|-----|-------|--------------|
+| **L2 Interpretation** | Utterance → brief (hard vs soft) | `router/*`, `intake/post-router.ts`, swim refine | Misread her |
+| **L3 Eligibility** | Boolean hard predicates only | `hard-drops/*` + `garment-taxonomy.ts` | Wrong item in bench |
+| **L4 Availability** | Sized + purchasable on the rack | Hydration verified pool; presentation never ships unverified | Showing unbuyable |
+| **L5 Judgment** | Rank among eligible | `scoring/*`, curator Stage A | Bad taste on a clean bench |
+| **L6 Composition** | Count, headers, empty/short prose | `presentation.ts`, `composition-invariants.ts` | Overclaiming / junk-fill |
+| **L0 Observability** | Boundary sizes + rejection reasons | `recordPipelineEvent`; hard_drops `rejection_samples` | Untargetable bugs |
+
+**We do not own Shopify ingest.** Offline "identity warehouse + quarantine" is not
+available here. Identity is query-time taxonomy filters + title item-type hard drops.
+Expand those tables when a family leaks; do **not** add Haiku eligibility gates or
+curator prompt category bans. Do **not** junk-fill empty benches or put unverified
+overflow on the live rail.
+
 ## Turn flow
 
 1. **Router** (`fashion-memory/router/*`, `llm-router.ts`) — one forced-tool LLM call per
@@ -35,13 +55,20 @@ and rules here.
 - Excessive-drop and price-bound "junk fill" ratios are tripwires
   (`EXCESSIVE_DROP_RATIO`, `JUNK_FILL_RATIO`) logged via `recordPipelineEvent` /
   `logAiChat("warn", ...)` — investigate before trusting a slot's survivors.
+- Hard-drop events include `rejection_samples` (product_id + rule + evidence), not
+  only aggregate counts.
+
+### Availability + composition (`curation/presentation.ts`, `composition-invariants.ts`)
+- Only hydrated verified items enter live presentation tiers — unverified is not a find.
+- Headers prefer survivor contents (`displayGarmentFromSurvivors`); short/empty benches
+  get honest `thin_note` with no backfill.
+- Header↔contents and duplicate-id mismatches emit `invariant_warning`.
 
 ### Brief invariants (`observability/invariants.ts`)
-- `coerceBriefRequestTypeForOutfitLanguage` upgrades single/multi-item briefs to
-  `outfit` when the user said "outfit"/"look"/"head to toe".
-- `checkBriefInvariants` fires `invariant_warning` pipeline events for
-  accessories-coercion, unknown garment families, and occasion language dropped
-  from the brief — these surface on `/flagged`.
+- `checkBriefInvariants` fires `invariant_warning` for accessories-coercion and
+  unknown garment families — surfaces on `/flagged`. Shopping intent
+  (outfit vs single_item, occasion) is owned by the router LLM; code does not
+  keyword-coerce `request_type` or invent garments/occasion.
 
 ### Identity gate (`intake/identity-gate.ts`, `people.ts`)
 - Recipient resolution (existing roster person vs. `"new"`) happens in code before
@@ -98,8 +125,8 @@ and rules here.
 ## Regression discipline
 
 - Fixtures: `src/lib/fashion-memory/fixtures/*.test.ts` (accessories, department
-  enforcement, joe-incident, person-identity, pre-search-v2, voice-stage-b, etc.) —
-  each encodes a specific production trace correction.
+  enforcement, joe-incident, person-identity, pre-search-v2, voice-stage-b,
+  swimwear-incident, etc.) — each encodes a specific production trace correction.
 - E2E golden traces: `e2e/e2e.test.ts` (`npm run test:e2e`, update goldens with
   `npm run test:e2e:golden`).
 - Run: `npm test`

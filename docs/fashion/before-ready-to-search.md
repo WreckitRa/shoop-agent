@@ -239,7 +239,7 @@ From `clarification-defaults.ts` (`defaultQuickOptionsForGap`):
 | Shoes | `Shoe size?` / `{name}'s shoe size?` |
 | Dresses | `Dress size?` / `What's {name}'s typical dress size?` |
 
-Outfit/capsule with no garments yet → gate assumes `shirt/trousers/shoes` or `top/bottom/shoes` for size checks.
+Outfit/capsule with no garments yet → gate does **not** invent shirt/trousers/shoes; ask WHAT (garment gap) instead of inventing sizes.
 
 ---
 

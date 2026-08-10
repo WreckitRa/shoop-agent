@@ -4,13 +4,12 @@ import { memo, useCallback } from "react";
 import type {
   RenderPick,
   RenderPickBadge,
-  RenderUnverifiedItem,
   RenderVerifiedItem,
 } from "@/lib/fashion-memory/types/render-contract";
 import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
 import { TryOnLookButton } from "@/components/tryon/TryOnLookButton";
 import { ShoopFindCard } from "@/components/chat/ShoopFindCard";
-import { fittingRoomItemFromProductCard, fittingRoomItemFromSearchPick } from "@/components/tryon/fitting-room-item-builders";
+import { fittingRoomItemFromSearchPick } from "@/components/tryon/fitting-room-item-builders";
 import { capsuleLookId } from "@/lib/tryon/outfit-ids";
 import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
 import { InlineChatProductPanel } from "@/components/chat/InlineChatProductPanel";
@@ -210,19 +209,17 @@ function ChangingRoomCta({
 function SlotBenches({
   garment,
   verified,
-  unverified,
   openProduct,
   selectedProductId,
   searchId,
 }: {
   garment: string;
   verified: RenderVerifiedItem[];
-  unverified: RenderUnverifiedItem[];
   openProduct: ReturnType<typeof useOpenFashionProduct>;
   selectedProductId: string | null;
   searchId: string;
 }) {
-  if (!verified.length && !unverified.length) return null;
+  if (!verified.length) return null;
   return (
     <section className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -230,11 +227,7 @@ function SlotBenches({
           More {garment}
         </h4>
         <p className="text-[11px] text-ink-secondary">
-          {verified.length ? `${verified.length} verified` : null}
-          {verified.length && unverified.length ? " · " : null}
-          {unverified.length
-            ? `${unverified.length} unverified (size/stock not checked)`
-            : null}
+          {verified.length} sized &amp; in stock
         </p>
       </div>
       <div className="shoop-vrack !mt-0">
@@ -261,33 +254,6 @@ function SlotBenches({
                 badges: [],
                 tryon: { available: true, disclaimer: TRYON_DISCLAIMER },
               },
-            })}
-            tryonAvailable
-          />
-        ))}
-        {unverified.map((item) => (
-          <ShoopFindCard
-            key={`${item.slot_id}-${item.product_id}`}
-            title={item.title}
-            imageUrl={item.image_url}
-            priceLabel={item.price ? formatPrice(item.price) : null}
-            meta="Unverified"
-            selected={selectedProductId === item.product_id}
-            compact
-            muted
-            onOpen={() =>
-              openProduct({
-                id: item.product_id,
-                title: item.title,
-                imageUrl: item.image_url,
-                displayPrice: item.price,
-              })
-            }
-            fittingItem={fittingRoomItemFromProductCard({
-              id: item.product_id,
-              title: item.title,
-              imageUrl: item.image_url,
-              displayPrice: item.price,
             })}
             tryonAvailable
           />
@@ -393,13 +359,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
     mode === "capsule" && (render.capsule_outfits?.length ?? 0) > 0;
 
   const verifiedBySlot = groupBySlot(render.tiers.verified);
-  const unverifiedBySlot = groupBySlot(render.tiers.unverified);
-  const slotIds = [
-    ...new Set([
-      ...verifiedBySlot.map((g) => g.slot_id),
-      ...unverifiedBySlot.map((g) => g.slot_id),
-    ]),
-  ];
+  const slotIds = verifiedBySlot.map((g) => g.slot_id);
 
   const panel =
     selectedProductId != null ? (
@@ -573,16 +533,12 @@ export const FashionCurationResults = memo(function FashionCurationResults({
           {slotIds.map((slotId) => {
             const verified =
               verifiedBySlot.find((g) => g.slot_id === slotId)?.items ?? [];
-            const unverified =
-              unverifiedBySlot.find((g) => g.slot_id === slotId)?.items ?? [];
-            const garment =
-              verified[0]?.garment ?? unverified[0]?.garment ?? slotId;
+            const garment = verified[0]?.garment ?? slotId;
             return (
               <SlotBenches
                 key={slotId}
                 garment={garment}
                 verified={verified}
-                unverified={unverified}
                 openProduct={openProduct}
                 selectedProductId={selectedProductId}
                 searchId={searchId}

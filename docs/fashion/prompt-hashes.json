@@ -1,37 +1,37 @@
 {
   "router.md": {
     "stage": "router",
-    "source": "src/lib/fashion-memory/router/prompt.ts \u2192 ROUTER_PROMPT_BODY",
-    "sha256": "aa930e353b0a20c5907b8be4c3af9aeb7132f3498d8dfcaa53ba944b269d47ea",
-    "chars": 14945
+    "source": "src/lib/fashion-memory/router/prompt.ts → ROUTER_PROMPT_BODY",
+    "sha256": "b8bba9141bc2eeb5335cf20f962ffca4783317c89551359a36929bb7bb882fbf",
+    "chars": 18923
   },
   "planner.md": {
     "stage": "planner",
-    "source": "src/lib/fashion-memory/search-planner/prompt.ts \u2192 SEARCH_PLANNER_PROMPT",
+    "source": "src/lib/fashion-memory/search-planner/prompt.ts → SEARCH_PLANNER_PROMPT",
     "sha256": "ff0fae9b5f3a0575588f28f873532a2f145e1c53f6ee15a3edddfef617c55a75",
     "chars": 9782
   },
   "extraction.md": {
     "stage": "extraction",
-    "source": "src/lib/fashion-memory/extraction/prompt.ts \u2192 buildFashionExtractionPrompt()",
+    "source": "src/lib/fashion-memory/extraction/prompt.ts → buildFashionExtractionPrompt()",
     "sha256": "11c7212488a713a1b5322d7d6842672ba8af48f520394eefdad53a71fcd9edce",
     "chars": 6338
   },
   "curation.md": {
     "stage": "curation",
-    "source": "src/lib/fashion-memory/curation/prompt.ts \u2192 CURATION_PROMPT_SKELETON (+ mode sections)",
+    "source": "src/lib/fashion-memory/curation/prompt.ts → CURATION_PROMPT_SKELETON (+ mode sections)",
     "sha256": "fc293c66264f9b03e00bcdf8fbd8096015dcd6ee965df9ba1696e9f20168dc97",
     "chars": 13684
   },
   "brand_translate.md": {
     "stage": "brand_translate",
-    "source": "src/lib/fashion-memory/brand/prompt.ts \u2192 buildBrandTranslatePrompt()",
+    "source": "src/lib/fashion-memory/brand/prompt.ts → buildBrandTranslatePrompt()",
     "sha256": "cd9693d1d4aa5899d0197078277458c9ea27e22591c8e86cfecee5e1808f5ba9",
     "chars": 504
   },
   "normalize_classify.md": {
     "stage": "normalize_llm",
-    "source": "src/lib/fashion-memory/normalize/llm-classify.ts \u2192 CLASSIFY_LABELS_SYSTEM_PROMPT",
+    "source": "src/lib/fashion-memory/normalize/llm-classify.ts → CLASSIFY_LABELS_SYSTEM_PROMPT",
     "sha256": "d9ddaf771d0555eb3fdb498d1888b56a3dea79cc3bb3d0f31ea564ca31cb0fb4",
     "chars": 3421
   }

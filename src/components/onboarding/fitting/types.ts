@@ -6,6 +6,7 @@ export type FittingStep =
   | "wanted"
   | "nolist"
   | "honesty"
+  | "circle"
   | "verdict";
 
 export const FITTING_STEPS: FittingStep[] = [
@@ -16,6 +17,7 @@ export const FITTING_STEPS: FittingStep[] = [
   "wanted",
   "nolist",
   "honesty",
+  "circle",
   "verdict",
 ];
 
@@ -28,24 +30,26 @@ export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
   "wanted",
   "nolist",
   "honesty",
+  "circle",
 ];
 
 export const STITCH_KNOTS = [
   { id: "name", label: "Name", top: "3%" },
-  { id: "era", label: "Era", top: "16%" },
-  { id: "spend", label: "Spend", top: "29%" },
-  { id: "photo", label: "Photo", top: "42%" },
-  { id: "worn", label: "Worn", top: "55%" },
-  { id: "wanted", label: "Wanted", top: "68%" },
-  { id: "nolist", label: "No-list", top: "81%" },
+  { id: "era", label: "Era", top: "14%" },
+  { id: "spend", label: "Spend", top: "25%" },
+  { id: "photo", label: "Photo", top: "36%" },
+  { id: "worn", label: "Worn", top: "47%" },
+  { id: "wanted", label: "Wanted", top: "58%" },
+  { id: "nolist", label: "No-list", top: "69%" },
+  { id: "circle", label: "Circle", top: "80%" },
   { id: "mint", label: "The mint", top: "96%", emphasis: true },
 ] as const;
 
 /** sewn % per knot index */
-export const SEWN_PCT = [3, 16, 29, 42, 55, 68, 81, 100];
+export const SEWN_PCT = [3, 14, 25, 36, 47, 58, 69, 80, 100];
 
-/** progress bar % per question step 1–7 */
-export const STEP_PROGRESS_PCT = [7, 19, 31, 43, 56, 70, 84];
+/** progress bar % per question step 1–8 */
+export const STEP_PROGRESS_PCT = [6, 17, 29, 41, 53, 65, 77, 89];
 
 export const STEP_META: Record<
   Exclude<FittingStep, "verdict">,
@@ -98,16 +102,23 @@ export const STEP_META: Record<
   nolist: {
     n: 6,
     stage: "Getting to know you",
-    flashCover: "Last one...<br><em>it is a good one.</em>",
-    flashNext: "next up... how honest you want me",
+    flashCover: "Almost done...<br><em>how honest do you want me?</em>",
+    flashNext: "next up... the honesty dial",
     loadingDetail: "Saving brands and vetoes…",
   },
   honesty: {
     n: 7,
     stage: "Getting to know you",
+    flashCover: "One more...<br>and it is about <em>them</em>, not you.",
+    flashNext: "next up... who you actually ask",
+    loadingDetail: "Locking taste and honesty…",
+  },
+  circle: {
+    n: 8,
+    stage: "Getting to know you",
     flashCover: "Say hello<br>to <em>you.</em>",
     flashNext: "next up... your card",
-    loadingDetail: "Locking taste and honesty… building your verdict…",
+    loadingDetail: "Saving your trusted circle… building your verdict…",
   },
 };
 
@@ -127,8 +138,10 @@ export function knotNowIndex(step: FittingStep): number {
     case "nolist":
       return 6;
     case "honesty":
-    case "verdict":
+    case "circle":
       return 7;
+    case "verdict":
+      return 8;
     default:
       return 0;
   }
@@ -150,8 +163,10 @@ export function sewnThroughIndex(step: FittingStep): number {
       return 5;
     case "honesty":
       return 6;
-    case "verdict":
+    case "circle":
       return 7;
+    case "verdict":
+      return 8;
     default:
       return -1;
   }
@@ -167,6 +182,7 @@ export type MirrorState = {
   leanLabel: string;
   brandsLabel: string;
   noListLabel: string;
+  circleLabel: string;
   photoUrl: string | null;
   /** Real FASHN twin face/url when minted; face photo falls back to photoUrl. */
   twinAvatarUrl: string | null;
@@ -205,6 +221,7 @@ export const EMPTY_MIRROR: MirrorState = {
   leanLabel: "",
   brandsLabel: "",
   noListLabel: "",
+  circleLabel: "",
   photoUrl: null,
   twinAvatarUrl: null,
   heightCm: null,
@@ -259,4 +276,13 @@ export function spendShort(value: string): string {
     default:
       return value.slice(0, 10);
   }
+}
+
+/** Format trusted-circle names for the Mirror print line. */
+export function circleMirrorLabel(names: string[]): string {
+  const cleaned = names.map((n) => n.trim()).filter(Boolean);
+  if (!cleaned.length) return "";
+  if (cleaned.length === 1) return cleaned[0]!;
+  if (cleaned.length === 2) return `${cleaned[0]}, ${cleaned[1]}`;
+  return `${cleaned[0]}, ${cleaned[1]} +${cleaned.length - 2}`;
 }

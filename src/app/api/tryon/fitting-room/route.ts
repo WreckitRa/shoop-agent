@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
 import { startFittingRoomRender } from "@/lib/tryon/run-fitting-room";
-import { TryonCapError } from "@/lib/tryon/generations";
 import { MAX_FITTING_ROOM_ITEMS } from "@/lib/tryon/fitting-room-types";
+import { tryonErrorResponse } from "@/lib/tryon/resolve-person";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,17 +61,6 @@ export async function POST(req: Request) {
     });
     return Response.json({ ok: true, ...result });
   } catch (error) {
-    if (error instanceof TryonCapError) {
-      return Response.json({ error: error.message }, { status: 429 });
-    }
-    const message =
-      error instanceof Error ? error.message : "Fitting room render failed.";
-    const status =
-      message.includes("not found") ||
-      message.includes("not enabled") ||
-      message.includes("Avatar required")
-        ? 400
-        : 500;
-    return Response.json({ error: message }, { status });
+    return tryonErrorResponse(error);
   }
 }

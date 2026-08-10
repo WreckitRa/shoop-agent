@@ -66,6 +66,21 @@ describe("resolveGarmentFamily head-noun heuristic", () => {
   }
 });
 
+describe("resolveGarmentFamily swimwear", () => {
+  const cases: Array<[string, string]> = [
+    ["Bahamas One Piece", "swimwear"],
+    ["Soleil One Piece With Removable Straps", "swimwear"],
+    ["Classic Triangle Bikini Set", "swimwear"],
+    ["High Waist Two Piece", "swimwear"],
+    ["Mens Board Shorts Navy", "swimwear"],
+  ];
+  for (const [title, expected] of cases) {
+    it(`${title} → ${expected}`, () => {
+      assert.equal(resolveGarmentFamily(title)?.family, expected);
+    });
+  }
+});
+
 describe("checkItemType drops cross-family junk", () => {
   const drops: Array<[string, string, string]> = [
     ["dress shoes", "Round Waxed Cotton Laces | Brown", "item_type_mismatch"],
@@ -88,6 +103,18 @@ describe("checkItemType drops cross-family junk", () => {
       "dress shoes",
       "Emarra Black Suede Slingback Court Shoes",
       "department_mismatch",
+    ],
+    // Swim slot drops apparel + opposite construction.
+    ["two-piece swimsuit", "CLASSIC FIT SUITING BLAZER", "item_type_mismatch"],
+    [
+      "two-piece swimsuit",
+      "Bahamas One Piece",
+      "item_type_mismatch",
+    ],
+    [
+      "one-piece swimsuit",
+      "Classic Triangle Bikini Set",
+      "item_type_mismatch",
     ],
   ];
 
@@ -113,6 +140,12 @@ describe("checkItemType keeps on-family and unknown items", () => {
     ["tie", "Mens Max Tie in Amber Satin"],
     // Tie-dye must not read as neckwear — it stays a shirt in a top slot.
     ["dress shirt", "Tie Dye Paisley Button Up Mens Short Sleeve Shirt"],
+    ["two-piece swimsuit", "Classic Triangle Bikini Set"],
+    ["one-piece swimsuit", "Bahamas One Piece"],
+    // Generic swimsuit: both constructions OK; ambiguous titles survive.
+    ["swimsuit", "Bahamas One Piece"],
+    ["swimsuit", "Classic Triangle Bikini Set"],
+    ["swimsuit", "Solid Black Swimsuit"],
   ];
 
   for (const [garment, title] of keeps) {

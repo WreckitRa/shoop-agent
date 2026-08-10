@@ -19,7 +19,8 @@ export async function upsertOwnerAskVote(params: {
     throw new Error("Invalid owner vote choice.");
   }
   const voterKey = ownerVoterKey(params.ownerUserId);
-  const displayName = params.askerName.trim().slice(0, 40) || "You";
+  const displayName =
+    params.askerName.trim().slice(0, 40) || "Friend";
 
   return prisma.lookAskVote.upsert({
     where: {

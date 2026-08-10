@@ -24,6 +24,7 @@ import {
 } from "../department";
 import type { FashionSearchBrief } from "../router/types";
 import type { FashionSlotCatalogProduct } from "../catalog-search/types";
+import { resolveSwimSubtype } from "./swimwear";
 import type { HardDroppedProduct } from "./types";
 
 export type GarmentFamily =
@@ -40,7 +41,8 @@ export type GarmentFamily =
   | "bag"
   | "watch"
   | "jewelry"
-  | "socks";
+  | "socks"
+  | "swimwear";
 
 type FamilyRule = {
   family: GarmentFamily;
@@ -135,6 +137,44 @@ const FAMILY_RULES: readonly FamilyRule[] = [
       "slippers",
     ],
     phrases: ["flip flop", "flip flops"],
+  },
+  // Swim before bottom/dress/top so "board shorts", "swim dress", "one piece"
+  // win over shorts/dress/ambiguous nouns on equal head-noun index.
+  {
+    family: "swimwear",
+    tokens: [
+      "bikini",
+      "bikinis",
+      "swimsuit",
+      "swimsuits",
+      "swimwear",
+      "tankini",
+      "tankinis",
+      "monokini",
+      "maillot",
+      "burkini",
+      "burkinis",
+      "boardshorts",
+    ],
+    phrases: [
+      "one piece",
+      "two piece",
+      "board short",
+      "board shorts",
+      "swim short",
+      "swim shorts",
+      "swim trunk",
+      "swim trunks",
+      "swim brief",
+      "swim briefs",
+      "rash guard",
+      "rash guards",
+      "cover up",
+      "cover ups",
+      "swim dress",
+      "swim dresses",
+      "bathing suit",
+    ],
   },
   {
     family: "bottom",
@@ -399,6 +439,22 @@ export function checkItemType(
       rule: "item_type_mismatch",
       evidence: `title "${resolved.evidence}" is ${resolved.family}, slot expects ${slotFamily}`,
     };
+  }
+
+  // Swim one-/two-piece exclusivity (generic "swimsuit" slots stay open).
+  if (slotFamily === "swimwear") {
+    const slotSubtype = resolveSwimSubtype(garment);
+    if (slotSubtype) {
+      const titleSubtype = resolveSwimSubtype(title);
+      if (titleSubtype && titleSubtype !== slotSubtype) {
+        return {
+          product_id: product.id,
+          rule: "item_type_mismatch",
+          evidence: `swim "${titleSubtype}" for ${slotSubtype} ${garment} slot`,
+        };
+      }
+    }
+    return null;
   }
 
   // Footwear-only refinements below.

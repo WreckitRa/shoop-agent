@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  checkBriefInvariants,
-  coerceBriefRequestTypeForOutfitLanguage,
-} from "./invariants";
+import { checkBriefInvariants } from "./invariants";
 import type { FashionSearchBrief } from "../router/types";
 
 const baseBrief = (request_type: FashionSearchBrief["request_type"]): FashionSearchBrief => ({
@@ -18,57 +15,25 @@ const baseBrief = (request_type: FashionSearchBrief["request_type"]): FashionSea
   style_direction: "wfh",
 });
 
-describe("coerceBriefRequestTypeForOutfitLanguage", () => {
-  it("upgrades multi_item to outfit when the user said outfit", () => {
-    const brief = baseBrief("multi_item");
-    const out = coerceBriefRequestTypeForOutfitLanguage({
-      messages: [
-        {
-          role: "user",
-          content: "looking for an outfit to wear at home, working as a wfh developer",
-        },
-      ],
-      brief,
-    });
-    assert.equal(out.request_type, "outfit");
-    assert.notEqual(out, brief);
-  });
-
-  it("upgrades single_item to outfit on look language", () => {
-    const out = coerceBriefRequestTypeForOutfitLanguage({
-      messages: [{ role: "user", content: "need a look for Friday drinks" }],
-      brief: baseBrief("single_item"),
-    });
-    assert.equal(out.request_type, "outfit");
-  });
-
-  it("leaves capsule alone", () => {
-    const brief = baseBrief("capsule");
-    const out = coerceBriefRequestTypeForOutfitLanguage({
-      messages: [{ role: "user", content: "a few outfits to rotate" }],
-      brief,
-    });
-    assert.equal(out.request_type, "capsule");
-    assert.equal(out, brief);
-  });
-
-  it("leaves multi_item alone when no outfit language", () => {
-    const brief = baseBrief("multi_item");
-    const out = coerceBriefRequestTypeForOutfitLanguage({
-      messages: [{ role: "user", content: "shirts, pants, and shoes separately" }],
-      brief,
-    });
-    assert.equal(out.request_type, "multi_item");
-    assert.equal(out, brief);
-  });
-});
-
-describe("checkBriefInvariants outfit language", () => {
-  it("trips on multi_item + outfit wording", () => {
+describe("checkBriefInvariants", () => {
+  it("does not trip on outfit wording — intent is the router LLM's job", () => {
     const tripped = checkBriefInvariants({
       messages: [{ role: "user", content: "full outfit for the office" }],
       brief: baseBrief("multi_item"),
     });
-    assert.ok(tripped.includes("outfit_language_multi_item_brief"));
+    assert.ok(!tripped.includes("outfit_language_multi_item_brief" as never));
+  });
+
+  it("still trips on accessories coerced into clothing", () => {
+    const tripped = checkBriefInvariants({
+      messages: [
+        { role: "user", content: "stylish accessories for Gabriel for work" },
+      ],
+      brief: {
+        ...baseBrief("multi_item"),
+        garments: ["shirt", "trousers"],
+      },
+    });
+    assert.ok(tripped.includes("accessories_coerced"));
   });
 });

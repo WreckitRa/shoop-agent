@@ -108,6 +108,49 @@ export async function createSignedUrl(
   return data.signedUrl;
 }
 
+/**
+ * Recover the private object path from a (possibly expired) signed URL.
+ * createSignedUrl needs `userId/personId/tryon/file.jpg` — not the bucket prefix.
+ */
+export function tryonPathFromStoredUrl(url: string | null | undefined): string | null {
+  if (!url?.trim()) return null;
+  try {
+    const u = new URL(url);
+    const signMarker = `/object/sign/${TRYON_PRIVATE_BUCKET}/`;
+    const publicMarker = `/object/public/${TRYON_PRIVATE_BUCKET}/`;
+    for (const marker of [signMarker, publicMarker]) {
+      const idx = u.pathname.indexOf(marker);
+      if (idx >= 0) {
+        return decodeURIComponent(u.pathname.slice(idx + marker.length));
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Fresh signed URL from outputPath, or by recovering the path from a stale outputUrl. */
+export async function resolveFreshTryonImageUrl(params: {
+  outputPath?: string | null;
+  outputUrl?: string | null;
+  expiresInSeconds?: number;
+}): Promise<string | null> {
+  const path =
+    params.outputPath?.trim() ||
+    tryonPathFromStoredUrl(params.outputUrl) ||
+    null;
+  if (!path) return null;
+  try {
+    return await createSignedUrl(
+      path,
+      params.expiresInSeconds ?? 60 * 60,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function deletePrivateObjects(paths: string[]): Promise<void> {
   if (!paths.length) return;
   if (storageMode === "memory") {

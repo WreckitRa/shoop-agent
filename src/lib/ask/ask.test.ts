@@ -214,6 +214,30 @@ describe("buildLookAskPublic reveal gating", () => {
     assert.ok(friend.votes.some((v) => v.isOwner && v.choice === "love"));
   });
 
+  it("replaces placeholder owner displayName with askerName", () => {
+    const payload = buildLookAskPublic({
+      share: {
+        ...baseShare,
+        votes: [
+          {
+            choice: "love",
+            displayName: "You",
+            voterKey: "user:owner-1",
+          },
+          {
+            choice: "meh",
+            displayName: "Maya",
+            voterKey: "guest:x",
+          },
+        ],
+      },
+      viewerUserId: null,
+      viewerVoterKey: "guest:x",
+    });
+    const ownerVote = payload.votes.find((v) => v.isOwner);
+    assert.equal(ownerVote?.displayName, "Sara");
+  });
+
   it("tallies only known choices", () => {
     assert.deepEqual(
       tallyVotes([

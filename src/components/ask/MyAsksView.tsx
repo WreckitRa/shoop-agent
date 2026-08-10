@@ -10,6 +10,11 @@ import {
   ASK_VOTE_LABELS,
   type LookAskSharePublic,
 } from "@/lib/ask/types";
+import {
+  askShareAbsoluteUrl,
+  copyAskShareUrl,
+  openWhatsAppAskShare,
+} from "@/lib/ask/share-client";
 import { NEW_CHAT_PATH } from "@/lib/shared/chatRoutes";
 import { cn } from "@/lib/ai-chat/cn";
 
@@ -22,6 +27,20 @@ function AskShareCard({ share }: { share: LookAskSharePublic }) {
   const friends = friendVoteCount(share);
   const noteCount = share.notes.length;
   const askPath = `/ask/${share.token}`;
+  const [shareHint, setShareHint] = useState<string | null>(null);
+
+  async function copyLink() {
+    const url = askShareAbsoluteUrl(askPath);
+    const ok = await copyAskShareUrl(url);
+    setShareHint(ok ? "Link copied" : url);
+  }
+
+  function shareWhatsApp() {
+    const url = askShareAbsoluteUrl(askPath);
+    void copyAskShareUrl(url);
+    openWhatsAppAskShare(url);
+    setShareHint("Opening WhatsApp…");
+  }
 
   return (
     <article className="overflow-hidden rounded-[18px] border border-hairline bg-white shadow-[0_12px_28px_-22px_rgba(14,14,17,0.22)]">
@@ -58,13 +77,36 @@ function AskShareCard({ share }: { share: LookAskSharePublic }) {
                   : null}
               </p>
             </div>
-            <Link
-              href={askPath}
-              className="inline-flex h-9 items-center rounded-full border border-ink px-3 text-[11px] font-extrabold tracking-wide text-ink transition hover:bg-ink hover:text-white"
-            >
-              Open card
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void copyLink()}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-hairline px-3 text-[11px] font-extrabold tracking-wide text-ink transition hover:border-ink"
+              >
+                <Share2 className="size-3.5" strokeWidth={1.75} aria-hidden />
+                Copy link
+              </button>
+              <button
+                type="button"
+                onClick={shareWhatsApp}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-ink bg-ink px-3 text-[11px] font-extrabold tracking-wide text-white transition hover:bg-[#26262b]"
+              >
+                WhatsApp
+              </button>
+              <Link
+                href={askPath}
+                className="inline-flex h-9 items-center rounded-full border border-hairline px-3 text-[11px] font-extrabold tracking-wide text-ink-muted transition hover:border-ink hover:text-ink"
+              >
+                Open
+              </Link>
+            </div>
           </div>
+
+          {shareHint ? (
+            <p className="mt-2 text-[11px] font-semibold text-ink-muted">
+              {shareHint}
+            </p>
+          ) : null}
 
           <div className="mt-3 flex flex-wrap gap-1.5">
             {ASK_VOTE_CHOICES.map((c) => {

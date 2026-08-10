@@ -572,6 +572,7 @@ is a contract failure — never return slots without looks in outfit mode.`
       vetoedRefs: appliedVetoRefs,
       lookMembership: lookMembershipFromOutput(repaired.output),
       fallback: true,
+      traceId: params.traceId,
     });
     return {
       presentation,
@@ -1133,6 +1134,7 @@ is a contract failure — never return slots without looks in outfit mode.`
     budget_interpretation: params.budget_interpretation,
     fallback,
     voice_fallback: voiceFallback,
+    traceId: params.traceId,
   });
   return {
     presentation,

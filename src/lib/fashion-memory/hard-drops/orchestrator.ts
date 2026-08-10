@@ -141,6 +141,11 @@ export async function applyHardDropsForSlots<T extends FashionSlotCatalogResult>
         garment: slot.garment,
         ...slotMetrics,
         market_prices: partition.market_prices,
+        rejection_samples: partition.dropped.slice(0, 12).map((d) => ({
+          product_id: d.product_id,
+          rule: d.rule,
+          evidence: d.evidence,
+        })),
       },
     });
 

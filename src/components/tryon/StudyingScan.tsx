@@ -7,6 +7,10 @@ import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { cn } from "@/lib/ai-chat/cn";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import {
+  copyAskShareUrl,
+  openWhatsAppAskShare,
+} from "@/lib/ask/share-client";
+import {
   formatScanEmphasis,
   type LookScanPiece,
   type LookScanVerdict,
@@ -111,6 +115,11 @@ export function StudyingScan({
   const [error, setError] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [shareHint, setShareHint] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(() => {
+    const token = useTryOnDrawerStore.getState().askShareToken;
+    if (!token || typeof window === "undefined") return null;
+    return `${window.location.origin}/ask/${token}`;
+  });
   const timersRef = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const verdictReadyRef = useRef<LookScanVerdict | null>(null);
@@ -225,8 +234,15 @@ export function StudyingScan({
     }
   }
 
-  async function shareAskTheGirls() {
-    if (!verdict || shareBusy) return;
+  async function ensureAskShareUrl(): Promise<string | null> {
+    if (shareUrl) return shareUrl;
+    const existingToken = useTryOnDrawerStore.getState().askShareToken;
+    if (existingToken) {
+      const url = `${window.location.origin}/ask/${existingToken}`;
+      setShareUrl(url);
+      return url;
+    }
+    if (!verdict || shareBusy) return null;
     setShareBusy(true);
     setShareHint(null);
     try {
@@ -261,29 +277,42 @@ export function StudyingScan({
       if (body.token) {
         useTryOnDrawerStore.getState().setAskShareToken(body.token);
       }
-
-      try {
-        await navigator.clipboard.writeText(body.url);
-        setShareHint("Link copied — send it to your friends");
-      } catch {
-        setShareHint(body.url);
-      }
-
+      setShareUrl(body.url);
       if (conversationId) {
         void loadConversation(conversationId);
       }
-      window.open(body.askPath ?? body.url, "_blank", "noopener,noreferrer");
+      return body.url;
     } catch (err) {
       setShareHint(
         err instanceof Error ? err.message : "Couldn't create the share link.",
       );
+      return null;
     } finally {
       setShareBusy(false);
     }
   }
 
+  async function copyAskLink() {
+    const url = await ensureAskShareUrl();
+    if (!url) return;
+    const ok = await copyAskShareUrl(url);
+    setShareHint(ok ? "Link copied — send it to your friends" : url);
+  }
+
+  async function shareAskOnWhatsApp() {
+    const url = await ensureAskShareUrl();
+    if (!url) return;
+    const ok = await copyAskShareUrl(url);
+    setShareHint(
+      ok ? "Link copied · opening WhatsApp…" : "Opening WhatsApp…",
+    );
+    openWhatsAppAskShare(url);
+  }
+
   useEffect(() => {
     if (!imageUrl) return;
+    setShareUrl(null);
+    setShareHint(null);
     void startScan();
     // Auto-study each new dressed look.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startScan closes over latest pieces/imageUrl
@@ -443,10 +472,18 @@ export function StudyingScan({
           type="button"
           className="shoop-sscan__btn shoop-sscan__btn--primary"
           disabled={!actionsReady || shareBusy}
-          onClick={() => void shareAskTheGirls()}
+          onClick={() => void shareAskOnWhatsApp()}
         >
           <i aria-hidden />
-          {shareBusy ? "Making the card…" : "Ask your friends"}
+          {shareBusy ? "Making the card…" : "Share on WhatsApp"}
+        </button>
+        <button
+          type="button"
+          className="shoop-sscan__btn shoop-sscan__btn--ghost"
+          disabled={!actionsReady || shareBusy}
+          onClick={() => void copyAskLink()}
+        >
+          {shareBusy ? "Making link…" : "Copy link"}
         </button>
         <button
           type="button"

@@ -188,7 +188,11 @@ function MoodboardPeek({
         {previews.map((item) => (
           <span key={item.id} className="shoop-cboard__tile">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={item.imageUrl} alt="" />
+            <img
+              src={item.imageUrl}
+              alt=""
+              referrerPolicy="no-referrer"
+            />
           </span>
         ))}
         <span className="shoop-cboard__tile shoop-cboard__tile--more">
@@ -314,7 +318,36 @@ export function TryOnDrawer() {
     status === "starting" ||
     status === "processing";
   const showResult = Boolean(resultUrl) && status === "completed";
-  const mirrorSrc = showResult ? resultUrl! : avatarUrl;
+  // Don't swap the mirror / start StudyingScan until the dressed look has
+  // actually loaded — otherwise the scan choreography runs on the bare avatar.
+  const [lookPainted, setLookPainted] = useState(false);
+  const mirrorSrc =
+    showResult && lookPainted && resultUrl ? resultUrl : avatarUrl;
+
+  useEffect(() => {
+    setLookPainted(false);
+    setScanScanning(false);
+    if (!showResult || !resultUrl) return;
+
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled) setLookPainted(true);
+    };
+    img.onerror = () => {
+      // Still reveal + study — better a scan on a broken frame than a hang.
+      if (!cancelled) setLookPainted(true);
+    };
+    img.src = resultUrl;
+    if (img.complete && img.naturalWidth > 0) {
+      setLookPainted(true);
+    }
+    return () => {
+      cancelled = true;
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [showResult, resultUrl]);
 
   const localHeartPreviews = useMemo(() => {
     const out: MoodPeekItem[] = [];
@@ -520,15 +553,6 @@ export function TryOnDrawer() {
         className="shoop-croom relative"
         data-tryon-drawer
       >
-        <button
-          type="button"
-          className="shoop-croom-close"
-          onClick={close}
-          aria-label="Close changing room"
-        >
-          <X className="size-4" strokeWidth={2} />
-        </button>
-
         <aside className="shoop-croom__side">
           <div className="shoop-croom__eyebrow">
             <span className="shoop-croom__dot" aria-hidden />
@@ -609,7 +633,23 @@ export function TryOnDrawer() {
               <span className="shoop-croom__dot" aria-hidden />
               <h2>The Mirror</h2>
             </div>
-            <span className="shoop-croom__dressed">{dressedLabel}</span>
+            <div className="shoop-croom__mhead-actions">
+              <span className="shoop-croom__dressed">{dressedLabel}</span>
+              <button
+                type="button"
+                className="shoop-croom-close"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Defer unmount so this click cannot fall through to a
+                  // link under the overlay (moodboard / product / home).
+                  window.setTimeout(() => close(), 0);
+                }}
+                aria-label="Close changing room"
+              >
+                <X className="size-4" strokeWidth={2} />
+              </button>
+            </div>
           </div>
 
           <div
@@ -618,7 +658,7 @@ export function TryOnDrawer() {
               "shoop-twin",
               dropGlow && "shoop-twin--glow",
               scanScanning && "shoop-twin--scanning",
-              showResult && "shoop-twin--studied",
+              showResult && lookPainted && "shoop-twin--studied",
               Boolean(dressFlash) && "shoop-twin--dressing",
             )}
             onDragOver={(e) => {
@@ -634,9 +674,9 @@ export function TryOnDrawer() {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={mirrorSrc}
-                alt={showResult ? "Your try-on" : "Your avatar"}
+                alt={showResult && lookPainted ? "Your try-on" : "Your avatar"}
                 onError={() => {
-                  if (showResult) return;
+                  if (showResult && lookPainted) return;
                   const gen = useTryOnDrawerStore.getState().renderGeneration;
                   useTryOnDrawerStore.setState({
                     avatarUrl: null,
@@ -728,7 +768,7 @@ export function TryOnDrawer() {
               </div>
             ) : null}
 
-            {!showResult ? (
+            {!showResult || !lookPainted ? (
               <span className="shoop-twin__tag">{TRYON_DISCLAIMER}</span>
             ) : null}
 
@@ -752,7 +792,7 @@ export function TryOnDrawer() {
           ) : null}
 
           <div className="shoop-croom__readout">
-            {showResult && resultUrl ? (
+            {showResult && resultUrl && lookPainted ? (
               <StudyingScan
                 key={resultUrl}
                 imageUrl={resultUrl}
@@ -773,7 +813,9 @@ export function TryOnDrawer() {
               <p className="shoop-sscan__empty">
                 {busy
                   ? "Dressing your twin — Shoop's take lands here when the look is ready."
-                  : "Pull something off the rail and I'll tell you what I'd say if we were standing here together."}
+                  : showResult && !lookPainted
+                    ? "Bringing the look into the mirror…"
+                    : "Pull something off the rail and I'll tell you what I'd say if we were standing here together."}
               </p>
             )}
 

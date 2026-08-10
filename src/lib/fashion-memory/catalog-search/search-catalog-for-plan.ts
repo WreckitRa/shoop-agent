@@ -20,6 +20,7 @@ import {
 import { recordPipelineEvent } from "../observability/trace";
 import { resolveBrandForCatalogSlots } from "./resolve-brand-slots";
 import { searchCatalogForSlot } from "./search-catalog-for-slot";
+import { dedupeProductsAcrossSlots } from "./dedupe";
 import type {
   FashionCatalogSearchResult,
   FashionSlotCatalogProduct,
@@ -145,8 +146,10 @@ export async function postProcessFashionCatalogSlots(params: {
     slots: hardDropped.slots,
   });
 
+  const slots = dedupeProductsAcrossSlots(scored.slots);
+
   return {
-    slots: scored.slots,
+    slots,
     normalize_ms: normalized.metrics.ms,
     hard_drop_ms: hardDropped.metrics.reduce((n, m) => n + m.ms, 0),
     scoring_ms: scored.metrics.reduce((n, m) => n + m.ms, 0),

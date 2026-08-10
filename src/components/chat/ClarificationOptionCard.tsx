@@ -6,6 +6,8 @@ import { cn } from "@/lib/ai-chat/cn";
 import type { ClarificationOptionPreviewImage } from "@/lib/ai-chat/types";
 import { CLARIFICATION_OTHER_OPTION_ID } from "@/lib/ai-chat/types";
 
+import { paletteFallbackForLabel } from "@/lib/ai-chat/clarification-palette-fallback";
+
 const PREVIEW_FALLBACK_MS = 3000;
 
 function displayLabel(label: string): string {
@@ -27,21 +29,11 @@ function splitLabel(label: string): { title: string; subtitle?: string } {
   return { title: clean };
 }
 
-const COLOR_DOTS: Record<string, string[]> = {
-  neutrals: ["#F2F2EE", "#CFCFC9", "#8A8A93", "#2B2B30"],
-  earth: ["#8A9B6E", "#C9A874", "#A0703C", "#6B5B3E"],
-  cool: ["#8FA6C9", "#5C7A8A", "#3E5C50", "#23305F"],
-  warm: ["#E8C4A8", "#D4A373", "#B86B4A", "#6B3A2A"],
-  default: ["#F2F2EE", "#CFCFC9", "#8A8A93", "#2B2B30"],
-};
-
-function dotsForLabel(label: string): string[] {
-  const l = label.toLowerCase();
-  if (/neutral|gray|black|white/.test(l)) return COLOR_DOTS.neutrals;
-  if (/earth|olive|tan|rust|warm/.test(l)) return COLOR_DOTS.earth;
-  if (/cool|navy|blue|green/.test(l)) return COLOR_DOTS.cool;
-  if (/warm/.test(l)) return COLOR_DOTS.warm;
-  return COLOR_DOTS.default;
+function dotsForLabel(label: string, paletteColors?: string[]): string[] {
+  if (paletteColors && paletteColors.length >= 3) {
+    return paletteColors.slice(0, 4);
+  }
+  return paletteFallbackForLabel(label);
 }
 
 type ClarificationOptionCardProps = {
@@ -51,6 +43,8 @@ type ClarificationOptionCardProps = {
   disabled: boolean;
   previewQuery?: string;
   previewImages?: ClarificationOptionPreviewImage[];
+  /** LLM-resolved hex palette for color chips */
+  paletteColors?: string[];
   /** Color / palette questions → swatch tiles even when previewQuery exists */
   preferPalette?: boolean;
   onToggle: () => void;
@@ -93,6 +87,7 @@ export const ClarificationOptionCard = memo(function ClarificationOptionCard({
   disabled,
   previewQuery,
   previewImages,
+  paletteColors,
   preferPalette = false,
   onToggle,
 }: ClarificationOptionCardProps) {
@@ -207,8 +202,8 @@ export const ClarificationOptionCard = memo(function ClarificationOptionCard({
         ) : null}
         {!surprise ? (
           <div className="shoop-paltile__dots" aria-hidden>
-            {dotsForLabel(label).map((c) => (
-              <span key={c} style={{ background: c }} />
+            {dotsForLabel(label, paletteColors).map((c, i) => (
+              <span key={`${c}-${i}`} style={{ background: c }} />
             ))}
           </div>
         ) : null}

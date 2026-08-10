@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
 import { startOutfitTryon } from "@/lib/tryon/run-outfit";
-import { TryonCapError } from "@/lib/tryon/generations";
+import { tryonErrorResponse } from "@/lib/tryon/resolve-person";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,10 +26,6 @@ export async function POST(req: Request) {
     });
     return Response.json({ ok: true, ...result });
   } catch (error) {
-    if (error instanceof TryonCapError) {
-      return Response.json({ error: error.message }, { status: 429 });
-    }
-    const message = error instanceof Error ? error.message : "Outfit try-on failed.";
-    return Response.json({ error: message }, { status: 500 });
+    return tryonErrorResponse(error);
   }
 }

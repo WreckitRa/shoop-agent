@@ -16,7 +16,7 @@ const SHOE_TOKEN_RE =
 
 /** Common free-text singles worth keeping even when not in the accessory list. */
 const SIMPLE_GARMENT_RE =
-  /\b(bracelet|bracelets|watch|watches|belt|belts|bag|bags|shoes?|sneakers?|boots?|shirt|blazer|dress|trousers|pants|jeans|jacket|coat|hoodie|sweater|hat|tie|scarf)\b/i;
+  /\b(bracelet|bracelets|watch|watches|belt|belts|bag|bags|shoes?|sneakers?|boots?|shirt|blazer|dress|trousers|pants|jeans|jacket|coat|hoodie|sweater|hat|tie|scarf|swimsuit|swimsuits|swimwear|bikini|bikinis)\b/i;
 
 export function isVagueGarmentLabel(garment: string): boolean {
   return VAGUE_GARMENT_RE.test(garment.trim());
@@ -71,6 +71,15 @@ export function normalizeGarmentClarificationAnswer(
   const text = quick ?? trimmed;
   const lower = text.toLowerCase();
 
+  // Scope chips are not garment SKUs — leave garments empty; router owns mode.
+  if (
+    /^(one piece|a single piece|single piece|full outfit|full look|a few options(?: to rotate)?)$/i.test(
+      lower.trim(),
+    )
+  ) {
+    return [];
+  }
+
   // Chip: "Watches, belts, bags, bracelets — no shoes"
   if (/\bno\s+shoes\b/.test(lower)) {
     const accessories = uniqLower(collectMatches(text, ACCESSORY_TOKEN_RE));
@@ -84,9 +93,8 @@ export function normalizeGarmentClarificationAnswer(
     const mixed = uniqLower([...shoes, ...accessories]);
     if (mixed.length) return mixed;
     if (/^shoes\b/.test(lower)) return ["shoes"];
-    if (/\bmix of both\b/.test(lower)) {
-      return ["shoes", "watch", "belt", "bag", "bracelet"];
-    }
+    // Mix without named tokens → generic tray, not invented SKUs.
+    if (/\bmix of both\b/.test(lower)) return ["shoes", "accessories"];
   }
 
   // Free text / partial chip: take the leading clause before size digressions.

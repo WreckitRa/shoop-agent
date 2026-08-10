@@ -45,4 +45,14 @@ describe("sanitizeBriefGarments", () => {
     assert.equal(isStylePhraseGarment("shirt"), false);
     assert.equal(isStylePhraseGarment("cool style laid back"), true);
   });
+
+  it("does not invent shirt/trousers/shoes when all garments are style fluff", () => {
+    const out = sanitizeBriefGarments(
+      baseBrief({
+        garments: ["cool style laid back", "effortless vibe"],
+      }),
+    );
+    assert.deepEqual(out.garments, []);
+    assert.match(out.style_direction, /cool style|effortless/i);
+  });
 });

@@ -19,3 +19,14 @@ Every fallback path exits through the same validator / pool state as the happy p
 - Queries → `validateSlotQueryVariants` (LLM and deterministic rebuild)
 - Clarifications → sanitize + dedup
 - Curation picks → `validateCurationOutput` (including deterministic fallback via `validateAndRepairFallback`)
+
+## Layer ownership (patch discipline)
+
+When a find is wrong, ask which layer failed — do not stack another defense:
+
+1. **Eligibility** (`hard-drops`) — wrong family/subtype in the bench → expand taxonomy + item-type predicates (never Sonnet prompt bans).
+2. **Availability** (hydration + presentation) — only verified items on the live rack; unverified overflow is not a find.
+3. **Composition** (`presentation` / `composition-invariants`) — headers from contents; short/empty benches get honest thin notes; no junk-fill.
+4. **Observability** — hard_drops events carry `rejection_samples` so diagnosis is by predicate, not screenshot.
+
+Shopify Catalog MCP is query-time; we do not run an offline identity warehouse. Treat title/taxonomy hard drops as the practical identity gate.

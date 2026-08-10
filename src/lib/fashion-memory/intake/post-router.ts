@@ -19,6 +19,7 @@ import { sanitizeClarificationQuestions } from "./clarification-sanitize";
 import {
   mergeResolvedGarmentsIntoBriefGarments,
 } from "./garment-answer";
+import { refineSwimBriefGarments } from "../hard-drops/swimwear";
 import { applyInferredBudgetScope } from "../budget/budget-scope";
 import { buildKnowledgeState } from "./knowledge-state";
 import {
@@ -29,7 +30,6 @@ import {
   singleRelationMatch,
 } from "../extraction/person-identity";
 import {
-  inferOccasionFromLifestyle,
   mapHonestyToVoice,
   parseOnboardingMetaFromFacts,
 } from "../router/profile-context-format";
@@ -59,6 +59,7 @@ import { reconcileBrandDirection, reconcileColorDirection, stripBrandsFromMustHa
 import {
   loadPendingBrief,
   pendingBriefMeta,
+  resumePendingShoppingBrief,
 } from "./pending-brief";
 import type { FashionPendingBriefMetaV1 } from "../router/types";
 import {
@@ -329,8 +330,18 @@ function statedFactsFromRouterResult(
   result: FashionRouterResult,
 ): FashionStatedFacts | undefined {
   if (result.move === "ready_to_search") return result.brief.stated_facts;
-  if (result.move === "ask_clarification") return result.stated_facts;
+  if (result.move === "ask_clarification") {
+    return result.stated_facts ?? result.brief?.stated_facts;
+  }
   return undefined;
+}
+
+function provisionalBriefFromAsk(
+  result: FashionRouterResult,
+): FashionSearchBrief | null {
+  return result.move === "ask_clarification" && result.brief
+    ? result.brief
+    : null;
 }
 
 function mergeDepartmentFromStatedFacts(
@@ -515,18 +526,14 @@ function finalizeBriefForSearch(params: {
       : undefined;
 
   let occasion_context = params.brief.occasion_context;
-  const occasionThin =
-    !occasion_context?.trim() ||
-    /^(general|casual|everyday|n\/?a|none|\.+)$/i.test(occasion_context.trim());
-  if (occasionThin && params.person.relation === "self") {
-    const inferred = inferOccasionFromLifestyle(shopperMeta?.lifestyle_tags);
-    if (inferred) {
-      occasion_context = inferred.occasion;
-    }
-  }
 
   return {
     ...params.brief,
+    garments: refineSwimBriefGarments({
+      garments: params.brief.garments ?? [],
+      mustHaves: must_haves,
+      niceToHaves: params.brief.nice_to_haves,
+    }),
     must_haves,
     color_direction,
     brand_direction,
@@ -537,18 +544,13 @@ function finalizeBriefForSearch(params: {
   };
 }
 
-/** True when finalize filled occasion from lifestyle (caller inspects before/after). */
-export function didInferOccasionFromLifestyle(params: {
+/** @deprecated Lifestyle→occasion mutate removed; always false. */
+export function didInferOccasionFromLifestyle(_params: {
   before: string;
   after: string;
   lifestyleTags?: string[];
 }): boolean {
-  const beforeThin =
-    !params.before?.trim() ||
-    /^(general|casual|everyday|n\/?a|none|\.+)$/i.test(params.before.trim());
-  if (!beforeThin) return false;
-  const inferred = inferOccasionFromLifestyle(params.lifestyleTags);
-  return Boolean(inferred && params.after === inferred.occasion);
+  return false;
 }
 
 async function enrichDeclinedFromAskCounts(params: {
@@ -855,11 +857,14 @@ async function resolveFashionRouterTurnInner(
         traceId: params.traceId,
       });
 
+      const llmProvisional = provisionalBriefFromAsk(routerResult);
+
       const pendingWithGarments =
         resolvedGarments.length && targetId
           ? pendingBriefMeta(
               applyResolvedGarmentsToBrief(
                 pendingBrief?.brief ??
+                  llmProvisional ??
                   ({
                     recipient_person_id: targetId,
                     request_type: "multi_item",
@@ -882,7 +887,12 @@ async function resolveFashionRouterTurnInner(
                   pendingBrief.recipientPersonId,
                 )
               : pendingBrief
-            : null;
+            : llmProvisional && targetId
+              ? pendingBriefMeta(
+                  applyResolvedGarmentsToBrief(llmProvisional, resolvedGarments),
+                  targetId,
+                )
+              : null;
 
       if (!questions.length && pendingWithGarments) {
         routerResult = {
@@ -903,18 +913,49 @@ async function resolveFashionRouterTurnInner(
             reason: "clarification_questions_satisfied",
             pendingBrief: pendingWithGarments ?? pendingBrief,
           });
-          const brief = {
-            ...applyResolvedGarmentsToBrief(
-              fallback.brief,
-              resolvedGarments,
-            ),
-            stated_facts: stated ?? fallback.brief.stated_facts,
-          };
-          if (brief.garments.length > 0) {
-            routerResult = {
-              move: "ready_to_search",
-              brief,
+          if (fallback) {
+            const brief = {
+              ...applyResolvedGarmentsToBrief(
+                fallback.brief,
+                resolvedGarments,
+              ),
+              stated_facts: stated ?? fallback.brief.stated_facts,
             };
+            if (brief.garments.length > 0) {
+              routerResult = {
+                move: "ready_to_search",
+                brief,
+              };
+            } else {
+              return {
+                routerResult: {
+                  move: "ask_clarification",
+                  reply:
+                    (routerResult.move === "ask_clarification"
+                      ? routerResult.reply
+                      : undefined) || "What are you shopping for?",
+                  questions: [
+                    {
+                      text: "What are you looking for?",
+                      gap: "garment",
+                      quick_options: [
+                        "Shirt or top",
+                        "Dress",
+                        "Shoes",
+                        "Accessories",
+                        "Other",
+                      ],
+                    },
+                  ],
+                },
+                pendingBrief,
+                clearPendingBrief: false,
+                recipientPersonId: targetId,
+                recipientFacts: facts,
+                sizesUnconfirmed: [],
+                declinedGaps,
+              };
+            }
           } else {
             return {
               routerResult: {
@@ -928,9 +969,10 @@ async function resolveFashionRouterTurnInner(
                     text: "What are you looking for?",
                     gap: "garment",
                     quick_options: [
-                      "One piece",
-                      "Full outfit",
-                      "A few options to rotate",
+                      "Shirt or top",
+                      "Dress",
+                      "Shoes",
+                      "Accessories",
                       "Other",
                     ],
                   },
@@ -957,9 +999,10 @@ async function resolveFashionRouterTurnInner(
                   text: "What are you looking for?",
                   gap: "garment",
                   quick_options: [
-                    "One piece",
-                    "Full outfit",
-                    "A few options to rotate",
+                    "Shirt or top",
+                    "Dress",
+                    "Shoes",
+                    "Accessories",
                     "Other",
                   ],
                 },
@@ -1060,6 +1103,31 @@ async function resolveFashionRouterTurnInner(
     applyDepartmentFromUserMessage(routerResult.brief, lastUser),
     resolvedGarments,
   );
+  const answeredClarification = Boolean(
+    clarificationApply &&
+      (clarificationApply.facts.length > 0 ||
+        clarificationApply.resolvedGarments?.length ||
+        clarificationApply.raisedBudgetMax != null ||
+        clarificationApply.declineBudgetRaise),
+  );
+  if (
+    pendingBrief &&
+    (answeredClarification ||
+      /\bwhat size\b/i.test(brief.style_direction) ||
+      /\busually wear\b/i.test(brief.style_direction))
+  ) {
+    brief = resumePendingShoppingBrief(pendingBrief.brief, brief);
+    brief = applyResolvedGarmentsToBrief(brief, resolvedGarments);
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "brief_resumed",
+      payload: {
+        reason: "pending_shopping_intent",
+        brief,
+        saved_at: pendingBrief.savedAt,
+      },
+    });
+  }
   brief = applyInferredBudgetScope(brief, lastUser);
   brief = mergeDepartmentFromStatedFacts(brief, stated ?? brief.stated_facts);
   brief = mergeBudgetFromStatedFacts(brief, stated ?? brief.stated_facts);

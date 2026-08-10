@@ -96,12 +96,21 @@ export function buildLookAskPublic(params: {
     .filter((v) =>
       (ASK_VOTE_CHOICES as readonly string[]).includes(v.choice),
     )
-    .map((v) => ({
-      choice: v.choice as AskVoteChoice,
-      displayName: v.displayName,
-      voterKey: v.voterKey,
-      isOwner: v.voterKey === ownerKey,
-    }));
+    .map((v) => {
+      const isOwnerVote = v.voterKey === ownerKey;
+      const rawName = v.displayName.trim();
+      const displayName =
+        isOwnerVote ?
+          share.askerName.trim() ||
+          (rawName && rawName.toLowerCase() !== "you" ? rawName : "Friend")
+        : rawName || "Friend";
+      return {
+        choice: v.choice as AskVoteChoice,
+        displayName,
+        voterKey: v.voterKey,
+        isOwner: isOwnerVote,
+      };
+    });
 
   if (shoopRevealed) {
     votes.push({

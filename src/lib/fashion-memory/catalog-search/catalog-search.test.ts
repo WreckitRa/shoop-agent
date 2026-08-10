@@ -43,6 +43,21 @@ describe("garment taxonomy map", () => {
     assert.equal(hasGarmentTaxonomyMapping("jeans"), true);
   });
 
+  it("maps swimwear parent and construction leaves", () => {
+    assert.equal(
+      taxonomyCategoriesForGarment("swimsuit")[0],
+      "gid://shopify/TaxonomyCategory/aa-1-20",
+    );
+    assert.equal(
+      taxonomyCategoriesForGarment("bikini")[0],
+      "gid://shopify/TaxonomyCategory/aa-1-20-6",
+    );
+    assert.equal(
+      taxonomyCategoriesForGarment("one-piece swimsuit")[0],
+      "gid://shopify/TaxonomyCategory/aa-1-20-22",
+    );
+  });
+
   it("omits category when garment is unknown", () => {
     assert.deepEqual(taxonomyCategoriesForGarment("mystery widget"), []);
     assert.equal(hasGarmentTaxonomyMapping("mystery widget"), false);

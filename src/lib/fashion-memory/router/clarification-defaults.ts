@@ -9,6 +9,16 @@ import type {
 } from "./types";
 import type { ClarificationOptionPreviewImage } from "@/lib/ai-chat/types";
 
+export function looksLikeColorClarification(text: string): boolean {
+  return /\b(color|colours?|palette|shade|tones?)\b/i.test(text);
+}
+
+function isSurpriseOption(option: FashionClarificationOption): boolean {
+  return (
+    option.id === "surprise_me" || /surprise/i.test(option.label)
+  );
+}
+
 const OTHER = "Other";
 const OTHER_ID = "other";
 
@@ -55,7 +65,7 @@ export function personalizedStyleOptions(params: {
   const opts: FashionClarificationOption[] = unique.map((label) => ({
     id: slugifyOptionId(label),
     label: label.charAt(0).toUpperCase() + label.slice(1),
-    previewQuery: `${label.toLowerCase()} ${dept} outfit clothing`,
+    previewQuery: `${label.toLowerCase()} aesthetic ${dept} fashion outfit look`,
   }));
 
   const contrast =
@@ -65,7 +75,7 @@ export function personalizedStyleOptions(params: {
   opts.push({
     id: slugifyOptionId(contrast),
     label: contrast,
-    previewQuery: `${contrast.toLowerCase()} ${dept} outfit clothing`,
+    previewQuery: `${contrast.toLowerCase()} aesthetic ${dept} fashion outfit look`,
   });
   opts.push({ id: "surprise_me", label: "Surprise me" });
   return opts;
@@ -105,9 +115,6 @@ function looksLikeStyleRideAlong(text: string): boolean {
   return /\b(style|vibe|aesthetic|look|direction)\b/i.test(text);
 }
 
-function looksLikeColorRideAlong(text: string): boolean {
-  return /\b(color|palette|shade)\b/i.test(text);
-}
 
 /** Prefer profile aesthetics over generic archetype chips when signals exist. */
 export function personalizeClarificationOptions(params: {
@@ -135,7 +142,7 @@ export function personalizeClarificationOptions(params: {
     if (looksLikeStyleRideAlong(q.text) && styleOpts) {
       return { ...q, quick_options: styleOpts };
     }
-    if (looksLikeColorRideAlong(q.text) && colorOpts) {
+    if (looksLikeColorClarification(q.text) && colorOpts) {
       return { ...q, quick_options: colorOpts };
     }
     return q;
@@ -145,7 +152,7 @@ export function personalizeClarificationOptions(params: {
   if (ride_along) {
     if (looksLikeStyleRideAlong(ride_along.text) && styleOpts) {
       ride_along = { ...ride_along, quick_options: styleOpts };
-    } else if (looksLikeColorRideAlong(ride_along.text) && colorOpts) {
+    } else if (looksLikeColorClarification(ride_along.text) && colorOpts) {
       ride_along = { ...ride_along, quick_options: colorOpts };
     }
   }
@@ -180,7 +187,7 @@ export function defaultQuickOptionsForGap(
       // Free text + Skip only — never seed roster names.
       return [PERSON_NAME_SKIP_OPTION];
     case "garment":
-      return ["One piece", "Full outfit", "A few options", OTHER];
+      return ["Shirt or top", "Dress", "Shoes", "Accessories", OTHER];
     case "occasion":
       return ["Work", "Weekend", "Event / night out", OTHER];
     case "budget":
@@ -228,11 +235,17 @@ export function normalizeClarificationOption(
       ? OTHER_ID
       : slugifyOptionId(label));
   const previewQuery = raw.previewQuery?.trim() || undefined;
+  const paletteColors = Array.isArray(raw.paletteColors)
+    ? raw.paletteColors
+        .map((c) => (typeof c === "string" ? c.trim().toLowerCase() : ""))
+        .filter((c) => /^#[0-9a-f]{6}$/.test(c))
+    : [];
   return {
     id,
     label,
     ...(previewQuery ? { previewQuery } : {}),
     ...(raw.previewImages?.length ? { previewImages: raw.previewImages } : {}),
+    ...(paletteColors.length ? { paletteColors } : {}),
   };
 }
 
@@ -358,20 +371,47 @@ export function answerHasContent(
 /** Collect option preview fetch requests from fashion router meta. */
 export function collectFashionPreviewRequests(
   meta: Pick<MessageFashionRouterMetaV1, "questions" | "ride_along">,
-): Array<{ id: string; previewQuery: string }> {
-  const out: Array<{ id: string; previewQuery: string }> = [];
+): Array<{ id: string; previewQuery: string; label: string }> {
+  const out: Array<{ id: string; previewQuery: string; label: string }> = [];
   const seen = new Set<string>();
   const pushOpt = (o: FashionClarificationOption) => {
     const q = o.previewQuery?.trim();
     if (!q || o.id === OTHER_ID || seen.has(o.id)) return;
+    if (isSurpriseOption(o)) return;
     if (o.previewImages?.length) return;
     seen.add(o.id);
-    out.push({ id: o.id, previewQuery: q });
+    out.push({ id: o.id, previewQuery: q, label: o.label });
   };
   for (const question of meta.questions ?? []) {
+    // Color chips render LLM palettes — skip catalog image hydration.
+    if (looksLikeColorClarification(question.text)) continue;
     for (const o of asNormalizedOptions(question.quick_options)) pushOpt(o);
   }
-  if (meta.ride_along) {
+  if (meta.ride_along && !looksLikeColorClarification(meta.ride_along.text)) {
+    for (const o of asNormalizedOptions(meta.ride_along.quick_options)) {
+      pushOpt(o);
+    }
+  }
+  return out;
+}
+
+/** Collect color/palette chip labels that still need LLM hex swatches. */
+export function collectFashionPaletteRequests(
+  meta: Pick<MessageFashionRouterMetaV1, "questions" | "ride_along">,
+): Array<{ id: string; label: string }> {
+  const out: Array<{ id: string; label: string }> = [];
+  const seen = new Set<string>();
+  const pushOpt = (o: FashionClarificationOption) => {
+    if (o.id === OTHER_ID || isSurpriseOption(o) || seen.has(o.id)) return;
+    if (o.paletteColors && o.paletteColors.length >= 3) return;
+    seen.add(o.id);
+    out.push({ id: o.id, label: o.label });
+  };
+  for (const question of meta.questions ?? []) {
+    if (!looksLikeColorClarification(question.text)) continue;
+    for (const o of asNormalizedOptions(question.quick_options)) pushOpt(o);
+  }
+  if (meta.ride_along && looksLikeColorClarification(meta.ride_along.text)) {
     for (const o of asNormalizedOptions(meta.ride_along.quick_options)) {
       pushOpt(o);
     }
@@ -420,6 +460,41 @@ export function mergeOptionPreviewsIntoFashionRouter(
   };
   next.expectsOptionPreviews = collectFashionPreviewRequests(next).length > 0;
   return next;
+}
+
+export function mergeOptionPalettesIntoFashionRouter(
+  fashionRouter: MessageFashionRouterMetaV1,
+  palettes: Record<string, string[] | undefined>,
+): MessageFashionRouterMetaV1 {
+  if (!Object.keys(palettes).length) return fashionRouter;
+
+  const patchOptions = (
+    options?: Array<string | FashionClarificationOption>,
+  ): FashionClarificationOption[] | undefined => {
+    if (!options?.length) return asNormalizedOptions(options);
+    return asNormalizedOptions(options).map((o) => {
+      const colors = palettes[o.id];
+      if (!colors?.length) return o;
+      return { ...o, paletteColors: colors };
+    });
+  };
+
+  const questions = fashionRouter.questions?.map((q) => ({
+    ...q,
+    quick_options: patchOptions(q.quick_options),
+  }));
+  const ride_along = fashionRouter.ride_along
+    ? {
+        ...fashionRouter.ride_along,
+        quick_options: patchOptions(fashionRouter.ride_along.quick_options)!,
+      }
+    : undefined;
+
+  return {
+    ...fashionRouter,
+    ...(questions ? { questions } : {}),
+    ...(ride_along ? { ride_along } : {}),
+  };
 }
 
 export { OTHER as CLARIFICATION_OTHER_OPTION, OTHER_ID as CLARIFICATION_OTHER_OPTION_ID };

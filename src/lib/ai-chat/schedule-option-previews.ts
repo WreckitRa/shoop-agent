@@ -1,5 +1,6 @@
 /**
- * Option preview fetch + SSE hydrate + DB patch for fashion clarification chips.
+ * Option preview fetch + palette resolve + SSE hydrate + DB patch for fashion
+ * clarification chips.
  *
  * Returns a promise so the chat stream can await hydration (bounded) before
  * emitting `done` — otherwise the SSE connection closes while fetches are
@@ -11,6 +12,10 @@ import {
   fetchClarificationOptionPreviews,
   type OptionPreviewRequest,
 } from "@/lib/ai-chat/clarification-option-previews";
+import {
+  resolveClarificationPalettes,
+  type ClarificationPaletteRequest,
+} from "@/lib/ai-chat/clarification-palette-resolver";
 import { clearOptionPreviewExpectations } from "@/lib/ai-chat/merge-option-preview-metadata";
 import { formatSse } from "@/lib/ai-chat/sse";
 import type { ClarificationOptionPreviewImage } from "@/lib/ai-chat/types";
@@ -35,54 +40,94 @@ async function persistOptionPreviewExpectationsCleared(
     where: { id: messageId },
     data: { metadata: cleared as InputJsonValue },
   });
-
 }
 
 export function runOptionPreviews(params: {
   messageId: string;
   conversationId: string;
+  userId?: string;
   options: OptionPreviewRequest[];
+  paletteOptions?: ClarificationPaletteRequest[];
   getBuyerContext: () => Promise<BuyerCatalogContext | null>;
   fallbackShippingCountry?: string | null;
   push: (chunk: string) => void;
   applyPreviews: (
     previewMap: Record<string, ClarificationOptionPreviewImage[]>,
   ) => Record<string, unknown>;
+  applyPalettes?: (
+    paletteMap: Record<string, string[]>,
+  ) => Record<string, unknown>;
 }): Promise<void> {
-  if (!params.options.length) {
+  const hasPreviews = params.options.length > 0;
+  const hasPalettes = (params.paletteOptions?.length ?? 0) > 0;
+  if (!hasPreviews && !hasPalettes) {
     return Promise.resolve();
   }
 
-
   return (async () => {
-    const startedAt = Date.now();
     try {
-      const buyer = await params.getBuyerContext().catch(() => null);
-      const country =
-        buyer?.shipsToCountry ?? params.fallbackShippingCountry ?? undefined;
+      const buyerPromise = hasPreviews
+        ? params.getBuyerContext().catch(() => null)
+        : Promise.resolve(null);
 
-      if (!country) {
-        await persistOptionPreviewExpectationsCleared(params.messageId);
-        return;
+      const previewPromise = (async () => {
+        if (!hasPreviews) return [] as Awaited<
+          ReturnType<typeof fetchClarificationOptionPreviews>
+        >;
+        const buyer = await buyerPromise;
+        const country =
+          buyer?.shipsToCountry ?? params.fallbackShippingCountry ?? undefined;
+        if (!country) {
+          await persistOptionPreviewExpectationsCleared(params.messageId);
+          return [];
+        }
+        return fetchClarificationOptionPreviews({
+          options: params.options,
+          shipsToCountry: country,
+          context: buyer?.context as CatalogSearchContext | undefined,
+          conversationId: params.conversationId,
+        });
+      })();
+
+      const palettePromise = hasPalettes
+        ? resolveClarificationPalettes({
+            options: params.paletteOptions!,
+            userId: params.userId,
+            conversationId: params.conversationId,
+          })
+        : Promise.resolve([]);
+
+      const [previewResults, paletteResults] = await Promise.all([
+        previewPromise,
+        palettePromise,
+      ]);
+
+      let metadataPatch: Record<string, unknown> = {};
+
+      if (previewResults.length) {
+        const previewMap: Record<string, ClarificationOptionPreviewImage[]> =
+          {};
+        for (const row of previewResults) {
+          previewMap[row.optionId] = row.images;
+        }
+        metadataPatch = {
+          ...metadataPatch,
+          ...params.applyPreviews(previewMap),
+        };
       }
 
-
-      const previewResults = await fetchClarificationOptionPreviews({
-        options: params.options,
-        shipsToCountry: country,
-        context: buyer?.context as CatalogSearchContext | undefined,
-        conversationId: params.conversationId,
-      });
-
-
-      if (!previewResults.length) return;
-
-      const previewMap: Record<string, ClarificationOptionPreviewImage[]> = {};
-      for (const row of previewResults) {
-        previewMap[row.optionId] = row.images;
+      if (paletteResults.length && params.applyPalettes) {
+        const paletteMap: Record<string, string[]> = {};
+        for (const row of paletteResults) {
+          paletteMap[row.optionId] = row.paletteColors;
+        }
+        metadataPatch = {
+          ...metadataPatch,
+          ...params.applyPalettes(paletteMap),
+        };
       }
 
-      const metadataPatch = params.applyPreviews(previewMap);
+      if (!Object.keys(metadataPatch).length) return;
 
       const existingMeta =
         (await prisma.message.findUnique({
@@ -100,7 +145,6 @@ export function runOptionPreviews(params: {
         },
       });
 
-
       params.push(
         formatSse("option_previews", {
           messageId: params.messageId,
@@ -108,10 +152,14 @@ export function runOptionPreviews(params: {
             optionId: r.optionId,
             images: r.images,
           })),
+          palettes: paletteResults.map((r) => ({
+            optionId: r.optionId,
+            paletteColors: r.paletteColors,
+          })),
         }),
       );
-
-    } catch (err) {
+    } catch {
+      /* best-effort */
     }
   })();
 }

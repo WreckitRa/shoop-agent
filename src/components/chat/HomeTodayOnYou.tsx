@@ -45,14 +45,19 @@ export function HomeTodayOnYou({ onPreview, className }: Props) {
         };
         if (cancelled) return;
         setLoved(
-          (body.items ?? []).slice(0, 3).map((item) => ({
-            id: item.generationId,
-            title: item.title,
-            subtitle:
-              item.kind === "look" ? "loved look · on you" : "loved try-on · on you",
-            imageUrl: item.imageUrl,
-            source: "moodboard" as const,
-          })),
+          (body.items ?? [])
+            .filter((item) => Boolean(item.imageUrl?.trim()))
+            .slice(0, 3)
+            .map((item) => ({
+              id: item.generationId,
+              title: item.title?.trim() || "Saved look",
+              subtitle:
+                item.kind === "look"
+                  ? "loved look · on you"
+                  : "loved try-on · on you",
+              imageUrl: item.imageUrl,
+              source: "moodboard" as const,
+            })),
         );
       })
       .catch(() => {
@@ -114,6 +119,7 @@ export function HomeTodayOnYou({ onPreview, className }: Props) {
               <img
                 src={tile.imageUrl}
                 alt=""
+                referrerPolicy="no-referrer"
                 className="size-full object-cover object-top"
               />
               <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-0.5 text-[8px] font-black tracking-[0.08em] text-ink">

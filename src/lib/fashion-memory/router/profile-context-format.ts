@@ -240,7 +240,7 @@ export function composeAspiresLine(meta: OnboardingMetaFromBodyNote): string | n
   return `aspires: compliments ${comps.map((c) => `"${c}"`).join(", ")}`;
 }
 
-/** Dominant life-mode → default occasion when user gives none. */
+/** Prompt/context hint only — never mutate occasion_context from lifestyle tags. */
 export function inferOccasionFromLifestyle(
   lifestyleTags: string[] | undefined,
 ): { occasion: string; framing: string } | null {

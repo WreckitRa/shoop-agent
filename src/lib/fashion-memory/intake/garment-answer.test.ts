@@ -38,6 +38,18 @@ describe("normalizeGarmentClarificationAnswer", () => {
       ["shoes"],
     );
   });
+
+  it("does not treat Full outfit / One piece as garment SKUs", () => {
+    assert.deepEqual(normalizeGarmentClarificationAnswer("Full outfit"), []);
+    assert.deepEqual(normalizeGarmentClarificationAnswer("One piece"), []);
+  });
+
+  it("maps Mix of both to shoes+accessories without inventing SKUs", () => {
+    assert.deepEqual(normalizeGarmentClarificationAnswer("Mix of both"), [
+      "shoes",
+      "accessories",
+    ]);
+  });
 });
 
 describe("hasConcreteGarmentDirection", () => {

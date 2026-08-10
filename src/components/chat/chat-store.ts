@@ -14,7 +14,10 @@ import type {
 import type { ComposerReplyContext } from "@/lib/ai-chat/composer-reply-context";
 import { composerReplyFromPick } from "@/lib/ai-chat/composer-reply-context";
 import { applyIntentBranchSplitsToMessages } from "@/lib/ai-chat/intent-branch/apply-splits-to-messages";
-import { mergeOptionPreviewsIntoFashionRouter } from "@/lib/fashion-memory/router/clarification-defaults";
+import {
+  mergeOptionPalettesIntoFashionRouter,
+  mergeOptionPreviewsIntoFashionRouter,
+} from "@/lib/fashion-memory/router/clarification-defaults";
 import {
   parseSidebarNodes,
   sidebarNodesToConversations,
@@ -330,6 +333,7 @@ function applyOptionPreviewsToMessage(
   messageId: string,
   previews: Array<{ optionId: string; images: ClarificationOptionPreviewImage[] }>,
   streamingAssistantMessageId: string | null = null,
+  palettes: Array<{ optionId: string; paletteColors: string[] }> = [],
 ): ChatMessage[] {
   const targetId = resolveAssistantMessageId(
     messages,
@@ -343,15 +347,31 @@ function applyOptionPreviewsToMessage(
     for (const row of previews) {
       if (row.images?.length) previewMap[row.optionId] = row.images;
     }
+    const paletteMap: Record<string, string[]> = {};
+    for (const row of palettes) {
+      if (row.paletteColors?.length) {
+        paletteMap[row.optionId] = row.paletteColors;
+      }
+    }
 
     let nextMeta = meta;
     if (meta.fashionRouter) {
+      let fashionRouter = meta.fashionRouter;
+      if (Object.keys(previewMap).length) {
+        fashionRouter = mergeOptionPreviewsIntoFashionRouter(
+          fashionRouter,
+          previewMap,
+        );
+      }
+      if (Object.keys(paletteMap).length) {
+        fashionRouter = mergeOptionPalettesIntoFashionRouter(
+          fashionRouter,
+          paletteMap,
+        );
+      }
       nextMeta = {
         ...nextMeta,
-        fashionRouter: mergeOptionPreviewsIntoFashionRouter(
-          meta.fashionRouter,
-          previewMap,
-        ),
+        fashionRouter,
       };
     }
     return { ...m, metadata: nextMeta };
@@ -827,26 +847,43 @@ export const useChatStore = create<ChatState>((set, get) => {
             typeof payload.messageId === "string"
               ? payload.messageId
               : resolvedAssistantId ?? args.optimisticAssistantId;
-          if (!mid || !Array.isArray(payload.previews)) return;
-          const previews = payload.previews.filter(
-            (
-              row,
-            ): row is {
-              optionId: string;
-              images: ClarificationOptionPreviewImage[];
-            } =>
-              Boolean(row) &&
-              typeof row === "object" &&
-              typeof (row as { optionId?: unknown }).optionId === "string" &&
-              Array.isArray((row as { images?: unknown }).images),
-          );
-          if (!previews.length) return;
+          if (!mid) return;
+          const previews = Array.isArray(payload.previews)
+            ? payload.previews.filter(
+                (
+                  row,
+                ): row is {
+                  optionId: string;
+                  images: ClarificationOptionPreviewImage[];
+                } =>
+                  Boolean(row) &&
+                  typeof row === "object" &&
+                  typeof (row as { optionId?: unknown }).optionId === "string" &&
+                  Array.isArray((row as { images?: unknown }).images),
+              )
+            : [];
+          const palettes = Array.isArray(payload.palettes)
+            ? payload.palettes.filter(
+                (
+                  row,
+                ): row is {
+                  optionId: string;
+                  paletteColors: string[];
+                } =>
+                  Boolean(row) &&
+                  typeof row === "object" &&
+                  typeof (row as { optionId?: unknown }).optionId === "string" &&
+                  Array.isArray((row as { paletteColors?: unknown }).paletteColors),
+              )
+            : [];
+          if (!previews.length && !palettes.length) return;
           setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
             messages: applyOptionPreviewsToMessage(
               s.messages,
               mid,
               previews,
               s.streamingAssistantMessageId,
+              palettes,
             ),
           }));
         },

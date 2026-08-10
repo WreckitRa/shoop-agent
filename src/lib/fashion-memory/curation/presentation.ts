@@ -3,6 +3,7 @@ import type { FashionSearchPlan } from "../search-planner/types";
 import type { BudgetTension } from "../budget/budgetTension";
 import type { BudgetInterpretation } from "../budget/budgetAllocation";
 import { fromMinorUnits } from "@/lib/money";
+import { recordPipelineEvent } from "../observability/trace";
 import type {
   CurationRefRegistry,
   DeliverCurationInput,
@@ -12,11 +13,14 @@ import type {
   FashionVerifiedTierItem,
   FashionUnverifiedTierItem,
 } from "./types";
-import {
-  CURATION_UNVERIFIED_OVERFLOW,
-  CURATION_VERIFIED_BENCH,
-} from "./config";
+import { CURATION_VERIFIED_BENCH } from "./config";
 import { buildUserFacingBadges } from "./badge-copy";
+import { displayGarmentFromSurvivors } from "../hard-drops/swimwear";
+import {
+  duplicateIdsInTurn,
+  headerContentMismatches,
+  shortBenchThinNote,
+} from "./composition-invariants";
 
 function buildBadges(
   entry: import("./types").RefEntry,
@@ -37,6 +41,42 @@ function buildBadges(
   });
 }
 
+function slotDisplayGarments(params: {
+  slots: Array<{ slot_id: string; garment: string }>;
+  registry: CurationRefRegistry;
+  output: DeliverCurationInput;
+}): Map<string, string> {
+  const titlesBySlot = new Map<string, string[]>();
+  for (const entry of params.registry.values()) {
+    const list = titlesBySlot.get(entry.slot_id) ?? [];
+    list.push(entry.candidate.title ?? "");
+    titlesBySlot.set(entry.slot_id, list);
+  }
+  for (const slotOutput of params.output.slots) {
+    for (const pick of slotOutput.picks) {
+      const entry = params.registry.get(pick.ref);
+      if (!entry?.candidate.title) continue;
+      const list = titlesBySlot.get(slotOutput.slot_id) ?? [];
+      if (!list.includes(entry.candidate.title)) {
+        list.push(entry.candidate.title);
+        titlesBySlot.set(slotOutput.slot_id, list);
+      }
+    }
+  }
+
+  const out = new Map<string, string>();
+  for (const slot of params.slots) {
+    out.set(
+      slot.slot_id,
+      displayGarmentFromSurvivors({
+        planGarment: slot.garment,
+        survivorTitles: (titlesBySlot.get(slot.slot_id) ?? []).filter(Boolean),
+      }),
+    );
+  }
+  return out;
+}
+
 export function buildPresentationContract(params: {
   output: DeliverCurationInput;
   registry: CurationRefRegistry;
@@ -45,6 +85,7 @@ export function buildPresentationContract(params: {
     slot_id: string;
     garment: string;
     thin_slot?: boolean;
+    coverage_gap?: boolean;
     brand_status?: import("../router/types").FashionSlotBrandStatus;
     overflow_items?: import("../hydration/types").OverflowItem[];
   }>;
@@ -55,7 +96,13 @@ export function buildPresentationContract(params: {
   fallback: boolean;
   /** Stage B used deterministic stylist templates. */
   voice_fallback?: boolean;
+  traceId?: string | null;
 }): FashionCurationPresentation {
+  const displayGarment = slotDisplayGarments({
+    slots: params.slots,
+    registry: params.registry,
+    output: params.output,
+  });
   const pickedRefs = new Set<string>();
   const picks: FashionCuratedPick[] = [];
 
@@ -69,7 +116,10 @@ export function buildPresentationContract(params: {
       const card = hydratedCandidateToProductCard(entry.candidate, {
         correctedColor: pick.corrected_color,
       });
-      const garment = slotMeta?.garment ?? slotOutput.slot_id;
+      const garment =
+        displayGarment.get(slotOutput.slot_id) ??
+        slotMeta?.garment ??
+        slotOutput.slot_id;
       picks.push({
         ...card,
         ref: pick.ref,
@@ -102,7 +152,10 @@ export function buildPresentationContract(params: {
     if (!entry) continue;
     const slotMeta = params.slots.find((s) => s.slot_id === entry.slot_id);
     const card = hydratedCandidateToProductCard(entry.candidate);
-    const garment = slotMeta?.garment ?? entry.slot_id;
+    const garment =
+      displayGarment.get(entry.slot_id) ??
+      slotMeta?.garment ??
+      entry.slot_id;
     pickedRefs.add(ref);
     picks.push({
       ...card,
@@ -125,11 +178,15 @@ export function buildPresentationContract(params: {
     const slotMeta = params.slots.find((s) => s.slot_id === entry.slot_id);
     const card = hydratedCandidateToProductCard(entry.candidate);
     const list = verifiedBySlot.get(entry.slot_id) ?? [];
+    const garment =
+      displayGarment.get(entry.slot_id) ??
+      slotMeta?.garment ??
+      entry.slot_id;
     list.push({
       ...card,
       ref: entry.ref,
       slot_id: entry.slot_id,
-      garment: slotMeta?.garment ?? entry.slot_id,
+      garment,
       score_rank: entry.score_rank,
       brand_confirmed: entry.candidate.brand_confirmed,
       size_status: entry.candidate.size_status,
@@ -144,19 +201,10 @@ export function buildPresentationContract(params: {
     verified.push(...ranked.slice(0, CURATION_VERIFIED_BENCH));
   }
 
+  // L4 availability: unverified overflow never enters the live rack.
+  // Size/stock-unchecked items stay in hydration pools for debug / on-demand
+  // verify — they are not finds.
   const unverified: FashionUnverifiedTierItem[] = [];
-  for (const slot of params.slots) {
-    for (const item of (slot.overflow_items ?? []).slice(
-      0,
-      CURATION_UNVERIFIED_OVERFLOW,
-    )) {
-      unverified.push({
-        ...item,
-        slot_id: slot.slot_id,
-        garment: slot.garment,
-      });
-    }
-  }
 
   const brand_status: Record<string, import("../router/types").FashionSlotBrandStatus | undefined> =
     {};
@@ -178,8 +226,56 @@ export function buildPresentationContract(params: {
     set_total = Math.round(total * 100) / 100;
   }
 
+  const eligibleCount = picks.length + verified.length;
+  const primaryGarment =
+    [...displayGarment.values()][0] ??
+    params.slots[0]?.garment ??
+    params.plan.brief.garments[0] ??
+    "this ask";
+  const shortNote = shortBenchThinNote({
+    eligibleCount,
+    garmentLabel: primaryGarment,
+  });
+  const narration = {
+    ...params.output.narration,
+    ...(shortNote && !params.output.narration.thin_note?.trim()
+      ? { thin_note: shortNote }
+      : {}),
+  };
+
+  const renderedItems = [
+    ...picks.map((p) => ({
+      id: p.id,
+      ref: p.ref,
+      title: p.title,
+      garment: p.garment,
+      slot_id: p.slot_id,
+    })),
+    ...verified.map((v) => ({
+      id: v.id,
+      ref: v.ref,
+      title: v.title,
+      garment: v.garment,
+      slot_id: v.slot_id,
+    })),
+  ];
+  const headerMismatches = headerContentMismatches(renderedItems);
+  const dupes = duplicateIdsInTurn(renderedItems);
+  if (headerMismatches.length || dupes.length) {
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "invariant_warning",
+      payload: {
+        kind: "composition_invariant",
+        header_mismatches: headerMismatches.slice(0, 8),
+        duplicate_ids: dupes.slice(0, 8),
+        eligible_count: eligibleCount,
+      },
+    });
+  }
+
   return {
-    narration: params.output.narration,
+    narration,
     tiers: { picks, verified, unverified },
     looks: params.output.looks,
     capsule_outfits: params.output.capsule_outfits,

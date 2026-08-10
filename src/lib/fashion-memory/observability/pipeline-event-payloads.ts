@@ -16,6 +16,14 @@ export type HardDropsPipelinePayload = {
   slot_id?: string;
   garment?: string;
   drops_by_rule?: Record<string, number>;
+  /** Sample of rejected products with the predicate that rejected them. */
+  rejection_samples?: Array<{
+    product_id: string;
+    rule: string;
+    evidence?: string;
+  }>;
+  in?: number;
+  out?: number;
   survivors?: number;
   market_prices?: {
     p10: number;

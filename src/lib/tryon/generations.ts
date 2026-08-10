@@ -7,6 +7,7 @@ import {
   TRYON_USER_DAILY_CAP,
 } from "./config";
 import { tripGlobalTryonCap } from "./feature-flags";
+import { moodboardDisplayTitle } from "./moodboard-title";
 
 export type GenerationRow = {
   id: string;
@@ -151,6 +152,13 @@ export async function createGeneration(params: {
     };
     testGenStore.set(id, row);
     return row;
+  }
+
+  // Roster short ids (#abcd) are not Postgres uuids — refuse before Prisma.
+  const uuidRe =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRe.test(params.personId) || !uuidRe.test(params.userId)) {
+    throw new Error("Couldn't dress this one — try another piece.");
   }
 
   const row = await prisma.tryonGeneration.create({
@@ -564,6 +572,8 @@ export async function listMoodboardTryons(
           id: true,
           kind: true,
           outputUrl: true,
+          outputPath: true,
+          inputRefs: true,
           searchId: true,
           productRef: true,
           lookId: true,
@@ -572,24 +582,37 @@ export async function listMoodboardTryons(
     },
   });
 
-  return rows
-    .filter((row) => Boolean(row.generation.outputUrl))
-    .map((row) => {
-      const kind = row.generation.kind === "outfit" ? "look" : "item";
-      const title =
-        row.generation.lookId?.trim() ||
-        (kind === "look" ? "Saved look" : "Saved try-on");
-      return {
-        generationId: row.generation.id,
-        imageUrl: row.generation.outputUrl!,
+  const items: MoodboardItem[] = [];
+  for (const row of rows) {
+    const gen = row.generation;
+    if (!gen.outputUrl && !gen.outputPath) continue;
+
+    // Same-origin URL — /api/tryon/image re-signs private storage per request.
+    // Never hand the browser a stored signed URL (they expire in ~1h).
+    const kind = gen.kind === "outfit" ? "look" : "item";
+    const inputRefs =
+      gen.inputRefs &&
+      typeof gen.inputRefs === "object" &&
+      !Array.isArray(gen.inputRefs)
+        ? (gen.inputRefs as Record<string, unknown>)
+        : null;
+
+    items.push({
+      generationId: gen.id,
+      imageUrl: `/api/tryon/image/${gen.id}`,
+      kind,
+      title: moodboardDisplayTitle({
         kind,
-        title,
-        lovedAt: row.createdAt.toISOString(),
-        searchId: row.generation.searchId,
-        productRef: row.generation.productRef,
-        lookId: row.generation.lookId,
-      };
+        lookId: gen.lookId,
+        inputRefs,
+      }),
+      lovedAt: row.createdAt.toISOString(),
+      searchId: gen.searchId,
+      productRef: gen.productRef,
+      lookId: gen.lookId,
     });
+  }
+  return items;
 }
 
 export async function countAvatarRegensToday(personId: string): Promise<number> {

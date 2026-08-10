@@ -47,7 +47,7 @@ const SPECS: Spec[] = [
       const staticBody = extractBetween(
         s,
         /export const ROUTER_PROMPT_STATIC = `/,
-        "`;\n\n/** @deprecated",
+        "`;\n\n/** Full router prompt template",
       );
       return `${staticBody}
 

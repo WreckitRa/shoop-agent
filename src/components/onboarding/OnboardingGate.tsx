@@ -15,6 +15,7 @@ import {
   FITTING_STEPS,
   STEP_META,
   STEP_PROGRESS_PCT,
+  circleMirrorLabel,
   formFromGender,
   shortEraLabel,
   spendShort,
@@ -22,6 +23,7 @@ import {
   type FittingStep,
   type MirrorState,
 } from "@/components/onboarding/fitting/types";
+import { TasteCircleStep } from "@/components/onboarding/TasteCircleStep";
 import { TasteHonestyStep } from "@/components/onboarding/TasteHonestyStep";
 import { TasteLovesVetoesStep } from "@/components/onboarding/TasteLovesVetoesStep";
 import {
@@ -171,6 +173,7 @@ type OnboardingPrefill = {
   brandAvoids?: string;
   hardAvoids?: string;
   honestyPreference?: string;
+  circleNames?: string;
   heightCm?: number;
   weightKg?: number;
   build?: string;
@@ -203,6 +206,8 @@ function mergePrefillLatch(
       mergeCsvLabels(prev.hardAvoids, next.hardAvoids) ?? prev.hardAvoids,
     honestyPreference:
       next.honestyPreference?.trim() || prev.honestyPreference,
+    circleNames:
+      mergeCsvLabels(prev.circleNames, next.circleNames) ?? prev.circleNames,
     heightCm: next.heightCm ?? prev.heightCm,
     weightKg: next.weightKg ?? prev.weightKg,
     build: next.build ?? prev.build,
@@ -332,7 +337,7 @@ function resolveResumeStep(status: OnboardingStatus): FittingStep {
   const sessionIdx = FITTING_STEPS.indexOf(session.step);
   if (sessionIdx < floorIdx) return floor;
   // Session may be mid-flow; never jump to verdict on reload
-  if (session.step === "verdict") return "honesty";
+  if (session.step === "verdict") return "circle";
   return session.step;
 }
 
@@ -444,6 +449,7 @@ function developPctFromFlags(flags: {
   wantedSaved: boolean;
   nolistSaved: boolean;
   tasteFinal: boolean;
+  circleSaved: boolean;
   /** Final Fitting step. */
   verdict: boolean;
   /** FASHN try-on of a worn style onto the twin. */
@@ -459,7 +465,8 @@ function developPctFromFlags(flags: {
   if (flags.wornSaved) pct = Math.max(pct, 58);
   if (flags.wantedSaved) pct = Math.max(pct, 68);
   if (flags.nolistSaved) pct = Math.max(pct, 78);
-  if (flags.tasteFinal) pct = Math.max(pct, 88);
+  if (flags.tasteFinal) pct = Math.max(pct, 84);
+  if (flags.circleSaved) pct = Math.max(pct, 90);
   // Verdict step landed — almost there until dress finishes.
   if (flags.verdict) pct = Math.max(pct, 94);
   // FASHN dressed twin from a worn style pick = true complete.
@@ -490,6 +497,8 @@ export function OnboardingGate() {
   const reviewRequestKeyRef = useRef<string | null>(null);
   const wornDeckInFlightRef = useRef(false);
   const aspirationalDeckInFlightRef = useRef(false);
+  const wornDeckRef = useRef<OutfitGridCard[]>([]);
+  const aspirationalDeckRef = useRef<OutfitGridCard[]>([]);
   const wornPickLabelsRef = useRef<string[]>([]);
   const wornPickTasteTagsRef = useRef<string[]>([]);
   const avatarStartedRef = useRef(false);
@@ -536,6 +545,8 @@ export function OnboardingGate() {
   const [brandAvoids, setBrandAvoids] = useState<string[]>([]);
   const [hardAvoids, setHardAvoids] = useState<string[]>([]);
   const [honestyPreference, setHonestyPreference] = useState("");
+  /** Trusted Circle first-name slots (sparse; up to 3). */
+  const [circleNames, setCircleNames] = useState<string[]>(["", "", ""]);
   const [styleMix, setStyleMix] = useState<StyleMix | null>(null);
 
   const [photoValues, setPhotoValues] = useState<FittingPhotoValues>({
@@ -576,6 +587,7 @@ export function OnboardingGate() {
     wantedSaved: false,
     nolistSaved: false,
     tasteFinal: false,
+    circleSaved: false,
   });
 
   useEffect(() => {
@@ -597,11 +609,23 @@ export function OnboardingGate() {
   ].join("|");
 
   useEffect(() => {
+    wornDeckRef.current = wornDeck;
+  }, [wornDeck]);
+
+  useEffect(() => {
+    aspirationalDeckRef.current = aspirationalDeck;
+  }, [aspirationalDeck]);
+
+  useEffect(() => {
     setWornDeck([]);
     setAspirationalDeck([]);
     setWornPicks([]);
     setAspirationalPicks([]);
     setClosetImages([]);
+    setWornHasMore(false);
+    setAspirationalHasMore(false);
+    wornDeckRef.current = [];
+    aspirationalDeckRef.current = [];
     wornDeckInFlightRef.current = false;
     aspirationalDeckInFlightRef.current = false;
   }, [outfitDeckContextKey]);
@@ -656,6 +680,20 @@ export function OnboardingGate() {
     }
     if (prefill.honestyPreference) {
       setHonestyPreference(prefill.honestyPreference);
+    }
+    if (prefill.circleNames) {
+      const parsed = prefill.circleNames
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      if (parsed.length) {
+        setCircleNames([
+          parsed[0] ?? "",
+          parsed[1] ?? "",
+          parsed[2] ?? "",
+        ]);
+      }
     }
     if (
       prefill.heightCm ||
@@ -720,6 +758,8 @@ export function OnboardingGate() {
             prefill.hardAvoids?.trim(),
         ),
       tasteFinal: f.tasteFinal || Boolean(prefill.honestyPreference?.trim()),
+      circleSaved:
+        f.circleSaved || Boolean(prefill.circleNames?.trim()),
     }));
   }, []);
 
@@ -969,7 +1009,8 @@ export function OnboardingGate() {
       const setDeck = mode === "worn" ? setWornDeck : setAspirationalDeck;
       const setHasMore =
         mode === "worn" ? setWornHasMore : setAspirationalHasMore;
-      const currentDeck = mode === "worn" ? wornDeck : aspirationalDeck;
+      const deckRef = mode === "worn" ? wornDeckRef : aspirationalDeckRef;
+      const currentDeck = deckRef.current;
       setLoadingState(true);
       try {
         const params = new URLSearchParams({ mode });
@@ -1022,20 +1063,33 @@ export function OnboardingGate() {
         // Keep worn picks + closet when (re)loading decks
         if (!more && mode === "aspirational") setAspirationalPicks([]);
         if (more) {
+          const seen = new Set(currentDeck.map((c) => c.id));
+          const added = next.filter((c) => c.id && !seen.has(c.id));
           setDeck((prev) => {
-            const seen = new Set(prev.map((c) => c.id));
-            return [...prev, ...next.filter((c) => c.id && !seen.has(c.id))];
+            const prevSeen = new Set(prev.map((c) => c.id));
+            return [
+              ...prev,
+              ...added.filter((c) => c.id && !prevSeen.has(c.id)),
+            ];
           });
+          // Prefer server flag; never keep "See more" if this page added nothing.
+          const serverHasMore = json.hasMore;
+          setHasMore(
+            added.length === 0
+              ? false
+              : typeof serverHasMore === "boolean"
+                ? serverHasMore
+                : added.length >= 9,
+          );
         } else {
           setDeck(next);
+          const serverHasMore = json.hasMore;
+          setHasMore(
+            typeof serverHasMore === "boolean"
+              ? serverHasMore
+              : next.length >= 9,
+          );
         }
-        // Prefer server flag; if omitted (stale response), assume more when we got a full page.
-        const serverHasMore = json.hasMore;
-        setHasMore(
-          typeof serverHasMore === "boolean"
-            ? serverHasMore
-            : next.length >= 9,
-        );
       } catch {
         if (!more && mode === "aspirational") setAspirationalPicks([]);
         if (!more) setDeck([]);
@@ -1055,8 +1109,6 @@ export function OnboardingGate() {
       shippingCountry,
       currency,
       wornPicks,
-      wornDeck,
-      aspirationalDeck,
     ],
   );
 
@@ -1072,30 +1124,6 @@ export function OnboardingGate() {
     }
   }, [step, aspirationalDeck.length, loadOutfitDeck]);
 
-  // If the first page loaded before hasMore was wired (or a stale response),
-  // still offer See more — the next fetch will hide it when exhausted.
-  useEffect(() => {
-    if (
-      step === "worn" &&
-      wornDeck.length === 9 &&
-      !wornHasMore &&
-      !wornLoading
-    ) {
-      setWornHasMore(true);
-    }
-  }, [step, wornDeck.length, wornHasMore, wornLoading]);
-
-  useEffect(() => {
-    if (
-      step === "wanted" &&
-      aspirationalDeck.length === 9 &&
-      !aspirationalHasMore &&
-      !aspirationalLoading
-    ) {
-      setAspirationalHasMore(true);
-    }
-  }, [step, aspirationalDeck.length, aspirationalHasMore, aspirationalLoading]);
-
   useEffect(() => {
     return () => {
       mintAbortRef.current = true;
@@ -1106,7 +1134,7 @@ export function OnboardingGate() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
-      if (step === "verdict" || step === "honesty") return;
+      if (step === "verdict" || step === "honesty" || step === "circle") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
       const btn = document.querySelector<HTMLButtonElement>(
@@ -1729,6 +1757,45 @@ export function OnboardingGate() {
     }
   }
 
+  async function saveCircle(): Promise<boolean> {
+    if (submissionLockRef.current) return false;
+    submissionLockRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const names = circleNames.map((n) => n.trim()).filter(Boolean);
+      const res = await fetch("/api/onboarding/circle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names }),
+      });
+      const json = (await res.json()) as {
+        error?: string;
+        names?: string[];
+      };
+      if (!res.ok) {
+        throw new Error(json.error ?? "Could not save your trusted circle.");
+      }
+      if (json.names?.length) {
+        setCircleNames([
+          json.names[0] ?? "",
+          json.names[1] ?? "",
+          json.names[2] ?? "",
+        ]);
+      }
+      setPersistedFlags((f) => ({ ...f, circleSaved: true }));
+      return true;
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not save your trusted circle.",
+      );
+      return false;
+    } finally {
+      submissionLockRef.current = false;
+      setBusy(false);
+    }
+  }
+
   async function waitForMintIfRunning(maxMs = 12_000) {
     if (!mintInFlightRef.current) return;
     const start = Date.now();
@@ -1857,9 +1924,21 @@ export function OnboardingGate() {
     if (current === "honesty") {
       await runWithLoading({
         from: "honesty",
-        nextStep: "verdict",
+        nextStep: "circle",
         work: async () => {
           const ok = await saveTaste(false, "final");
+          if (!ok) return false;
+          return true;
+        },
+      });
+      return;
+    }
+    if (current === "circle") {
+      await runWithLoading({
+        from: "circle",
+        nextStep: "verdict",
+        work: async () => {
+          const ok = await saveCircle();
           if (!ok) return false;
           setHoldOpen(true);
           return true;
@@ -1898,6 +1977,7 @@ export function OnboardingGate() {
             brandAvoids: brandAvoids.length ? brandAvoids : undefined,
             hardAvoids: hardAvoids.length ? hardAvoids : undefined,
             honestyPreference: honestyPreference || undefined,
+            circleNames: circleNames.map((n) => n.trim()).filter(Boolean),
             heightCm: photoValues.heightCm || null,
             weightKg:
               photoValues.weightValue != null && photoValues.weightUnit === "kg"
@@ -1926,6 +2006,7 @@ export function OnboardingGate() {
           brandAvoids?: string[];
           hardAvoids?: string[];
           honestyPreference?: string;
+          circleNames?: string[];
           muscularity?: string;
           bodyShape?: string;
           bustFullness?: string;
@@ -1974,6 +2055,9 @@ export function OnboardingGate() {
         honestyPreference:
           json.extraction?.honestyPreference ??
           json.prefill?.honestyPreference,
+        circleNames:
+          json.extraction?.circleNames?.join(", ") ??
+          json.prefill?.circleNames,
       };
       tellLatchRef.current = mergePrefillLatch(
         tellLatchRef.current,
@@ -2009,6 +2093,7 @@ export function OnboardingGate() {
     wantedSaved: persistedFlags.wantedSaved,
     nolistSaved: persistedFlags.nolistSaved,
     tasteFinal: persistedFlags.tasteFinal,
+    circleSaved: persistedFlags.circleSaved,
     verdict: step === "verdict",
     dressed: dressStatus === "ready" && Boolean(dressedAvatarUrl),
   });
@@ -2175,6 +2260,7 @@ export function OnboardingGate() {
       leanLabel: lean,
       brandsLabel: brandLikes.length ? `${brandLikes.length} loved` : "",
       noListLabel: vetoN ? `${vetoN} refused` : "",
+      circleLabel: circleMirrorLabel(circleNames),
       photoUrl: localFacePreview,
       twinAvatarUrl: displayTwinUrl,
       heightCm: heightCmFromPhoto(photoValues),
@@ -2209,6 +2295,7 @@ export function OnboardingGate() {
     hardAvoids,
     brandAvoids,
     brandLikes,
+    circleNames,
     localFacePreview,
     twinAvatarUrl,
     dressedAvatarUrl,
@@ -2239,7 +2326,7 @@ export function OnboardingGate() {
 
   const stepMeta =
     step === "verdict"
-      ? { n: 7, stage: "THE FITTING" }
+      ? { n: 8, stage: "THE FITTING" }
       : STEP_META[step];
 
   if (loading) {
@@ -2278,7 +2365,7 @@ export function OnboardingGate() {
           step === "verdict" ? "THE FITTING" : stepMeta.stage
         }
         stepCountLabel={
-          step === "verdict" ? "DONE" : `${stepMeta.n} of 7`
+          step === "verdict" ? "DONE" : `${stepMeta.n} of 8`
         }
         mirror={mirror}
         onTell={handleTell}
@@ -2289,7 +2376,7 @@ export function OnboardingGate() {
           <FittingBackLink onClick={goBack} />
         ) : null}
         {step !== "verdict" ? (
-          <FittingCount n={stepMeta.n} total={7} />
+          <FittingCount n={stepMeta.n} total={8} />
         ) : null}
 
         {step === "name" ? (
@@ -2403,6 +2490,57 @@ export function OnboardingGate() {
           />
         ) : null}
 
+        {step === "circle" ? (
+          <TasteCircleStep
+            names={circleNames}
+            onChange={setCircleNames}
+            onContinue={() => void advanceFrom("circle")}
+            onSkip={() => {
+              void (async () => {
+                setCircleNames(["", "", ""]);
+                await runWithLoading({
+                  from: "circle",
+                  nextStep: "verdict",
+                  work: async () => {
+                    // Persist empty circle (skip) without racing setState.
+                    if (submissionLockRef.current) return false;
+                    submissionLockRef.current = true;
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await fetch("/api/onboarding/circle", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ names: [] }),
+                      });
+                      if (!res.ok) {
+                        const json = (await res.json()) as { error?: string };
+                        throw new Error(
+                          json.error ?? "Could not skip trusted circle.",
+                        );
+                      }
+                      setPersistedFlags((f) => ({ ...f, circleSaved: true }));
+                      setHoldOpen(true);
+                      return true;
+                    } catch (e) {
+                      setError(
+                        e instanceof Error
+                          ? e.message
+                          : "Could not skip trusted circle.",
+                      );
+                      return false;
+                    } finally {
+                      submissionLockRef.current = false;
+                      setBusy(false);
+                    }
+                  },
+                });
+              })();
+            }}
+            busy={busy}
+          />
+        ) : null}
+
         {step === "verdict" ? (
           <FittingVerdictStep
             preferredName={preferredName}
@@ -2413,13 +2551,17 @@ export function OnboardingGate() {
             build={photoValues.build}
             vetoCount={hardAvoids.length + brandAvoids.length}
             developPct={mirror.developPct}
+            circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
             dressStatus={dressStatus}
             dressStyleLabel={dressStyleLabel}
             busy={busy}
             onMeetTwin={() => void completeOnboarding()}
             shareCopied={shareCopied}
-            onShare={() => {
-              const text = `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes. shoop.world`;
+            onShare={(selectedCircle) => {
+              const circleBit = selectedCircle.length
+                ? ` Asking ${selectedCircle.join(", ")}.`
+                : "";
+              const text = `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} shoop.world`;
               void navigator.clipboard?.writeText(text).then(() => {
                 setShareCopied(true);
                 setTimeout(() => setShareCopied(false), 2000);

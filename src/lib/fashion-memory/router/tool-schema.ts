@@ -180,6 +180,8 @@ export const askClarificationInputSchema = z.object({
     })
     .optional(),
   stated_facts: statedFactsSchema,
+  /** Shopping intent held while clarifying — required when WHAT is known. */
+  brief: fashionSearchBriefSchema.optional(),
 });
 
 export const readyToSearchInputSchema = z.object({
@@ -203,7 +205,7 @@ export const RESPOND_OFF_TOPIC_TOOL = {
 export const ASK_CLARIFICATION_TOOL = {
   name: ASK_CLARIFICATION_TOOL_NAME,
   description:
-    "Ask 1–4 blocking clarifications in one turn. Bundle all currently-blocking gaps. Every question MUST include 2–5 short quick_options; the UI always adds Other for free-form. Set allow_multiple true for additive chips (occasions, colors, vibes, materials). For style/vibe/color directions use option objects with preview_query. Optional ride_along for one nice-to-have with an opt-out. Copy any conversation-stated essentials into stated_facts even when still clarifying.",
+    "Ask 1–4 blocking clarifications in one turn. Bundle all currently-blocking gaps. Every question MUST include 2–5 short quick_options; the UI always adds Other for free-form. Set allow_multiple true for additive chips (occasions, colors, vibes, materials). For style/vibe/color directions use option objects with preview_query. Optional ride_along for one nice-to-have with an opt-out. Copy any conversation-stated essentials into stated_facts even when still clarifying. When shopping direction is known (you are only blocked on size/department/who), ALWAYS include brief with request_type/garments/occasion/style — park the shopping intent so the next turn does not forget it.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -297,6 +299,76 @@ export const ASK_CLARIFICATION_TOOL = {
         required: ["text", "quick_options"],
       },
       stated_facts: statedFactsJsonSchema,
+      brief: {
+        type: "object",
+        description:
+          "Provisional shopping brief when WHAT is known. Same shape as ready_to_search.brief. Omit only when gap is garment and direction is unknown.",
+        properties: {
+          recipient_person_id: { type: "string" },
+          request_type: {
+            type: "string",
+            enum: ["single_item", "outfit", "capsule", "multi_item"],
+          },
+          garments: { type: "array", items: { type: "string" } },
+          occasion_context: { type: "string" },
+          quantity_hint: { type: "string" },
+          must_haves: { type: "array", items: { type: "string" } },
+          nice_to_haves: { type: "array", items: { type: "string" } },
+          budget_context: {
+            type: "object",
+            properties: {
+              max: { type: "number" },
+              min: { type: "number" },
+              currency: { type: "string" },
+              stated: { type: "boolean" },
+              scope: {
+                type: "string",
+                enum: ["per_item", "total"],
+              },
+            },
+            required: ["stated"],
+          },
+          style_direction: { type: "string" },
+          department_scope: {
+            type: "string",
+            enum: ["mens", "womens", "boys", "girls", "baby", "mixed"],
+          },
+          color_direction: {
+            type: "object",
+            properties: {
+              source: {
+                type: "string",
+                enum: ["stated", "profile", "none"],
+              },
+              stated_colors: { type: "array", items: { type: "string" } },
+            },
+            required: ["source"],
+          },
+          brand_direction: {
+            type: "object",
+            properties: {
+              source: {
+                type: "string",
+                enum: ["stated", "profile", "none"],
+              },
+              brands: { type: "array", items: { type: "string" } },
+            },
+            required: ["source"],
+          },
+          stated_facts: statedFactsJsonSchema,
+        },
+        required: [
+          "recipient_person_id",
+          "request_type",
+          "garments",
+          "occasion_context",
+          "quantity_hint",
+          "must_haves",
+          "nice_to_haves",
+          "budget_context",
+          "style_direction",
+        ],
+      },
     },
     required: ["reply", "questions"],
   },
@@ -471,6 +543,31 @@ function normalizeParsedRideAlong(
   };
 }
 
+function coerceBriefFields(briefRaw: unknown): Record<string, unknown> {
+  const brief = { ...(briefRaw as Record<string, unknown>) };
+  brief.occasion_context = clampStr(brief.occasion_context, ROUTER_OCCASION_MAX);
+  brief.quantity_hint = clampStr(brief.quantity_hint, ROUTER_OCCASION_MAX);
+  brief.style_direction = clampStr(
+    brief.style_direction,
+    ROUTER_STYLE_DIRECTION_MAX,
+  );
+  brief.recipient_person_id = clampStr(brief.recipient_person_id, 80);
+  if (Array.isArray(brief.garments)) {
+    brief.garments = brief.garments.map((g) => clampStr(g, 80));
+  }
+  if (Array.isArray(brief.must_haves)) {
+    brief.must_haves = brief.must_haves.map((m) =>
+      clampStr(m, ROUTER_MUST_HAVE_MAX),
+    );
+  }
+  if (Array.isArray(brief.nice_to_haves)) {
+    brief.nice_to_haves = brief.nice_to_haves.map((m) =>
+      clampStr(m, ROUTER_MUST_HAVE_MAX),
+    );
+  }
+  return brief;
+}
+
 function coerceRouterToolRaw(toolName: string, raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const obj = { ...(raw as Record<string, unknown>) };
@@ -502,34 +599,16 @@ function coerceRouterToolRaw(toolName: string, raw: unknown): unknown {
       }
       obj.ride_along = ride;
     }
+    if (obj.brief && typeof obj.brief === "object") {
+      obj.brief = coerceBriefFields(obj.brief);
+    }
     return obj;
   }
 
   if (toolName === READY_TO_SEARCH_TOOL_NAME) {
     const briefRaw = obj.brief;
     if (briefRaw && typeof briefRaw === "object") {
-      const brief = { ...(briefRaw as Record<string, unknown>) };
-      brief.occasion_context = clampStr(brief.occasion_context, ROUTER_OCCASION_MAX);
-      brief.quantity_hint = clampStr(brief.quantity_hint, ROUTER_OCCASION_MAX);
-      brief.style_direction = clampStr(
-        brief.style_direction,
-        ROUTER_STYLE_DIRECTION_MAX,
-      );
-      brief.recipient_person_id = clampStr(brief.recipient_person_id, 80);
-      if (Array.isArray(brief.garments)) {
-        brief.garments = brief.garments.map((g) => clampStr(g, 80));
-      }
-      if (Array.isArray(brief.must_haves)) {
-        brief.must_haves = brief.must_haves.map((m) =>
-          clampStr(m, ROUTER_MUST_HAVE_MAX),
-        );
-      }
-      if (Array.isArray(brief.nice_to_haves)) {
-        brief.nice_to_haves = brief.nice_to_haves.map((m) =>
-          clampStr(m, ROUTER_MUST_HAVE_MAX),
-        );
-      }
-      obj.brief = brief;
+      obj.brief = coerceBriefFields(briefRaw);
     }
     return obj;
   }
@@ -585,6 +664,9 @@ export function parseFashionRouterToolInput(
           : undefined,
       ),
       stated_facts: parsed.data.stated_facts,
+      ...(parsed.data.brief
+        ? { brief: parsed.data.brief as FashionSearchBrief }
+        : {}),
     };
   }
   if (toolName === READY_TO_SEARCH_TOOL_NAME) {

@@ -31,6 +31,7 @@ const bodySchema = z
         brandAvoids: z.array(z.string().max(60)).max(20).optional(),
         hardAvoids: z.array(z.string().max(80)).max(20).optional(),
         honestyPreference: z.string().max(40).optional(),
+        circleNames: z.array(z.string().max(40)).max(3).optional(),
         heightCm: z.number().int().min(50).max(280).nullable().optional(),
         weightKg: z.number().int().min(20).max(400).nullable().optional(),
         build: z.string().max(40).nullable().optional(),
@@ -43,6 +44,7 @@ const bodySchema = z
             "wanted",
             "nolist",
             "honesty",
+            "circle",
             "verdict",
           ])
           .optional(),

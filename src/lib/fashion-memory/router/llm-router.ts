@@ -33,15 +33,16 @@ const FASHION_ROUTER_TEMPERATURE = Number(
 
 export const FALLBACK_CLARIFICATION: FashionRouterResult = {
   move: "ask_clarification",
-  reply: "What are you looking for — a single piece, or a full look?",
+  reply: "What are you looking for?",
   questions: [
     {
-      text: "What are you looking for — a single piece, or a full look?",
+      text: "What are you looking for?",
       gap: "garment",
       quick_options: [
-        "One piece",
-        "Full outfit",
-        "A few options to rotate",
+        "Shirt or top",
+        "Dress",
+        "Shoes",
+        "Accessories",
         "Other",
       ],
     },
@@ -245,7 +246,7 @@ export async function runFashionRouter(
         context: params.context,
         reason: "router_parse_failed",
       });
-      if (fallback.brief.garments.length > 0) {
+      if (fallback?.brief.garments.length) {
         logAiChat("info", "fashion_router_fallback_brief", {
           traceId: params.traceId,
           garments: fallback.brief.garments,

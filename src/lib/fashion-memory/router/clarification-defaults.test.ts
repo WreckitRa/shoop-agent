@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import {
   CLARIFICATION_OTHER_OPTION,
   CLARIFICATION_OTHER_OPTION_ID,
+  collectFashionPaletteRequests,
   collectFashionPreviewRequests,
   defaultQuickOptionsForGap,
   ensureClarificationQuickOptions,
   ensureQuestionsHaveQuickOptions,
   ensureRideAlongDefaults,
   formatClarificationAnswerDisplay,
+  mergeOptionPalettesIntoFashionRouter,
   mergeOptionPreviewsIntoFashionRouter,
   optionLabels,
 } from "./clarification-defaults";
@@ -54,7 +56,8 @@ describe("clarification quick_options defaults", () => {
 
   it("defaults recipient and garment gaps", () => {
     assert.ok(defaultQuickOptionsForGap("recipient").includes("For me"));
-    assert.ok(defaultQuickOptionsForGap("garment").includes("One piece"));
+    assert.ok(defaultQuickOptionsForGap("garment").includes("Shirt or top"));
+    assert.ok(defaultQuickOptionsForGap("garment").includes("Dress"));
   });
 
   it("ensures a whole questions array", () => {
@@ -175,7 +178,74 @@ describe("clarification quick_options defaults", () => {
       ],
     });
     assert.deepEqual(reqs, [
-      { id: "minimal", previewQuery: "minimalist menswear" },
+      {
+        id: "minimal",
+        previewQuery: "minimalist menswear",
+        label: "Minimal",
+      },
     ]);
+  });
+
+  it("skips color questions for image previews and collects palettes", () => {
+    const meta = {
+      questions: [
+        {
+          text: "Any color preference?",
+          gap: "occasion" as const,
+          quick_options: [
+            {
+              id: "neutral_tones",
+              label: "Neutral tones",
+              previewQuery: "neutral clothing",
+            },
+            {
+              id: "dark_colors",
+              label: "Dark colors",
+              previewQuery: "dark clothing",
+            },
+          ],
+        },
+      ],
+    };
+    assert.deepEqual(collectFashionPreviewRequests(meta), []);
+    assert.deepEqual(collectFashionPaletteRequests(meta), [
+      { id: "neutral_tones", label: "Neutral tones" },
+      { id: "dark_colors", label: "Dark colors" },
+    ]);
+  });
+
+  it("merges palette colors into fashion router options", () => {
+    const merged = mergeOptionPalettesIntoFashionRouter(
+      {
+        version: 1,
+        move: "ask_clarification",
+        questions: [
+          {
+            text: "Color vibe?",
+            gap: "occasion",
+            quick_options: [
+              { id: "neutral_tones", label: "Neutral tones" },
+              { id: "dark_colors", label: "Dark colors" },
+            ],
+          },
+        ],
+      },
+      {
+        neutral_tones: ["#f2f2ee", "#cfcfc9", "#8a8a93", "#a8a29e"],
+        dark_colors: ["#0f0f12", "#1f1f24", "#3a3a42", "#5c5c66"],
+      },
+    );
+    const opts = merged.questions?.[0]?.quick_options ?? [];
+    const neutral = opts.find(
+      (o) => typeof o !== "string" && o.id === "neutral_tones",
+    );
+    const dark = opts.find(
+      (o) => typeof o !== "string" && o.id === "dark_colors",
+    );
+    assert.ok(neutral && typeof neutral !== "string");
+    assert.ok(dark && typeof dark !== "string");
+    assert.deepEqual(neutral.paletteColors?.[0], "#f2f2ee");
+    assert.deepEqual(dark.paletteColors?.[0], "#0f0f12");
+    assert.notEqual(neutral.paletteColors?.[0], dark.paletteColors?.[0]);
   });
 });

@@ -46,21 +46,11 @@ export function selectGarmentsForPlan(
 }
 
 /**
- * Occasion-standard head-to-toe when the brief under-specifies garments.
- * Business/formal → shirt + trousers + shoes.
+ * Prefer brief garments for outfit/capsule plans. Never invent a
+ * shirt/trousers/shoes wardrobe from occasion keywords.
  */
-export function occasionStandardGarments(brief: FashionSearchBrief): string[] {
-  const fromBrief = selectGarmentsForPlan(brief.garments);
-  if (fromBrief.length >= 2) return fromBrief;
-
-  const occasion = `${brief.occasion_context} ${brief.style_direction} ${brief.quantity_hint}`.toLowerCase();
-  if (/\b(business|office|work|formal|interview|professional)\b/.test(occasion)) {
-    return ["dress shirt", "dress pants", "dress shoes"];
-  }
-  if (/\b(wedding|black\s*tie|cocktail|party)\b/.test(occasion)) {
-    return ["dress shirt", "dress pants", "dress shoes"];
-  }
-  return ["shirt", "trousers", "shoes"];
+export function garmentsForPlanFromBrief(brief: FashionSearchBrief): string[] {
+  return selectGarmentsForPlan(brief.garments);
 }
 
 function parseExplicitOptionsWanted(brief: FashionSearchBrief): number | null {
@@ -158,7 +148,7 @@ export function buildFallbackPlan(params: {
   const mode = params.brief.request_type;
   const garments =
     mode === "outfit" || mode === "capsule"
-      ? occasionStandardGarments(params.brief)
+      ? garmentsForPlanFromBrief(params.brief)
       : selectGarmentsForPlan(
           params.brief.garments.length
             ? params.brief.garments
@@ -183,15 +173,16 @@ export function buildFallbackPlan(params: {
   };
 }
 
-/** Force outfit/capsule to ≥2 slots via occasion-standard garments. */
+/** Rebuild outfit/capsule slots from brief garments only — never invent pieces. */
 export function expandOutfitSlots(params: {
   plan: FashionSearchPlan;
 }): FashionSearchPlan {
-  const garments = occasionStandardGarments(params.plan.brief);
+  const garments = garmentsForPlanFromBrief(params.plan.brief);
+  if (garments.length < 2) return params.plan;
   return {
     ...params.plan,
     plan_source: "fallback",
-    reasoning: `${params.plan.reasoning} Expanded to occasion-standard slots after under-slot outfit/capsule plan.`,
+    reasoning: `${params.plan.reasoning} Expanded slots from brief garments after under-slot outfit/capsule plan.`,
     slots: buildSlotsFromGarments({
       garments,
       brief: params.plan.brief,

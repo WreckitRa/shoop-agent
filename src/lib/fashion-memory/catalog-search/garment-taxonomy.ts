@@ -80,6 +80,75 @@ const GARMENT_TAXONOMY: Record<string, GarmentTaxonomyEntry> = {
   hoodie: { id: `${TAXONOMY_PREFIX}aa-1-1-7-2`, label: "Hoodies" },
   suit: { id: `${TAXONOMY_PREFIX}aa-1-10-2-18`, label: "Blazers" },
 
+  // --- Swimwear (verified GIDs under aa-1-20) ---
+  swimwear: { id: `${TAXONOMY_PREFIX}aa-1-20`, label: "Swimwear" },
+  swimsuit: { id: `${TAXONOMY_PREFIX}aa-1-20`, label: "Swimwear" },
+  swimsuits: { id: `${TAXONOMY_PREFIX}aa-1-20`, label: "Swimwear" },
+  swim: { id: `${TAXONOMY_PREFIX}aa-1-20`, label: "Swimwear" },
+  bikini: {
+    id: `${TAXONOMY_PREFIX}aa-1-20-6`,
+    label: "Classic Bikinis",
+  },
+  bikinis: {
+    id: `${TAXONOMY_PREFIX}aa-1-20-6`,
+    label: "Classic Bikinis",
+  },
+  "two-piece": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-6`,
+    label: "Classic Bikinis",
+  },
+  "two piece": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-6`,
+    label: "Classic Bikinis",
+  },
+  "two-piece swimsuit": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-6`,
+    label: "Classic Bikinis",
+  },
+  "two piece swimsuit": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-6`,
+    label: "Classic Bikinis",
+  },
+  "bikini set": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-6`,
+    label: "Classic Bikinis",
+  },
+  "one-piece": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-22`,
+    label: "One-Piece Swimsuits",
+  },
+  "one piece": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-22`,
+    label: "One-Piece Swimsuits",
+  },
+  "one-piece swimsuit": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-22`,
+    label: "One-Piece Swimsuits",
+  },
+  "one piece swimsuit": {
+    id: `${TAXONOMY_PREFIX}aa-1-20-22`,
+    label: "One-Piece Swimsuits",
+  },
+  monokini: {
+    id: `${TAXONOMY_PREFIX}aa-1-20-22`,
+    label: "One-Piece Swimsuits",
+  },
+  maillot: {
+    id: `${TAXONOMY_PREFIX}aa-1-20-22`,
+    label: "One-Piece Swimsuits",
+  },
+  tankini: { id: `${TAXONOMY_PREFIX}aa-1-20-28`, label: "Tankinis" },
+  tankinis: { id: `${TAXONOMY_PREFIX}aa-1-20-28`, label: "Tankinis" },
+  boardshorts: { id: `${TAXONOMY_PREFIX}aa-1-20-2`, label: "Boardshorts" },
+  "board shorts": { id: `${TAXONOMY_PREFIX}aa-1-20-2`, label: "Boardshorts" },
+  "swim shorts": { id: `${TAXONOMY_PREFIX}aa-1-20-30`, label: "Swim Shorts" },
+  "swim trunks": { id: `${TAXONOMY_PREFIX}aa-1-20-30`, label: "Swim Shorts" },
+  "cover-up": { id: `${TAXONOMY_PREFIX}aa-1-20-7`, label: "Cover Ups" },
+  "cover up": { id: `${TAXONOMY_PREFIX}aa-1-20-7`, label: "Cover Ups" },
+  coverups: { id: `${TAXONOMY_PREFIX}aa-1-20-7`, label: "Cover Ups" },
+  "rash guard": { id: `${TAXONOMY_PREFIX}aa-1-20-12`, label: "Rash Guards" },
+  "rash guards": { id: `${TAXONOMY_PREFIX}aa-1-20-12`, label: "Rash Guards" },
+
   // --- Accessories (verified GIDs) ---
   belt: { id: `${TAXONOMY_PREFIX}aa-2-6`, label: "Belts", sizing: "simple" },
   belts: { id: `${TAXONOMY_PREFIX}aa-2-6`, label: "Belts", sizing: "simple" },

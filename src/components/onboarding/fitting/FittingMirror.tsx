@@ -265,6 +265,7 @@ export function FittingMirror({
         value: mirror.noListLabel || "—",
         red: true,
       },
+      { id: "circle", label: "Circle", value: mirror.circleLabel || "—" },
     ];
 
   return (

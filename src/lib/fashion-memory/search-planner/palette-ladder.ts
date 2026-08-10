@@ -12,60 +12,19 @@ export type PaletteSource =
 
 const COLOR_WORDS_FROM_PALETTE = [...COLOR_WORDS];
 
-const BEACH_WEDDING_RE =
-  /\b(beach|summer|cyprus|tropical|destination|resort|warm weather|heat)\b/i;
-const FORMAL_WEDDING_RE = /\b(black tie|formal wedding|black-tie|ceremony)\b/i;
-const WEDDING_RE = /\bwedding\b/i;
-const OFFICE_RE = /\b(work|office|business|consultant)\b/i;
-const SMART_CASUAL_RE = /\b(dinner|date night|smart casual|restaurant)\b/i;
-const GYM_RE = /\b(gym|active|workout|running|training)\b/i;
-const WINTER_RE = /\b(winter|cold|snow|december|january|february)\b/i;
-const SUMMER_RE = /\b(summer|july|august|june|beach|heat)\b/i;
-
 export function expectedPaletteSourceFromBrief(
   brief: FashionSearchBrief,
-): Exclude<PaletteSource, "occasion_default"> | "occasion_default" | "spread" {
+): Exclude<PaletteSource, "occasion_default"> | "spread" {
   const source = brief.color_direction?.source ?? "none";
   if (source === "stated") return "stated";
   if (source === "profile") return "profile";
-  return inferOccasionDefaultPalette(brief) ? "occasion_default" : "spread";
+  return "spread";
 }
 
-export function inferOccasionDefaultPalette(brief: FashionSearchBrief): string | null {
-  const occasion = `${brief.occasion_context} ${brief.style_direction}`.toLowerCase();
-  const isWinter = WINTER_RE.test(occasion);
-  const isSummer = SUMMER_RE.test(occasion) || BEACH_WEDDING_RE.test(occasion);
-
-  if (WEDDING_RE.test(occasion)) {
-    if (FORMAL_WEDDING_RE.test(occasion)) {
-      return "dark neutrals: black, navy, charcoal, white";
-    }
-    if (BEACH_WEDDING_RE.test(occasion) || isSummer) {
-      return "light neutrals, sand, white, soft blue";
-    }
-    return "light neutrals, sand, white, soft blue";
-  }
-  if (OFFICE_RE.test(occasion)) {
-    return "navy, grey, white, black, light blue";
-  }
-  if (SMART_CASUAL_RE.test(occasion)) {
-    return "dark neutrals with one muted accent";
-  }
-  if (GYM_RE.test(occasion)) {
-    return "dark neutrals, black-dominant";
-  }
-  if (brief.occasion_context === "general" && !isSummer && !isWinter) {
-    return null;
-  }
-  if (isWinter) {
-    return "darker earth tones and charcoal neutrals";
-  }
-  if (isSummer) {
-    return "light neutrals and soft blues";
-  }
-  if (brief.occasion_context !== "general") {
-    return "broad neutrals and denim tones";
-  }
+/** @deprecated Occasion keyword → palette invent removed. Always null. */
+export function inferOccasionDefaultPalette(
+  _brief: FashionSearchBrief,
+): string | null {
   return null;
 }
 
@@ -108,6 +67,12 @@ export function reconcileSlotPalette(
     palette_source = expected;
   }
 
+  // Never keep keyword-invented occasion palettes.
+  if (palette_source === "occasion_default") {
+    palette_source = "spread";
+    palette_constraint = null;
+  }
+
   if (palette_source === "spread") {
     palette_constraint = null;
   } else if (palette_constraint == null || !palette_constraint.trim()) {
@@ -115,9 +80,6 @@ export function reconcileSlotPalette(
       palette_constraint = statedPaletteConstraint(brief);
     } else if (palette_source === "profile") {
       palette_constraint = profilePaletteConstraint(brief);
-    } else if (palette_source === "occasion_default") {
-      palette_constraint =
-        inferOccasionDefaultPalette(brief) ?? "broad neutral palette";
     } else {
       palette_source = "spread";
       palette_constraint = null;

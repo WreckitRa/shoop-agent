@@ -17,6 +17,7 @@ import { getStoredAvatar } from "./avatar/service";
 import { TRYON_DISCLAIMER } from "./types";
 import { capsuleLookId } from "./outfit-ids";
 import { CURATION_HERO_PICKS } from "@/lib/fashion-memory/curation/deliverables";
+import { resolveTryonPersonId } from "./resolve-person";
 
 async function isShoppingForSelf(
   userId: string,
@@ -106,7 +107,10 @@ export async function attachTryonToRenderContract(params: {
   plan: FashionSearchPlan;
   userId: string;
 }): Promise<RenderContract> {
-  const personId = params.plan.brief.recipient_person_id;
+  const personId = await resolveTryonPersonId(
+    params.userId,
+    params.plan.brief.recipient_person_id,
+  );
   const shoppingForSelf = await isShoppingForSelf(params.userId, personId);
   const tryonEnabled =
     shoppingForSelf && (await isTryonEnabledForUser(params.userId));

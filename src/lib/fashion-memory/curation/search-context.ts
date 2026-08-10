@@ -33,7 +33,14 @@ export function planFromMetadata(metadata: MessageMetadata): FashionSearchPlan |
     currentDate: new Date().toISOString().slice(0, 10),
     brief: routerBrief ?? {
       recipient_person_id: planMeta.recipient_person_id,
-      request_type: planMeta.mode === "single_item" ? "single_item" : "outfit",
+      request_type:
+        planMeta.mode === "single_item"
+          ? "single_item"
+          : planMeta.mode === "capsule"
+            ? "capsule"
+            : planMeta.mode === "multi_item"
+              ? "multi_item"
+              : "outfit",
       garments,
       occasion_context: "general",
       quantity_hint: "one",

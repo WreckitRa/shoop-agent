@@ -35,9 +35,11 @@ import {
 import { resolveFashionRouterTurn } from "@/lib/fashion-memory/intake/post-router";
 import { isGapDeclined } from "@/lib/fashion-memory/intake/dodge-counter";
 import {
+  collectFashionPaletteRequests,
   collectFashionPreviewRequests,
   ensureQuestionsHaveQuickOptions,
   fashionRouterExpectsOptionPreviews,
+  mergeOptionPalettesIntoFashionRouter,
   mergeOptionPreviewsIntoFashionRouter,
 } from "@/lib/fashion-memory/router/clarification-defaults";
 import {
@@ -52,7 +54,6 @@ import { buildRenderContractWithTryon } from "@/lib/tryon/attach-render";
 import { logAiChat } from "./observability";
 import {
   checkBriefInvariants,
-  coerceBriefRequestTypeForOutfitLanguage,
   closeFashionTrace,
   isConsecutiveDuplicateUserTurn,
   markFashionTraceError,
@@ -119,6 +120,7 @@ function routerMetadata(
       questions,
       ride_along: result.ride_along,
       stated_facts: result.stated_facts,
+      brief: result.brief,
       target_person_id: result.target_person_id,
       declined_gaps: extras?.declinedGaps,
       status: "pending",
@@ -460,17 +462,6 @@ export function createFashionChatSseStream(params: {
 
         let routerResult = resolved.routerResult;
 
-        if (routerResult.move === "ready_to_search") {
-          const coercedBrief = coerceBriefRequestTypeForOutfitLanguage({
-            traceId,
-            messages: routerContext.conversationMessages,
-            brief: routerResult.brief,
-          });
-          if (coercedBrief !== routerResult.brief) {
-            routerResult = { ...routerResult, brief: coercedBrief };
-          }
-        }
-
         let content = assistantContent(routerResult);
         if (routerResult.move === "ready_to_search") {
           push(
@@ -794,51 +785,65 @@ export function createFashionChatSseStream(params: {
         });
         await touchConversationUpdatedAt(conv.id);
 
-        // Hydrate visual option cards for style/direction chips.
-        if (
-          fashionRouterOut.move === "ask_clarification" &&
-          fashionRouterOut.expectsOptionPreviews
-        ) {
+        // Hydrate visual option cards (style images) + color palettes.
+        if (fashionRouterOut.move === "ask_clarification") {
           const previewOptions = collectFashionPreviewRequests(fashionRouterOut);
-          let fashionRouterState = fashionRouterOut;
-          await Promise.race([
-            runOptionPreviews({
-              messageId: assistantRow.id,
-              conversationId: conv.id,
-              options: previewOptions,
-              getBuyerContext: () =>
-                loadBuyerCatalogContext(userId, "", conv.id).catch(() => null),
-              fallbackShippingCountry: conv.shippingCountry,
-              push,
-              applyPreviews: (previewMap) => {
-                const merged = mergeOptionPreviewsIntoFashionRouter(
-                  fashionRouterState,
-                  previewMap,
-                );
-                fashionRouterState = merged;
-                metadata.fashionRouter = merged;
-                return { fashionRouter: merged };
-              },
-            }),
-            new Promise<void>((resolve) => {
-              setTimeout(resolve, 2800);
-            }),
-          ]);
-          try {
-            const previewRow = await prisma.message.findUnique({
-              where: { id: assistantRow.id },
-              select: { metadata: true },
-            });
-            const previewMeta = previewRow?.metadata as MessageMetadata | null;
-            if (previewMeta?.fashionRouter) {
-              metadata =
-                (mergeOptionPreviewMetadata(
-                  previewMeta,
-                  metadata,
-                ) as MessageMetadata | null) ?? metadata;
+          const paletteOptions = collectFashionPaletteRequests(fashionRouterOut);
+          if (
+            fashionRouterOut.expectsOptionPreviews ||
+            paletteOptions.length > 0
+          ) {
+            let fashionRouterState = fashionRouterOut;
+            await Promise.race([
+              runOptionPreviews({
+                messageId: assistantRow.id,
+                conversationId: conv.id,
+                userId,
+                options: previewOptions,
+                paletteOptions,
+                getBuyerContext: () =>
+                  loadBuyerCatalogContext(userId, "", conv.id).catch(() => null),
+                fallbackShippingCountry: conv.shippingCountry,
+                push,
+                applyPreviews: (previewMap) => {
+                  const merged = mergeOptionPreviewsIntoFashionRouter(
+                    fashionRouterState,
+                    previewMap,
+                  );
+                  fashionRouterState = merged;
+                  metadata.fashionRouter = merged;
+                  return { fashionRouter: merged };
+                },
+                applyPalettes: (paletteMap) => {
+                  const merged = mergeOptionPalettesIntoFashionRouter(
+                    fashionRouterState,
+                    paletteMap,
+                  );
+                  fashionRouterState = merged;
+                  metadata.fashionRouter = merged;
+                  return { fashionRouter: merged };
+                },
+              }),
+              new Promise<void>((resolve) => {
+                setTimeout(resolve, 5500);
+              }),
+            ]);
+            try {
+              const previewRow = await prisma.message.findUnique({
+                where: { id: assistantRow.id },
+                select: { metadata: true },
+              });
+              const previewMeta = previewRow?.metadata as MessageMetadata | null;
+              if (previewMeta?.fashionRouter) {
+                metadata =
+                  (mergeOptionPreviewMetadata(
+                    previewMeta,
+                    metadata,
+                  ) as MessageMetadata | null) ?? metadata;
+              }
+            } catch {
+              /* best-effort */
             }
-          } catch {
-            /* best-effort */
           }
         }
 

@@ -11,6 +11,7 @@ import {
   ensureQuestionsHaveQuickOptions,
   ensureRideAlongDefaults,
   formatClarificationAnswerDisplay,
+  looksLikeColorClarification,
 } from "@/lib/fashion-memory/router/clarification-defaults";
 import type {
   FashionClarificationAnswer,
@@ -96,10 +97,6 @@ function resolveQuestionAnswer(
   return { selected: chipIds };
 }
 
-function looksLikeColorQuestion(text: string): boolean {
-  return /\b(color|colours?|palette|shade|tones?)\b/i.test(text);
-}
-
 function QuestionOptions({
   question,
   selectedIds,
@@ -121,7 +118,7 @@ function QuestionOptions({
     question.quick_options ?? [{ id: CLARIFICATION_OTHER_OPTION_ID, label: CLARIFICATION_OTHER_OPTION }],
   );
   const allowMultiple = Boolean(question.allow_multiple);
-  const preferPalette = looksLikeColorQuestion(question.text);
+  const preferPalette = looksLikeColorClarification(question.text);
   const visualOptions = options.filter(
     (o) =>
       o.id !== CLARIFICATION_OTHER_OPTION_ID &&
@@ -154,6 +151,7 @@ function QuestionOptions({
               disabled={disabled}
               previewQuery={o.previewQuery}
               previewImages={o.previewImages}
+              paletteColors={o.paletteColors}
               preferPalette={preferPalette}
               onToggle={() => onToggle(o.id)}
             />

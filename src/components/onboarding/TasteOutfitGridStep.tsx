@@ -115,17 +115,16 @@ export function TasteOutfitGridStep({
       ) : null}
 
       {loading ? (
-        <div className="columns-2 gap-3 max-w-[680px] sm:columns-3">
+        <div className="grid max-w-[680px] grid-cols-2 gap-3 sm:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="mb-3.5 animate-pulse break-inside-avoid rounded-[14px] bg-[#E9E9EE]"
-              style={{ aspectRatio: i % 2 === 0 ? "4/5" : "3/4" }}
+              className="animate-pulse rounded-[14px] bg-[#E9E9EE] aspect-[4/5]"
             />
           ))}
         </div>
       ) : (
-        <div className="max-w-[680px] columns-2 gap-3 sm:columns-3">
+        <div className="grid max-w-[680px] grid-cols-2 gap-3 sm:grid-cols-3">
           {cards.map((card, index) => {
             const selected = selectedIds.includes(card.id);
             const bg =
@@ -136,7 +135,7 @@ export function TasteOutfitGridStep({
                 type="button"
                 onClick={() => handleToggle(card)}
                 className={cn(
-                  "relative mb-3.5 w-full break-inside-avoid overflow-hidden rounded-[14px] border-[2.5px] border-transparent text-left transition-all duration-150",
+                  "relative w-full overflow-hidden rounded-[14px] border-[2.5px] border-transparent text-left transition-all duration-150",
                   "aspect-[4/5] [filter:saturate(0.9)] hover:[filter:saturate(1.05)] hover:-translate-y-0.5",
                   selected &&
                     "border-[var(--fitting-ink)] [filter:saturate(1.12)] shadow-[inset_0_5px_6px_-2px_rgba(0,0,0,0.55),0_10px_24px_-14px_rgba(14,14,17,0.5)]",
@@ -180,15 +179,6 @@ export function TasteOutfitGridStep({
               </button>
             );
           })}
-          {loadingMore
-            ? Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={`more-skel-${i}`}
-                  className="mb-3.5 animate-pulse break-inside-avoid rounded-[14px] bg-[#E9E9EE]"
-                  style={{ aspectRatio: i % 2 === 0 ? "4/5" : "3/4" }}
-                />
-              ))
-            : null}
         </div>
       )}
 
@@ -198,7 +188,8 @@ export function TasteOutfitGridStep({
             type="button"
             onClick={onSeeMore}
             disabled={loadingMore || busy}
-            className="inline-flex h-12 items-center gap-2 rounded-[14px] border-[1.5px] border-[var(--fitting-ink)] bg-white px-5 font-display text-[13.5px] font-extrabold text-[var(--fitting-ink)] transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-12px_rgba(14,14,17,0.35)] disabled:opacity-50"
+            aria-busy={loadingMore || undefined}
+            className="inline-flex h-12 items-center gap-2 rounded-[14px] border-[1.5px] border-[var(--fitting-ink)] bg-white px-5 font-display text-[13.5px] font-extrabold text-[var(--fitting-ink)] transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-12px_rgba(14,14,17,0.35)] disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
           >
             {loadingMore ? "Loading more…" : "See more styles"}
             {!loadingMore ? (

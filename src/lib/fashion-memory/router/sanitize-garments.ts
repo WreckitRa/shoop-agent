@@ -21,7 +21,7 @@ export function isStylePhraseGarment(garment: string): boolean {
   const words = g.split(/\s+/).filter(Boolean);
   if (
     words.length >= 3 &&
-    !/\b(shirt|pant|trouser|shoe|dress|jacket|coat|top|bottom|bottoms|sneaker|jean|skirt|blazer|sweater|hoodie|boot|loafer|belt|tie|watch|bag)\b/i.test(
+    !/\b(shirt|pant|trouser|shoe|dress|jacket|coat|top|bottom|bottoms|sneaker|jean|skirt|blazer|sweater|hoodie|boot|loafer|belt|tie|watch|bag|swimsuit|swimwear|bikini)\b/i.test(
       g,
     )
   ) {
@@ -69,7 +69,7 @@ export function sanitizeBriefGarments(
 
   return {
     ...brief,
-    garments: uniqueKept.length ? uniqueKept : ["shirt", "trousers", "shoes"],
+    garments: uniqueKept.length ? uniqueKept : [],
     must_haves,
     style_direction: style_direction || brief.style_direction,
   };

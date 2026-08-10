@@ -956,7 +956,8 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         choice,
-        displayName: "You",
+        // Server replaces this with askerName when the voter is the owner.
+        displayName: "Friend",
         voterKey: "owner-pending",
       }),
     }).catch(() => undefined);

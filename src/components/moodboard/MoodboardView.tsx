@@ -235,7 +235,11 @@ export function MoodboardView({
                   <li key={item.generationId} className="shoop-decide__card">
                     <div className="shoop-decide__ph shoop-decide__ph--lg">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.imageUrl} alt="" />
+                      <img
+                        src={item.imageUrl}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                      />
                       <span className="shoop-decide__tag">
                         <i style={{ background: "#16A34A" }} aria-hidden />
                         Look
@@ -294,7 +298,11 @@ export function MoodboardView({
                   <li key={item.generationId} className="shoop-decide__card">
                     <div className="shoop-decide__ph shoop-decide__ph--sm">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.imageUrl} alt="" />
+                      <img
+                        src={item.imageUrl}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                      />
                       <span className="shoop-decide__tag">
                         <i style={{ background: "#C98A0E" }} aria-hidden />
                         On you

@@ -34,6 +34,7 @@ export type FittingTellStep =
   | "wanted"
   | "nolist"
   | "honesty"
+  | "circle"
   | "verdict";
 
 export type FittingTellKnown = {
@@ -45,6 +46,7 @@ export type FittingTellKnown = {
   brandAvoids?: string[];
   hardAvoids?: string[];
   honestyPreference?: string;
+  circleNames?: string[];
   heightCm?: number | null;
   weightKg?: number | null;
   build?: string | null;
@@ -59,6 +61,7 @@ export type FittingTellBucket =
   | "photo"
   | "nolist"
   | "honesty"
+  | "circle"
   | "taste";
 
 const genderEnum = z.enum(
@@ -182,6 +185,18 @@ export function backfillFittingTellFromText(
     if (hard.length) out.hardAvoids = hard;
   }
 
+  if (!out.circleNames?.length) {
+    const ask = t.match(
+      /\b(?:i ask|ask|text|show)\s+([A-Z][a-zA-Z'’\-]{1,30})(?:\s+and\s+([A-Z][a-zA-Z'’\-]{1,30}))?(?:\s+and\s+([A-Z][a-zA-Z'’\-]{1,30}))?/i,
+    );
+    if (ask) {
+      const names = [ask[1], ask[2], ask[3]]
+        .filter((n): n is string => Boolean(n?.trim()))
+        .map((n) => n.trim());
+      if (names.length) out.circleNames = names.slice(0, 3);
+    }
+  }
+
   return out;
 }
 
@@ -216,6 +231,18 @@ export function normalizeFittingTellRaw(raw: unknown): unknown {
       delete o.honestyPreference;
     } else {
       o.honestyPreference = h;
+    }
+  }
+
+  {
+    const circle = asStringArray(o.circleNames);
+    if (circle?.length) {
+      o.circleNames = circle
+        .map((n) => n.trim().slice(0, 40))
+        .filter(Boolean)
+        .slice(0, 3);
+    } else if (o.circleNames != null) {
+      delete o.circleNames;
     }
   }
 
@@ -331,6 +358,8 @@ export const fittingTellExtractionSchema = z
     styleLikes: z.array(z.string().min(1).max(60)).max(16).optional(),
     styleAvoids: z.array(z.string().min(1).max(60)).max(16).optional(),
     honestyPreference: honestyEnum.optional(),
+    /** First names of people they ask for style opinions (Trusted Circle). */
+    circleNames: z.array(z.string().min(1).max(40)).max(3).optional(),
     /** Short user-facing confirmation of what was understood. */
     summary: z.string().min(1).max(280),
   })
@@ -346,7 +375,7 @@ ALWAYS extract every actionable field, even if it doesn't match the current step
 (e.g. brands on the name step, height on spend step, hard nos before the no-list).
 Return ONE JSON object only (no markdown, no prose outside JSON).
 
-FITTING STEPS (order): name → spend → photo → worn looks → wanted looks → brands/nolist → honesty → verdict
+FITTING STEPS (order): name → spend → photo → worn looks → wanted looks → brands/nolist → honesty → trusted circle → verdict
 
 RULES
 - Only set fields the user actually communicated. Omit unknowns entirely (do not invent).
@@ -369,6 +398,8 @@ RULES
 - hardAvoids: hard style bans as short phrase array (e.g. ["logos", "neon", "skinny jeans"])
 - styleLikes / styleAvoids: style descriptors (minimal, Parisian, preppy…)
 - honestyPreference: gentle | straight | no_mercy (only if they request feedback tone)
+- circleNames: up to 3 first names of people they ask for style opinions
+  ("I ask Maya and Jordan" → ["Maya","Jordan"])
 - summary: warm 1-sentence confirmation. If some facts belong to later steps, say so plainly
   e.g. "Got it — Alex. Locked Everlane + no logos for brands later. Height noted for photo."
   If nothing actionable: say so briefly and leave other fields omitted.
@@ -419,6 +450,7 @@ export function filledLabels(extraction: FittingTellExtraction): string[] {
   if (extraction.styleLikes?.length || extraction.styleAvoids?.length)
     labels.push("taste");
   if (extraction.honestyPreference) labels.push("honesty");
+  if (extraction.circleNames?.length) labels.push("circle");
   return labels;
 }
 
@@ -455,6 +487,7 @@ export function bucketsFromExtraction(
     buckets.push("nolist");
   }
   if (extraction.honestyPreference) buckets.push("honesty");
+  if (extraction.circleNames?.length) buckets.push("circle");
   if (extraction.styleLikes?.length || extraction.styleAvoids?.length) {
     buckets.push("taste");
   }
@@ -469,6 +502,7 @@ const BUCKET_ORDER: FittingTellStep[] = [
   "wanted",
   "nolist",
   "honesty",
+  "circle",
   "verdict",
 ];
 
@@ -478,6 +512,7 @@ const BUCKET_STEP: Record<FittingTellBucket, FittingTellStep> = {
   photo: "photo",
   nolist: "nolist",
   honesty: "honesty",
+  circle: "circle",
   taste: "worn",
 };
 
@@ -487,6 +522,7 @@ const BUCKET_LABEL: Record<FittingTellBucket, string> = {
   photo: "body & photo",
   nolist: "brands & no-list",
   honesty: "honesty",
+  circle: "trusted circle",
   taste: "taste",
 };
 
@@ -640,6 +676,7 @@ export function prefillFromFittingTell(
     brandAvoids: extraction.brandAvoids?.join(", "),
     hardAvoids: extraction.hardAvoids?.join(", "),
     honestyPreference: extraction.honestyPreference,
+    circleNames: extraction.circleNames?.join(", "),
     heightCm,
     weightKg: extraction.weightKg,
     build: extraction.build,
@@ -677,6 +714,8 @@ export async function extractFittingTell(params: {
     knownLines.push(`no-list: ${known.hardAvoids.join(", ")}`);
   if (known.honestyPreference)
     knownLines.push(`honesty: ${known.honestyPreference}`);
+  if (known.circleNames?.length)
+    knownLines.push(`trusted circle: ${known.circleNames.join(", ")}`);
   if (known.heightCm) knownLines.push(`heightCm: ${known.heightCm}`);
   if (known.build) knownLines.push(`build: ${known.build}`);
 
@@ -764,6 +803,7 @@ export async function extractFittingTell(params: {
       styleLikes: data.styleLikes,
       styleAvoids: data.styleAvoids,
       honestyPreference: data.honestyPreference,
+      circleNames: data.circleNames,
       summary: data.summary,
     };
   }

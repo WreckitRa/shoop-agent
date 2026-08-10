@@ -37,16 +37,18 @@ function expectedOutfitSlotCount(brief: FashionSearchBrief): number {
   if (brief.request_type !== "outfit" && brief.request_type !== "capsule") {
     return 1;
   }
-  return Math.max(selectGarmentsForPlan(brief.garments).length, 2);
+  // Never invent a 2-slot minimum when the brief under-specified garments.
+  return Math.max(selectGarmentsForPlan(brief.garments).length, 1);
 }
 
 function needsOutfitSlotExpansion(plan: FashionSearchPlan): boolean {
   if (plan.mode !== "outfit" && plan.mode !== "capsule") return false;
-  return plan.slots.length < expectedOutfitSlotCount(plan.brief);
+  const expected = expectedOutfitSlotCount(plan.brief);
+  return expected >= 2 && plan.slots.length < expected;
 }
 
 function reconcileOutfitCoverage(plan: FashionSearchPlan): FashionSearchPlan {
-  if (plan.slots.length < 2) {
+  if (needsOutfitSlotExpansion(plan)) {
     return expandOutfitSlots({ plan });
   }
   const expected = selectGarmentsForPlan(plan.brief.garments);

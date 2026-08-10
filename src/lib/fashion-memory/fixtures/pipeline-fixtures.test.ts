@@ -56,18 +56,16 @@ describe("cold_profile_no_color_shirt", () => {
 });
 
 describe("cyprus_wedding_cold_palette", () => {
-  it("uses occasion_default palette with at most one palette word", () => {
+  it("uses spread palette when color unset — no occasion keyword invent", () => {
     const plan = finalizePlan(cyprusWeddingColdPaletteBrief);
     const slot = plan.slots[0]!;
-    assert.equal(slot.palette_source, "occasion_default");
-    assert.match(slot.palette_constraint ?? "", /light neutrals|sand|white|soft blue/i);
-    const withColor = slot.query_variants.filter((v) => colorWords(v).length > 0);
-    assert.ok(withColor.length <= 1);
+    assert.equal(slot.palette_source, "spread");
+    assert.equal(slot.palette_constraint, null);
   });
 
-  it("infers light neutrals from occasion text", () => {
+  it("does not invent palette from occasion text", () => {
     const palette = inferOccasionDefaultPalette(cyprusWeddingColdPaletteBrief);
-    assert.match(palette ?? "", /light neutrals|sand|white|soft blue/i);
+    assert.equal(palette, null);
   });
 });
 
@@ -272,7 +270,7 @@ describe("palette ladder expectations", () => {
     assert.equal(expectedPaletteSourceFromBrief(profileMonochromeWorkBrief), "profile");
     assert.equal(
       expectedPaletteSourceFromBrief(cyprusWeddingColdPaletteBrief),
-      "occasion_default",
+      "spread",
     );
     assert.equal(expectedPaletteSourceFromBrief(coldProfileNoColorShirtBrief), "spread");
   });

@@ -67,7 +67,7 @@ export function TasteHonestyStep({
         <FittingNavRow
           onNext={onContinue}
           busy={busy}
-          nextLabel="Lock it in... last one"
+          nextLabel="Lock it in"
           enterHint={false}
         />
       ) : null}

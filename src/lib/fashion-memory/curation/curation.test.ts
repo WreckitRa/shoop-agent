@@ -418,7 +418,8 @@ describe("three_tier_shape", () => {
     for (const r of pickRefs) assert.equal(verifiedRefs.has(r), false);
     assert.equal(pickRefs.has(refs[2]!), false);
     assert.equal(verifiedRefs.has(refs[2]!), false);
-    assert.ok(presentation.tiers.unverified.length >= 1);
+    // Live rack never includes unverified overflow (availability invariant).
+    assert.equal(presentation.tiers.unverified.length, 0);
   });
 });
 
