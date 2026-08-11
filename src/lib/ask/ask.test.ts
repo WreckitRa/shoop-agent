@@ -133,6 +133,7 @@ describe("buildLookAskPublic reveal gating", () => {
     assert.equal(sealed.shoopRevealed, false);
     assert.equal(sealed.shoopVote, null);
     assert.equal(sealed.shoopVerdict, null);
+    assert.equal(sealed.imageUrl, "/api/ask/abc/image");
     assert.equal(sealed.tallies.almost, 0);
   });
 

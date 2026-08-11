@@ -220,7 +220,7 @@ async function runUserStepPipeline(
     state.snapshot.people.find((p) => p.relation === "self")?.id ??
     "";
 
-  const plan = await planSearchFromBrief({
+  const planned = await planSearchFromBrief({
     brief: resolved.routerResult.brief,
     userId: GUEST_USER,
     recipientPersonId: recipientId,
@@ -229,6 +229,7 @@ async function runUserStepPipeline(
     traceId,
     plannerDeps: { createMessage: state.llmMock },
   });
+  const plan = planned.plan;
   state.artifacts.plan = plan;
 
   const useRefAligned = scenario.ref_aligned_curation !== false;
@@ -242,6 +243,7 @@ async function runUserStepPipeline(
         .filter((s) => s.polarity > 0)
         .map((s) => s.attribute_value),
     },
+    recipientProfile: planned.recipientProfile,
     accessToken: "fake-token",
     recipientFacts: [],
     traceId,

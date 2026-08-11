@@ -17,6 +17,7 @@ export function buildCurationToolInput(params: {
 }): DeliverCurationInput {
   const registry = buildRefRegistry({
     mode: params.plan.mode,
+    brief: params.plan.brief,
     slots: params.catalog.slots.map((slot) => ({
       slot_id: slot.slot_id,
       planSlot: params.plan.slots.find((p) => p.slot_id === slot.slot_id)!,

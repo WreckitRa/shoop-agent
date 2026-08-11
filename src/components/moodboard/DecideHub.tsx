@@ -22,7 +22,7 @@ const TAB_META: Record<
   },
   hold: {
     label: "The Hold",
-    lede: "you decided yes. I'm watching the price, your size and the delivery date until you're ready",
+    lede: "Coming soon — when you say yes, I'll watch price, size, and delivery for seven days",
     sig: true,
   },
   cart: {
@@ -116,7 +116,11 @@ export function DecideHub() {
                 onClick={() => setTab(key)}
               >
                 <h2>{meta.label}</h2>
-                <span className="shoop-decide__tab-n">{counts[key]}</span>
+                {key === "hold" ? (
+                  <span className="shoop-decide__tab-soon">Soon</span>
+                ) : (
+                  <span className="shoop-decide__tab-n">{counts[key]}</span>
+                )}
                 {meta.sig && !selected ? (
                   <span className="shoop-decide__tab-sig" aria-hidden />
                 ) : null}

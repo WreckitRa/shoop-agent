@@ -85,13 +85,13 @@ export function FittingRoomAction({
     ? "ON YOU"
     : blockedFull
       ? "ROOM FULL"
-      : "TRY ON ME →";
+      : "SEE IT ON YOU →";
 
   const label = isActive
     ? "On you"
     : blockedFull
       ? "Fitting room full"
-      : "Try on me";
+      : "See it on you";
 
   const dressNow = (e: MouseEvent) => {
     e.stopPropagation();

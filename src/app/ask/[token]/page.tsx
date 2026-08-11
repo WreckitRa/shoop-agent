@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AskLookCard } from "@/components/ask/AskLookCard";
 import { loadShareByToken } from "@/lib/ask/create-share";
-import { absoluteAskLookImageUrl } from "@/lib/ask/og-image";
+import { absoluteAskShareImageUrl } from "@/lib/ask/og-image";
 import { createPageMetadata, SITE_NAME } from "@/lib/seo/site";
 
 type Props = { params: Promise<{ token: string }> };
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const asker =
     share.askerName.trim().split(/\s+/)[0] || share.askerName.trim() || "they";
-  const lookImage = absoluteAskLookImageUrl(share.imageUrl);
+  const lookImage = absoluteAskShareImageUrl(share.token);
   const title = `Should ${asker} get it? · ${SITE_NAME}`;
   const description = "Vote before you peek at Shoop’s verdict.";
   const imageAlt = `${asker}'s try-on look`;

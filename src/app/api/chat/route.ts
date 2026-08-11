@@ -9,6 +9,8 @@ import { isQaDevEnvironment } from "@/lib/qa/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Allow full-vision curation hang-safety (~3m) without platform kill. */
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {

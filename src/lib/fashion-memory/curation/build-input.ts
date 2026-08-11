@@ -139,6 +139,7 @@ export async function buildCurationInput(params: {
   const registry = buildRefRegistry({
     slots: slotData.filter((s) => s.planSlot),
     mode: params.plan.mode,
+    brief: params.plan.brief,
     imageBudgetScale: params.imageBudgetScale,
   });
 

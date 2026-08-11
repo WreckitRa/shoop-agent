@@ -21,9 +21,9 @@ import { buildFashionExtractionPrompt } from "@/lib/fashion-memory/extraction/pr
 import { buildPersonShortIdMap } from "@/lib/fashion-memory/extraction/context-format";
 import type { FashionFactRow, PersonRow } from "@/lib/fashion-memory/types";
 
-describe("avatar prompt v3 — body_shape + bust", () => {
+describe("avatar prompt v4 — body_shape + bust + clean base", () => {
   it("bumps prompt version", () => {
-    assert.equal(TRYON_AVATAR_PROMPT_VERSION, "v3");
+    assert.equal(TRYON_AVATAR_PROMPT_VERSION, "v4");
   });
 
   it("Tailored: triangle + full bust maps to visual phrases", () => {
@@ -37,6 +37,8 @@ describe("avatar prompt v3 — body_shape + bust", () => {
     assert.match(prompt ?? "", /fuller hips relative to shoulders/);
     assert.match(prompt ?? "", /full bust/);
     assert.match(prompt ?? "", /no beautification/);
+    assert.match(prompt ?? "", /do not keep any clothing/i);
+    assert.match(prompt ?? "", /no scarf/i);
   });
 
   it("Quick essentials: no body_shape / bust phrases", () => {

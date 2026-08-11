@@ -300,7 +300,7 @@ export async function searchCatalogForSlot(
         slotId: params.slot.slot_id,
         allocation: params.allocation,
         liftedMax: params.liftedMax,
-        options: { omitCategory: true, omitTargetGender: true },
+        options: { omitCategory: true },
       });
 
       const reformPlans = reformVariants.map((query) => ({

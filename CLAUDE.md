@@ -95,9 +95,11 @@ overflow on the live rail.
   (`stableSortProducts`, ties broken by original index).
 
 ### Curation degradation (`curation/degradation.ts`, `fallback.ts`)
-- When the curator LLM fails or times out (`CURATION_HARD_MS`,
-  `CURATION_SHRINK_RETRY_MS`), `buildDeterministicFallback` + `validateAndRepairFallback`
-  keep the rack honest instead of hallucinating picks.
+- Stage A always runs full vision. Hang-safety only (`CURATION_SAFETY_MS` /
+  `CURATION_STAGE_A_HARD_MS`, default 180s) — never half-images / text-only /
+  deterministic from clock pressure. After that outer abort (or LLM failure),
+  `buildDeterministicFallback` + `validateAndRepairFallback` keep the rack
+  honest instead of hallucinating picks.
 
 ### Clarification hygiene (`intake/clarification-dedup.ts`, `intake/dodge-counter.ts`)
 - `checkReaskAfterAnswer` blocks re-asking something the user already answered.
@@ -119,8 +121,8 @@ overflow on the live rail.
   land on `MessageMetadata.fashionPipelineEvents` for the debug panel.
 
 ### Prompt cache + latency (`observability/prompt-cache-metrics.ts`, `curation/latency-metrics.ts`)
-- Track prompt-cache hit rate and curator LLM call latency; curation has hard/soft
-  time cutoffs (`pipeline-cutoffs.ts`) that trigger the deterministic fallback path.
+- Track prompt-cache hit rate and curator LLM call latency; hang-safety ceilings
+  live in `pipeline-cutoffs.ts` (long outer aborts only — not quality budgets).
 
 ## Regression discipline
 

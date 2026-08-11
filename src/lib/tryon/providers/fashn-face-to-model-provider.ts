@@ -1,5 +1,6 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
 import {
+  AVATAR_BASE_NORMALIZE_PROMPT,
   buildFashnAvatarPrompt,
   TRYON_AVATAR_PROMPT_VERSION,
 } from "../avatar/fashn-prompt";
@@ -13,6 +14,7 @@ import type {
 } from "./types";
 
 const FACE_TO_MODEL = "face-to-model";
+const EDIT = "edit";
 
 async function toFashnImageRef(
   url: string,
@@ -23,6 +25,35 @@ async function toFashnImageRef(
   const data = bytes ?? (await fetchImageBytes(url));
   const b64 = Buffer.from(data).toString("base64");
   return `data:${contentType};base64,${b64}`;
+}
+
+/**
+ * Strip leftover source-photo clothes/accessories after face-to-model.
+ * Best-effort — if edit fails, keep the raw face-to-model output.
+ */
+async function normalizeAvatarBaseWardrobe(
+  imageUrl: string,
+): Promise<{ imageUrl: string; normalized: boolean }> {
+  try {
+    const image = await toFashnImageRef(imageUrl, undefined, "image/png");
+    const normalizedUrl = await runFashnPrediction({
+      modelName: EDIT,
+      inputs: {
+        image,
+        prompt: AVATAR_BASE_NORMALIZE_PROMPT,
+        resolution: "1k",
+        // Fast is enough for wardrobe strip; saves cost/latency vs quality.
+        generation_mode: "fast",
+        output_format: "png",
+      },
+    });
+    return { imageUrl: normalizedUrl, normalized: true };
+  } catch (error) {
+    logAiChat("warn", "avatar_base_normalize_failed", {
+      error: String(error).slice(0, 160),
+    });
+    return { imageUrl, normalized: false };
+  }
 }
 
 /** FASHN face-to-model — requires a face photo; upper-body try-on avatar. */
@@ -45,7 +76,7 @@ export class FashnFaceToModelAvatarProvider implements AvatarProvider {
     // Random seed each run so "Regenerate" actually varies.
     const seed = Math.floor(Math.random() * 2_147_483_647);
 
-    const imageUrl = await runFashnPrediction({
+    const rawUrl = await runFashnPrediction({
       modelName: FACE_TO_MODEL,
       inputs: {
         face_image: faceImage,
@@ -59,11 +90,14 @@ export class FashnFaceToModelAvatarProvider implements AvatarProvider {
       },
     });
 
+    const { imageUrl, normalized } = await normalizeAvatarBaseWardrobe(rawUrl);
+
     logAiChat("info", "avatar_fashn_face_to_model_complete", {
       latency_ms: Date.now() - started,
       has_prompt: Boolean(prompt),
       prompt_version: TRYON_AVATAR_PROMPT_VERSION,
       seed,
+      base_normalized: normalized,
     });
 
     return { imageUrl, contentType: "image/png" };
@@ -71,5 +105,9 @@ export class FashnFaceToModelAvatarProvider implements AvatarProvider {
 }
 
 export function fashnFaceToModelCostEstimate(): number {
-  return TRYON_COST_ESTIMATES.fashn_face_to_model;
+  // face-to-model (quality 1k) + best-effort edit normalize (fast 1k).
+  return (
+    TRYON_COST_ESTIMATES.fashn_face_to_model +
+    TRYON_COST_ESTIMATES.fashn_edit_fast_1k
+  );
 }

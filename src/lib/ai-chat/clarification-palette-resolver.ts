@@ -1,6 +1,7 @@
 /**
- * Resolve distinct hex palettes for mid-session color quiz chips.
- * One cheap Haiku call for all uncached labels; heuristic fallbacks otherwise.
+ * Resolve hex palettes for mid-session color quiz chips.
+ * LLM-generated from the quiz question + labels (adapts to the ask);
+ * KV-cached per question+label for cost. Heuristic fallback only if LLM fails.
  */
 import { z } from "zod";
 import { createHash } from "node:crypto";
@@ -8,29 +9,42 @@ import { createLightweightMessage } from "@/lib/ai-chat/anthropic";
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { stripJsonFence, stripNullFields } from "@/lib/ai-chat/llm-json";
 import { kvGet, kvSetex } from "@/lib/cache/kv-store";
-import { paletteFallbackForLabel } from "@/lib/ai-chat/clarification-palette-fallback";
+import {
+  paletteFallbackForLabel,
+  palettePlausibleForLabel,
+} from "@/lib/ai-chat/clarification-palette-fallback";
 
-export { paletteFallbackForLabel } from "@/lib/ai-chat/clarification-palette-fallback";
+export {
+  paletteFallbackForLabel,
+  palettePlausibleForLabel,
+} from "@/lib/ai-chat/clarification-palette-fallback";
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/;
 const PALETTE_SIZE = 4;
 const PALETTE_CACHE_TTL_SEC = 30 * 24 * 60 * 60;
+/** Bump when prompt/validation rules change — kills poisoned LLM cache. */
+const PALETTE_CACHE_VERSION = "v3";
 
 export type ClarificationPaletteRequest = {
   id: string;
   label: string;
+  /** Clarification / ride-along text so swatches adapt to the ask. */
+  questionText?: string;
 };
 
 export type ClarificationPaletteResult = {
   optionId: string;
   paletteColors: string[];
+  /** False when heuristic was used — do not persist/cache as authoritative. */
+  fromModel: boolean;
 };
 
-const PALETTE_SYSTEM = `You generate fashion color palettes for quiz option chips.
+const PALETTE_SYSTEM = `You generate fashion color palettes for quiz option chips in a shopping chat.
 
-Given palette labels, return one JSON object mapping each exact label to an array of exactly 4 lowercase #RRGGBB hex colors.
+Given a clarification question and palette labels, return one JSON object mapping each exact label to an array of exactly 4 lowercase #RRGGBB hex colors.
 
 Rules:
+- Adapt hues to the question and shopping context (e.g. tailored pants with a blazer vs a casual hoodie).
 - Each palette must clearly visualize that label (e.g. "Dark colors" → near-blacks/charcoal; "Neutral tones" → ivory/stone/taupe — NOT the same as dark).
 - Different labels must look visually distinct from each other.
 - Prefer wearable fashion colors, not neon UI colors.
@@ -54,31 +68,48 @@ function normalizePalette(raw: unknown): string[] | null {
   return colors.length >= 3 ? colors.slice(0, PALETTE_SIZE) : null;
 }
 
-function paletteCacheKey(label: string): string {
-  const hash = createHash("sha256")
-    .update(label.trim().toLowerCase())
-    .digest("hex")
-    .slice(0, 24);
-  return `clarification-palette:v1:${hash}`;
+function normalizeQuestion(text: string | undefined): string {
+  return (text ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-async function readCachedPalette(label: string): Promise<string[] | null> {
+function paletteCacheKey(questionText: string | undefined, label: string): string {
+  const hash = createHash("sha256")
+    .update(`${normalizeQuestion(questionText)}\0${label.trim().toLowerCase()}`)
+    .digest("hex")
+    .slice(0, 24);
+  return `clarification-palette:${PALETTE_CACHE_VERSION}:${hash}`;
+}
+
+function requestKey(option: {
+  label: string;
+  questionText?: string;
+}): string {
+  return `${normalizeQuestion(option.questionText)}\0${option.label.trim().toLowerCase()}`;
+}
+
+async function readCachedPalette(
+  questionText: string | undefined,
+  label: string,
+): Promise<string[] | null> {
   try {
-    const cached = await kvGet(paletteCacheKey(label));
+    const cached = await kvGet(paletteCacheKey(questionText, label));
     if (!cached) return null;
-    return normalizePalette(JSON.parse(cached));
+    const colors = normalizePalette(JSON.parse(cached));
+    if (!colors || !palettePlausibleForLabel(label, colors)) return null;
+    return colors;
   } catch {
     return null;
   }
 }
 
 async function writeCachedPalette(
+  questionText: string | undefined,
   label: string,
   colors: string[],
 ): Promise<void> {
   try {
     await kvSetex(
-      paletteCacheKey(label),
+      paletteCacheKey(questionText, label),
       PALETTE_CACHE_TTL_SEC,
       JSON.stringify(colors),
     );
@@ -88,19 +119,23 @@ async function writeCachedPalette(
 }
 
 async function callPaletteModel(
+  questionText: string | undefined,
   labels: string[],
   audit?: { userId: string; conversationId?: string | null },
   signal?: AbortSignal,
 ): Promise<Record<string, string[]>> {
   const msg = await createLightweightMessage(
     {
-      max_tokens: Math.min(512, labels.length * 48 + 64),
+      max_tokens: Math.min(512, labels.length * 48 + 96),
       temperature: 0,
       system: PALETTE_SYSTEM,
       messages: [
         {
           role: "user",
-          content: JSON.stringify({ labels }),
+          content: JSON.stringify({
+            question: questionText?.trim() || null,
+            labels,
+          }),
         },
       ],
     },
@@ -116,6 +151,7 @@ async function callPaletteModel(
               source: "clarification_palette",
               labelCount: labels.length,
               labels: labels.slice(0, 16),
+              question: questionText?.slice(0, 160) ?? null,
             },
           }
         : undefined,
@@ -148,6 +184,7 @@ async function callPaletteModel(
 /**
  * Resolve 4-swatch palettes for color clarification options.
  * Never throws — always returns a palette per request (model or fallback).
+ * Only LLM (plausible) results are written to KV cache.
  */
 export async function resolveClarificationPalettes(params: {
   options: ClarificationPaletteRequest[];
@@ -155,43 +192,59 @@ export async function resolveClarificationPalettes(params: {
   conversationId?: string | null;
   signal?: AbortSignal;
 }): Promise<ClarificationPaletteResult[]> {
-  const uniqueByLabel = new Map<string, ClarificationPaletteRequest[]>();
+  const uniqueByKey = new Map<string, ClarificationPaletteRequest[]>();
   for (const option of params.options) {
     const label = option.label.trim();
     if (!label) continue;
-    const key = label.toLowerCase();
-    const bucket = uniqueByLabel.get(key) ?? [];
+    const key = requestKey(option);
+    const bucket = uniqueByKey.get(key) ?? [];
     bucket.push(option);
-    uniqueByLabel.set(key, bucket);
+    uniqueByKey.set(key, bucket);
   }
 
-  if (!uniqueByLabel.size) return [];
+  if (!uniqueByKey.size) return [];
 
-  const labels = [...uniqueByLabel.keys()].map(
-    (key) => uniqueByLabel.get(key)![0]!.label,
-  );
+  const resultByKey = new Map<string, { colors: string[]; fromModel: boolean }>();
 
-  const cached = await Promise.all(
-    labels.map(async (label) => ({
-      label,
-      colors: await readCachedPalette(label),
-    })),
-  );
+  // Batch LLM by question so sibling chips stay distinct and context-aware.
+  const byQuestion = new Map<string, ClarificationPaletteRequest[]>();
+  for (const [, options] of uniqueByKey) {
+    const sample = options[0]!;
+    const qKey = normalizeQuestion(sample.questionText);
+    const bucket = byQuestion.get(qKey) ?? [];
+    bucket.push(sample);
+    byQuestion.set(qKey, bucket);
+  }
 
-  const resultByLabel = new Map<string, string[]>();
-  const missing: string[] = [];
-  for (const row of cached) {
-    if (row.colors?.length) {
-      resultByLabel.set(row.label.toLowerCase(), row.colors);
-    } else {
-      missing.push(row.label);
+  for (const [, samples] of byQuestion) {
+    const questionText = samples[0]!.questionText;
+    const labels = samples.map((s) => s.label);
+
+    const cached = await Promise.all(
+      labels.map(async (label) => ({
+        label,
+        colors: await readCachedPalette(questionText, label),
+      })),
+    );
+
+    const missing: string[] = [];
+    for (const row of cached) {
+      if (row.colors?.length) {
+        resultByKey.set(requestKey({ label: row.label, questionText }), {
+          colors: row.colors,
+          fromModel: true,
+        });
+      } else {
+        missing.push(row.label);
+      }
     }
-  }
 
-  if (missing.length) {
+    if (!missing.length) continue;
+
     let modelPalettes: Record<string, string[]> = {};
     try {
       modelPalettes = await callPaletteModel(
+        questionText,
         missing,
         params.userId
           ? {
@@ -210,22 +263,34 @@ export async function resolveClarificationPalettes(params: {
 
     await Promise.all(
       missing.map(async (label) => {
-        const colors =
-          modelPalettes[label] ?? paletteFallbackForLabel(label);
-        resultByLabel.set(label.toLowerCase(), colors);
-        if (modelPalettes[label]) {
-          await writeCachedPalette(label, colors);
+        const modelColors = modelPalettes[label];
+        const fromModel =
+          modelColors && palettePlausibleForLabel(label, modelColors)
+            ? modelColors
+            : null;
+        resultByKey.set(requestKey({ label, questionText }), {
+          colors: fromModel ?? paletteFallbackForLabel(label),
+          fromModel: Boolean(fromModel),
+        });
+        if (fromModel) {
+          await writeCachedPalette(questionText, label, fromModel);
         }
       }),
     );
   }
 
   const out: ClarificationPaletteResult[] = [];
-  for (const [key, options] of uniqueByLabel) {
-    const colors =
-      resultByLabel.get(key) ?? paletteFallbackForLabel(options[0]!.label);
+  for (const [key, options] of uniqueByKey) {
+    const label = options[0]!.label;
+    const resolved = resultByKey.get(key);
+    const raw = resolved?.colors ?? paletteFallbackForLabel(label);
+    const colors = palettePlausibleForLabel(label, raw)
+      ? raw
+      : paletteFallbackForLabel(label);
+    const fromModel =
+      Boolean(resolved?.fromModel) && palettePlausibleForLabel(label, colors);
     for (const option of options) {
-      out.push({ optionId: option.id, paletteColors: colors });
+      out.push({ optionId: option.id, paletteColors: colors, fromModel });
     }
   }
   return out;

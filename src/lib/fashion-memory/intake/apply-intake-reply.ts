@@ -65,7 +65,32 @@ export function flattenClarificationAnswers(
     if (exclusive && display.includes(",")) {
       display = display.split(",")[0]!.trim();
     }
-    const key = q.field ?? q.gap ?? q.text;
+    const sizeBucketFromText = (() => {
+      if (q.gap !== "size") return null;
+      const t = q.text.toLowerCase();
+      if (/\b(shoe|shoes|sneaker|boot)\b/.test(t)) return "shoes";
+      if (/\b(dress|dresses|gown|skirt)\b/.test(t)) return "dresses";
+      if (/\b(bottom|waist|pant|trouser|jean)\b/.test(t)) return "bottoms";
+      if (/\b(top|shirt|tee|blouse|sweater|jacket|blazer)\b/.test(t)) {
+        return "tops";
+      }
+      return null;
+    })();
+    const sizeBucket =
+      q.gap === "size"
+        ? q.field?.startsWith("size_")
+          ? q.field.slice("size_".length)
+          : q.garment_type === "tops" ||
+              q.garment_type === "bottoms" ||
+              q.garment_type === "shoes" ||
+              q.garment_type === "dresses"
+            ? q.garment_type
+            : sizeBucketFromText
+        : null;
+    const key =
+      sizeBucket != null
+        ? `size_${sizeBucket}`
+        : (q.field ?? q.gap ?? q.text);
     out[key] = display;
     out[q.text] = display;
   }
@@ -451,10 +476,33 @@ export async function applyClarificationReplyFromMessage(params: {
           (field === "size" && qq.gap === "size") ||
           qq.text === field,
       );
+      const bucketFromGarment = (() => {
+        const gt = q?.garment_type?.trim().toLowerCase();
+        if (
+          gt === "tops" ||
+          gt === "bottoms" ||
+          gt === "shoes" ||
+          gt === "dresses"
+        ) {
+          return gt;
+        }
+        return null;
+      })();
+      const bucketFromText = (() => {
+        const t = (q?.text ?? "").toLowerCase();
+        if (/\b(shoe|shoes|sneaker|boot)\b/.test(t)) return "shoes" as const;
+        if (/\b(dress|dresses|gown|skirt)\b/.test(t)) return "dresses" as const;
+        if (/\b(bottom|waist|pant|trouser|jean)\b/.test(t)) {
+          return "bottoms" as const;
+        }
+        if (/\b(top|shirt|tee|blouse|sweater|jacket|blazer)\b/.test(t)) {
+          return "tops" as const;
+        }
+        return null;
+      })();
       const bucket = sizeField
         ? bucketForIntakeField(sizeField)
-        : (q?.garment_type as "tops" | "bottoms" | "shoes" | "dresses" | undefined) ??
-          "tops";
+        : (bucketFromGarment ?? bucketFromText ?? "tops");
       const parsed = parseSizeValue(raw);
       if (isSupabaseAuthUserId(params.userId)) {
         return upsertFashionFact({

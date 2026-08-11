@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  asNormalizedOptions,
   CLARIFICATION_OTHER_OPTION,
   CLARIFICATION_OTHER_OPTION_ID,
   collectFashionPaletteRequests,
@@ -209,8 +210,97 @@ describe("clarification quick_options defaults", () => {
     };
     assert.deepEqual(collectFashionPreviewRequests(meta), []);
     assert.deepEqual(collectFashionPaletteRequests(meta), [
-      { id: "neutral_tones", label: "Neutral tones" },
-      { id: "dark_colors", label: "Dark colors" },
+      {
+        id: "neutral_tones",
+        label: "Neutral tones",
+        questionText: "Any color preference?",
+      },
+      {
+        id: "dark_colors",
+        label: "Dark colors",
+        questionText: "Any color preference?",
+      },
+    ]);
+  });
+
+  it("cmsod35 pant vibe chips are color quiz not catalog previews", () => {
+    const question = {
+      text: "What's your vibe for the pant—neutral to echo the blazer, or a subtle contrast (charcoal, soft grey, warm taupe)?",
+      gap: "garment" as const,
+      quick_options: [
+        {
+          id: "neutral_cream_off_white_light_grey",
+          label: "Neutral (cream, off-white, light grey)",
+          previewQuery: "neutral cream light grey men's trousers slim fit",
+        },
+        {
+          id: "charcoal_or_dark_grey",
+          label: "Charcoal or dark grey",
+          previewQuery: "charcoal dark grey men's trousers slim fit",
+        },
+        {
+          id: "warm_taupe_or_soft_beige",
+          label: "Warm taupe or soft beige",
+          previewQuery: "taupe beige men's trousers slim fit",
+        },
+      ],
+    };
+    const meta = { questions: [question] };
+    assert.deepEqual(collectFashionPreviewRequests(meta), []);
+    assert.deepEqual(collectFashionPaletteRequests(meta), [
+      {
+        id: "neutral_cream_off_white_light_grey",
+        label: "Neutral (cream, off-white, light grey)",
+        questionText: question.text,
+      },
+      {
+        id: "charcoal_or_dark_grey",
+        label: "Charcoal or dark grey",
+        questionText: question.text,
+      },
+      {
+        id: "warm_taupe_or_soft_beige",
+        label: "Warm taupe or soft beige",
+        questionText: question.text,
+      },
+    ]);
+    const stripped = ensureQuestionsHaveQuickOptions([question])[0]!;
+    for (const o of stripped.quick_options ?? []) {
+      if (typeof o === "string") continue;
+      assert.equal(o.previewQuery, undefined);
+      assert.equal(o.previewImages, undefined);
+      // Palettes are LLM-hydrated async — emit must not store heuristics.
+      assert.equal(o.paletteColors, undefined);
+    }
+  });
+
+  it("ride-along color chips strip catalog previews and queue LLM palettes", () => {
+    const rideText = "Any color preferences, or should I surprise you?";
+    const ride = ensureRideAlongDefaults({
+      text: rideText,
+      quick_options: [
+        { id: "surprise_me", label: "Surprise me" },
+        { id: "neutral_tones", label: "Neutral tones" },
+        { id: "dark_colors", label: "Dark colors" },
+      ],
+    });
+    assert.ok(ride);
+    const opts = asNormalizedOptions(ride!.quick_options);
+    const neutral = opts.find((o) => o.id === "neutral_tones");
+    const dark = opts.find((o) => o.id === "dark_colors");
+    assert.equal(neutral?.paletteColors, undefined);
+    assert.equal(dark?.paletteColors, undefined);
+    assert.deepEqual(collectFashionPaletteRequests({ ride_along: ride }), [
+      {
+        id: "neutral_tones",
+        label: "Neutral tones",
+        questionText: rideText,
+      },
+      {
+        id: "dark_colors",
+        label: "Dark colors",
+        questionText: rideText,
+      },
     ]);
   });
 

@@ -188,6 +188,11 @@ export async function startSingleTryon(params: {
         ref: params.ref,
         provider_keys: providerKeys,
         title: resolved.title,
+        ...(resolved.candidate?.id
+          ? { product_id: resolved.candidate.id }
+          : resolved.pick?.id
+            ? { product_id: resolved.pick.id }
+            : {}),
       },
       searchId: params.searchId,
       productRef: params.ref,
@@ -250,6 +255,11 @@ export async function startSingleTryon(params: {
       ref: params.ref,
       provider_key: providerKey,
       title: resolved.title,
+      ...(resolved.candidate?.id
+        ? { product_id: resolved.candidate.id }
+        : resolved.pick?.id
+          ? { product_id: resolved.pick.id }
+          : {}),
     },
     searchId: params.searchId,
     productRef: params.ref,

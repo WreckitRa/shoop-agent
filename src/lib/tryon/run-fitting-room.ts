@@ -71,7 +71,7 @@ export async function resolveFittingRoomItems(params: {
         imageUrl: pick.imageUrl,
         title: pick.title,
         displayPrice: pick.displayPrice,
-        productId: pick.pick?.id,
+        productId: pick.pick?.id ?? pick.candidate?.id,
         searchId,
         tryonSupported: Boolean(mapSlotToGarmentType(garment, pick.title)),
       });
@@ -83,15 +83,15 @@ export async function resolveFittingRoomItems(params: {
       if (!imageUrl?.trim()) throw new Error("Image URL required");
       const absolute = toAbsolutePublicUrl(imageUrl.trim());
       const label = (title ?? garment ?? styleId ?? "styled outfit dress look").trim();
-      // Full-look style photos: treat as one-piece dress so chain always supports them.
+      const explicitGarment = garment?.trim();
+      // Style-photo looks (no garment) → one-piece dress. Explicit garments
+      // (blazer, jeans, …) keep their type so layered try-ons stay correct.
       const garmentLabel =
-        garment?.trim() ||
-        `${label} dress look`;
+        explicitGarment ||
+        (label.toLowerCase().includes("dress") ? label : `${label} dress look`);
       resolved.push({
         ref: `image:${styleId ?? absolute}`,
-        garment: garmentLabel.includes("dress")
-          ? garmentLabel
-          : `${garmentLabel} dress`,
+        garment: garmentLabel,
         imageUrl: absolute,
         title: label,
         tryonSupported: true,

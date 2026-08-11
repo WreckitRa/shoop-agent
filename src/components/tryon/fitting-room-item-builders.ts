@@ -26,7 +26,17 @@ export function fittingRoomItemFromSearchPick(params: {
   searchId: string;
 }): FittingRoomItem {
   const { pick, searchId } = params;
-  const provenance = { kind: "search" as const, searchId, ref: pick.ref };
+  // Prefer catalog product identity — search refs die when message meta isn't
+  // persisted yet or when layering looks across turns.
+  const provenance =
+    pick.id ?
+      {
+        kind: "product" as const,
+        productId: pick.id,
+        variantId: pick.featuredVariant?.id,
+        preferredOptions: pick.preferredOptions,
+      }
+    : { kind: "search" as const, searchId, ref: pick.ref };
   return {
     id: buildFittingRoomItemId(provenance),
     title: pick.title,
@@ -37,7 +47,9 @@ export function fittingRoomItemFromSearchPick(params: {
     featuredVariant: pick.featuredVariant,
     provenance,
     garment: pick.garment,
-    tryonSupported: pick.tryon?.available === true,
+    // Optimistic until attach-render fills tryon — missing must not hide the CTA.
+    tryonSupported:
+      pick.tryon == null ? true : pick.tryon.available === true,
     badges: pick.badges,
     messageSearchId: searchId,
   };

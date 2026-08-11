@@ -25,6 +25,8 @@ export const TRYON_COST_ESTIMATES = {
   fashn_tryon_v16: 0.05,
   /** quality + 1k face-to-model (~3 credits). */
   fashn_face_to_model: 0.12,
+  /** fast + 1k edit normalize (~1 credit). */
+  fashn_edit_fast_1k: 0.04,
   mock: 0,
 } as const;
 

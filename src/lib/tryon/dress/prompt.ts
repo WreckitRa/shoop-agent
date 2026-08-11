@@ -1,7 +1,7 @@
 import type { GarmentType } from "../types";
 import type { TryonProductContext } from "./product-context";
 
-export const TRYON_DRESS_PROMPT_VERSION = "v4" as const;
+export const TRYON_DRESS_PROMPT_VERSION = "v5" as const;
 
 const PLACEMENT: Record<GarmentType, string> = {
   top: "REPLACE the existing upper-body clothing completely with this product — do not layer it on top of the current shirt/top. Match neckline, sleeve length, hem, and shoulder seams from the product reference.",
@@ -17,6 +17,9 @@ const PLACEMENT: Record<GarmentType, string> = {
 
 const FIDELITY =
   "Preserve exact color, fabric texture, pattern/print, logos, hardware, and garment structure from the product image. Do not invent details or recolor the garment.";
+
+const AVATAR_BASE_HINT =
+  "Avatar base is a plain white tee + dark trousers — REPLACE that base in this region; do not leave it visible under the product.";
 
 function firstLines(lines: string[], n: number): string[] {
   return lines.filter(Boolean).slice(0, n);
@@ -81,6 +84,7 @@ export function buildTryonDressPromptCompact(
 
   if (chain && chain.stepTotal > 1) {
     if (chain.stepIndex === 0) {
+      parts.push(AVATAR_BASE_HINT);
       parts.push(
         `Outfit base layer (step 1 of ${chain.stepTotal}): REPLACE whatever the person currently wears in this region with this garment; later steps will add more pieces on top of this result.`,
       );
@@ -108,9 +112,7 @@ export function buildTryonDressPromptCompact(
     product.garment_type === "bottom" ||
     product.garment_type === "dress"
   ) {
-    parts.push(
-      "The model_image may already show street clothes — remove/replace that clothing in this region; do not leave the original garment visible underneath.",
-    );
+    parts.push(AVATAR_BASE_HINT);
   }
 
   // FASHN prompts stay concise — soft cap ~900 chars.

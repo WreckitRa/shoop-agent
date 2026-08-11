@@ -7,11 +7,13 @@ import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { cn } from "@/lib/ai-chat/cn";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import {
+  askShareAbsoluteUrl,
   copyAskShareUrl,
   openWhatsAppAskShare,
 } from "@/lib/ask/share-client";
 import {
   formatScanEmphasis,
+  resolveLookScanMode,
   type LookScanPiece,
   type LookScanVerdict,
 } from "@/lib/tryon/look-scan-types";
@@ -118,7 +120,7 @@ export function StudyingScan({
   const [shareUrl, setShareUrl] = useState<string | null>(() => {
     const token = useTryOnDrawerStore.getState().askShareToken;
     if (!token || typeof window === "undefined") return null;
-    return `${window.location.origin}/ask/${token}`;
+    return askShareAbsoluteUrl(`/ask/${token}`);
   });
   const timersRef = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
@@ -205,10 +207,16 @@ export function StudyingScan({
         ? imageUrl
         : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 
+      const lookMode = resolveLookScanMode(pieces);
       const res = await guestFetch("/api/tryon/look-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: absoluteUrl, pieces }),
+        body: JSON.stringify({
+          imageUrl: absoluteUrl,
+          pieces,
+          lookMode,
+          ...(jobId ? { generationId: jobId } : {}),
+        }),
         signal: ac.signal,
       });
       if (!res.ok) {
@@ -238,7 +246,7 @@ export function StudyingScan({
     if (shareUrl) return shareUrl;
     const existingToken = useTryOnDrawerStore.getState().askShareToken;
     if (existingToken) {
-      const url = `${window.location.origin}/ask/${existingToken}`;
+      const url = askShareAbsoluteUrl(`/ask/${existingToken}`);
       setShareUrl(url);
       return url;
     }
@@ -266,22 +274,26 @@ export function StudyingScan({
       });
       const body = (await res.json().catch(() => null)) as {
         error?: string;
-        url?: string;
         askPath?: string;
         token?: string;
       } | null;
-      if (!res.ok || !body?.url) {
+      const askPath =
+        body?.askPath?.trim() ||
+        (body?.token ? `/ask/${body.token.trim()}` : "");
+      if (!res.ok || !askPath) {
         throw new Error(body?.error ?? "Couldn't create the share link.");
       }
 
-      if (body.token) {
+      if (body?.token) {
         useTryOnDrawerStore.getState().setAskShareToken(body.token);
       }
-      setShareUrl(body.url);
+      // Always build from the browser origin — API may return bind-host URLs.
+      const url = askShareAbsoluteUrl(askPath);
+      setShareUrl(url);
       if (conversationId) {
         void loadConversation(conversationId);
       }
-      return body.url;
+      return url;
     } catch (err) {
       setShareHint(
         err instanceof Error ? err.message : "Couldn't create the share link.",

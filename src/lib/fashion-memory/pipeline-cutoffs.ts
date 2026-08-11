@@ -1,12 +1,14 @@
 /**
  * Fashion find-pipeline latency cutoffs.
  *
- * Sizing law: cutoff ≈ 2× measured p50; if p50 grows past half the cutoff,
- * shrink the call — never raise the cutoff.
+ * Quality law: never abort a required LLM/vision stage early just to hit a
+ * clock. Short cutoffs that force deterministic fallback / text-only / half
+ * images destroy department vetoes and taste — that is how Meshki landed as
+ * look #1 on cmsod35.
  *
- * Budget law (v1.1): BUDGETS PROTECT DELIVERABLES, NOT CLOCKS.
- * Stage A is REQUIRED for outfit/capsule — earmarked at t=0, never skipped,
- * only shrunk down the degraded ladder.
+ * Hang-safety law: every LLM call still has a long outer abort so a wedged
+ * provider cannot hold the SSE stream forever. Prefer waiting over shipping
+ * a blind rack.
  */
 function envMs(key: string, fallback: number): number {
   const n = Number(process.env[key] ?? "");
@@ -15,54 +17,72 @@ function envMs(key: string, fallback: number): number {
 
 /** Catalog query: tripwire fires hedge spare; hard takes best-so-far. */
 export const CATALOG_QUERY_HEDGE_MS = envMs("FASHION_CATALOG_HEDGE_MS", 3_000);
-export const CATALOG_QUERY_HARD_MS = envMs("FASHION_CATALOG_QUERY_HARD_MS", 10_000);
+export const CATALOG_QUERY_HARD_MS = envMs("FASHION_CATALOG_QUERY_HARD_MS", 20_000);
 
-export const PLANNER_TRIPWIRE_MS = envMs("FASHION_PLANNER_TRIPWIRE_MS", 5_000);
-export const PLANNER_HARD_MS = envMs("FASHION_PLANNER_HARD_MS", 8_000);
+export const PLANNER_TRIPWIRE_MS = envMs("FASHION_PLANNER_TRIPWIRE_MS", 12_000);
+/** Hang-safety only — deterministic builder runs if this fires. */
+export const PLANNER_HARD_MS = envMs("FASHION_PLANNER_HARD_MS", 45_000);
 
-export const NORMALIZE_TRIPWIRE_MS = envMs("FASHION_NORMALIZE_TRIPWIRE_MS", 6_000);
-export const NORMALIZE_HARD_MS = envMs("FASHION_NORMALIZE_HARD_MS", 10_000);
+export const NORMALIZE_TRIPWIRE_MS = envMs("FASHION_NORMALIZE_TRIPWIRE_MS", 12_000);
+export const NORMALIZE_HARD_MS = envMs("FASHION_NORMALIZE_HARD_MS", 45_000);
 
 export const HYDRATION_WAVE_TRIPWIRE_MS = envMs(
   "FASHION_HYDRATION_WAVE_TRIPWIRE_MS",
-  8_000,
+  20_000,
 );
-export const HYDRATION_WAVE_HARD_MS = envMs("FASHION_HYDRATION_WAVE_HARD_MS", 12_000);
+/** Hang-safety — unverified items must not pad the live rail. */
+export const HYDRATION_WAVE_HARD_MS = envMs("FASHION_HYDRATION_WAVE_HARD_MS", 60_000);
 
-/** Phase 0 interim single curation call (pre Stage A/B split still uses these as outer bounds). */
-export const CURATION_TRIPWIRE_MS = envMs("FASHION_CURATION_TRIPWIRE_MS", 40_000);
-export const CURATION_HARD_MS = envMs("FASHION_CURATION_HARD_MS", 55_000);
+/**
+ * Outer hang-safety for a single curation (Stage A / monophase) LLM attempt.
+ * Not a quality budget — do not lower this to "feel snappy."
+ */
+export const CURATION_SAFETY_MS = envMs("FASHION_CURATION_SAFETY_MS", 180_000);
+
+/** @deprecated Use CURATION_SAFETY_MS — kept as alias for older env keys. */
+export const CURATION_TRIPWIRE_MS = envMs(
+  "FASHION_CURATION_TRIPWIRE_MS",
+  CURATION_SAFETY_MS,
+);
+/** @deprecated Use CURATION_SAFETY_MS. */
+export const CURATION_HARD_MS = envMs(
+  "FASHION_CURATION_HARD_MS",
+  CURATION_SAFETY_MS,
+);
+/** @deprecated Shrink retries no longer use a shorter clock. */
 export const CURATION_SHRINK_RETRY_MS = envMs(
   "FASHION_CURATION_SHRINK_RETRY_MS",
-  25_000,
+  CURATION_SAFETY_MS,
 );
 
-/** Phase 1 Stage A (picks) / Stage B (voice). */
+/** Stage A tripwire is log-only (never aborts). */
 export const CURATION_STAGE_A_TRIPWIRE_MS = envMs(
   "FASHION_CURATION_STAGE_A_TRIPWIRE_MS",
-  18_000,
+  60_000,
 );
+/** Stage A hang-safety — same ceiling as CURATION_SAFETY_MS unless overridden. */
 export const CURATION_STAGE_A_HARD_MS = envMs(
   "FASHION_CURATION_STAGE_A_HARD_MS",
-  25_000,
+  CURATION_SAFETY_MS,
 );
+/** @deprecated Time-pressure half-image rung removed; alias kept for env compat. */
 export const CURATION_STAGE_A_SHRINK_MS = envMs(
   "FASHION_CURATION_STAGE_A_SHRINK_MS",
-  15_000,
+  CURATION_SAFETY_MS,
 );
-/** Rung 3 — text-only pick (no images). */
+/** @deprecated Text-only rung removed; alias kept for env compat. */
 export const CURATION_STAGE_A_TEXT_ONLY_MS = envMs(
   "FASHION_CURATION_STAGE_A_TEXT_ONLY_MS",
-  6_000,
+  CURATION_SAFETY_MS,
 );
+/** Stage B voice hang-safety — picks already locked; copy may fall back. */
 export const CURATION_STAGE_B_HARD_MS = envMs(
   "FASHION_CURATION_STAGE_B_HARD_MS",
-  20_000,
+  60_000,
 );
 
 /**
- * Pocket budgets (Phase 1). Stage A earmark is untouchable by upstream.
- * Pre-curation overruns starve hydration/reformulation — never Stage A.
+ * Observability pockets only — no longer starve or degrade Stage A vision.
  */
 export const STAGE_A_EARMARK_MS = envMs("FASHION_STAGE_A_EARMARK_MS", 15_000);
 export const PRE_CURATION_POCKET_MS = envMs(
@@ -80,16 +100,16 @@ export const FASHION_PROVISIONAL_RACK_ENABLED =
   process.env.FASHION_PROVISIONAL_RACK_ENABLED !== "0" &&
   process.env.FASHION_PROVISIONAL_RACK_ENABLED !== "false";
 
-/** Stage A rung when remaining earmark is tight. */
+/**
+ * Stage A always runs full vision. Time pressure must not strip images or
+ * force deterministic fallback — that path ships unmarked inventory.
+ */
 export type StageARung =
   | "full"
   | "half_images"
   | "text_only"
   | "deterministic";
 
-export function chooseStageARung(earmarkRemainingMs: number): StageARung {
-  if (earmarkRemainingMs >= CURATION_STAGE_A_HARD_MS) return "full";
-  if (earmarkRemainingMs >= CURATION_STAGE_A_SHRINK_MS) return "half_images";
-  if (earmarkRemainingMs >= CURATION_STAGE_A_TEXT_ONLY_MS) return "text_only";
-  return "deterministic";
+export function chooseStageARung(_earmarkRemainingMs: number): StageARung {
+  return "full";
 }

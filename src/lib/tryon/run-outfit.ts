@@ -41,6 +41,7 @@ import {
   tryonProductContextFromCandidate,
 } from "./dress/product-context";
 import { fetchImageBytes } from "./providers/image-utils";
+import { buildOutfitBuyables } from "./moodboard-context";
 
 export { capsuleLookId } from "./outfit-ids";
 
@@ -82,6 +83,7 @@ type OutfitItem = {
   imageUrl?: string;
   title?: string;
   displayPrice?: { amount: number; currency: string };
+  productId?: string;
 };
 
 type OutfitChainContext = {
@@ -784,12 +786,14 @@ export async function startResolvedOutfitTryon(params: {
       imageUrl: item.imageUrl,
       title: item.title,
       displayPrice: item.displayPrice,
+      productId: item.productId,
     }));
 
   const chain = sortRefsForOutfitChain(outfitItems);
   if (!chain.length) throw new Error("No supported garments to try on");
 
   const cacheKey = chain.map((c) => c.ref).join("|");
+  const buyables = buildOutfitBuyables(outfitItems);
   const providerKeys = resolveDressProviderKeys();
   if (!providerKeys.length) throw new Error("No try-on provider configured");
 
@@ -834,6 +838,7 @@ export async function startResolvedOutfitTryon(params: {
         provider_keys: providerKeys,
         titles: outfitItems.map((it) => it.title).filter(Boolean),
         garments: outfitItems.map((it) => it.garment).filter(Boolean),
+        ...(buyables.length ? { buyables } : {}),
       },
       searchId: params.searchId,
       productRef: cacheKey,
@@ -878,6 +883,7 @@ export async function startResolvedOutfitTryon(params: {
       provider_key: providerKey,
       titles: outfitItems.map((it) => it.title).filter(Boolean),
       garments: outfitItems.map((it) => it.garment).filter(Boolean),
+      ...(buyables.length ? { buyables } : {}),
     },
     searchId: params.searchId,
     productRef: cacheKey,

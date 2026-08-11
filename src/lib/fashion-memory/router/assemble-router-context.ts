@@ -388,7 +388,13 @@ export async function assembleRouterContext(params: {
     conversationMessages: context.conversationMessages,
   });
 
-  return context;
+  return {
+    ...context,
+    people: memory.people,
+    factsByPersonId: memory.factsByPersonId,
+    signalsByPersonId: memory.signalsByPersonId,
+    profileHints: accountHints,
+  };
 }
 
 export async function writeRequestEventFromBrief(params: {

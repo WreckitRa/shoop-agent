@@ -97,6 +97,14 @@ export type FashionRouterContext = {
   personShortIds: Record<string, string>;
   /** Last 12 turns, oldest first — excludes the in-flight user message if not yet persisted. */
   conversationMessages: Array<{ role: "user" | "assistant"; content: string }>;
+  /**
+   * In-memory roster for post-router gates — not sent to the LLM.
+   * Populated by assembleRouterContext so post-router skips a second DB load.
+   */
+  people?: import("../types").PersonRow[];
+  factsByPersonId?: Map<string, import("../types").FashionFactRow[]>;
+  signalsByPersonId?: Map<string, import("../types").StyleSignalRow[]>;
+  profileHints?: import("../intake/account-profile-bridge").IntakeProfileHints | null;
 };
 
 export type FashionClarificationGap =

@@ -16,7 +16,6 @@ import { buildPickTryonAvailability } from "./run-single";
 import { getStoredAvatar } from "./avatar/service";
 import { TRYON_DISCLAIMER } from "./types";
 import { capsuleLookId } from "./outfit-ids";
-import { CURATION_HERO_PICKS } from "@/lib/fashion-memory/curation/deliverables";
 import { resolveTryonPersonId } from "./resolve-person";
 
 async function isShoppingForSelf(
@@ -125,12 +124,10 @@ export async function attachTryonToRenderContract(params: {
     params.render.tiers.picks.map((p) => [p.ref, { garment: p.garment }]),
   );
 
-  // Single / multi: try-on / create-avatar on hero picks only.
+  // Single / multi: try-on on every top pick (tiers.picks).
   // Outfit / capsule: try-on lives on the look — not on each piece card.
-  const heroCap = isSingleMode ? CURATION_HERO_PICKS : 0;
-
   const picks = await Promise.all(
-    params.render.tiers.picks.map(async (pick, index) => {
+    params.render.tiers.picks.map(async (pick) => {
       const state = await buildPickTryonState({
         userId: params.userId,
         personId,
@@ -138,7 +135,7 @@ export async function attachTryonToRenderContract(params: {
         tryonEnabled,
         hasAvatar,
         garment: pick.garment,
-        isHero: index < heroCap,
+        isHero: isSingleMode,
       });
       return {
         ...pick,

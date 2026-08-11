@@ -164,7 +164,7 @@ describe("mens_blazer_no_womens_leak", () => {
     assert.ok(result.reasons.some((r) => r.startsWith("prepended_department:")));
   });
 
-  it("Target gender [Male, Unisex] on filtered lanes only", () => {
+  it("Target gender [Male, Unisex] on Lane A and filtered lanes", () => {
     const brief = mensBlazerBrief();
     const profile = { countryCode: "US", currency: "USD", positiveSignals: [] };
     const plans = buildVariantFilterPlans({
@@ -174,7 +174,9 @@ describe("mens_blazer_no_womens_leak", () => {
       queries: ["mens linen blazer", "mens tailored blazer"],
     });
     assert.equal(plans[0]!.category_filtered, false);
-    assert.equal(plans[0]!.filters.attributes, undefined);
+    assert.deepEqual(plans[0]!.filters.attributes, [
+      { name: "Target gender", values: ["Male", "Unisex"] },
+    ]);
     assert.equal(plans[1]!.category_filtered, true);
     assert.deepEqual(plans[1]!.filters.attributes, [
       { name: "Target gender", values: ["Male", "Unisex"] },

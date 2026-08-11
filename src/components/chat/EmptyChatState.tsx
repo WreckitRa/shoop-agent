@@ -1,21 +1,25 @@
 "use client";
 
-import { useState } from "react";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { HomeQuickActions } from "@/components/chat/HomeQuickActions";
 import { HomeMirrorCard } from "@/components/chat/HomeMirrorCard";
 import { HomeTodayOnYou } from "@/components/chat/HomeTodayOnYou";
 import { useChatGreeting } from "@/components/chat/useChatGreeting";
 
+type Props = {
+  previewUrl: string | null;
+  onPreview: (imageUrl: string | null) => void;
+};
+
 /**
- * Home find UI — matches home-ui-wireframe.html (find → try → decide).
+ * Home find UI — left column (desktop Mirror lives in ChatLayout).
+ * On mobile the full Mirror stacks under the hero.
  */
-export function EmptyChatState() {
+export function EmptyChatState({ previewUrl, onPreview }: Props) {
   const greetLine = useChatGreeting();
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   return (
-    <div className="grid min-h-full flex-1 grid-cols-1 gap-9 py-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-9 lg:py-7">
+    <div className="flex min-h-full flex-col py-6 lg:py-7">
       <div className="flex min-w-0 flex-col lg:pt-1">
         <p className="shoop-hero-eyebrow">{greetLine}</p>
         <h1 className="shoop-greeting-h1 mt-1.5">
@@ -34,12 +38,12 @@ export function EmptyChatState() {
           <HomeQuickActions />
         </div>
 
-        <HomeTodayOnYou onPreview={setPreviewUrl} />
+        <HomeTodayOnYou onPreview={onPreview} />
       </div>
 
       <HomeMirrorCard
         previewUrl={previewUrl}
-        className="mx-auto w-full max-w-sm lg:mx-0 lg:max-w-none"
+        className="mx-auto mt-9 w-full max-w-sm lg:hidden"
       />
     </div>
   );

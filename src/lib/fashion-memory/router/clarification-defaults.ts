@@ -9,8 +9,20 @@ import type {
 } from "./types";
 import type { ClarificationOptionPreviewImage } from "@/lib/ai-chat/types";
 
+/** Explicit color/palette quiz wording. */
+const COLOR_QUIZ_TEXT_RE =
+  /\b(color|colours?|palette|shade|tones?|hue|hues)\b/i;
+
+/**
+ * Color / tone family words that appear in mid-session pant/top vibe chips
+ * (cmsod35: cream / charcoal / taupe without saying "color").
+ * Avoid bare warm/cool/dark/light — those collide with style quizzes.
+ */
+const COLOR_FAMILY_RE =
+  /\b(neutrals?|charcoal|taupe|beige|cream|ivory|navy|black|white|greys?|grays?|pastels?|earth\s*tones?|stone|khaki|olive|camel|brown|burgundy|rust|sand|off[\s-]?white|monochrome|jewels?|slate|espresso|cognac|blush|burgundy|indigo|burgundy)\b/i;
+
 export function looksLikeColorClarification(text: string): boolean {
-  return /\b(color|colours?|palette|shade|tones?)\b/i.test(text);
+  return COLOR_QUIZ_TEXT_RE.test(text) || COLOR_FAMILY_RE.test(text);
 }
 
 function isSurpriseOption(option: FashionClarificationOption): boolean {
@@ -139,21 +151,22 @@ export function personalizeClarificationOptions(params: {
 
   const questions = params.questions.map((q) => {
     if (q.gap === "occasion") return q;
+    // Color/tone before style — "pant vibe (charcoal, taupe)" is not a style quiz.
+    if (clarificationLooksLikeColorQuiz(q) && colorOpts) {
+      return { ...q, quick_options: colorOpts };
+    }
     if (looksLikeStyleRideAlong(q.text) && styleOpts) {
       return { ...q, quick_options: styleOpts };
-    }
-    if (looksLikeColorClarification(q.text) && colorOpts) {
-      return { ...q, quick_options: colorOpts };
     }
     return q;
   });
 
   let ride_along = params.rideAlong;
   if (ride_along) {
-    if (looksLikeStyleRideAlong(ride_along.text) && styleOpts) {
-      ride_along = { ...ride_along, quick_options: styleOpts };
-    } else if (looksLikeColorClarification(ride_along.text) && colorOpts) {
+    if (looksLikeColorClarification(ride_along.text) && colorOpts) {
       ride_along = { ...ride_along, quick_options: colorOpts };
+    } else if (looksLikeStyleRideAlong(ride_along.text) && styleOpts) {
+      ride_along = { ...ride_along, quick_options: styleOpts };
     }
   }
 
@@ -255,6 +268,37 @@ export function asNormalizedOptions(
   return (options ?? []).map(normalizeClarificationOption).filter((o) => o.label);
 }
 
+/** True when the question is asking for a color/tone choice (text or chips). */
+export function clarificationLooksLikeColorQuiz(
+  question: Pick<FashionClarificationQuestion, "text" | "quick_options">,
+): boolean {
+  if (COLOR_QUIZ_TEXT_RE.test(question.text)) return true;
+  if (COLOR_FAMILY_RE.test(question.text)) return true;
+
+  const opts = asNormalizedOptions(question.quick_options).filter(
+    (o) => o.id !== OTHER_ID && !isSurpriseOption(o),
+  );
+  if (opts.length < 2) return false;
+  const colorish = opts.filter((o) => COLOR_FAMILY_RE.test(o.label)).length;
+  return colorish >= Math.ceil(opts.length * 0.5);
+}
+
+/**
+ * Color quizzes must show hex swatches, not catalog photo collages.
+ * Strip previewQuery / previewImages only — palettes are LLM-resolved
+ * (cached) async via collectFashionPaletteRequests.
+ */
+export function stripCatalogPreviewsFromColorOptions(
+  question: FashionClarificationQuestion,
+): FashionClarificationQuestion {
+  if (!clarificationLooksLikeColorQuiz(question)) return question;
+  const quick_options = asNormalizedOptions(question.quick_options).map((o) => {
+    const { previewQuery: _q, previewImages: _i, ...rest } = o;
+    return rest;
+  });
+  return { ...question, quick_options };
+}
+
 export function optionLabels(
   options?: Array<string | FashionClarificationOption>,
 ): string[] {
@@ -318,7 +362,9 @@ export function ensureClarificationQuickOptions(
 export function ensureQuestionsHaveQuickOptions(
   questions: FashionClarificationQuestion[],
 ): FashionClarificationQuestion[] {
-  return questions.map(ensureClarificationQuickOptions);
+  return questions
+    .map(ensureClarificationQuickOptions)
+    .map(stripCatalogPreviewsFromColorOptions);
 }
 
 export function ensureRideAlongDefaults(
@@ -333,11 +379,22 @@ export function ensureRideAlongDefaults(
   const quick_options = allowOther
     ? [...capped, { id: OTHER_ID, label: OTHER }]
     : capped;
-  return {
+  const base: FashionClarificationRideAlong = {
     ...rideAlong,
     allow_multiple: rideAlong.allow_multiple ?? true,
     allow_other: allowOther,
     quick_options,
+  };
+  // Ride-along color prefs — strip catalog previews; palettes hydrate async.
+  if (!looksLikeColorClarification(base.text)) return base;
+  const asQuestion = stripCatalogPreviewsFromColorOptions({
+    text: base.text,
+    gap: "occasion",
+    quick_options: base.quick_options,
+  });
+  return {
+    ...base,
+    quick_options: asQuestion.quick_options ?? base.quick_options,
   };
 }
 
@@ -383,8 +440,8 @@ export function collectFashionPreviewRequests(
     out.push({ id: o.id, previewQuery: q, label: o.label });
   };
   for (const question of meta.questions ?? []) {
-    // Color chips render LLM palettes — skip catalog image hydration.
-    if (looksLikeColorClarification(question.text)) continue;
+    // Color chips render hex palettes — skip catalog image hydration.
+    if (clarificationLooksLikeColorQuiz(question)) continue;
     for (const o of asNormalizedOptions(question.quick_options)) pushOpt(o);
   }
   if (meta.ride_along && !looksLikeColorClarification(meta.ride_along.text)) {
@@ -398,22 +455,24 @@ export function collectFashionPreviewRequests(
 /** Collect color/palette chip labels that still need LLM hex swatches. */
 export function collectFashionPaletteRequests(
   meta: Pick<MessageFashionRouterMetaV1, "questions" | "ride_along">,
-): Array<{ id: string; label: string }> {
-  const out: Array<{ id: string; label: string }> = [];
+): Array<{ id: string; label: string; questionText: string }> {
+  const out: Array<{ id: string; label: string; questionText: string }> = [];
   const seen = new Set<string>();
-  const pushOpt = (o: FashionClarificationOption) => {
+  const pushOpt = (o: FashionClarificationOption, questionText: string) => {
     if (o.id === OTHER_ID || isSurpriseOption(o) || seen.has(o.id)) return;
     if (o.paletteColors && o.paletteColors.length >= 3) return;
     seen.add(o.id);
-    out.push({ id: o.id, label: o.label });
+    out.push({ id: o.id, label: o.label, questionText });
   };
   for (const question of meta.questions ?? []) {
-    if (!looksLikeColorClarification(question.text)) continue;
-    for (const o of asNormalizedOptions(question.quick_options)) pushOpt(o);
+    if (!clarificationLooksLikeColorQuiz(question)) continue;
+    for (const o of asNormalizedOptions(question.quick_options)) {
+      pushOpt(o, question.text);
+    }
   }
   if (meta.ride_along && looksLikeColorClarification(meta.ride_along.text)) {
     for (const o of asNormalizedOptions(meta.ride_along.quick_options)) {
-      pushOpt(o);
+      pushOpt(o, meta.ride_along.text);
     }
   }
   return out;

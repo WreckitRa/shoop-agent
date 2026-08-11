@@ -287,7 +287,7 @@ describe("dress prompt", () => {
       },
       occasionContext: "smart casual office",
     });
-    assert.equal(product.prompt_version, "v4");
+    assert.equal(product.prompt_version, "v5");
     assert.ok(product.material_notes.some((n) => /Merino/i.test(n)));
     assert.ok(product.fit_notes.some((n) => /Fit/i.test(n)));
     assert.deepEqual(product.normalized_colors, ["navy"]);
@@ -301,7 +301,8 @@ describe("dress prompt", () => {
     assert.match(prompt, /Merino/);
     assert.match(prompt, /Preserve exact color/);
     assert.match(prompt, /REPLACE the existing upper-body/i);
-    assert.match(prompt, /do not leave the original garment/i);
+    assert.match(prompt, /plain white tee \+ dark trousers/i);
+    assert.match(prompt, /do not leave it visible under the product/i);
     assert.doesNotMatch(prompt, /face|pose|background/i);
   });
 

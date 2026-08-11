@@ -1,7 +1,9 @@
 import type { HydratedCandidate } from "../hydration/types";
+import type { FashionSearchBrief } from "../router/types";
 import type { FashionSearchPlanSlot } from "../search-planner/types";
 import type { CurationRefRegistry, RefEntry } from "./types";
 import { imageBudgetForSlot } from "./deliverables";
+import { preferDepartmentKnownWhenGendered } from "./department-rank";
 
 function slotPrefix(slotId: string): string {
   return slotId.replace(/[^a-z0-9]+/gi, "_").slice(0, 12);
@@ -14,6 +16,8 @@ export function buildRefRegistry(params: {
     verified: HydratedCandidate[];
   }>;
   mode: import("../search-planner/types").SearchPlanMode;
+  /** When set + gendered, department_unknown ranks after known-dept survivors. */
+  brief?: FashionSearchBrief;
   /** Multiply per-slot image budget (e.g. 0.5 for shrink-retry). */
   imageBudgetScale?: number;
 }): CurationRefRegistry {
@@ -21,9 +25,14 @@ export function buildRefRegistry(params: {
   const scale = Math.max(0, Math.min(1, params.imageBudgetScale ?? 1));
 
   for (const slot of params.slots) {
-    const sorted = [...slot.verified].sort(
-      (a, b) => (b.score?.final ?? 0) - (a.score?.final ?? 0),
-    );
+    const sorted = params.brief
+      ? preferDepartmentKnownWhenGendered({
+          brief: params.brief,
+          candidates: slot.verified,
+        })
+      : [...slot.verified].sort(
+          (a, b) => (b.score?.final ?? 0) - (a.score?.final ?? 0),
+        );
 
     const baseBudget = imageBudgetForSlot({
       mode: params.mode,

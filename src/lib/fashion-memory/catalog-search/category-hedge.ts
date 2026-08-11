@@ -25,7 +25,7 @@ export type VariantFilterPlan = {
  * Build per-variant catalog filters.
  *
  * When budget is stated and a garment→taxonomy mapping exists (3 lanes):
- * - Lane A (category hedge): no category / Target gender, price ON
+ * - Lane A (category hedge): no category, Target gender ON, price ON
  * - Lane B (price scout): category ON, NO price bound — measures true market
  * - Lane C (precise): category ON + price ON
  *
@@ -72,7 +72,8 @@ export function buildVariantFilterPlans(params: {
 
   const laneAFilters = buildSlotCatalogFilters({
     ...filterParams,
-    options: { omitCategory: true, omitTargetGender: true },
+    // Keep Target gender on Lane A — omitting it is how mens/womens mixes leak.
+    options: { omitCategory: true },
   });
   const laneCFilters = buildSlotCatalogFilters(filterParams);
 

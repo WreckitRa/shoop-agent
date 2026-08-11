@@ -23,6 +23,7 @@ import type {
 import type { SizeGarmentBucket } from "./garment-size-fields";
 import { parseDepartmentAnswer } from "./identity-gate";
 import { parseSizeValue } from "./parse-size-value";
+import { isUsableStatedSizeValue } from "./usable-stated-size";
 
 function inferRelation(raw: string | undefined): PersonRelation {
   const t = (raw ?? "").toLowerCase();
@@ -45,13 +46,18 @@ function sizeEntries(
 ): Array<{ bucket: SizeGarmentBucket; raw: string }> {
   if (!sizes) return [];
   const out: Array<{ bucket: SizeGarmentBucket; raw: string }> = [];
-  if (sizes.tops?.trim()) out.push({ bucket: "tops", raw: sizes.tops.trim() });
-  if (sizes.bottoms?.trim())
-    out.push({ bucket: "bottoms", raw: sizes.bottoms.trim() });
-  if (sizes.shoes?.trim())
-    out.push({ bucket: "shoes", raw: sizes.shoes.trim() });
-  if (sizes.dresses?.trim())
-    out.push({ bucket: "dresses", raw: sizes.dresses.trim() });
+  if (isUsableStatedSizeValue(sizes.tops)) {
+    out.push({ bucket: "tops", raw: sizes.tops!.trim() });
+  }
+  if (isUsableStatedSizeValue(sizes.bottoms)) {
+    out.push({ bucket: "bottoms", raw: sizes.bottoms!.trim() });
+  }
+  if (isUsableStatedSizeValue(sizes.shoes)) {
+    out.push({ bucket: "shoes", raw: sizes.shoes!.trim() });
+  }
+  if (isUsableStatedSizeValue(sizes.dresses)) {
+    out.push({ bucket: "dresses", raw: sizes.dresses!.trim() });
+  }
   return out;
 }
 

@@ -328,6 +328,19 @@ function isActiveChatCurationContext(conversationId: string): boolean {
   return parseConversationIdFromPath(path) === conversationId;
 }
 
+/** Cart + Mirror sit under the sidebar; dismiss them when chat chrome takes focus. */
+function dismissOverlaysForChatChrome() {
+  useCartStore.getState().setDrawerOpen(false);
+  // Lazy import — tryon-drawer-store imports chat-store at module load.
+  void import("@/components/tryon/tryon-drawer-store").then(
+    ({ useTryOnDrawerStore }) => {
+      if (useTryOnDrawerStore.getState().open) {
+        useTryOnDrawerStore.getState().close();
+      }
+    },
+  );
+}
+
 function applyOptionPreviewsToMessage(
   messages: ChatMessage[],
   messageId: string,
@@ -1122,15 +1135,11 @@ export const useChatStore = create<ChatState>((set, get) => {
     requestComposerFocus: () =>
       set((s) => ({ composerFocusNonce: s.composerFocusNonce + 1 })),
     setSidebarOpen: (v) => {
-      if (v) {
-        useCartStore.getState().setDrawerOpen(false);
-      }
+      if (v) dismissOverlaysForChatChrome();
       set({ sidebarOpen: v });
     },
     setSidebarCollapsed: (v) => {
-      if (!v) {
-        useCartStore.getState().setDrawerOpen(false);
-      }
+      if (!v) dismissOverlaysForChatChrome();
       set({ sidebarCollapsed: v });
     },
     toggleSidebarCollapsed: () => {
@@ -1512,6 +1521,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
 
     createConversationAndNavigate: async () => {
+      dismissOverlaysForChatChrome();
       set({ input: "", error: null });
       const pathname =
         typeof window !== "undefined" ? window.location.pathname : NEW_CHAT_PATH;

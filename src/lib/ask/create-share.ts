@@ -4,6 +4,10 @@ import type {
   LookScanPiece,
   LookScanVerdict,
 } from "@/lib/tryon/look-scan-types";
+import {
+  durableAskImageStorageRef,
+  publicAskImagePath,
+} from "./ask-image";
 import { mapVerdictToShoopVote } from "./map-shoop-vote";
 import { upsertOwnerAskVote } from "./owner-vote";
 import { generateAskToken } from "./public-payload";
@@ -41,6 +45,13 @@ export async function createLookAskShare(input: CreateLookAskInput) {
     token = generateAskToken();
   }
 
+  const publicImage = publicAskImagePath(token);
+  const storageRef = await durableAskImageStorageRef({
+    userId: input.userId,
+    generationId: input.generationId,
+    fallbackImageUrl: input.imageUrl,
+  });
+
   let messageId: string | null = null;
   const conversationId = input.conversationId?.trim() || null;
 
@@ -61,8 +72,6 @@ export async function createLookAskShare(input: CreateLookAskInput) {
         `Ask your friends — share the card and let them vote before they peek at mine.`,
       ].join("\n");
 
-      // Token known; metadata URL filled after we know origin on the client —
-      // store relative path.
       const msg = await prisma.message.create({
         data: {
           conversationId: conv.id,
@@ -72,7 +81,7 @@ export async function createLookAskShare(input: CreateLookAskInput) {
           metadata: {
             lookAsk: {
               token,
-              imageUrl: input.imageUrl,
+              imageUrl: publicImage,
               verdictTitle: title,
               askPath: `/ask/${token}`,
               shoopVote,
@@ -95,7 +104,8 @@ export async function createLookAskShare(input: CreateLookAskInput) {
       generationId: input.generationId ?? null,
       conversationId,
       messageId,
-      imageUrl: input.imageUrl,
+      // Durable private path (or legacy URL) — clients always get publicAskImagePath.
+      imageUrl: storageRef,
       pieces: input.pieces,
       shoopVerdict: input.verdict,
       shoopVote,

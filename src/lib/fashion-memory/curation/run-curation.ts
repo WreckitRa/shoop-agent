@@ -34,9 +34,7 @@ import {
 } from "./config";
 import {
   CURATION_HARD_MS,
-  CURATION_SHRINK_RETRY_MS,
   CURATION_STAGE_A_HARD_MS,
-  CURATION_STAGE_A_SHRINK_MS,
   FASHION_CURATION_SPLIT_ENABLED,
 } from "../pipeline-cutoffs";
 import { recordCurationLatencyMs, recordCurationLlmCallMs, curationLlmCallLatencySnapshot } from "./latency-metrics";
@@ -723,9 +721,6 @@ is a contract failure — never return slots without looks in outfit mode.`
     (FASHION_CURATION_SPLIT_ENABLED
       ? CURATION_STAGE_A_HARD_MS
       : CURATION_HARD_MS);
-  const shrinkTimeoutMs = FASHION_CURATION_SPLIT_ENABLED
-    ? CURATION_STAGE_A_SHRINK_MS
-    : CURATION_SHRINK_RETRY_MS;
 
   try {
     const extracted = await runAttempt({
@@ -738,13 +733,13 @@ is a contract failure — never return slots without looks in outfit mode.`
     if (!rawOutput && extracted.hadToolUse && !usedRetry) {
       usedRetry = true;
       retries += 1;
-      // Parse fail → ONE retry, text-only (half images → zero).
+      // Parse fail → ONE retry, text-only (images already seen).
       await rebuildInput({ omitImages: true });
       try {
         const retryExtracted = await runAttempt({
           userMessages: inputBundle.userMessages,
           attempt: "parse_retry",
-          timeoutMs: shrinkTimeoutMs,
+          timeoutMs: primaryTimeoutMs,
           correctiveHint: [
             `Your previous ${CURATION_TOOL_NAME} call failed to parse:`,
             extracted.parseError ?? "unknown schema error",
@@ -783,40 +778,42 @@ is a contract failure — never return slots without looks in outfit mode.`
       for (const ref of appliedVetoRefs) excludedRefs.add(ref);
     }
 
-    // Latency law: never retry the SAME call — shrink images once, shorter budget.
-    if (!usedRetry && (timedOut || /image dimensions exceed|many-image/i.test(llmError))) {
+    // Latency law: never retry a timed-out call with a shorter budget or
+    // fewer images — that is how department vetoes get skipped. Only recover
+    // from provider image-size limits by dropping photos.
+    if (!usedRetry && /image dimensions exceed|many-image/i.test(llmError)) {
       usedRetry = true;
       retries += 1;
-      const shrinkScale = timedOut ? 0.5 : undefined;
-      await rebuildInput({
-        omitImages: !timedOut,
-        imageBudgetScale: shrinkScale,
-      });
+      await rebuildInput({ omitImages: true });
       try {
         const retryExtracted = await runAttempt({
           userMessages: inputBundle.userMessages,
-          attempt: timedOut ? "shrink_retry" : "image_size_retry",
-          timeoutMs: shrinkTimeoutMs,
-          correctiveHint: timedOut
-            ? `Prior call timed out. Call ${CURATION_TOOL_NAME} once with fewer/terser picks. Images halved.`
-            : "Images omitted due to size limit. Curate from titles, prices, colors, and scores.",
+          attempt: "image_size_retry",
+          timeoutMs: primaryTimeoutMs,
+          correctiveHint:
+            "Images omitted due to size limit. Curate from titles, prices, colors, and scores.",
         });
         rawOutput = retryExtracted.output;
         parseError = retryExtracted.parseError;
         if (rawOutput) llmError = null;
-        logAiChat("info", "fashion_curation_shrink_retry", {
+        logAiChat("info", "fashion_curation_image_size_retry", {
           traceId: params.traceId,
-          timed_out: timedOut,
           recovered: Boolean(rawOutput),
           images: imageCount,
         });
       } catch (retryError) {
         llmError = String(retryError).slice(0, 400);
-        logAiChat("warn", "fashion_curation_shrink_retry_failed", {
+        logAiChat("warn", "fashion_curation_image_size_retry_failed", {
           traceId: params.traceId,
           error: llmError,
         });
       }
+    } else if (timedOut) {
+      logAiChat("warn", "fashion_curation_safety_timeout", {
+        traceId: params.traceId,
+        timeout_ms: primaryTimeoutMs,
+        note: "hang-safety abort — deterministic fallback; do not lower this ceiling for snappiness",
+      });
     }
   }
 
@@ -861,13 +858,13 @@ is a contract failure — never return slots without looks in outfit mode.`
     usedRetry = true;
     retries += 1;
     const reasons = validated.issues.map((i) => i.message).join("; ");
-    // ONE validation retry — text-only, shrink budget.
+    // ONE validation retry — text-only, same hang-safety ceiling.
     await rebuildInput({ omitImages: true });
     try {
       const retryExtracted = await runAttempt({
         userMessages: inputBundle.userMessages,
         attempt: "validation_retry",
-        timeoutMs: shrinkTimeoutMs,
+        timeoutMs: primaryTimeoutMs,
         correctiveHint: [
           `Your previous output failed validation: ${reasons}.`,
           `Excluded refs (already vetoed — do not pick): ${[...excludedRefs].join(", ") || "(none)"}`,

@@ -6,6 +6,9 @@ export type LookScanPiece = {
   garment?: string;
 };
 
+/** What Shoop is judging in this scan. */
+export type LookScanMode = "single_item" | "outfit";
+
 export type LookScanVerdict = {
   verdict_title: string;
   verdict_body: string;
@@ -22,6 +25,15 @@ export type LookScanVerdict = {
    */
   vote?: "no" | "meh" | "almost" | "love";
 };
+
+/** Derive scan mode from pieces on the twin (client or server). */
+export function resolveLookScanMode(
+  pieces: LookScanPiece[],
+  explicit?: LookScanMode | null,
+): LookScanMode {
+  if (explicit === "single_item" || explicit === "outfit") return explicit;
+  return pieces.length <= 1 ? "single_item" : "outfit";
+}
 
 /** Convert **bold** markers to safe HTML <b> for the whisper/verdict UI. */
 export function formatScanEmphasis(text: string): string {

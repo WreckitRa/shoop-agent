@@ -2,6 +2,7 @@ import { beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildFittingRoomItemId,
+  durableFittingRoomProvenance,
   fittingRoomLookId,
   MAX_FITTING_ROOM_ITEMS,
 } from "./fitting-room-types";
@@ -40,6 +41,48 @@ describe("fitting room ids", () => {
 
   it("caps rack at six items", () => {
     assert.equal(MAX_FITTING_ROOM_ITEMS, 6);
+  });
+
+  it("promotes search provenance to garment image when dressing", () => {
+    const durable = durableFittingRoomProvenance({
+      title: "Navy blazer",
+      productId: "gid://shopify/Product/1",
+      preferredOptions: [{ name: "Size", label: "M" }],
+      featuredVariant: { id: "var-1" },
+      imageUrl: "https://cdn.example/blazer.jpg",
+      garment: "blazer",
+      provenance: {
+        kind: "search",
+        searchId: "msg-not-persisted-yet",
+        ref: "blazer_1",
+      },
+    });
+    assert.deepEqual(durable, {
+      kind: "image",
+      imageUrl: "https://cdn.example/blazer.jpg",
+      title: "Navy blazer",
+      garment: "blazer",
+    });
+  });
+
+  it("falls back to product when search has no image", () => {
+    const durable = durableFittingRoomProvenance({
+      title: "Navy blazer",
+      productId: "gid://shopify/Product/1",
+      featuredVariant: { id: "var-1" },
+      preferredOptions: [{ name: "Size", label: "M" }],
+      provenance: {
+        kind: "search",
+        searchId: "msg-1",
+        ref: "blazer_1",
+      },
+    });
+    assert.deepEqual(durable, {
+      kind: "product",
+      productId: "gid://shopify/Product/1",
+      variantId: "var-1",
+      preferredOptions: [{ name: "Size", label: "M" }],
+    });
   });
 });
 

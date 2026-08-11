@@ -37,14 +37,13 @@ import { buildProvisionalPresentation } from "../curation/provisional-rack";
 import type { SlotPool } from "../hydration/types";
 import { persistAllSlotPools } from "../hydration/pool-persistence";
 import { buildCatalogCallContext } from "@/lib/shopify/catalog";
+import { scheduleDetachedWork } from "../schedule-detached";
 import {
   FASHION_PROVISIONAL_RACK_ENABLED,
   FASHION_CURATION_SPLIT_ENABLED,
   STAGE_A_EARMARK_MS,
   PRE_CURATION_POCKET_MS,
   CURATION_STAGE_A_HARD_MS,
-  CURATION_STAGE_A_SHRINK_MS,
-  CURATION_STAGE_A_TEXT_ONLY_MS,
   chooseStageARung,
 } from "../pipeline-cutoffs";
 
@@ -284,10 +283,19 @@ async function runBudgetLiftRetries(params: {
   });
 
   let plan = params.plan;
-  let slots = params.slots;
+  let slots = [...params.slots];
   let hardDropMetrics = params.hardDropMetrics;
   const liftedSlots = new Set<string>();
 
+  type LiftWork = {
+    decision: (typeof decisions)[number];
+    slotIdx: number;
+    planSlot: (typeof plan.slots)[number];
+    existing: FashionSlotCatalogResult;
+    liftedMax: number;
+  };
+
+  const liftWork: LiftWork[] = [];
   for (const decision of decisions) {
     if (!decision.should_lift || decision.lifted_max == null) {
       if (decision.skip_reason === "no_room") {
@@ -308,7 +316,6 @@ async function runBudgetLiftRetries(params: {
 
     const slotIdx = slots.findIndex((s) => s.slot_id === decision.slot_id);
     if (slotIdx === -1) continue;
-
     const planSlot = plan.slots.find((s) => s.slot_id === decision.slot_id);
     if (!planSlot) continue;
 
@@ -320,121 +327,153 @@ async function runBudgetLiftRetries(params: {
         decision.lifted_max,
       ),
     };
-
-    const existing = slots[slotIdx]!;
-    let mergedProducts = [...existing.products];
-    let queryLogs = existing.query_logs;
-    let queryVariantsUsed = existing.query_variants_used;
-    let readmitted = 0;
-    let requeryRan = false;
-
-    // Zero-latency path: re-admit measured Lane B products under the new ceiling.
-    const readmittedProducts = readmitBudgetDroppedProducts({
-      pool: existing.budget_dropped_pool ?? [],
-      liftedMaxMajor: decision.lifted_max,
+    liftWork.push({
+      decision,
+      slotIdx,
+      planSlot,
+      existing: slots[slotIdx]!,
+      liftedMax: decision.lifted_max,
     });
-    if (readmittedProducts.length) {
-      readmitted = readmittedProducts.length;
-      const byId = new Map(mergedProducts.map((p) => [p.id, p]));
-      for (const p of readmittedProducts) {
-        byId.set(p.id, p);
-      }
-      mergedProducts = [...byId.values()];
-    }
+  }
 
-    if (mergedProducts.length < LIFT_READMIT_MIN) {
-      // CHANGE 2: under tight/infeasible tension, do not barrel-scrape with
-      // another retrieval — Lane B + guard-band already measured the market.
-      if (decision.skip_requery) {
-        logAiChat("info", "fashion_budget_lift_skip_requery", {
-          traceId: params.traceId,
-          slot_id: decision.slot_id,
-          readmitted,
-          survivors: mergedProducts.length,
-          reason: "tight_or_infeasible_market",
-        });
-      } else {
-        requeryRan = true;
-        const liftResult = await searchCatalogForSlot({
-          slot: planSlot,
-          brief: plan.brief,
-          profile: params.profile,
-          accessToken: params.accessToken,
-          signal: params.signal,
-          abortScope: params.abortScope,
-          traceId: params.traceId,
-          mode: plan.mode,
-          allocation: plan.budget_allocation,
-          liftedMax: decision.lifted_max,
-          liftRetryOnly: true,
-        });
+  if (liftWork.length === 0) {
+    return {
+      plan,
+      slots,
+      hardDropMetrics,
+      liftedSlots,
+      preLiftSurvivorCounts,
+      preLiftBudgetDrops,
+    };
+  }
 
-        const readmitIds = new Set(readmittedProducts.map((p) => p.id));
-        const byId = new Map(
-          mergedProducts.map((p) => [
-            p.id,
-            readmitIds.has(p.id) ? { ...p, budget_lift_readmitted: true } : p,
-          ]),
-        );
-        for (const p of liftResult.products) {
-          if (!byId.has(p.id)) byId.set(p.id, p);
+  const liftResults = await Promise.all(
+    liftWork.map(async ({ decision, slotIdx, planSlot, existing, liftedMax }) => {
+      let mergedProducts = [...existing.products];
+      let queryLogs = existing.query_logs;
+      let queryVariantsUsed = existing.query_variants_used;
+      let readmitted = 0;
+      let requeryRan = false;
+
+      const readmittedProducts = readmitBudgetDroppedProducts({
+        pool: existing.budget_dropped_pool ?? [],
+        liftedMaxMajor: liftedMax,
+      });
+      if (readmittedProducts.length) {
+        readmitted = readmittedProducts.length;
+        const byId = new Map(mergedProducts.map((p) => [p.id, p]));
+        for (const p of readmittedProducts) {
+          byId.set(p.id, p);
         }
         mergedProducts = [...byId.values()];
-
-        queryLogs = [...existing.query_logs, ...liftResult.query_logs];
-        queryVariantsUsed = [
-          ...existing.query_variants_used,
-          ...liftResult.query_variants_used,
-        ];
       }
+
+      if (mergedProducts.length < LIFT_READMIT_MIN) {
+        if (decision.skip_requery) {
+          logAiChat("info", "fashion_budget_lift_skip_requery", {
+            traceId: params.traceId,
+            slot_id: decision.slot_id,
+            readmitted,
+            survivors: mergedProducts.length,
+            reason: "tight_or_infeasible_market",
+          });
+        } else {
+          requeryRan = true;
+          const liftResult = await searchCatalogForSlot({
+            slot: planSlot,
+            brief: plan.brief,
+            profile: params.profile,
+            accessToken: params.accessToken,
+            signal: params.signal,
+            abortScope: params.abortScope,
+            traceId: params.traceId,
+            mode: plan.mode,
+            allocation: plan.budget_allocation,
+            liftedMax,
+            liftRetryOnly: true,
+          });
+
+          const readmitIds = new Set(readmittedProducts.map((p) => p.id));
+          const byId = new Map(
+            mergedProducts.map((p) => [
+              p.id,
+              readmitIds.has(p.id) ? { ...p, budget_lift_readmitted: true } : p,
+            ]),
+          );
+          for (const p of liftResult.products) {
+            if (!byId.has(p.id)) byId.set(p.id, p);
+          }
+          mergedProducts = [...byId.values()];
+
+          queryLogs = [...existing.query_logs, ...liftResult.query_logs];
+          queryVariantsUsed = [
+            ...existing.query_variants_used,
+            ...liftResult.query_variants_used,
+          ];
+        }
+      }
+
+      const mergedSlot: FashionSlotCatalogResult = {
+        ...existing,
+        products: mergedProducts,
+        query_logs: queryLogs,
+        query_variants_used: queryVariantsUsed,
+        counts: {
+          ...existing.counts,
+          unique_products: mergedProducts.length,
+        },
+        budget_dropped_pool: [],
+      };
+
+      return {
+        decision,
+        slotIdx,
+        existing,
+        mergedSlot,
+        liftedMax,
+        readmitted,
+        requeryRan,
+      };
+    }),
+  );
+
+  const nextSlots = slots.map((s) => s);
+  const liftedMaxBySlot = new Map<string, number>();
+  for (const row of liftResults) {
+    nextSlots[row.slotIdx] = row.mergedSlot;
+    liftedMaxBySlot.set(row.decision.slot_id, row.liftedMax);
+    liftedSlots.add(row.decision.slot_id);
+  }
+
+  const reprocessed = await postProcessFashionCatalogSlots({
+    traceId: params.traceId,
+    plan,
+    slots: nextSlots,
+    recipientFacts: params.recipientFacts,
+    signal: params.signal,
+    profileCurrency: params.profile.currency,
+    liftedMaxBySlot,
+  });
+
+  slots = reprocessed.slots;
+  hardDropMetrics = reprocessed.hardDropMetrics;
+
+  for (const row of liftResults) {
+    const reprocessedSlot = slots[row.slotIdx]!;
+    if (row.existing.market_prices && !reprocessedSlot.market_prices) {
+      reprocessedSlot.market_prices = row.existing.market_prices;
     }
-
-    const mergedSlot: FashionSlotCatalogResult = {
-      ...existing,
-      products: mergedProducts,
-      query_logs: queryLogs,
-      query_variants_used: queryVariantsUsed,
-      counts: {
-        ...existing.counts,
-        unique_products: mergedProducts.length,
-      },
-      budget_dropped_pool: [],
-    };
-
-    const reprocessed = await postProcessFashionCatalogSlots({
-      traceId: params.traceId,
-      plan,
-      slots: slots.map((s, i) => (i === slotIdx ? mergedSlot : s)),
-      recipientFacts: params.recipientFacts,
-      signal: params.signal,
-      profileCurrency: params.profile.currency,
-      liftedMaxBySlot: new Map([[decision.slot_id, decision.lifted_max]]),
-    });
-
-    // Preserve market_prices from pre-lift measurement (Lane B scout).
-    const reprocessedSlot = reprocessed.slots[slotIdx]!;
-    if (existing.market_prices && !reprocessedSlot.market_prices) {
-      reprocessedSlot.market_prices = existing.market_prices;
-    }
-
-    slots = reprocessed.slots;
-    hardDropMetrics = hardDropMetrics.map((m, i) =>
-      i === slotIdx ? reprocessed.hardDropMetrics[i]! : m,
-    );
-
-    liftedSlots.add(decision.slot_id);
-
     recordPipelineEvent({
       traceId: params.traceId,
       stage: "budget_lift",
       payload: {
-        slot_id: decision.slot_id,
-        from: decision.original_padded_max,
-        to: decision.lifted_max,
-        cheapest_viables: decision.cheapest_viables,
-        readmitted,
-        requery_ran: requeryRan,
-        market_p10: existing.market_prices?.p10,
+        slot_id: row.decision.slot_id,
+        from: row.decision.original_padded_max,
+        to: row.liftedMax,
+        cheapest_viables: row.decision.cheapest_viables,
+        readmitted: row.readmitted,
+        requery_ran: row.requeryRan,
+        market_p10: row.existing.market_prices?.p10,
       },
     });
   }
@@ -519,8 +558,9 @@ export async function searchFashionCatalogPlan(
         },
       });
       const previewImages = previewUrlsFromSlotProducts(result.products);
+      const garment = result.garment?.trim() || "pieces";
       params.onPhase?.({
-        line: `Found ${result.counts.unique_products} options for ${result.garment}`,
+        line: `Pulling in ${garment}…`,
         previewImages,
       });
       return result;
@@ -598,7 +638,7 @@ export async function searchFashionCatalogPlan(
   });
 
   params.onPhase?.({
-    line: "Filtering out the misses",
+    line: "Cutting what doesn’t match the brief",
     previewImages: previewUrlsFromSlots(initialProcessed.slots),
     droppedImages: droppedUrlsFromSlots(initialProcessed.slots),
   });
@@ -620,7 +660,7 @@ export async function searchFashionCatalogPlan(
 
   if (liftResult.liftedSlots.size > 0) {
     params.onPhase?.({
-      line: "Widening the budget a little",
+      line: "Giving the budget a little more room",
       previewImages: previewUrlsFromSlots(slots),
       droppedImages: droppedUrlsFromSlots(slots),
     });
@@ -702,7 +742,7 @@ export async function searchFashionCatalogPlan(
 
   if (params.accessToken != null && params.profile != null) {
     params.onPhase?.({
-      line: "Checking availability and fit",
+      line: "Checking stock and your size",
       previewImages: previewUrlsFromSlots(slots),
       droppedImages: droppedUrlsFromSlots(slots),
     });
@@ -749,7 +789,7 @@ export async function searchFashionCatalogPlan(
       });
       if (provisional) {
         params.onPhase?.({
-          line: "Showing verified options while I finish styling",
+          line: "Hanging verified pieces while I finish styling",
           previewImages: verifiedUrlsFromSlots(slots),
         });
         params.onProvisional({ curation: provisional });
@@ -808,7 +848,7 @@ export async function searchFashionCatalogPlan(
       return verified.length > 0 ? verified : previewUrlsFromSlots(slots);
     })();
     params.onPhase?.({
-      line: "Curating picks from finalists",
+      line: "Choosing what I’d actually put on you",
       previewImages: survivorThumbs,
       droppedImages: droppedUrlsFromSlots(slots),
     });
@@ -820,6 +860,7 @@ export async function searchFashionCatalogPlan(
       preCurationPocketMs - preCurationElapsed,
     );
     const earmarkRemainingMs = stageAEarmarkMs + unusedPreCuration;
+    // Quality: always full vision. Earmark is observability only.
     const rung = chooseStageARung(earmarkRemainingMs);
 
     recordPipelineEvent({
@@ -844,13 +885,6 @@ export async function searchFashionCatalogPlan(
         rung,
       });
     }
-
-    const rungTimeoutMs =
-      rung === "text_only"
-        ? CURATION_STAGE_A_TEXT_ONLY_MS
-        : rung === "half_images"
-          ? CURATION_STAGE_A_SHRINK_MS
-          : CURATION_STAGE_A_HARD_MS;
 
     const curationResult = await runFashionCuration({
       traceId: params.traceId,
@@ -878,10 +912,9 @@ export async function searchFashionCatalogPlan(
       recipientProfile,
       excludedRefs: params.excludedRefs,
       signal: params.signal,
-      imageBudgetScale: rung === "half_images" ? 0.5 : undefined,
-      omitImages: rung === "text_only",
-      timeoutMs: rung === "deterministic" ? undefined : rungTimeoutMs,
-      deterministicOnly: rung === "deterministic",
+      // Hang-safety ceiling only — never half-images / text-only / deterministic
+      // from clock pressure (that path skipped visual department vetoes).
+      timeoutMs: CURATION_STAGE_A_HARD_MS,
       createMessage: params.createMessage
         ? async (curationParams) =>
             params.createMessage!({
@@ -931,20 +964,25 @@ export async function searchFashionCatalogPlan(
           },
         ]),
       );
-      try {
-        await persistAllSlotPools({
-          searchId: params.searchId,
-          userId: params.userId,
-          pools,
+      const searchId = params.searchId;
+      const userId = params.userId;
+      const traceId = params.traceId;
+      const poolsToPersist = pools;
+      // Persist off the hot path — UI already has curated racks.
+      scheduleDetachedWork(() => {
+        void persistAllSlotPools({
+          searchId,
+          userId,
+          pools: poolsToPersist,
           contexts,
+        }).catch((err) => {
+          logAiChat("warn", "fashion_pool_persist_failed", {
+            traceId,
+            searchId,
+            error: String(err).slice(0, 200),
+          });
         });
-      } catch (err) {
-        logAiChat("warn", "fashion_pool_persist_failed", {
-          traceId: params.traceId,
-          searchId: params.searchId,
-          error: String(err).slice(0, 200),
-        });
-      }
+      });
     }
   } else {
     logAiChat("warn", "fashion_catalog_hydration_skipped", {

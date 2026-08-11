@@ -14,12 +14,15 @@ type Props = {
   className?: string;
   /** Product/try-on image hovered from TODAY, ON YOU tiles */
   previewUrl?: string | null;
+  /** Tighter vertical rhythm for the persistent chat rail. */
+  compact?: boolean;
 };
 
 /**
- * Home “THE MIRROR” — live avatar, hover preview, moodboard entry.
+ * “THE MIRROR” — live avatar, hover preview, moodboard entry.
+ * Sticky/full-height rail on desktop; stacked card on mobile home.
  */
-export function HomeMirrorCard({ className, previewUrl }: Props) {
+export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const avatarUrl = useSelfAvatarStore((s) => s.avatarUrl);
   const status = useSelfAvatarStore((s) => s.status);
   const refresh = useSelfAvatarStore((s) => s.refresh);
@@ -88,7 +91,7 @@ export function HomeMirrorCard({ className, previewUrl }: Props) {
     <aside
       className={cn(
         "flex flex-col rounded-[18px] border border-hairline bg-gradient-to-b from-[#FCFCFD] to-[#F5F5F7] px-[18px] py-4",
-        "lg:sticky lg:top-3.5 lg:min-h-[calc(100vh-7.5rem)]",
+        "lg:min-h-0 lg:flex-1",
         className,
       )}
     >
@@ -106,7 +109,10 @@ export function HomeMirrorCard({ className, previewUrl }: Props) {
         data-tryon-trigger
         onClick={openMirror}
         aria-label={ready ? "Open fitting room" : "Create your avatar"}
-        className="relative min-h-[280px] flex-1 overflow-hidden rounded-lg border border-hairline bg-white text-left transition hover:border-ink/20 lg:min-h-[340px]"
+        className={cn(
+          "relative flex-1 overflow-hidden rounded-lg border border-hairline bg-white text-left transition hover:border-ink/20",
+          compact ? "min-h-[220px] lg:min-h-0" : "min-h-[280px] lg:min-h-[340px]",
+        )}
       >
         {ready ? (
           // eslint-disable-next-line @next/next/no-img-element

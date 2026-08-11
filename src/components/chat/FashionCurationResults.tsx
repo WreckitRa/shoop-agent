@@ -162,7 +162,10 @@ function ChangingRoomCta({
   const items = picks.map((pick) =>
     fittingRoomItemFromSearchPick({ pick, searchId }),
   );
-  const anyTryon = picks.some((p) => p.tryon?.available !== false);
+  // Missing tryon (pre-attach) is optimistic — only hide when explicitly unavailable.
+  const anyTryon = picks.some(
+    (p) => p.tryon == null || p.tryon.available === true,
+  );
   const wantsAvatar = picks.some((p) => p.tryon?.cta === "create_avatar");
   const cta = resolveTryonCta({
     available: anyTryon,
@@ -192,7 +195,6 @@ function ChangingRoomCta({
       className="shoop-quiz-apply"
       onClick={() => {
         if (anyTryon) {
-          // Rack picks aren't a named curation look — dress via fitting-room.
           openAndDressItems({ items, title });
           return;
         }
@@ -200,7 +202,7 @@ function ChangingRoomCta({
         openFittingRoom();
       }}
     >
-      Take the look to the changing room
+      See it on you
       <span aria-hidden>→</span>
     </button>
   );

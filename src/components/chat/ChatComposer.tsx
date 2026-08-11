@@ -17,7 +17,14 @@ const HOME_PLACEHOLDERS = [
   '"Everyday sneakers for wide feet — minimal, under $180."',
 ] as const;
 
-export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
+export function ChatComposer({
+  homeVariant,
+  nested,
+}: {
+  homeVariant?: "hero";
+  /** Inside a padded column — skip outer page gutters. */
+  nested?: boolean;
+}) {
   const input = useChatStore((s) => s.input);
   const setInput = useChatStore((s) => s.setInput);
   const isStreaming = useChatStore((s) => s.isStreaming);
@@ -125,7 +132,10 @@ export function ChatComposer({ homeVariant }: { homeVariant?: "hero" }) {
         className={
           isHeroComposer
             ? "flex w-full flex-col gap-2 sm:gap-3"
-            : "mx-auto flex w-full max-w-page-narrow flex-col gap-3 shoop-page-x"
+            : cn(
+                "mx-auto flex w-full max-w-page-narrow flex-col gap-3",
+                !nested && "shoop-page-x",
+              )
         }
       >
         <div

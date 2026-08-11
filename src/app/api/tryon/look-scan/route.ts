@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
+import { getSiteUrl } from "@/lib/seo/site";
 import type { LookScanPiece } from "@/lib/tryon/look-scan-types";
+import { resolveLookScanMode } from "@/lib/tryon/look-scan-types";
+import { attachLookScanToGeneration } from "@/lib/tryon/moodboard-context";
 import { runLookScanVerdict } from "@/lib/tryon/look-scan-verdict";
 
 export const runtime = "nodejs";
@@ -28,6 +31,8 @@ const bodySchema = z
       )
       .max(8)
       .default([]),
+    lookMode: z.enum(["single_item", "outfit"]).optional(),
+    generationId: z.string().min(1).max(80).optional(),
   })
   .strict();
 
@@ -44,16 +49,18 @@ export async function POST(req: Request) {
   }
 
   const pieces: LookScanPiece[] = parsed.data.pieces;
+  const lookMode = resolveLookScanMode(pieces, parsed.data.lookMode);
   let imageUrl = parsed.data.imageUrl;
   if (imageUrl.startsWith("/")) {
-    const origin = new URL(req.url).origin;
-    imageUrl = `${origin}${imageUrl}`;
+    // Never use req.url origin — on Railway that is http://0.0.0.0:8080.
+    imageUrl = `${getSiteUrl().origin}${imageUrl}`;
   }
 
   const verdict = await runLookScanVerdict({
     userId: auth.userId,
     imageUrl,
     pieces,
+    lookMode,
     signal: req.signal,
   });
 
@@ -64,5 +71,13 @@ export async function POST(req: Request) {
     );
   }
 
-  return Response.json({ ok: true, verdict });
+  if (parsed.data.generationId) {
+    await attachLookScanToGeneration({
+      userId: auth.userId,
+      generationId: parsed.data.generationId,
+      verdict,
+    }).catch(() => false);
+  }
+
+  return Response.json({ ok: true, verdict, lookMode });
 }

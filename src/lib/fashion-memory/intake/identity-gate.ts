@@ -18,6 +18,7 @@ import {
   type SizeGarmentBucket,
 } from "./garment-size-fields";
 import type { IntakeProfileHints } from "./account-profile-bridge";
+import { isUsableStatedSizeValue } from "./usable-stated-size";
 
 /** Intake vocabulary for person department (alias of PersonDepartment). */
 export type GenderPresentation = PersonDepartment;
@@ -48,10 +49,10 @@ function statedSizeBuckets(
   const out = new Set<SizeGarmentBucket>();
   const sizes = stated?.sizes;
   if (!sizes) return out;
-  if (sizes.tops?.trim()) out.add("tops");
-  if (sizes.bottoms?.trim()) out.add("bottoms");
-  if (sizes.shoes?.trim()) out.add("shoes");
-  if (sizes.dresses?.trim()) out.add("dresses");
+  if (isUsableStatedSizeValue(sizes.tops)) out.add("tops");
+  if (isUsableStatedSizeValue(sizes.bottoms)) out.add("bottoms");
+  if (isUsableStatedSizeValue(sizes.shoes)) out.add("shoes");
+  if (isUsableStatedSizeValue(sizes.dresses)) out.add("dresses");
   return out;
 }
 
@@ -62,12 +63,18 @@ export function hasSizeForBucket(
 ): boolean {
   if (!bucket) return false;
   if (hints?.sizeBuckets.has(bucket)) return true;
-  return facts.some(
-    (f) =>
-      f.fact_type === "size" &&
-      f.status === "active" &&
-      safeTrim(f.garment_type).toLowerCase() === bucket,
-  );
+  return facts.some((f) => {
+    if (
+      f.fact_type !== "size" ||
+      f.status !== "active" ||
+      safeTrim(f.garment_type).toLowerCase() !== bucket
+    ) {
+      return false;
+    }
+    const v = f.value as { value?: unknown };
+    if (v?.value == null) return false;
+    return isUsableStatedSizeValue(String(v.value));
+  });
 }
 
 export function missingSizeBucketsForGarments(

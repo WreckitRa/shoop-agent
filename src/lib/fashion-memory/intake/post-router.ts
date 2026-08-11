@@ -16,6 +16,10 @@ import {
   type AnsweredGapEntry,
 } from "./clarification-dedup";
 import { sanitizeClarificationQuestions } from "./clarification-sanitize";
+import { normalizeClarificationSizeFields } from "./normalize-size-questions";
+import { mergeFashionFacts } from "./merge-facts";
+import { applyDurableDepartmentScope } from "./durable-department";
+import { sanitizeStatedSizes } from "./usable-stated-size";
 import {
   mergeResolvedGarmentsIntoBriefGarments,
 } from "./garment-answer";
@@ -112,16 +116,19 @@ function withClarificationDefaults(
     signals: opts?.signals,
     departmentLabel: opts?.departmentLabel,
   });
-  // Sanitize first so roster-name chips are logged/stripped, then default Skip.
+  // Sanitize first so roster-name chips are logged/stripped, then size fields,
+  // then default Skip chips.
   return {
     ...result,
     questions: ensureQuestionsHaveQuickOptions(
-      sanitizeClarificationQuestions({
-        questions: personalized.questions,
-        traceId,
-        rosterNames: opts?.rosterNames,
-        stripPersonNameQuestions: opts?.stripPersonNameQuestions,
-      }),
+      normalizeClarificationSizeFields(
+        sanitizeClarificationQuestions({
+          questions: personalized.questions,
+          traceId,
+          rosterNames: opts?.rosterNames,
+          stripPersonNameQuestions: opts?.stripPersonNameQuestions,
+        }),
+      ),
     ),
     ride_along: ensureRideAlongDefaults(personalized.ride_along),
   };
@@ -329,11 +336,14 @@ function applyResolvedGarmentsToBrief(
 function statedFactsFromRouterResult(
   result: FashionRouterResult,
 ): FashionStatedFacts | undefined {
-  if (result.move === "ready_to_search") return result.brief.stated_facts;
-  if (result.move === "ask_clarification") {
-    return result.stated_facts ?? result.brief?.stated_facts;
-  }
-  return undefined;
+  const raw =
+    result.move === "ready_to_search"
+      ? result.brief.stated_facts
+      : result.move === "ask_clarification"
+        ? (result.stated_facts ?? result.brief?.stated_facts)
+        : undefined;
+  if (!raw) return undefined;
+  return { ...raw, sizes: sanitizeStatedSizes(raw.sizes) };
 }
 
 function provisionalBriefFromAsk(
@@ -701,8 +711,10 @@ async function resolveFashionRouterTurnInner(
   },
   onLlmMove: (move: FashionRouterMove) => void,
 ): Promise<ResolvedFashionRouterOutcome> {
-  const pendingBrief = await loadPendingBrief(params.conversationId);
-  const declinedGaps = await loadDeclinedGaps(params.conversationId);
+  const [pendingBrief, declinedGaps] = await Promise.all([
+    loadPendingBrief(params.conversationId),
+    loadDeclinedGaps(params.conversationId),
+  ]);
 
   const lastUser =
     params.lastUserMessage?.trim() ||
@@ -724,18 +736,35 @@ async function resolveFashionRouterTurnInner(
     });
   }
 
-  if (isSupabaseAuthUserId(params.userId)) {
+  const assembledPeople = params.routerContext.people;
+  const assembledFacts = params.routerContext.factsByPersonId;
+  const assembledSignals = params.routerContext.signalsByPersonId;
+  const hasAssembledMemory =
+    Array.isArray(assembledPeople) &&
+    assembledFacts instanceof Map &&
+    assembledSignals instanceof Map;
+
+  // assembleRouterContext already ensureSelfPerson + loads roster/hints.
+  if (isSupabaseAuthUserId(params.userId) && !hasAssembledMemory) {
     await ensureSelfPerson(params.userId);
   }
 
-  const profileHints = isSupabaseAuthUserId(params.userId)
-    ? await loadIntakeProfileHints(params.userId)
-    : null;
+  const profileHints = hasAssembledMemory
+    ? (params.routerContext.profileHints ?? null)
+    : isSupabaseAuthUserId(params.userId)
+      ? await loadIntakeProfileHints(params.userId)
+      : null;
 
-  const { people, factsByPersonId, signalsByPersonId } = await loadPeopleAndFacts({
-    userId: params.userId,
-    guestSnapshot: params.guestSnapshot,
-  });
+  const { people, factsByPersonId, signalsByPersonId } = hasAssembledMemory
+    ? {
+        people: assembledPeople,
+        factsByPersonId: assembledFacts,
+        signalsByPersonId: assembledSignals,
+      }
+    : await loadPeopleAndFacts({
+        userId: params.userId,
+        guestSnapshot: params.guestSnapshot,
+      });
 
   let routerResult = await runFashionRouter(
     { context: params.routerContext, signal: params.signal, traceId: params.traceId },
@@ -778,13 +807,30 @@ async function resolveFashionRouterTurnInner(
       traceId: params.traceId,
     });
     statedPersonId = applied.personId;
-    const reloaded = await loadPeopleAndFacts({
-      userId: params.userId,
-      guestSnapshot: params.guestSnapshot,
-    });
-    peopleNow = reloaded.people;
-    factsByPersonIdNow = reloaded.factsByPersonId;
-    signalsByPersonIdNow = reloaded.signalsByPersonId;
+    // Merge writes into the in-memory maps — avoid a full roster reload.
+    if (applied.person && !peopleNow.some((p) => p.id === applied.person!.id)) {
+      peopleNow = [...peopleNow, applied.person];
+    }
+    if (applied.personId && applied.factsWritten.length > 0) {
+      const prev = factsByPersonIdNow.get(applied.personId) ?? [];
+      factsByPersonIdNow = new Map(factsByPersonIdNow);
+      factsByPersonIdNow.set(
+        applied.personId,
+        mergeFashionFacts(prev, applied.factsWritten),
+      );
+    }
+  }
+
+  // Clarification answers were written to DB — merge into the in-memory map
+  // so this turn's gate sees shoes/tops/etc. without a reload.
+  if (clarificationApply?.personId && clarificationApply.facts.length > 0) {
+    const pid = clarificationApply.personId;
+    const prev = factsByPersonIdNow.get(pid) ?? [];
+    factsByPersonIdNow = new Map(factsByPersonIdNow);
+    factsByPersonIdNow.set(
+      pid,
+      mergeFashionFacts(prev, clarificationApply.facts),
+    );
   }
 
   const resolvedGarments = clarificationApply?.resolvedGarments ?? [];
@@ -1529,6 +1575,15 @@ async function resolveFashionRouterTurnInner(
     shopperFacts,
   });
 
+  // Durable gender beats LLM mixed/wrong — unless this turn explicitly Mix it.
+  brief = applyDurableDepartmentScope({
+    brief,
+    facts,
+    person: person!,
+    profileHints: recipientHints,
+    stated: stated ?? brief.stated_facts,
+  });
+
   const shopperMeta = parseOnboardingMetaFromFacts(shopperFacts);
   const occasionInferred = didInferOccasionFromLifestyle({
     before: occasionBefore,
@@ -1545,6 +1600,14 @@ async function resolveFashionRouterTurnInner(
   }
 
   brief = applyDepartmentFromRelation(brief, person);
+  // Re-apply durable after relation fill — relation never overrides known self gender.
+  brief = applyDurableDepartmentScope({
+    brief,
+    facts,
+    person: person!,
+    profileHints: recipientHints,
+    stated: stated ?? brief.stated_facts,
+  });
   if (
     brief.department_scope &&
     brief.knowledge_state &&

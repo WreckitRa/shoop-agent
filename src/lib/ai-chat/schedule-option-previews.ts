@@ -2,9 +2,9 @@
  * Option preview fetch + palette resolve + SSE hydrate + DB patch for fashion
  * clarification chips.
  *
- * Returns a promise so the chat stream can await hydration (bounded) before
- * emitting `done` — otherwise the SSE connection closes while fetches are
- * still in flight and previews never reach the client.
+ * Runs detached from the chat stream hot path — `done` is not held for previews.
+ * DB patch is the source of truth; client polls. SSE push is best-effort while
+ * the connection is still open.
  */
 import { prisma } from "@/lib/ai-chat/db";
 import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
@@ -119,12 +119,16 @@ export function runOptionPreviews(params: {
       if (paletteResults.length && params.applyPalettes) {
         const paletteMap: Record<string, string[]> = {};
         for (const row of paletteResults) {
+          // Persist / push LLM (+ cache) only — heuristics stay client-local.
+          if (!row.fromModel) continue;
           paletteMap[row.optionId] = row.paletteColors;
         }
-        metadataPatch = {
-          ...metadataPatch,
-          ...params.applyPalettes(paletteMap),
-        };
+        if (Object.keys(paletteMap).length) {
+          metadataPatch = {
+            ...metadataPatch,
+            ...params.applyPalettes(paletteMap),
+          };
+        }
       }
 
       if (!Object.keys(metadataPatch).length) return;
@@ -145,6 +149,13 @@ export function runOptionPreviews(params: {
         },
       });
 
+      const ssePalettes = paletteResults
+        .filter((r) => r.fromModel)
+        .map((r) => ({
+          optionId: r.optionId,
+          paletteColors: r.paletteColors,
+        }));
+
       params.push(
         formatSse("option_previews", {
           messageId: params.messageId,
@@ -152,10 +163,7 @@ export function runOptionPreviews(params: {
             optionId: r.optionId,
             images: r.images,
           })),
-          palettes: paletteResults.map((r) => ({
-            optionId: r.optionId,
-            paletteColors: r.paletteColors,
-          })),
+          ...(ssePalettes.length ? { palettes: ssePalettes } : {}),
         }),
       );
     } catch {

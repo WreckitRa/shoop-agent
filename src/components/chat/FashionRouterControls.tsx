@@ -6,12 +6,12 @@ import { OptionPreviewCarousel } from "@/components/chat/OptionPreviewCarousel";
 import { useChatStore } from "@/components/chat/chat-store";
 import {
   asNormalizedOptions,
+  clarificationLooksLikeColorQuiz,
   CLARIFICATION_OTHER_OPTION,
   CLARIFICATION_OTHER_OPTION_ID,
   ensureQuestionsHaveQuickOptions,
   ensureRideAlongDefaults,
   formatClarificationAnswerDisplay,
-  looksLikeColorClarification,
 } from "@/lib/fashion-memory/router/clarification-defaults";
 import type {
   FashionClarificationAnswer,
@@ -118,7 +118,7 @@ function QuestionOptions({
     question.quick_options ?? [{ id: CLARIFICATION_OTHER_OPTION_ID, label: CLARIFICATION_OTHER_OPTION }],
   );
   const allowMultiple = Boolean(question.allow_multiple);
-  const preferPalette = looksLikeColorClarification(question.text);
+  const preferPalette = clarificationLooksLikeColorQuiz(question);
   const visualOptions = options.filter(
     (o) =>
       o.id !== CLARIFICATION_OTHER_OPTION_ID &&

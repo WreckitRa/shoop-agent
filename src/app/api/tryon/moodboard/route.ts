@@ -1,5 +1,6 @@
 import { getAuthContext } from "@/lib/auth/session";
 import { listMoodboardTryons } from "@/lib/tryon/generations";
+import { enrichMoodboardItems } from "@/lib/tryon/moodboard-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,8 @@ export async function GET() {
   }
 
   try {
-    const items = await listMoodboardTryons(auth.userId);
+    const base = await listMoodboardTryons(auth.userId);
+    const items = await enrichMoodboardItems(auth.userId, base);
     return Response.json({ ok: true, items });
   } catch {
     return Response.json(

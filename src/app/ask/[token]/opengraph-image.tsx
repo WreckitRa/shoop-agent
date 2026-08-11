@@ -1,5 +1,5 @@
 import { loadShareByToken } from "@/lib/ask/create-share";
-import { absoluteAskLookImageUrl } from "@/lib/ask/og-image";
+import { resolveAskShareImageSrc } from "@/lib/ask/ask-image";
 
 export const runtime = "nodejs";
 export const alt = "The look — should they get it?";
@@ -18,15 +18,25 @@ export default async function Image({ params }: Props) {
   }
 
   const share = await loadShareByToken(token);
-  const src = share?.imageUrl
-    ? absoluteAskLookImageUrl(share.imageUrl)
-    : "";
+  if (!share) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  const src = await resolveAskShareImageSrc(share);
   if (!src) {
     return new Response("Not found", { status: 404 });
   }
 
+  if (src.startsWith("data:")) {
+    const match = src.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return new Response("Not found", { status: 404 });
+    return new Blob([Buffer.from(match[2], "base64")], {
+      type: match[1] || "image/jpeg",
+    });
+  }
+
   const upstream = await fetch(src, {
-    next: { revalidate: 86_400 },
+    next: { revalidate: 300 },
   });
   if (!upstream.ok) {
     return new Response("Not found", { status: 404 });

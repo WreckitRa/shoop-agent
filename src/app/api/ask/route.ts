@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
 import { createLookAskShare } from "@/lib/ask/create-share";
+import { getSiteUrl } from "@/lib/seo/site";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,9 +61,11 @@ export async function POST(req: Request) {
     );
   }
 
+  const publicOrigin = getSiteUrl().origin;
   let imageUrl = parsed.data.imageUrl;
   if (imageUrl.startsWith("/")) {
-    imageUrl = `${new URL(req.url).origin}${imageUrl}`;
+    // Never use req.url origin — on Railway that is http://0.0.0.0:8080.
+    imageUrl = `${publicOrigin}${imageUrl}`;
   }
 
   try {
@@ -91,14 +94,13 @@ export async function POST(req: Request) {
       ownerVote: parsed.data.ownerVote,
     });
 
-    const origin = new URL(req.url).origin;
     const askPath = `/ask/${share.token}`;
     return Response.json({
       ok: true,
       shareId: share.id,
       token: share.token,
       askPath,
-      url: `${origin}${askPath}`,
+      url: `${publicOrigin}${askPath}`,
       serial: share.serial,
       messageId: share.messageId,
     });

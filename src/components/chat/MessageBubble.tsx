@@ -184,7 +184,14 @@ export const MessageBubble = memo(function MessageBubble({
       {!isUser && lookAsk ? (
         <div className="shoop-lookask-chat">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lookAsk.imageUrl} alt="" />
+          <img
+            src={
+              lookAsk.token
+                ? `/api/ask/${encodeURIComponent(lookAsk.token)}/image`
+                : lookAsk.imageUrl
+            }
+            alt=""
+          />
           <div className="meta">
             <b>Verdict: {lookAsk.verdictTitle}</b>
             <a href={lookAsk.askPath}>Open discussion →</a>

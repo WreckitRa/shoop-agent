@@ -14,8 +14,9 @@ export type SlotFilterOptions = {
   /** When true, omit taxonomy category filter (thin-slot reformulation / Lane A). */
   omitCategory?: boolean;
   /**
-   * When true, omit Target gender attribute filter (unfiltered hedge lane).
-   * Category-filtered lanes may carry Target gender; the open lane must not.
+   * When true, omit Target gender attribute filter.
+   * Default keeps gender on all lanes (including Lane A category hedge) —
+   * omitting gender is how mens/womens inventory mixes.
    */
   omitTargetGender?: boolean;
   /**
@@ -35,8 +36,9 @@ export type SlotFilterOptions = {
  * filtered server-side. Size/color matching runs client-side after label
  * normalization in the next pipeline stage. Profile no-gos are also excluded.
  *
- * Target gender IS allowed on category-filtered lanes only (Male+Unisex /
- * Female+Unisex). Kids/baby have no server gender filter.
+ * Target gender (Male+Unisex / Female+Unisex) applies whenever department is
+ * gendered — including Lane A (category omitted). Kids/baby have no server
+ * gender filter.
  */
 export function buildSlotCatalogFilters(params: {
   brief: FashionSearchBrief;
@@ -72,7 +74,7 @@ export function buildSlotCatalogFilters(params: {
     if (categories.length) filters.categories = categories;
   }
 
-  if (!params.options?.omitCategory && !params.options?.omitTargetGender) {
+  if (!params.options?.omitTargetGender) {
     const department = resolveSearchDepartment({
       knowledgeDepartment: params.brief.knowledge_state?.department,
       departmentScope: params.brief.department_scope,

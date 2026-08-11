@@ -2,7 +2,10 @@
 
 import { create } from "zustand";
 import type { FittingRoomItem } from "@/lib/tryon/fitting-room-types";
-import { MAX_FITTING_ROOM_ITEMS } from "@/lib/tryon/fitting-room-types";
+import {
+  durableFittingRoomProvenance,
+  MAX_FITTING_ROOM_ITEMS,
+} from "@/lib/tryon/fitting-room-types";
 import type { TryonCompareVariant } from "@/lib/tryon/types";
 import { isCompareSettled } from "@/lib/tryon/compare-variants";
 import {
@@ -368,7 +371,9 @@ async function startActiveOutfitRender(generation: number) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        items: supported.map((item) => ({ provenance: item.provenance })),
+        items: supported.map((item) => ({
+          provenance: durableFittingRoomProvenance(item),
+        })),
       }),
     });
     const body = await res.json();

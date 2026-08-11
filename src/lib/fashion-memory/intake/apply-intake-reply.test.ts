@@ -121,6 +121,6 @@ describe("garment clarification chip → concrete garments", () => {
         },
       ],
     );
-    assert.equal(flat.size, "9");
+    assert.equal(flat.size_shoes, "9");
   });
 });

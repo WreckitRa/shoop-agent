@@ -14,6 +14,11 @@ import { sanitizeCurationNarration } from "./narration-sanitize";
 import type { BudgetAssembly } from "../budget/budgetAllocation";
 import type { FashionSlotBrandStatus } from "../router/types";
 import { CURATION_LOOKS_TARGET, curationPickCap } from "./deliverables";
+import { departmentUnknownRank } from "./department-rank";
+import {
+  isGenderedDepartment,
+  resolveSearchDepartment,
+} from "../department";
 
 const ROLE_CYCLE: PickRole[] = ["safe", "stretch", "value", "reach", "safe"];
 
@@ -72,6 +77,11 @@ export function buildDeterministicFallback(params: {
   traceId?: string | null;
 }): DeliverCurationInput {
   const vetoed = params.vetoedRefs ?? new Set<string>();
+  const department = resolveSearchDepartment({
+    knowledgeDepartment: params.plan.brief.knowledge_state?.department,
+    departmentScope: params.plan.brief.department_scope,
+  });
+  const gendered = isGenderedDepartment(department);
 
   const slots = params.plan.slots.map((planSlot) => {
     const pool = params.pools?.get(planSlot.slot_id);
@@ -79,13 +89,20 @@ export function buildDeterministicFallback(params: {
       ? new Set(pool.verified.map((c) => c.id))
       : null;
 
-    const entries = refsForSlot(params.registry, planSlot.slot_id).filter(
-      (entry) => {
+    const entries = refsForSlot(params.registry, planSlot.slot_id)
+      .filter((entry) => {
         if (vetoed.has(entry.ref)) return false;
         if (verifiedIds && !verifiedIds.has(entry.product_id)) return false;
         return true;
-      },
-    );
+      })
+      .sort((a, b) => {
+        if (!gendered) return a.score_rank - b.score_rank;
+        const unk =
+          departmentUnknownRank(a.candidate) -
+          departmentUnknownRank(b.candidate);
+        if (unk !== 0) return unk;
+        return a.score_rank - b.score_rank;
+      });
 
     const count = Math.min(
       curationPickCap({

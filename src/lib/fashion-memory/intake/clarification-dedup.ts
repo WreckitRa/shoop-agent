@@ -19,6 +19,7 @@ import { getGenderPresentation, hasSizeForBucket } from "./identity-gate";
 import type { IntakeProfileHints } from "./account-profile-bridge";
 import type { SizeGarmentBucket } from "./garment-size-fields";
 import { hasConcreteGarmentDirection } from "./garment-answer";
+import { isUsableStatedSizeValue } from "./usable-stated-size";
 
 export type AnsweredGapEntry = {
   gap: FashionClarificationGap;
@@ -46,16 +47,16 @@ export function answeredGapsFromStatedFacts(
     out.push({ gap: "department", source: "stated_facts" });
   }
   const sizes = stated.sizes;
-  if (sizes?.tops?.trim()) {
+  if (isUsableStatedSizeValue(sizes?.tops)) {
     out.push({ gap: "size", garment_type: "tops", source: "stated_facts" });
   }
-  if (sizes?.bottoms?.trim()) {
+  if (isUsableStatedSizeValue(sizes?.bottoms)) {
     out.push({ gap: "size", garment_type: "bottoms", source: "stated_facts" });
   }
-  if (sizes?.shoes?.trim()) {
+  if (isUsableStatedSizeValue(sizes?.shoes)) {
     out.push({ gap: "size", garment_type: "shoes", source: "stated_facts" });
   }
-  if (sizes?.dresses?.trim()) {
+  if (isUsableStatedSizeValue(sizes?.dresses)) {
     out.push({ gap: "size", garment_type: "dresses", source: "stated_facts" });
   }
   if (stated.budget?.max != null) {

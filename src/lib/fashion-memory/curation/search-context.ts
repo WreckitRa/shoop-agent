@@ -90,6 +90,7 @@ export async function loadSearchState(
 
   const registry = buildRefRegistry({
     mode: plan.mode,
+    brief: plan.brief,
     slots: catalog.slots.map((slot) => ({
       slot_id: slot.slot_id,
       planSlot: plan.slots.find((p) => p.slot_id === slot.slot_id)!,

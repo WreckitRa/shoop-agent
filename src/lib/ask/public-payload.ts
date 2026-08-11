@@ -3,6 +3,7 @@ import type { AskVoteChoice, LookAskSharePublic } from "./types";
 import { ASK_VOTE_CHOICES } from "./types";
 import type { LookScanVerdict } from "@/lib/tryon/look-scan-types";
 import { ownerVoterKey } from "./owner-vote";
+import { publicAskImagePath } from "./ask-image";
 
 export function generateAskToken(): string {
   return randomBytes(8).toString("base64url").slice(0, 10);
@@ -125,7 +126,8 @@ export function buildLookAskPublic(params: {
     token: share.token,
     askerName: share.askerName,
     serial: share.serial,
-    imageUrl: share.imageUrl,
+    // Always same-origin durable route — DB may hold expired signed URLs.
+    imageUrl: publicAskImagePath(share.token),
     pieces: pieces as LookAskSharePublic["pieces"],
     killCount: share.killCount,
     shoopRevealed,

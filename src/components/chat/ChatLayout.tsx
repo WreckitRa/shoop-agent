@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/ai-chat/cn";
 import { useSearchParams } from "next/navigation";
 import { useChatStore } from "@/components/chat/chat-store";
@@ -8,6 +8,8 @@ import { ChatComposer } from "@/components/chat/ChatComposer";
 import { MessageList } from "@/components/chat/MessageList";
 import { ScrollToBottomButton } from "@/components/chat/ScrollToBottomButton";
 import { EmptyChatState } from "@/components/chat/EmptyChatState";
+import { HomeMirrorCard } from "@/components/chat/HomeMirrorCard";
+import { MirrorPeek } from "@/components/chat/MirrorPeek";
 import { useChatScroll } from "@/components/chat/useChatScroll";
 import { ChatFocusHighlightProvider } from "@/components/chat/ChatFocusHighlightContext";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
@@ -36,10 +38,15 @@ export const ChatLayout = memo(function ChatLayout() {
   const fetchConversations = useChatStore((s) => s.fetchConversations);
   const loadConversation = useChatStore((s) => s.loadConversation);
   const collapseInlineProduct = useInlineProductStore((s) => s.collapse);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     collapseInlineProduct();
   }, [activeConversationId, collapseInlineProduct]);
+
+  useEffect(() => {
+    if (activeConversationId || messageCount > 0) setPreviewUrl(null);
+  }, [activeConversationId, messageCount]);
 
   const showEmpty = !activeConversationId && messageCount === 0;
   const showLoading = loadingMessages && messageCount === 0;
@@ -96,43 +103,57 @@ export const ChatLayout = memo(function ChatLayout() {
                 </div>
               ) : null}
 
-              <div className="relative min-h-0 flex-1">
+              <div className="shoop-page-x mx-auto flex min-h-0 w-full max-w-page-wide flex-1 flex-col">
                 <div
-                  ref={scrollRef}
-                  className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+                  className={cn(
+                    "grid min-h-0 flex-1 grid-cols-1",
+                    "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
+                  )}
                 >
-                  <div
-                    className={cn(
-                      "tp-chat-content shoop-page-x relative mx-auto flex w-full flex-col gap-4 md:gap-5",
-                      showEmpty
-                        ? "min-h-full max-w-page-wide"
-                        : "max-w-page md:min-h-full",
-                    )}
-                  >
-                    {showLoading ? (
-                      <div className="flex min-h-[40vh] items-center justify-center py-20 text-sm text-ink-muted">
-                        Loading…
+                  <div className="relative flex min-h-0 min-w-0 flex-col">
+                    <div className="relative min-h-0 flex-1">
+                      <div
+                        ref={scrollRef}
+                        className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+                      >
+                        <div className="tp-chat-content relative flex w-full flex-col gap-4 md:gap-5">
+                          {showLoading ? (
+                            <div className="flex min-h-[40vh] items-center justify-center py-20 text-sm text-ink-muted">
+                              Loading…
+                            </div>
+                          ) : showEmpty ? (
+                            <EmptyChatState
+                              previewUrl={previewUrl}
+                              onPreview={setPreviewUrl}
+                            />
+                          ) : (
+                            <MessageList />
+                          )}
+                        </div>
                       </div>
-                    ) : showEmpty ? (
-                      <EmptyChatState />
-                    ) : (
-                      <MessageList />
-                    )}
-                  </div>
-                </div>
 
-                {!showEmpty && !showLoading && showScrollDown ? (
-                  <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center shoop-page-x">
-                    <ScrollToBottomButton
-                      onClick={() => scrollToBottom("smooth")}
-                    />
+                      {!showEmpty && !showLoading && showScrollDown ? (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
+                          <ScrollToBottomButton
+                            onClick={() => scrollToBottom("smooth")}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {showEmpty ? null : <ChatComposer nested />}
                   </div>
-                ) : null}
+
+                  <aside className="hidden min-h-0 py-7 lg:flex lg:flex-col">
+                    <HomeMirrorCard
+                      previewUrl={previewUrl}
+                      compact={!showEmpty}
+                    />
+                  </aside>
+                </div>
               </div>
 
-              {showEmpty ? null : (
-                <ChatComposer />
-              )}
+              {showEmpty ? null : <MirrorPeek />}
             </div>
           </div>
         </div>

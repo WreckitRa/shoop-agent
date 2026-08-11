@@ -208,6 +208,12 @@ async function finalizeResolvedPlan(params: {
   return { ...withBudget, plan_source: planSource };
 }
 
+export type PlanFromBriefResult = {
+  plan: FashionSearchPlan;
+  /** Reuse for curation — avoid a second recipient-profile DB build. */
+  recipientProfile: string;
+};
+
 /** Full pipeline: LLM plan → Phase 3 validation → clamps → persisted shape. */
 export async function planSearchFromBrief(params: {
   brief: FashionSearchBrief;
@@ -218,7 +224,7 @@ export async function planSearchFromBrief(params: {
   signal?: AbortSignal;
   traceId?: string | null;
   plannerDeps?: import("./llm-planner").RunSearchPlannerDeps;
-}): Promise<FashionSearchPlan> {
+}): Promise<PlanFromBriefResult> {
   const sanitized = sanitizeBriefGarments({
     ...params.brief,
     recipient_person_id: params.recipientPersonId,
@@ -279,7 +285,7 @@ export async function planSearchFromBrief(params: {
     });
   }
 
-  return finalizeResolvedPlan({
+  const resolved = await finalizeResolvedPlan({
     plan,
     planSource,
     brief,
@@ -288,6 +294,7 @@ export async function planSearchFromBrief(params: {
     signal: params.signal,
     traceId: params.traceId,
   });
+  return { plan: resolved, recipientProfile };
 }
 
 /**

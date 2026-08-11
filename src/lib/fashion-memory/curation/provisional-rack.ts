@@ -31,6 +31,7 @@ export function buildProvisionalPresentation(params: {
   const registry = buildRefRegistry({
     slots: slotData,
     mode: params.plan.mode,
+    brief: params.plan.brief,
   });
 
   const thinSlots = params.slots

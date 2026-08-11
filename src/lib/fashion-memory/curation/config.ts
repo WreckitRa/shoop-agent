@@ -24,8 +24,9 @@ export const FASHION_CURATION_EFFORT = (
 ) as "off" | "low" | "medium" | "high";
 
 /**
- * Hard wall-clock for a single curation LLM call.
- * Stage A (split): 25s; Phase 0 single call: 55s.
+ * Hard wall-clock for a single curation LLM call — hang-safety only.
+ * Default ≈ 3 minutes (CURATION_SAFETY_MS / Stage A hard). Set
+ * CURATION_LLM_TIMEOUT_MS=0 only in local debugging (never in prod).
  */
 export const CURATION_LLM_TIMEOUT_MS = Number(
   process.env.CURATION_LLM_TIMEOUT_MS ??

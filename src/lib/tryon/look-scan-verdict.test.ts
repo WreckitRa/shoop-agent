@@ -1,6 +1,38 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { resolveLookScanMode } from "./look-scan-types";
 import { coerceLookScanPayload } from "./look-scan-verdict";
+
+describe("resolveLookScanMode", () => {
+  it("treats zero or one piece as single_item", () => {
+    assert.equal(resolveLookScanMode([]), "single_item");
+    assert.equal(
+      resolveLookScanMode([{ title: "Navy blazer" }]),
+      "single_item",
+    );
+  });
+
+  it("treats two+ pieces as outfit", () => {
+    assert.equal(
+      resolveLookScanMode([
+        { title: "Blazer" },
+        { title: "Trousers" },
+      ]),
+      "outfit",
+    );
+  });
+
+  it("honors explicit look mode", () => {
+    assert.equal(
+      resolveLookScanMode([{ title: "A" }, { title: "B" }], "single_item"),
+      "single_item",
+    );
+    assert.equal(
+      resolveLookScanMode([{ title: "A" }], "outfit"),
+      "outfit",
+    );
+  });
+});
 
 describe("coerceLookScanPayload", () => {
   it("accepts the canonical snake_case shape", () => {

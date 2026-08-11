@@ -18,10 +18,15 @@ import {
 } from "@/lib/fashion-memory/router/profile-context-format";
 import { HONESTY_OPTIONS } from "@/lib/onboarding/form-options";
 import { getOnboardingStatus } from "@/lib/onboarding/status";
-import type { LookScanPiece, LookScanVerdict } from "@/lib/tryon/look-scan-types";
+import {
+  resolveLookScanMode,
+  type LookScanMode,
+  type LookScanPiece,
+  type LookScanVerdict,
+} from "@/lib/tryon/look-scan-types";
 
-export type { LookScanPiece, LookScanVerdict } from "@/lib/tryon/look-scan-types";
-export { formatScanEmphasis } from "@/lib/tryon/look-scan-types";
+export type { LookScanPiece, LookScanVerdict, LookScanMode } from "@/lib/tryon/look-scan-types";
+export { formatScanEmphasis, resolveLookScanMode } from "@/lib/tryon/look-scan-types";
 
 const checkEnum = z.enum(["pass", "caution", "fail"]);
 const voteEnum = z.enum(["no", "meh", "almost", "love"]);
@@ -131,19 +136,35 @@ function buildShopperContext(status: Awaited<ReturnType<typeof getOnboardingStat
   return lines.length ? lines.join("\n") : "Limited profile — judge from the photo.";
 }
 
-function piecesBlock(pieces: LookScanPiece[]): string {
-  if (!pieces.length) return "Pieces on the look: (not listed — judge from the photo).";
-  return [
-    "Pieces on the look:",
-    ...pieces.map((p, i) => {
-      const price = p.priceLabel ? ` · ${p.priceLabel}` : "";
-      const g = p.garment ? ` [${p.garment}]` : "";
-      return `${i + 1}. ${p.title}${g}${price}`;
-    }),
-  ].join("\n");
+function piecesBlock(pieces: LookScanPiece[], mode: LookScanMode): string {
+  if (!pieces.length) {
+    return mode === "single_item"
+      ? "Scope: single item try-on (piece list missing — judge the one garment in the photo)."
+      : "Scope: full look (piece list missing — judge the outfit in the photo).";
+  }
+  const header =
+    mode === "single_item"
+      ? `Scope: SINGLE ITEM try-on — judge only this one piece on them (not a full outfit):\n1. ${formatPiece(pieces[0]!)}`
+      : [
+          `Scope: FULL LOOK — ${pieces.length} pieces worn together; judge the complete outfit, how pieces work as a set, and overall proportion:`,
+          ...pieces.map((p, i) => `${i + 1}. ${formatPiece(p)}`),
+        ].join("\n");
+  return header;
 }
 
-const SYSTEM = `You are Shoop — the shopper's stylist. You study a try-on photo of them wearing an outfit and deliver YOUR verdict as Shoop (third-person stylist voice), never as if you were the shopper talking about themselves.
+function formatPiece(p: LookScanPiece): string {
+  const price = p.priceLabel ? ` · ${p.priceLabel}` : "";
+  const g = p.garment ? ` [${p.garment}]` : "";
+  return `${p.title}${g}${price}`;
+}
+
+function systemPromptForMode(mode: LookScanMode): string {
+  const scope =
+    mode === "single_item"
+      ? "You study a try-on photo of them wearing ONE product. Verdict the single piece (fit, color, whether it works on them) — do not invent a full outfit review or criticize missing layers that were never tried on."
+      : "You study a try-on photo of them wearing a multi-piece look. Verdict the FULL outfit as a set — how pieces work together, proportion, and overall polish — not each item in isolation.";
+
+  return `You are Shoop — the shopper's stylist. ${scope} Deliver YOUR verdict as Shoop (third-person stylist voice), never as if you were the shopper talking about themselves.
 
 Return ONLY a JSON object (no markdown fence) with this exact shape and these exact keys:
 {
@@ -162,12 +183,17 @@ Return ONLY a JSON object (no markdown fence) with this exact shape and these ex
 Field rules (required — never omit):
 - verdict_title: string, ≤12 words — Shoop's headline, not the shopper quoting themselves
 - verdict_body: string, under ~70 words — write as Shoop advising them ("I'd keep…", "Skip…", "This works because…"), never "I feel / I love / I'd wear this" as the shopper
-- annotations: exactly 4 short scan labels, ≤5 words each
+- annotations: exactly 4 short scan labels, ≤5 words each${
+    mode === "single_item"
+      ? " — focus on this piece (fit, color, drape, no-list)"
+      : " — cover set harmony (fit, palette, proportion, no-list)"
+  }
 - whispers: exactly 4 rotating status lines (intimate, lowercase; **bold** sparingly) — Shoop thinking aloud while scanning
 - checks.fit / checks.palette / checks.nolist: each exactly "pass", "caution", or "fail"
 - vote: exactly one of "love" | "almost" | "meh" | "no" — MUST match the headline/body. If you say buy / get it / love it → "love". If you say wait / fix / almost → "almost". If shrug / meh / mid → "meh". If hard pass / skip / veto → "no". Never contradict yourself (e.g. title says Buy but vote is meh).
 
 Match the shopper's honesty preference (gentle / straight / no-mercy). Be specific to THIS photo and THESE pieces. Honor hard no-list and taste vetoes. Never invent review counts or prices you weren't given. The verdict is what Shoop thinks — not a guess at what the shopper would say.`;
+}
 
 function asTrimmedString(v: unknown): string | undefined {
   if (typeof v === "string") {
@@ -325,6 +351,7 @@ export async function runLookScanVerdict(params: {
   userId: string;
   imageUrl: string;
   pieces: LookScanPiece[];
+  lookMode?: LookScanMode | null;
   signal?: AbortSignal;
 }): Promise<LookScanVerdict | null> {
   const image = await fetchAndResizeCurationImage(
@@ -338,6 +365,7 @@ export async function runLookScanVerdict(params: {
     return null;
   }
 
+  const mode = resolveLookScanMode(params.pieces, params.lookMode);
   const status = await getOnboardingStatus(params.userId);
   const honesty = status.profile?.honestyPreference ?? null;
   const voice = mapHonestyToVoice(honesty);
@@ -348,9 +376,11 @@ ${shopper}
 
 Honesty mode: ${voice ?? "balanced"}
 
-${piecesBlock(params.pieces)}
+${piecesBlock(params.pieces, mode)}
 
-Study the try-on photo and return Shoop's JSON verdict (stylist opinion) with ALL required keys. Do not roleplay as the shopper.`;
+Study the try-on photo and return Shoop's JSON verdict (stylist opinion) with ALL required keys. Do not roleplay as the shopper. Stay in scope: ${
+    mode === "single_item" ? "single item only" : "full look"
+  }.`;
 
   try {
     const anthropic = getAnthropicClient();
@@ -358,7 +388,7 @@ Study the try-on photo and return Shoop's JSON verdict (stylist opinion) with AL
       {
         model: FASHION_CURATION_MODEL,
         max_tokens: 900,
-        system: SYSTEM,
+        system: systemPromptForMode(mode),
         messages: [
           {
             role: "user",
