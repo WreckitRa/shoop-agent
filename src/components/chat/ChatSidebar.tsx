@@ -310,7 +310,7 @@ export const ChatSidebar = memo(function ChatSidebar() {
         <button
           type="button"
           aria-label="Dismiss sidebar"
-          className="fixed inset-0 z-20 bg-black/40 lg:hidden"
+          className="fixed inset-0 z-[99] bg-black/40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}

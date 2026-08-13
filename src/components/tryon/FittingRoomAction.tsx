@@ -2,6 +2,7 @@
 
 import type { MouseEvent } from "react";
 import { cn } from "@/lib/ai-chat/cn";
+import { useToastStore } from "@/lib/client/toast-store";
 import type { FittingRoomItem } from "@/lib/tryon/fitting-room-types";
 import { useTryOnDrawerStore } from "./tryon-drawer-store";
 import {
@@ -47,17 +48,19 @@ export function FittingRoomAction({
   if (cta === "create_avatar") {
     if (variant === "overlay") {
       return (
-        <button
-          type="button"
-          data-tryon-trigger
-          className={cn("shoop-tryb", className)}
-          onClick={(e) => {
-            e.stopPropagation();
-            openCreateFlow();
-          }}
-        >
-          CREATE AVATAR →
-        </button>
+        <div className={cn("shoop-tryb-row", className)}>
+          <button
+            type="button"
+            data-tryon-trigger
+            className="shoop-tryb"
+            onClick={(e) => {
+              e.stopPropagation();
+              openCreateFlow();
+            }}
+          >
+            CREATE AVATAR →
+          </button>
+        </div>
       );
     }
     return (
@@ -80,12 +83,13 @@ export function FittingRoomAction({
   }
 
   const blockedFull = rackFull && !isInRack;
+  const showToast = useToastStore((s) => s.show);
 
   const overlayLabel = isActive
     ? "ON YOU"
     : blockedFull
       ? "ROOM FULL"
-      : "SEE IT ON YOU →";
+      : "ON YOU →";
 
   const label = isActive
     ? "On you"
@@ -93,25 +97,58 @@ export function FittingRoomAction({
       ? "Fitting room full"
       : "See it on you";
 
+  const hangIt = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (blockedFull) return;
+    const result = addToFittingRoom(item);
+    if (result === "added") {
+      showToast({
+        title: "Hung in the fitting room",
+        body: "Open Mirror when you want it on.",
+      });
+      return;
+    }
+    if (result === "duplicate") {
+      showToast({
+        title: "Already hanging",
+        body: "It's on the rail — open Mirror to wear it.",
+      });
+      return;
+    }
+    showToast({
+      title: "Fitting room is full",
+      body: "Take something off the rail first.",
+    });
+  };
+
   const dressNow = (e: MouseEvent) => {
     e.stopPropagation();
     if (isActive || blockedFull) return;
     addToFittingRoom(item);
-    // Dress immediately — don't make the user drag from the rail again.
     tryOnItem(item.id, { replaceSameType: true });
   };
 
   if (variant === "overlay") {
     return (
-      <button
-        type="button"
-        data-tryon-trigger
-        disabled={isActive || blockedFull}
-        className={cn("shoop-tryb", className)}
-        onClick={dressNow}
-      >
-        {overlayLabel}
-      </button>
+      <div className={cn("shoop-tryb-row", className)}>
+        <button
+          type="button"
+          className="shoop-tryb shoop-tryb--hang"
+          disabled={blockedFull}
+          onClick={hangIt}
+        >
+          {isInRack ? "HANGING" : blockedFull ? "FULL" : "HANG IT"}
+        </button>
+        <button
+          type="button"
+          data-tryon-trigger
+          disabled={isActive || blockedFull}
+          className="shoop-tryb"
+          onClick={dressNow}
+        >
+          {overlayLabel}
+        </button>
+      </div>
     );
   }
 

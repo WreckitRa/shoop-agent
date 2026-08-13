@@ -26,7 +26,6 @@ const cormorant = Cormorant_Garamond({
 
 const archivo = Archivo({
   subsets: ["latin"],
-  weight: ["700", "800", "900"],
   variable: "--font-archivo",
 });
 
@@ -54,7 +53,8 @@ export const metadata: Metadata = rootMetadata();
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#F5F5F7",
+  viewportFit: "cover",
+  themeColor: "#ffffff",
   colorScheme: "light",
 };
 

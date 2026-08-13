@@ -277,19 +277,8 @@ export function AskLookCard({ token, initialShare }: Props) {
   return (
     <div className="shoop-ask-shell">
       <div className="shoop-ask-card">
+        <div className="shoop-ask-scroll">
         <div className="shoop-ask-im">
-          {share.killCount != null ? (
-            <span className="shoop-ask-kill">
-              SHOOP SKIPPED <b>{share.killCount}</b> TO FIND THIS
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="shoop-ask-fullbtn"
-            onClick={() => setFullscreen(true)}
-          >
-            See full look
-          </button>
           <button
             type="button"
             className="shoop-ask-imhit"
@@ -307,6 +296,18 @@ export function AskLookCard({ token, initialShare }: Props) {
           <b>
             {asker} · trying it on
           </b>
+          {share.killCount != null ? (
+            <span className="shoop-ask-kill">
+              SKIPPED <b>{share.killCount}</b>
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="shoop-ask-fullbtn"
+            onClick={() => setFullscreen(true)}
+          >
+            Full look
+          </button>
           <i>№ {serial}</i>
         </div>
 
@@ -525,6 +526,7 @@ export function AskLookCard({ token, initialShare }: Props) {
           {error ? (
             <p className="mt-3 text-center text-[11px] text-red-700">{error}</p>
           ) : null}
+        </div>
         </div>
 
         <div className="shoop-ask-cfoot">

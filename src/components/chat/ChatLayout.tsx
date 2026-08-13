@@ -10,6 +10,8 @@ import { ScrollToBottomButton } from "@/components/chat/ScrollToBottomButton";
 import { EmptyChatState } from "@/components/chat/EmptyChatState";
 import { HomeMirrorCard } from "@/components/chat/HomeMirrorCard";
 import { MirrorPeek } from "@/components/chat/MirrorPeek";
+import { FittingStage } from "@/components/tryon/FittingStage";
+import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { useChatScroll } from "@/components/chat/useChatScroll";
 import { ChatFocusHighlightProvider } from "@/components/chat/ChatFocusHighlightContext";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
@@ -38,7 +40,9 @@ export const ChatLayout = memo(function ChatLayout() {
   const fetchConversations = useChatStore((s) => s.fetchConversations);
   const loadConversation = useChatStore((s) => s.loadConversation);
   const collapseInlineProduct = useInlineProductStore((s) => s.collapse);
+  const tryOnOpen = useTryOnDrawerStore((s) => s.open);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [desktop, setDesktop] = useState(false);
 
   useEffect(() => {
     collapseInlineProduct();
@@ -48,8 +52,17 @@ export const ChatLayout = memo(function ChatLayout() {
     if (activeConversationId || messageCount > 0) setPreviewUrl(null);
   }, [activeConversationId, messageCount]);
 
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setDesktop(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   const showEmpty = !activeConversationId && messageCount === 0;
   const showLoading = loadingMessages && messageCount === 0;
+  const shopping = tryOnOpen && desktop;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { highlight: focusHighlight, restoringFocus } = useChatScrollFocus({
@@ -70,6 +83,40 @@ export const ChatLayout = memo(function ChatLayout() {
     scrollContainerRef: scrollRef,
     paused: pauseAutoScroll,
   });
+
+  const thread = (
+    <>
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollRef}
+          className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+        >
+          <div className="tp-chat-content relative flex w-full flex-col gap-4 md:gap-5">
+            {showLoading ? (
+              <div className="flex min-h-[40vh] items-center justify-center py-20 text-sm text-ink-muted">
+                Loading…
+              </div>
+            ) : showEmpty ? (
+              <EmptyChatState
+                previewUrl={previewUrl}
+                onPreview={setPreviewUrl}
+              />
+            ) : (
+              <MessageList />
+            )}
+          </div>
+        </div>
+
+        {!showEmpty && !showLoading && showScrollDown ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
+            <ScrollToBottomButton onClick={() => scrollToBottom("smooth")} />
+          </div>
+        ) : null}
+      </div>
+
+      {showEmpty ? null : <ChatComposer nested stage={shopping} />}
+    </>
+  );
 
   return (
     <AppShell>
@@ -103,57 +150,51 @@ export const ChatLayout = memo(function ChatLayout() {
                 </div>
               ) : null}
 
-              <div className="shoop-page-x mx-auto flex min-h-0 w-full max-w-page-wide flex-1 flex-col">
-                <div
-                  className={cn(
-                    "grid min-h-0 flex-1 grid-cols-1",
-                    "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
-                  )}
-                >
-                  <div className="relative flex min-h-0 min-w-0 flex-col">
-                    <div className="relative min-h-0 flex-1">
-                      <div
-                        ref={scrollRef}
-                        className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
-                      >
-                        <div className="tp-chat-content relative flex w-full flex-col gap-4 md:gap-5">
-                          {showLoading ? (
-                            <div className="flex min-h-[40vh] items-center justify-center py-20 text-sm text-ink-muted">
-                              Loading…
-                            </div>
-                          ) : showEmpty ? (
-                            <EmptyChatState
-                              previewUrl={previewUrl}
-                              onPreview={setPreviewUrl}
-                            />
-                          ) : (
-                            <MessageList />
-                          )}
-                        </div>
+              {shopping ? (
+                <div className="shoop-stage">
+                  <section className="shoop-stage-col shoop-stage-col--chat">
+                    {showEmpty ? null : (
+                      <header className="shoop-chead">
+                        <span className="shoop-croom__dot" aria-hidden />
+                        <h2>Your stylist</h2>
+                        <button
+                          type="button"
+                          className="shoop-chead__back"
+                          onClick={() => useTryOnDrawerStore.getState().close()}
+                        >
+                          Full chat
+                        </button>
+                      </header>
+                    )}
+                    {thread}
+                  </section>
+                  <FittingStage layout="inline" peekUrl={previewUrl} />
+                </div>
+              ) : (
+                <>
+                  <div className="shoop-page-x mx-auto flex min-h-0 w-full max-w-page-wide flex-1 flex-col">
+                    <div
+                      className={cn(
+                        "grid min-h-0 flex-1 grid-cols-1",
+                        "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
+                      )}
+                    >
+                      <div className="relative flex min-h-0 min-w-0 flex-col">
+                        {thread}
                       </div>
 
-                      {!showEmpty && !showLoading && showScrollDown ? (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center">
-                          <ScrollToBottomButton
-                            onClick={() => scrollToBottom("smooth")}
-                          />
-                        </div>
-                      ) : null}
+                      <aside className="hidden min-h-0 py-7 lg:flex lg:flex-col">
+                        <HomeMirrorCard
+                          previewUrl={previewUrl}
+                          compact={!showEmpty}
+                        />
+                      </aside>
                     </div>
-
-                    {showEmpty ? null : <ChatComposer nested />}
                   </div>
 
-                  <aside className="hidden min-h-0 py-7 lg:flex lg:flex-col">
-                    <HomeMirrorCard
-                      previewUrl={previewUrl}
-                      compact={!showEmpty}
-                    />
-                  </aside>
-                </div>
-              </div>
-
-              {showEmpty ? null : <MirrorPeek />}
+                  {showEmpty ? null : <MirrorPeek />}
+                </>
+              )}
             </div>
           </div>
         </div>

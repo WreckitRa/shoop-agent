@@ -6,6 +6,8 @@ import { useChatStore } from "@/components/chat/chat-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { cn } from "@/lib/ai-chat/cn";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { useToastStore } from "@/lib/client/toast-store";
+import { HOLD_COMING_SOON_TOAST } from "@/lib/client/coming-soon-toasts";
 import {
   askShareAbsoluteUrl,
   copyAskShareUrl,
@@ -47,8 +49,67 @@ type Props = {
   onAddToCart?: () => void | Promise<void>;
   moodBusy?: boolean;
   cartBusy?: boolean;
+  saved?: boolean;
+  inCart?: boolean;
   actionHint?: string | null;
 };
+
+function RailAb({
+  label,
+  ariaLabel,
+  disabled,
+  waiting,
+  on,
+  soon,
+  kind,
+  onClick,
+  children,
+}: {
+  label: string;
+  ariaLabel: string;
+  disabled?: boolean;
+  waiting?: boolean;
+  on?: boolean;
+  soon?: boolean;
+  kind?: "heart" | "share" | "hold" | "bag";
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "shoop-ab",
+        on && "is-on",
+        waiting && "is-wait",
+        kind && `shoop-ab--${kind}`,
+      )}
+      disabled={disabled}
+      aria-label={waiting ? `${ariaLabel} — after the scan` : ariaLabel}
+      aria-pressed={on || undefined}
+      onClick={onClick}
+    >
+      <span className="shoop-ab__glyph" aria-hidden>
+        {children}
+        {waiting ? (
+          <svg className="shoop-ab__lock" viewBox="0 0 16 16">
+            <rect x="3.2" y="7.2" width="9.6" height="7" rx="1.4" />
+            <path
+              d="M5.1 7.2V5.3a2.9 2.9 0 015.8 0v1.9"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+          </svg>
+        ) : null}
+      </span>
+      <span className="shoop-ab__lbl">
+        {waiting ? "Wait" : label}
+        {!waiting && soon ? <i className="shoop-ab__soon">soon</i> : null}
+      </span>
+    </button>
+  );
+}
 
 function toneColor(
   tone: "idle" | "busy" | "pass" | "caution" | "fail",
@@ -97,6 +158,8 @@ export function StudyingScan({
   onAddToCart,
   moodBusy,
   cartBusy,
+  saved = false,
+  inCart = false,
   actionHint,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -116,6 +179,7 @@ export function StudyingScan({
   const [verdict, setVerdict] = useState<LookScanVerdict | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
+  const [asked, setAsked] = useState(false);
   const [shareHint, setShareHint] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(() => {
     const token = useTryOnDrawerStore.getState().askShareToken;
@@ -126,7 +190,11 @@ export function StudyingScan({
   const abortRef = useRef<AbortController | null>(null);
   const verdictReadyRef = useRef<LookScanVerdict | null>(null);
   const choreographyDoneRef = useRef(false);
+  const showToast = useToastStore((s) => s.show);
   const jobId = useTryOnDrawerStore((s) => s.jobId);
+  const ownerVerdict = useTryOnDrawerStore((s) => s.ownerVerdict);
+  const setOwnerVerdict = useTryOnDrawerStore((s) => s.setOwnerVerdict);
+  const setLookScanVerdict = useTryOnDrawerStore((s) => s.setLookScanVerdict);
   const conversationId = useChatStore((s) => s.activeConversationId);
   const loadConversation = useChatStore((s) => s.loadConversation);
 
@@ -188,16 +256,30 @@ export function StudyingScan({
     }, 2500);
   }
 
-  async function startScan() {
+  async function startScan(replay = false) {
     abortRef.current?.abort();
     clearTimers();
     verdictReadyRef.current = null;
     choreographyDoneRef.current = false;
     setError(null);
     setShareHint(null);
+
+    const cached = useTryOnDrawerStore.getState().lookScanVerdict;
+    if (cached && !replay) {
+      revealVerdict(cached);
+      return;
+    }
+
     setPhase("scanning");
     resetVisuals();
-    runChoreography(FALLBACK_WHISPERS);
+    runChoreography(
+      cached?.whispers?.some(Boolean) ? cached.whispers : FALLBACK_WHISPERS,
+    );
+
+    if (cached && replay) {
+      verdictReadyRef.current = cached;
+      return;
+    }
 
     const ac = new AbortController();
     abortRef.current = ac;
@@ -225,9 +307,19 @@ export function StudyingScan({
         } | null;
         throw new Error(body?.error ?? "Couldn't study this look.");
       }
-      const body = (await res.json()) as { verdict: LookScanVerdict };
+      const body = (await res.json()) as {
+        verdict: LookScanVerdict;
+        cached?: boolean;
+      };
       const v = body.verdict;
       verdictReadyRef.current = v;
+      setLookScanVerdict(v);
+
+      if (body.cached) {
+        clearTimers();
+        revealVerdict(v);
+        return;
+      }
 
       if (choreographyDoneRef.current) {
         revealVerdict(v);
@@ -319,12 +411,14 @@ export function StudyingScan({
       ok ? "Link copied · opening WhatsApp…" : "Opening WhatsApp…",
     );
     openWhatsAppAskShare(url);
+    setAsked(true);
   }
 
   useEffect(() => {
     if (!imageUrl) return;
     setShareUrl(null);
     setShareHint(null);
+    setAsked(false);
     void startScan();
     // Auto-study each new dressed look.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startScan closes over latest pieces/imageUrl
@@ -359,6 +453,10 @@ export function StudyingScan({
     if (checks[key] === "tied") return "pass";
     return "idle";
   }
+
+  const notes = verdict && phase === "done" ? notesFromVerdict(verdict) : [];
+  const actionsReady = phase === "done" && Boolean(verdict);
+  const onFigure = Boolean(frameEl);
 
   const overlays: ReactNode =
     showOnAvatar && frameEl
@@ -424,27 +522,75 @@ export function StudyingScan({
               }}
             />
 
-            {verdict && phase === "done" ? (
-              <div className="shoop-sscan__overlay on">
-                <div className="shoop-sscan__overlay-k">Verdict</div>
-                <h3
-                  dangerouslySetInnerHTML={{
-                    __html: formatScanEmphasis(verdict.verdict_title),
-                  }}
-                />
-              </div>
-            ) : null}
-
             {phase === "error" && error ? (
               <p className="shoop-sscan__on-err">{error}</p>
             ) : null}
+
+            <div className={cn("shoop-arail", !actionsReady && "is-wait")}>
+              {!actionsReady ? (
+                <p className="shoop-arail__wait">
+                  {phase === "scanning" ? "Studying…" : "After the scan"}
+                </p>
+              ) : null}
+              <RailAb
+                kind="heart"
+                waiting={!actionsReady}
+                on={saved}
+                disabled={!actionsReady || moodBusy || !onAddToMoodboard}
+                ariaLabel={
+                  saved ? "On your moodboard" : "Save to moodboard"
+                }
+                label={moodBusy ? "Saving…" : saved ? "Saved" : "Board"}
+                onClick={() => onAddToMoodboard?.()}
+              >
+                <svg className="shoop-ab__ic" viewBox="0 0 24 24">
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                </svg>
+              </RailAb>
+              <RailAb
+                kind="bag"
+                waiting={!actionsReady}
+                on={inCart}
+                disabled={!actionsReady || cartBusy || !onAddToCart}
+                ariaLabel={inCart ? "In your cart" : "Add look to cart"}
+                label={cartBusy ? "Adding…" : inCart ? "Added" : "Cart"}
+                onClick={() => void onAddToCart?.()}
+              >
+                <svg className="shoop-ab__ic" viewBox="0 0 24 24">
+                  <path d="M8.25 8.15V7.1a3.75 3.75 0 017.5 0v1.05h2.52c.9 0 1.6.78 1.52 1.67l-.95 11.1A1.6 1.6 0 0117.25 23H6.75a1.6 1.6 0 01-1.59-1.48l-.95-11.1a1.53 1.53 0 011.52-1.67h2.52zm1.7 0h4.1V7.1a2.05 2.05 0 00-4.1 0v1.05z" />
+                </svg>
+              </RailAb>
+              <RailAb
+                kind="hold"
+                waiting={!actionsReady}
+                soon
+                disabled={!actionsReady}
+                ariaLabel="Hold — coming soon"
+                label="Hold"
+                onClick={() => showToast(HOLD_COMING_SOON_TOAST)}
+              >
+                <svg className="shoop-ab__ic" viewBox="0 0 24 24">
+                  <path d="M6.2 2.4h11.6A1.8 1.8 0 0119.6 4.2v16.6a.85.85 0 01-1.32.7L12 17.15 5.72 21.5A.85.85 0 014.4 20.8V4.2A1.8 1.8 0 016.2 2.4z" />
+                </svg>
+              </RailAb>
+              <RailAb
+                kind="share"
+                waiting={!actionsReady}
+                on={asked}
+                disabled={!actionsReady || shareBusy}
+                ariaLabel="Share this look"
+                label={shareBusy ? "Sharing…" : asked ? "Shared" : "Share"}
+                onClick={() => void shareAskOnWhatsApp()}
+              >
+                <svg className="shoop-ab__ic" viewBox="0 0 24 24">
+                  <path d="M14 4.2v3.7C7.4 8.7 4.2 13.4 3 19.8c2.4-3.4 5.9-5 11-5.1v3.8L21.4 12 14 4.2z" />
+                </svg>
+              </RailAb>
+            </div>
           </>,
           frameEl,
         )
       : null;
-
-  const notes = verdict && phase === "done" ? notesFromVerdict(verdict) : [];
-  const actionsReady = phase === "done" && Boolean(verdict);
 
   return (
     <div className={cn("shoop-sscan shoop-sscan--readout", className)}>
@@ -454,8 +600,19 @@ export function StudyingScan({
         <p className="shoop-sscan__empty">
           {phase === "scanning"
             ? "Studying this look on you…"
-            : "Pull something off the rail and I'll tell you what I'd say if we were standing here together."}
+            : "Tap a look on the left, or drag a piece from the fitting room. I'll tell you what I like and what I don't."}
         </p>
+      ) : null}
+
+      {verdict && phase === "done" ? (
+        <div className="shoop-sscan__vt">
+          <span className="shoop-sscan__overlay-k">Verdict</span>
+          <h3
+            dangerouslySetInnerHTML={{
+              __html: formatScanEmphasis(verdict.verdict_title),
+            }}
+          />
+        </div>
       ) : null}
 
       {notes.length ? (
@@ -479,41 +636,75 @@ export function StudyingScan({
         </button>
       ) : null}
 
-      <div className="shoop-sscan__actions-row">
+      {actionsReady ? (
+        <div className="shoop-reacts">
+          <span className="shoop-reacts__q">Your call</span>
+          {(
+            [
+              ["no", "No"],
+              ["meh", "Meh"],
+              ["almost", "Almost"],
+              ["love", "♥ Love it"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={cn("shoop-react", ownerVerdict === id && "is-on")}
+              onClick={() => setOwnerVerdict(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {!onFigure ? (
+        <div className="shoop-sscan__actions-row">
+          <button
+            type="button"
+            className="shoop-sscan__btn shoop-sscan__btn--primary"
+            disabled={!actionsReady || shareBusy}
+            onClick={() => void shareAskOnWhatsApp()}
+          >
+            <i aria-hidden />
+            {shareBusy ? "Making the card…" : "Share on WhatsApp"}
+          </button>
+          <button
+            type="button"
+            className="shoop-sscan__btn shoop-sscan__btn--ghost"
+            disabled={!actionsReady || shareBusy}
+            onClick={() => void copyAskLink()}
+          >
+            {shareBusy ? "Making link…" : "Copy link"}
+          </button>
+          <button
+            type="button"
+            className="shoop-sscan__btn shoop-sscan__btn--ghost"
+            disabled={!actionsReady || moodBusy || !onAddToMoodboard}
+            onClick={() => onAddToMoodboard?.()}
+          >
+            {moodBusy ? "Saving…" : "Add to moodboard"}
+          </button>
+          <button
+            type="button"
+            className="shoop-sscan__btn shoop-sscan__btn--ghost"
+            disabled={!actionsReady || cartBusy || !onAddToCart}
+            onClick={() => void onAddToCart?.()}
+          >
+            {cartBusy ? "Adding…" : "Add to cart"}
+          </button>
+        </div>
+      ) : actionsReady ? (
         <button
           type="button"
-          className="shoop-sscan__btn shoop-sscan__btn--primary"
-          disabled={!actionsReady || shareBusy}
-          onClick={() => void shareAskOnWhatsApp()}
-        >
-          <i aria-hidden />
-          {shareBusy ? "Making the card…" : "Share on WhatsApp"}
-        </button>
-        <button
-          type="button"
-          className="shoop-sscan__btn shoop-sscan__btn--ghost"
-          disabled={!actionsReady || shareBusy}
+          className="shoop-sscan__copy-link"
+          disabled={shareBusy}
           onClick={() => void copyAskLink()}
         >
-          {shareBusy ? "Making link…" : "Copy link"}
+          {shareBusy ? "Making link…" : "Copy the ask link"}
         </button>
-        <button
-          type="button"
-          className="shoop-sscan__btn shoop-sscan__btn--ghost"
-          disabled={!actionsReady || moodBusy || !onAddToMoodboard}
-          onClick={() => onAddToMoodboard?.()}
-        >
-          {moodBusy ? "Saving…" : "Add to moodboard"}
-        </button>
-        <button
-          type="button"
-          className="shoop-sscan__btn shoop-sscan__btn--ghost"
-          disabled={!actionsReady || cartBusy || !onAddToCart}
-          onClick={() => void onAddToCart?.()}
-        >
-          {cartBusy ? "Adding…" : "Add to cart"}
-        </button>
-      </div>
+      ) : null}
 
       {actionHint ? (
         <p className="shoop-sscan__fine shoop-sscan__fine--hint">{actionHint}</p>
@@ -522,8 +713,8 @@ export function StudyingScan({
         <p className="shoop-sscan__fine shoop-sscan__fine--hint">{shareHint}</p>
       ) : (
         <p className="shoop-sscan__fine">
-          AI visualization · actual fit and details may differ. They vote before
-          they see mine.
+          AI visualization · actual fit and details may differ. Friends vote
+          before they see my verdict.
         </p>
       )}
 
@@ -531,7 +722,7 @@ export function StudyingScan({
         <button
           type="button"
           className="shoop-sscan__replay"
-          onClick={() => void startScan()}
+          onClick={() => void startScan(true)}
         >
           Replay the scan
         </button>

@@ -20,11 +20,11 @@ type Props = {
 };
 
 /**
- * “TODAY, ON YOU” — real loved try-ons + fitting-room rack (no mock products).
+ * “TODAY, ON YOU” — looks actually on the twin (live try-on + moodboard loves).
  */
 export function HomeTodayOnYou({ onPreview, className }: Props) {
-  const rackIds = useTryOnDrawerStore((s) => s.rackIds);
-  const itemsById = useTryOnDrawerStore((s) => s.itemsById);
+  const resultUrl = useTryOnDrawerStore((s) => s.resultUrl);
+  const previewLookTitle = useTryOnDrawerStore((s) => s.previewLookTitle);
   const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
   const setInput = useChatStore((s) => s.setInput);
   const requestComposerFocus = useChatStore((s) => s.requestComposerFocus);
@@ -68,22 +68,24 @@ export function HomeTodayOnYou({ onPreview, className }: Props) {
     };
   }, []);
 
-  const rackTiles: TodayTile[] = rackIds
-    .map((id) => itemsById[id])
-    .filter((item): item is NonNullable<typeof item> => Boolean(item?.imageUrl))
-    .slice(0, 3)
-    .map((item) => ({
-      id: item.id,
-      title: item.title,
-      subtitle: item.price
-        ? `in rack · ${formatPrice(item.price.amount, item.price.currency)}`
-        : "in your fitting room",
-      imageUrl: item.imageUrl!,
-      source: "rack" as const,
-    }));
+  const nowOnYou: TodayTile | null =
+    resultUrl != null
+      ? {
+          id: "now-on-you",
+          title: previewLookTitle?.trim() || "On you now",
+          subtitle: "in the mirror",
+          imageUrl: resultUrl,
+          source: "rack",
+        }
+      : null;
 
-  // Prefer rack (active session), then moodboard loves.
-  const tiles = (rackTiles.length > 0 ? rackTiles : loved).slice(0, 3);
+  const tiles = [nowOnYou, ...loved]
+    .filter((tile): tile is TodayTile => Boolean(tile))
+    .filter(
+      (tile, i, all) =>
+        all.findIndex((other) => other.imageUrl === tile.imageUrl) === i,
+    )
+    .slice(0, 3);
 
   if (tiles.length === 0) return null;
 
@@ -114,13 +116,13 @@ export function HomeTodayOnYou({ onPreview, className }: Props) {
               requestComposerFocus();
             }}
           >
-            <div className="relative h-[152px] overflow-hidden bg-[#F1F1F4]">
+            <div className="relative flex h-[168px] items-center justify-center overflow-hidden bg-[#F1F1F4]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={tile.imageUrl}
                 alt=""
                 referrerPolicy="no-referrer"
-                className="size-full object-cover object-top"
+                className="size-full object-contain object-center"
               />
               <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-0.5 text-[8px] font-black tracking-[0.08em] text-ink">
                 ON YOU
@@ -137,16 +139,4 @@ export function HomeTodayOnYou({ onPreview, className }: Props) {
       </div>
     </section>
   );
-}
-
-function formatPrice(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return `${currency} ${Math.round(amount)}`;
-  }
 }

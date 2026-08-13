@@ -1,13 +1,17 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, type DragEvent } from "react";
 import type {
   RenderPick,
   RenderPickBadge,
   RenderVerifiedItem,
 } from "@/lib/fashion-memory/types/render-contract";
 import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
-import { TryOnLookButton } from "@/components/tryon/TryOnLookButton";
+import {
+  TryOnLookButton,
+  lookItemsForFittingRoom,
+} from "@/components/tryon/TryOnLookButton";
+import { writeFittingDrag } from "@/lib/tryon/fitting-room-drag";
 import { ShoopFindCard } from "@/components/chat/ShoopFindCard";
 import { fittingRoomItemFromSearchPick } from "@/components/tryon/fitting-room-item-builders";
 import { capsuleLookId } from "@/lib/tryon/outfit-ids";
@@ -26,6 +30,26 @@ import {
   resolveTryonCta,
   useSelfAvatarStore,
 } from "@/components/tryon/self-avatar-store";
+
+function dragLookOntoStage(
+  event: DragEvent,
+  look: { name: string; item_refs: string[] },
+  searchId: string,
+  picksByRef: Parameters<typeof lookItemsForFittingRoom>[0]["picksByRef"],
+) {
+  const items = lookItemsForFittingRoom({ look, searchId, picksByRef });
+  if (!items.length) {
+    event.preventDefault();
+    return;
+  }
+  writeFittingDrag(event.dataTransfer, {
+    kind: "look",
+    title: look.name,
+    searchId,
+    lookId: look.name,
+    items,
+  });
+}
 
 function formatPrice(price: { amount: number; currency: string }) {
   return new Intl.NumberFormat(undefined, {
@@ -376,52 +400,52 @@ export const FashionCurationResults = memo(function FashionCurationResults({
 
       {isOutfit ? (
         <div className="space-y-5">
-          <h3 className="font-display text-xs font-extrabold tracking-[0.06em] text-ink">
-            THREE LOOKS
-          </h3>
+          <h3 className="shoop-lookshead">Three looks</h3>
           {render.looks!.map((look) => (
             <section
               key={look.name}
-              className="rounded-[14px] border border-hairline bg-white p-4 shadow-[0_12px_28px_-22px_rgba(14,14,17,0.22)]"
+              className="shoop-look"
+              draggable
+              onDragStart={(e) =>
+                dragLookOntoStage(e, look, searchId, picksByRef)
+              }
             >
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div className="shoop-look__top">
                 <div>
-                  <h3 className="font-display text-sm font-extrabold tracking-tight text-ink">
-                    {look.name}
-                  </h3>
-                  {look.note ? (
-                    <p className="mt-0.5 text-xs text-ink-muted">{look.note}</p>
-                  ) : null}
+                  <h4>{look.name}</h4>
+                  {look.note ? <p className="sub">{look.note}</p> : null}
                 </div>
-                <p className="text-sm font-medium text-ink">
-                  ${look.total.toFixed(0)} total
-                </p>
+                <b className="shoop-look__price">${look.total.toFixed(0)}</b>
               </div>
-              <div className="shoop-vrack !mt-0">
-                {look.item_refs.map((ref) => {
-                  const pick = resolveLookPick(ref);
-                  if (!pick) return null;
-                  return (
-                    <CuratedPickCard
-                      key={ref}
-                      pick={pick}
+              <div className="shoop-look__body">
+                <div className="shoop-look__items">
+                  {look.item_refs.map((ref) => {
+                    const pick = resolveLookPick(ref);
+                    if (!pick) return null;
+                    return (
+                      <CuratedPickCard
+                        key={ref}
+                        pick={pick}
+                        searchId={searchId}
+                        compact
+                        hideTryOnOverlay
+                        selected={selectedProductId === pick.id}
+                        onOpen={() => openProduct(pick)}
+                      />
+                    );
+                  })}
+                </div>
+                {look.tryon?.available || look.tryon?.cta === "create_avatar" ? (
+                  <div className="shoop-look__cta">
+                    <TryOnLookButton
+                      look={look}
                       searchId={searchId}
-                      compact
-                      hideTryOnOverlay
-                      selected={selectedProductId === pick.id}
-                      onOpen={() => openProduct(pick)}
+                      picksByRef={picksByRef}
+                      onOpenProduct={openByRef}
                     />
-                  );
-                })}
+                  </div>
+                ) : null}
               </div>
-              {look.tryon?.available || look.tryon?.cta === "create_avatar" ? (
-                <TryOnLookButton
-                  look={look}
-                  searchId={searchId}
-                  picksByRef={picksByRef}
-                  onOpenProduct={openByRef}
-                />
-              ) : null}
             </section>
           ))}
           {panel}
@@ -451,51 +475,60 @@ export const FashionCurationResults = memo(function FashionCurationResults({
             return (
               <section
                 key={lookId}
-                className="rounded-[14px] border border-hairline bg-white p-4 shadow-[0_12px_28px_-22px_rgba(14,14,17,0.22)]"
+                className="shoop-look"
+                draggable
+                onDragStart={(e) =>
+                  dragLookOntoStage(
+                    e,
+                    { name: lookId, item_refs: outfit.item_refs },
+                    searchId,
+                    picksByRef,
+                  )
+                }
               >
-                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                <div className="shoop-look__top">
                   <div>
-                    <h3 className="font-display text-sm font-extrabold tracking-tight text-ink">
-                      {label}
-                    </h3>
+                    <h4>{label}</h4>
                   </div>
                   {total > 0 ? (
-                    <p className="text-sm font-medium text-ink">
-                      ${total.toFixed(0)} total
-                    </p>
+                    <b className="shoop-look__price">${total.toFixed(0)}</b>
                   ) : null}
                 </div>
-                <div className="shoop-vrack !mt-0">
-                  {outfit.item_refs.map((ref) => {
-                    const pick = resolveLookPick(ref);
-                    if (!pick) return null;
-                    return (
-                      <CuratedPickCard
-                        key={ref}
-                        pick={pick}
+                <div className="shoop-look__body">
+                  <div className="shoop-look__items">
+                    {outfit.item_refs.map((ref) => {
+                      const pick = resolveLookPick(ref);
+                      if (!pick) return null;
+                      return (
+                        <CuratedPickCard
+                          key={ref}
+                          pick={pick}
+                          searchId={searchId}
+                          compact
+                          hideTryOnOverlay
+                          selected={selectedProductId === pick.id}
+                          onOpen={() => openProduct(pick)}
+                        />
+                      );
+                    })}
+                  </div>
+                  {outfit.tryon?.available ||
+                  outfit.tryon?.cta === "create_avatar" ? (
+                    <div className="shoop-look__cta">
+                      <TryOnLookButton
+                        look={{
+                          name: lookId,
+                          item_refs: outfit.item_refs,
+                          total,
+                          tryon: outfit.tryon,
+                        }}
                         searchId={searchId}
-                        compact
-                        hideTryOnOverlay
-                        selected={selectedProductId === pick.id}
-                        onOpen={() => openProduct(pick)}
+                        picksByRef={picksByRef}
+                        onOpenProduct={openByRef}
                       />
-                    );
-                  })}
+                    </div>
+                  ) : null}
                 </div>
-                {outfit.tryon?.available ||
-                outfit.tryon?.cta === "create_avatar" ? (
-                  <TryOnLookButton
-                    look={{
-                      name: lookId,
-                      item_refs: outfit.item_refs,
-                      total,
-                      tryon: outfit.tryon,
-                    }}
-                    searchId={searchId}
-                    picksByRef={picksByRef}
-                    onOpenProduct={openByRef}
-                  />
-                ) : null}
               </section>
             );
           })}

@@ -3,7 +3,10 @@ import { getAuthContext } from "@/lib/auth/session";
 import { getSiteUrl } from "@/lib/seo/site";
 import type { LookScanPiece } from "@/lib/tryon/look-scan-types";
 import { resolveLookScanMode } from "@/lib/tryon/look-scan-types";
-import { attachLookScanToGeneration } from "@/lib/tryon/moodboard-context";
+import {
+  attachLookScanToGeneration,
+  loadLookScanForGeneration,
+} from "@/lib/tryon/moodboard-context";
 import { runLookScanVerdict } from "@/lib/tryon/look-scan-verdict";
 
 export const runtime = "nodejs";
@@ -50,6 +53,22 @@ export async function POST(req: Request) {
 
   const pieces: LookScanPiece[] = parsed.data.pieces;
   const lookMode = resolveLookScanMode(pieces, parsed.data.lookMode);
+
+  if (parsed.data.generationId) {
+    const cached = await loadLookScanForGeneration({
+      userId: auth.userId,
+      generationId: parsed.data.generationId,
+    });
+    if (cached) {
+      return Response.json({
+        ok: true,
+        verdict: cached,
+        lookMode,
+        cached: true,
+      });
+    }
+  }
+
   let imageUrl = parsed.data.imageUrl;
   if (imageUrl.startsWith("/")) {
     // Never use req.url origin — on Railway that is http://0.0.0.0:8080.

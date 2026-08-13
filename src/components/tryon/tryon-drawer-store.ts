@@ -20,6 +20,7 @@ import {
   fittingRoomGarmentType,
   slotGuardMessage,
 } from "@/lib/tryon/fitting-room-slot-guard";
+import type { LookScanVerdict } from "@/lib/tryon/look-scan-types";
 
 export type { FittingRoomItem };
 
@@ -65,6 +66,8 @@ type TryOnDrawerState = {
   askShareToken: string | null;
   /** Owner's No / Meh / Almost / Love strip vote for the current look. */
   ownerVerdict: "no" | "meh" | "almost" | "love" | null;
+  /** Studying Scan for the current job — reuse instead of re-running the LLM. */
+  lookScanVerdict: LookScanVerdict | null;
 
   openFittingRoom: () => void;
   addToFittingRoom: (item: FittingRoomItem) => AddToFittingRoomResult;
@@ -92,6 +95,8 @@ type TryOnDrawerState = {
     title?: string;
   }) => void;
   openAvatarViewer: () => Promise<void>;
+  /** Load the twin into the persistent stage without opening the overlay. */
+  warmAvatar: () => void;
   close: () => void;
   sendFeedback: (rating: 1 | -1, generationId?: string) => void;
   setAskShareToken: (token: string | null) => void;
@@ -100,6 +105,7 @@ type TryOnDrawerState = {
    * one exists for this try-on.
    */
   setOwnerVerdict: (choice: "no" | "meh" | "almost" | "love") => void;
+  setLookScanVerdict: (verdict: LookScanVerdict | null) => void;
   /** Load share + existing owner vote for a completed try-on job. */
   hydrateAskShareForJob: (generationId: string | null) => void;
 
@@ -111,9 +117,7 @@ type TryOnDrawerState = {
 
 function syncChromeForTryOnDrawer(open: boolean) {
   if (!open) return;
-  const chat = useChatStore.getState();
-  chat.setSidebarOpen(false);
-  chat.setSidebarCollapsed(true);
+  useChatStore.getState().setSidebarOpen(false);
   useCartStore.getState().setDrawerOpen(false);
 }
 
@@ -364,6 +368,7 @@ async function startActiveOutfitRender(generation: number) {
     partialNote: null,
     askShareToken: null,
     ownerVerdict: null,
+    lookScanVerdict: null,
   });
 
   try {
@@ -439,6 +444,7 @@ async function startLookTryonJob(
     previewLookTitle: params.title,
     askShareToken: null,
     ownerVerdict: null,
+    lookScanVerdict: null,
   });
 
   try {
@@ -531,6 +537,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   previewLookTitle: null,
   askShareToken: null,
   ownerVerdict: null,
+  lookScanVerdict: null,
 
   openFittingRoom: () => {
     syncChromeForTryOnDrawer(true);
@@ -547,9 +554,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
     if (state.rackIds.includes(item.id)) return "duplicate";
     if (state.rackIds.length >= MAX_FITTING_ROOM_ITEMS) return "full";
 
-    syncChromeForTryOnDrawer(true);
     set({
-      open: true,
       itemsById: { ...state.itemsById, [item.id]: item },
       rackIds: [...state.rackIds, item.id],
     });
@@ -927,15 +932,13 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
     }
   },
 
+  warmAvatar: () => {
+    if (get().avatarUrl) return;
+    void ensureAvatarLoaded(get().renderGeneration);
+  },
+
   close: () => {
-    clearPollTimer();
-    set({
-      open: false,
-      renderGeneration: get().renderGeneration + 1,
-      previewLookId: null,
-      previewLookTitle: null,
-      status: get().activeIds.length ? get().status : "idle",
-    });
+    set({ open: false });
   },
 
   sendFeedback: (rating, generationId) => {
@@ -950,6 +953,10 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
 
   setAskShareToken: (token) => {
     set({ askShareToken: token });
+  },
+
+  setLookScanVerdict: (verdict) => {
+    set({ lookScanVerdict: verdict });
   },
 
   setOwnerVerdict: (choice) => {

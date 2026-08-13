@@ -20,10 +20,13 @@ const HOME_PLACEHOLDERS = [
 export function ChatComposer({
   homeVariant,
   nested,
+  stage,
 }: {
   homeVariant?: "hero";
   /** Inside a padded column — skip outer page gutters. */
   nested?: boolean;
+  /** 40/40/20 try-on stage — tighter chrome than home chat. */
+  stage?: boolean;
 }) {
   const input = useChatStore((s) => s.input);
   const setInput = useChatStore((s) => s.setInput);
@@ -125,7 +128,9 @@ export function ChatComposer({
       className={
         isHeroComposer
           ? "w-full max-w-[640px]"
-          : "shrink-0 bg-page pb-[max(12px,env(safe-area-inset-bottom))] pt-3"
+          : stage
+            ? "shrink-0 bg-transparent pb-3 pt-2"
+            : "shrink-0 bg-page pb-3 pt-3"
       }
     >
       <div
@@ -133,17 +138,20 @@ export function ChatComposer({
           isHeroComposer
             ? "flex w-full flex-col gap-2 sm:gap-3"
             : cn(
-                "mx-auto flex w-full max-w-page-narrow flex-col gap-3",
+                "mx-auto flex w-full flex-col gap-3",
+                stage ? "max-w-none px-3 pb-3" : "max-w-page-narrow",
                 !nested && "shoop-page-x",
               )
         }
       >
         <div
-          className={`shoop-buybrief-box${
-            isHeroComposer ? " shoop-buybrief-box--hero" : ""
-          }`}
+          className={cn(
+            "shoop-buybrief-box",
+            isHeroComposer && "shoop-buybrief-box--hero",
+            stage && "shoop-buybrief-box--stage",
+          )}
         >
-          {!isHomeEmpty ? <ComposerBrandRow /> : null}
+          {!isHomeEmpty && !stage ? <ComposerBrandRow /> : null}
           {composerReplyContext ? (
             <ComposerReplyChip
               context={composerReplyContext}
@@ -238,7 +246,11 @@ export function ChatComposer({
                 />
               </button>
             ) : (
-              <SendIconButton disabled={!canSubmit} onClick={onSend} />
+              <SendIconButton
+                disabled={!canSubmit}
+                onClick={onSend}
+                stage={stage}
+              />
             )}
           </div>
         </div>
@@ -273,9 +285,11 @@ function ComposerBrandRow() {
 function SendIconButton({
   onClick,
   disabled,
+  stage,
 }: {
   onClick: () => void;
   disabled: boolean;
+  stage?: boolean;
 }) {
   return (
     <button
@@ -283,18 +297,21 @@ function SendIconButton({
       disabled={disabled}
       onClick={onClick}
       aria-label="Send message"
-      className="shoop-composer-send shoop-composer-send--icon flex h-11 w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed"
+      className={cn(
+        "shoop-composer-send shoop-composer-send--icon flex h-11 w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed",
+        stage && "shoop-composer-send--stage",
+      )}
     >
-      <ArrowUpIcon />
+      <ArrowUpIcon inherit={stage} />
     </button>
   );
 }
 
-function ArrowUpIcon() {
+function ArrowUpIcon({ inherit }: { inherit?: boolean }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="size-4 text-white"
+      className={cn("size-4", inherit ? "text-current" : "text-white")}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.75"

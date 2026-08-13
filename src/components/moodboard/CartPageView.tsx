@@ -109,9 +109,9 @@ export function CartPageView() {
 
   if (!groups.length) {
     return (
-      <div className="text-center">
+      <div>
         <p className="shoop-decide__empty">Your cart is empty.</p>
-        <div className="shoop-decide__hold-ctas justify-center">
+        <div className="shoop-decide__hold-ctas">
           <Link
             href={NEW_CHAT_PATH}
             className="shoop-decide__mini shoop-decide__mini--solid"
@@ -191,10 +191,43 @@ export function CartPageView() {
                       <span className="shoop-decide__sz">
                         Qty {line.quantity}
                       </span>
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="shoop-decide__line-act">
+                        <div
+                          className="shoop-decide__qty"
+                          role="group"
+                          aria-label="Quantity"
+                        >
+                          <button
+                            type="button"
+                            aria-label="Decrease quantity"
+                            disabled={mutating}
+                            onClick={() =>
+                              void updateQuantity(
+                                line.variantId,
+                                line.quantity - 1,
+                              )
+                            }
+                          >
+                            −
+                          </button>
+                          <span>{line.quantity}</span>
+                          <button
+                            type="button"
+                            aria-label="Increase quantity"
+                            disabled={mutating}
+                            onClick={() =>
+                              void updateQuantity(
+                                line.variantId,
+                                line.quantity + 1,
+                              )
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
                         <button
                           type="button"
-                          className="shoop-decide__mini shoop-decide__mini--solid shoop-decide__mini--sm"
+                          className="shoop-decide__mini shoop-decide__mini--solid"
                           disabled={!group.checkout.checkoutSupported}
                           onClick={() =>
                             buyNow(
@@ -208,42 +241,11 @@ export function CartPageView() {
                         </button>
                         <button
                           type="button"
-                          className="text-[11px] text-[#a1a1aa] hover:text-brand"
+                          className="shoop-decide__line-rm"
                           disabled={mutating}
                           onClick={() => void removeItem(line.variantId)}
                         >
                           Remove
-                        </button>
-                      </div>
-                      <div className="mt-2 flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="rounded-full border border-hairline px-2 py-0.5 text-xs"
-                          disabled={mutating}
-                          onClick={() =>
-                            void updateQuantity(
-                              line.variantId,
-                              line.quantity - 1,
-                            )
-                          }
-                        >
-                          −
-                        </button>
-                        <span className="min-w-6 text-center text-xs font-semibold">
-                          {line.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          className="rounded-full border border-hairline px-2 py-0.5 text-xs"
-                          disabled={mutating}
-                          onClick={() =>
-                            void updateQuantity(
-                              line.variantId,
-                              line.quantity + 1,
-                            )
-                          }
-                        >
-                          +
                         </button>
                       </div>
                     </span>

@@ -218,6 +218,22 @@ export function buildOutfitBuyables(
   return out;
 }
 
+/** Read a previously saved Studying Scan for this generation. */
+export async function loadLookScanForGeneration(params: {
+  userId: string;
+  generationId: string;
+}): Promise<LookScanVerdict | null> {
+  const generationId = params.generationId.trim();
+  if (!generationId) return null;
+
+  const row = await prisma.tryonGeneration.findFirst({
+    where: { id: generationId, userId: params.userId },
+    select: { inputRefs: true },
+  });
+  if (!row) return null;
+  return asLookScanVerdict(asRecord(row.inputRefs)?.shoop_verdict);
+}
+
 /** Persist Studying Scan onto the try-on generation so moodboard can show it later. */
 export async function attachLookScanToGeneration(params: {
   userId: string;

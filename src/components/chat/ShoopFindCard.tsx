@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { DragEvent, ReactNode } from "react";
 import { cn } from "@/lib/ai-chat/cn";
+import { writeFittingDrag } from "@/lib/tryon/fitting-room-drag";
 import {
   CATALOG_IMAGE_PX,
   catalogDisplayImageUrl,
@@ -57,6 +58,11 @@ export function ShoopFindCard({
   imagePx = CATALOG_IMAGE_PX.scroll,
   footer,
 }: Props) {
+  const onDragStart = (event: DragEvent) => {
+    event.stopPropagation();
+    writeFittingDrag(event.dataTransfer, { kind: "item", item: fittingItem });
+  };
+
   return (
     <article
       className={cn(
@@ -67,6 +73,8 @@ export function ShoopFindCard({
         fluid && "shoop-vitem--fluid",
         className,
       )}
+      draggable
+      onDragStart={onDragStart}
       data-testid={testId}
     >
       <div className="shoop-vitem__im">
@@ -87,6 +95,7 @@ export function ShoopFindCard({
               decoding="async"
               fetchPriority={imagePriority ? "high" : undefined}
               referrerPolicy="no-referrer"
+              draggable={false}
             />
           ) : (
             <div className="flex size-full items-center justify-center text-xs text-ink-muted">

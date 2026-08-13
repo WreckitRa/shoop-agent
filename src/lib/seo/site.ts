@@ -200,6 +200,11 @@ export function rootMetadata(): Metadata {
       icon: [{ url: "/assets/shoop-icon.svg", type: "image/svg+xml" }],
       apple: [{ url: "/assets/shoop-icon.svg", type: "image/svg+xml" }],
     },
+    appleWebApp: {
+      capable: true,
+      title: SITE_NAME,
+      statusBarStyle: "default",
+    },
   };
 }
 

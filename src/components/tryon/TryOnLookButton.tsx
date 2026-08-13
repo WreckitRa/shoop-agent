@@ -3,6 +3,7 @@
 import type { RenderLook } from "@/lib/fashion-memory/types/render-contract";
 import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
 import type { FittingRoomItem } from "@/lib/tryon/fitting-room-types";
+import { useToastStore } from "@/lib/client/toast-store";
 import { fittingRoomItemFromSearchPick } from "./fitting-room-item-builders";
 import { useTryOnDrawerStore } from "./tryon-drawer-store";
 import {
@@ -72,11 +73,14 @@ export function TryOnLookButton({
   picksByRef,
 }: TryOnLookButtonProps) {
   const openLookTryOn = useTryOnDrawerStore((s) => s.openLookTryOn);
+  const addManyToFittingRoom = useTryOnDrawerStore(
+    (s) => s.addManyToFittingRoom,
+  );
   const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
   const avatarStatus = useSelfAvatarStore((s) => s.status);
+  const showToast = useToastStore((s) => s.show);
   const busy = useTryOnDrawerStore(
     (s) =>
-      s.open &&
       s.previewLookId === look.name &&
       (s.status === "starting" ||
         s.status === "processing" ||
@@ -93,26 +97,65 @@ export function TryOnLookButton({
 
   if (cta === "create_avatar") {
     return (
-      <div className="mt-3">
-        <button
-          type="button"
-          className="shoop-quiz-apply"
-          onClick={() => openCreateFlow()}
-        >
-          Create your avatar
-          <span aria-hidden>→</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        className="shoop-seeyou"
+        onClick={() => openCreateFlow()}
+      >
+        <span className="shoop-seeyou__txt">
+          Create
+          <br />
+          your twin
+        </span>
+        <svg className="shoop-seeyou__tri" viewBox="0 0 34 46" aria-hidden>
+          <polygon points="2,2 32,23 2,44" fill="currentColor" />
+        </svg>
+      </button>
     );
   }
 
+  const hangLook = () => {
+    const items = lookItemsForFittingRoom({ look, searchId, picksByRef });
+    if (!items.length) return;
+    const result = addManyToFittingRoom(items);
+    if (result.added > 0) {
+      showToast({
+        title:
+          result.added === 1
+            ? "Hung in the fitting room"
+            : `Hung ${result.added} pieces`,
+        body: "Open Mirror when you want them on.",
+      });
+      return;
+    }
+    if (result.full) {
+      showToast({
+        title: "Fitting room is full",
+        body: "Take something off the rail first.",
+      });
+      return;
+    }
+    showToast({
+      title: "Already hanging",
+      body: "Those pieces are on the rail — open Mirror to wear them.",
+    });
+  };
+
   return (
-    <div className="mt-3">
+    <>
+      <button
+        type="button"
+        className="shoop-hanglook"
+        onClick={hangLook}
+      >
+        Hang look
+      </button>
       <button
         type="button"
         data-tryon-trigger
-        className="shoop-quiz-apply"
+        className="shoop-seeyou"
         disabled={busy}
+        aria-label={busy ? "Dressing this look" : "See this look on you"}
         onClick={() =>
           openLookTryOn({
             searchId,
@@ -122,9 +165,25 @@ export function TryOnLookButton({
           })
         }
       >
-        See look on you
-        <span aria-hidden>→</span>
+        <span className="shoop-seeyou__txt">
+          {busy ? (
+            <>
+              Dressing
+              <br />
+              you…
+            </>
+          ) : (
+            <>
+              See it
+              <br />
+              on you
+            </>
+          )}
+        </span>
+        <svg className="shoop-seeyou__tri" viewBox="0 0 34 46" aria-hidden>
+          <polygon points="2,2 32,23 2,44" fill="currentColor" />
+        </svg>
       </button>
-    </div>
+    </>
   );
 }

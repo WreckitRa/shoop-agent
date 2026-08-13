@@ -2,7 +2,6 @@
 
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { HomeQuickActions } from "@/components/chat/HomeQuickActions";
-import { HomeMirrorCard } from "@/components/chat/HomeMirrorCard";
 import { HomeTodayOnYou } from "@/components/chat/HomeTodayOnYou";
 import { useChatGreeting } from "@/components/chat/useChatGreeting";
 
@@ -13,9 +12,9 @@ type Props = {
 
 /**
  * Home find UI — left column (desktop Mirror lives in ChatLayout).
- * On mobile the full Mirror stacks under the hero.
+ * Mobile uses the tab bar for Mirror / Board instead of a stacked card.
  */
-export function EmptyChatState({ previewUrl, onPreview }: Props) {
+export function EmptyChatState({ onPreview }: Props) {
   const greetLine = useChatGreeting();
 
   return (
@@ -40,11 +39,6 @@ export function EmptyChatState({ previewUrl, onPreview }: Props) {
 
         <HomeTodayOnYou onPreview={onPreview} />
       </div>
-
-      <HomeMirrorCard
-        previewUrl={previewUrl}
-        className="mx-auto mt-9 w-full max-w-sm lg:hidden"
-      />
     </div>
   );
 }
