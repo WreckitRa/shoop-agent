@@ -79,6 +79,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [verifyCode, setVerifyCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loginDataLossAcknowledged, setLoginDataLossAcknowledged] =
@@ -93,6 +95,43 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const refreshGuest = useCallback(() => {
     setGuestActive(isGuestSessionActive());
   }, []);
+
+  const guestMigrateOnceRef = useRef(false);
+
+  const completeAuthenticatedSession = useCallback(
+    async (nextUser: AuthUser, migrateGuest: boolean) => {
+      if (migrateGuest) {
+        guestMigrateOnceRef.current = true;
+        await migrateGuestDataAfterAuth();
+      } else if (isGuestSessionActive()) {
+        clearGuestSession();
+      }
+      refreshGuest();
+      setUser(nextUser);
+      useAppSessionStore.getState().syncFromAuth({
+        authConfigured: true,
+        user: nextUser,
+      });
+      await queueClientIdentityResync("auth", { force: true });
+      if (!useInlineFittingStore.getState().columnOpen) {
+        leaveConversationRoute();
+      }
+      setShowAuthModal(false);
+      setPendingEmail(null);
+      setVerifyCode("");
+      setLoginDataLossAcknowledged(false);
+      setPassword("");
+      window.dispatchEvent(new Event("shoop-auth-changed"));
+    },
+    [refreshGuest],
+  );
+
+  useEffect(() => {
+    if (!user || guestMigrateOnceRef.current) return;
+    if (!isGuestSessionActive()) return;
+    guestMigrateOnceRef.current = true;
+    void migrateGuestDataAfterAuth().then(() => refreshGuest());
+  }, [user, refreshGuest]);
 
   const refresh = useCallback(async () => {
     const session = await fetchSession();
@@ -198,6 +237,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   function handleAuthModeChange(next: AuthMode) {
     setMode(next);
     setLoginDataLossAcknowledged(false);
+    setPendingEmail(null);
+    setVerifyCode("");
     setError(null);
   }
 
@@ -222,32 +263,72 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = (await res.json()) as { error?: string; user?: AuthUser };
+      const json = (await res.json()) as {
+        error?: string;
+        user?: AuthUser;
+        pendingVerification?: boolean;
+        email?: string;
+        code?: string;
+      };
+      if (json.pendingVerification) {
+        setPendingEmail(json.email ?? email);
+        setVerifyCode("");
+        setPassword("");
+        setError(json.error ?? null);
+        return;
+      }
       if (!res.ok) {
         setError(json.error ?? "Something went wrong.");
         return;
       }
-
-      if (mode === "signup") {
-        await migrateGuestDataAfterAuth();
-      } else if (isGuestSessionActive()) {
-        clearGuestSession();
+      if (!json.user) {
+        setError("Something went wrong.");
+        return;
       }
+      await completeAuthenticatedSession(json.user, mode === "signup");
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
-      refreshGuest();
-      setUser(json.user ?? null);
-      useAppSessionStore.getState().syncFromAuth({
-        authConfigured: true,
-        user: json.user ?? null,
+  async function submitVerification(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pendingEmail) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingEmail, token: verifyCode }),
       });
-      await queueClientIdentityResync("auth", { force: true });
-      if (!useInlineFittingStore.getState().columnOpen) {
-        leaveConversationRoute();
+      const json = (await res.json()) as { error?: string; user?: AuthUser };
+      if (!res.ok || !json.user) {
+        setError(json.error ?? "That code is wrong or expired.");
+        return;
       }
-      setShowAuthModal(false);
-      setLoginDataLossAcknowledged(false);
-      setPassword("");
-      window.dispatchEvent(new Event("shoop-auth-changed"));
+      await completeAuthenticatedSession(json.user, true);
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendVerification() {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(json.error ?? "Could not send a new code.");
+        return;
+      }
     } catch {
       setError("Network error. Try again.");
     } finally {
@@ -293,6 +374,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         onSubmit={submit}
         showGuestCta={false}
         isGuestBrowsing
+        pendingEmail={pendingEmail}
+        verifyCode={verifyCode}
+        onVerifyCodeChange={setVerifyCode}
+        onVerify={submitVerification}
+        onResendVerification={() => void resendVerification()}
+        onChangeEmail={() => {
+          setPendingEmail(null);
+          setVerifyCode("");
+          setError(null);
+        }}
         guestHasDataToLose={guestHasDataToLose}
         loginDataLossAcknowledged={loginDataLossAcknowledged}
         onLoginDataLossAcknowledgedChange={setLoginDataLossAcknowledged}
@@ -344,6 +435,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         onSubmit={submit}
         showGuestCta
         onContinueAsGuest={handleContinueAsGuest}
+        pendingEmail={pendingEmail}
+        verifyCode={verifyCode}
+        onVerifyCodeChange={setVerifyCode}
+        onVerify={submitVerification}
+        onResendVerification={() => void resendVerification()}
+        onChangeEmail={() => {
+          setPendingEmail(null);
+          setVerifyCode("");
+          setError(null);
+        }}
       />
     </AuthOverlay>
   );
@@ -394,6 +495,12 @@ type AuthModalProps = {
   onLoginDataLossAcknowledgedChange?: (acknowledged: boolean) => void;
   onContinueAsGuest: () => void;
   layout?: "overlay" | "column";
+  pendingEmail?: string | null;
+  verifyCode?: string;
+  onVerifyCodeChange?: (v: string) => void;
+  onVerify?: (e: React.FormEvent) => void;
+  onResendVerification?: () => void;
+  onChangeEmail?: () => void;
 };
 
 function AuthModal({
@@ -413,6 +520,12 @@ function AuthModal({
   onLoginDataLossAcknowledgedChange,
   onContinueAsGuest,
   layout = "overlay",
+  pendingEmail = null,
+  verifyCode = "",
+  onVerifyCodeChange,
+  onVerify,
+  onResendVerification,
+  onChangeEmail,
 }: AuthModalProps) {
   const showLoginDataLossGuard =
     isGuestBrowsing && mode === "login" && guestHasDataToLose;
@@ -436,7 +549,11 @@ function AuthModal({
           <ShoopLogo className={column ? "h-5" : "h-6"} />
         </div>
         <p className="text-[10.5px] font-extrabold tracking-[0.14em] text-[var(--fitting-red)]">
-          {mode === "signup" ? "THE FITTING · START" : "WELCOME BACK"}
+          {pendingEmail
+            ? "THE FITTING · CONFIRM"
+            : mode === "signup"
+              ? "THE FITTING · START"
+              : "WELCOME BACK"}
         </p>
         <h2
           id="auth-title"
@@ -447,13 +564,20 @@ function AuthModal({
               : "text-[clamp(28px,4vw,34px)]",
           )}
         >
-          {mode === "signup" ? "Claim your print." : "Unlock your print."}
+          {pendingEmail
+            ? "Check your inbox."
+            : mode === "signup"
+              ? "Claim your print."
+              : "Unlock your print."}
         </h2>
         <p className="mt-2 font-whisper text-[15px] italic text-[var(--fitting-quiet)]">
-          {mode === "signup"
-            ? "Seven quick questions. Your twin develops while you answer."
-            : "Pick up where you left off — memory, chats, and fit intact."}
+          {pendingEmail
+            ? `We sent a code to ${pendingEmail}. The account stays locked until that inbox confirms.`
+            : mode === "signup"
+              ? "Seven quick questions. Your twin develops while you answer."
+              : "Pick up where you left off — memory, chats, and fit intact."}
         </p>
+        {pendingEmail ? null : (
         <div className={cn("mt-5 inline-flex overflow-hidden rounded-xl border border-[#D6D6DE] bg-white", column && "mt-4")}>
           <button
             type="button"
@@ -480,6 +604,7 @@ function AuthModal({
             Sign up
           </button>
         </div>
+        )}
       </div>
 
       {showLoginDataLossGuard ? (
@@ -493,6 +618,64 @@ function AuthModal({
         </div>
       ) : null}
 
+      {pendingEmail ? (
+        <form
+          onSubmit={(e) => onVerify?.(e)}
+          className={cn("space-y-5 px-7 py-6", column && "space-y-4 px-4 py-4")}
+        >
+          <label className="block space-y-2">
+            <span className="text-[12.5px] font-extrabold text-[var(--fitting-ink)]">
+              Confirmation code
+            </span>
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              minLength={6}
+              maxLength={8}
+              value={verifyCode}
+              onChange={(e) =>
+                onVerifyCodeChange?.(e.target.value.replace(/\D/g, "").slice(0, 8))
+              }
+              className={inputClassName}
+              placeholder="6-digit code"
+            />
+          </label>
+          {error ? (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {error}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={busy || verifyCode.trim().length < 6}
+            className={cn(
+              "group inline-flex h-14 w-full items-center justify-center gap-3 rounded-[14px] bg-[var(--fitting-ink)] font-display text-[14.5px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50",
+              column && "h-12",
+            )}
+          >
+            {busy ? "Checking…" : "Confirm email"}
+          </button>
+          <div className="flex flex-col gap-2 text-center text-[12.5px] font-semibold text-[var(--fitting-quiet)]">
+            <button
+              type="button"
+              onClick={onResendVerification}
+              disabled={busy}
+              className="border-0 bg-transparent text-[var(--fitting-ink)] hover:underline disabled:opacity-50"
+            >
+              Send a new code
+            </button>
+            <button
+              type="button"
+              onClick={onChangeEmail}
+              disabled={busy}
+              className="border-0 bg-transparent hover:text-[var(--fitting-ink)] disabled:opacity-50"
+            >
+              Use a different email
+            </button>
+          </div>
+        </form>
+      ) : (
       <form onSubmit={(e) => void onSubmit(e)} className={cn("space-y-5 px-7 py-6", column && "space-y-4 px-4 py-4")}>
         <label className="block space-y-2">
           <span className="text-[12.5px] font-extrabold text-[var(--fitting-ink)]">
@@ -568,8 +751,9 @@ function AuthModal({
           ) : null}
         </button>
       </form>
+      )}
 
-      {showGuestCta ? (
+      {pendingEmail ? null : showGuestCta ? (
         <div className={cn("border-t border-[var(--fitting-line)] px-7 py-5", column && "px-4 py-4")}>
           <button
             type="button"
