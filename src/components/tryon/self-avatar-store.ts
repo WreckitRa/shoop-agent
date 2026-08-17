@@ -1,7 +1,10 @@
 "use client";
 
 import { create } from "zustand";
+import { openAuthModal } from "@/hooks/useGuestMode";
+import { useAppSessionStore } from "@/lib/client/app-session";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { accessNeedsAccountForMirror } from "@/components/tryon/mirror-entry";
 
 type SelfAvatarStatus = "unknown" | "loading" | "ready" | "missing" | "signed_out";
 
@@ -78,20 +81,24 @@ export const useSelfAvatarStore = create<SelfAvatarState>((set, get) => ({
   },
 
   openCreateFlow: () => {
-    const { status, personId } = get();
-    if (status === "signed_out") {
-      window.location.href = "/profile";
+    const mode = useAppSessionStore.getState().mode;
+    if (accessNeedsAccountForMirror(mode)) {
+      openAuthModal("signup");
       return;
     }
-    if (!personId) {
-      void get().refresh().then(() => {
-        const next = get();
-        if (next.personId) set({ createFlowOpen: true });
-        else window.location.href = "/profile";
-      });
+    const { personId } = get();
+    if (personId) {
+      set({ createFlowOpen: true });
       return;
     }
-    set({ createFlowOpen: true });
+    void get().refresh().then(() => {
+      const nextMode = useAppSessionStore.getState().mode;
+      if (accessNeedsAccountForMirror(nextMode)) {
+        openAuthModal("signup");
+        return;
+      }
+      if (get().personId) set({ createFlowOpen: true });
+    });
   },
 
   closeCreateFlow: () => set({ createFlowOpen: false }),

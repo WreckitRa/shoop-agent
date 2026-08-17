@@ -29,8 +29,9 @@ const CARD_ELEMENT_OPTIONS = {
   style: {
     base: {
       fontSize: "16px",
-      color: "#1a1a2e",
-      fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+      color: "#0E0E11",
+      fontFamily:
+        'var(--font-dm-sans), "DM Sans", system-ui, sans-serif',
       "::placeholder": { color: "#94a3b8" },
     },
     invalid: { color: "#b80d0c", iconColor: "#b80d0c" },
@@ -155,7 +156,7 @@ function RyePaymentForm({
         type="button"
         disabled={!stripe || confirming}
         onClick={() => void handlePay()}
-        className="btn-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg text-[13px]"
+        className="btn-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 text-[13px]"
       >
         {confirming ? <Loader2 className="size-4 animate-spin" /> : null}
         Pay now

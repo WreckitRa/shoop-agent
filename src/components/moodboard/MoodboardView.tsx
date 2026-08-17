@@ -8,7 +8,7 @@ import { openAuthModal, useGuestMode } from "@/hooks/useGuestMode";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { NEW_CHAT_PATH } from "@/lib/shared/chatRoutes";
 import { cn } from "@/lib/ai-chat/cn";
-import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
+import { requestMirror } from "@/components/tryon/request-mirror";
 import { useCartStore } from "@/components/cart/cart-store";
 import { HOLD_COMING_SOON_TOAST } from "@/lib/client/coming-soon-toasts";
 import { useToastStore } from "@/lib/client/toast-store";
@@ -189,8 +189,6 @@ export function MoodboardView({
   const router = useRouter();
   const { isGuest } = useGuestMode();
   const showToast = useToastStore((s) => s.show);
-  const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
-  const openAvatarViewer = useTryOnDrawerStore((s) => s.openAvatarViewer);
   const addCartItem = useCartStore((s) => s.addItem);
   const setCartOpen = useCartStore((s) => s.setDrawerOpen);
   const [items, setItems] = useState<MoodboardItemEnriched[]>([]);
@@ -362,7 +360,7 @@ export function MoodboardView({
   ];
 
   const tryOn = () => {
-    void openAvatarViewer().catch(() => openFittingRoom());
+    requestMirror();
   };
 
   const askHold = () => {

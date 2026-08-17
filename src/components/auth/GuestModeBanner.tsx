@@ -19,7 +19,7 @@ export function GuestModeBanner() {
       role="status"
       aria-live="polite"
       className={cn(
-        "relative z-[90] shrink-0 bg-[#1a1f2e] text-center",
+        "relative z-[90] shrink-0 bg-ink text-center",
       )}
     >
       <p className="px-4 py-2.5 text-[13px] leading-snug text-white/90 sm:text-sm">

@@ -12,7 +12,7 @@ export function OnboardingWhy({ children }: { children: React.ReactNode }) {
 
 export function FittingWhisper({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-[34px] mt-4 max-w-[520px] font-whisper text-[17px] italic leading-[1.55] text-[var(--fitting-quiet)] [&_b]:font-medium [&_b]:not-italic [&_b]:text-[var(--fitting-ink)]">
+    <p className="fitting-whisper mb-[34px] mt-4 max-w-[520px] font-whisper text-[17px] italic leading-[1.55] text-[var(--fitting-quiet)] [&_b]:font-medium [&_b]:not-italic [&_b]:text-[var(--fitting-ink)]">
       {children}
     </p>
   );
@@ -61,7 +61,7 @@ export function FittingCount({
   total: number;
 }) {
   return (
-    <div className="mb-[18px] text-xs font-extrabold tracking-[0.08em] text-[var(--fitting-red)]">
+    <div className="fitting-count mb-[18px] text-xs font-extrabold tracking-[0.08em] text-[var(--fitting-red)]">
       {n} <span className="text-[#C9C9CF]">of {total}</span>
     </div>
   );

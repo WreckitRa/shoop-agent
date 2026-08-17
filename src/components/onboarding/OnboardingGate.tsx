@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { FittingFlash } from "@/components/onboarding/fitting/FittingFlash";
+import { FittingMirror } from "@/components/onboarding/fitting/FittingMirror";
 import {
   FittingPhotoStep,
   defaultMuscularityForBuild,
@@ -40,8 +43,11 @@ import {
   FittingCount,
 } from "@/components/onboarding/onboarding-ui";
 import { stubSerialFromId } from "@/components/onboarding/ShoopCard";
+import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
+import { useInlineFittingSlots } from "@/components/onboarding/useInlineFittingSlot";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { isChatRoutePathname } from "@/lib/shared/chatRoutes";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import {
   BUDGET_OPTIONS,
@@ -483,6 +489,14 @@ export function OnboardingGate() {
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
   const [holdOpen, setHoldOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const pathname = usePathname();
+  const { questions: inlineSlot, card: cardSlot } = useInlineFittingSlots();
+  const openColumn = useInlineFittingStore((s) => s.openColumn);
+  const closeColumn = useInlineFittingStore((s) => s.closeColumn);
+  const columnDismissed = useInlineFittingStore((s) => s.columnDismissed);
+  const setOnboardingActive = useInlineFittingStore(
+    (s) => s.setOnboardingActive,
+  );
   const [flash, setFlash] = useState<{
     cover: string;
     status: string;
@@ -2312,6 +2326,32 @@ export function OnboardingGate() {
     step,
   ]);
 
+  const incomplete =
+    holdOpen || Boolean(status?.onboarding && !status.onboarding.completed);
+
+  useLayoutEffect(() => {
+    if (loading) return;
+    setOnboardingActive(incomplete);
+    if (
+      incomplete &&
+      isChatRoutePathname(pathname ?? "") &&
+      !columnDismissed
+    ) {
+      openColumn();
+      return;
+    }
+    if (!incomplete) closeColumn();
+    return () => setOnboardingActive(false);
+  }, [
+    closeColumn,
+    columnDismissed,
+    incomplete,
+    loading,
+    openColumn,
+    pathname,
+    setOnboardingActive,
+  ]);
+
   const progressPct =
     step === "verdict"
       ? 100
@@ -2329,15 +2369,39 @@ export function OnboardingGate() {
       ? { n: 8, stage: "THE FITTING" }
       : STEP_META[step];
 
+  const inline = Boolean(inlineSlot);
+  const onChat = isChatRoutePathname(pathname ?? "");
+  const fittingLayout = inline ? "column" : "page";
+  const mirrorPane = (
+    <FittingMirror
+      layout="column"
+      mirror={mirror}
+      onTell={step === "verdict" ? undefined : handleTell}
+      tellFeedback={tellFeedback}
+      tellBusy={tellBusy}
+    />
+  );
+
   if (loading) {
-    return (
+    const bootFlash = (
       <FittingFlash
         show
+        layout={fittingLayout}
         coverHtml="Opening<br><em>The Fitting.</em>"
         statusLabel="loading your print…"
         detail="Fetching your profile…"
       />
     );
+    if (inline && inlineSlot) {
+      return (
+        <>
+          {createPortal(bootFlash, inlineSlot)}
+          {cardSlot ? createPortal(mirrorPane, cardSlot) : null}
+        </>
+      );
+    }
+    if (onChat) return null;
+    return bootFlash;
   }
 
   if (
@@ -2347,18 +2411,22 @@ export function OnboardingGate() {
     return null;
   }
 
+  if (onChat && !inlineSlot) return null;
+
   // Initial bootstrap uses FittingFlash black screen (not a separate light panel).
   // Keep shell mounted only after load so flash can cover it during step work.
 
-  return (
+  const fitting = (
     <>
       <FittingFlash
         show={Boolean(flash)}
+        layout={fittingLayout}
         coverHtml={flash?.cover ?? ""}
         statusLabel={flash?.status ?? ""}
         detail={flash?.detail ?? null}
       />
       <FittingShell
+        layout={fittingLayout}
         step={step}
         progressPct={progressPct}
         stageLabel={
@@ -2593,5 +2661,14 @@ export function OnboardingGate() {
         <span className="sr-only">{styleEraLabel(joinCsvValues(styleEras))}</span>
       </FittingShell>
     </>
+  );
+
+  return inline && inlineSlot ? (
+    <>
+      {createPortal(fitting, inlineSlot)}
+      {cardSlot ? createPortal(mirrorPane, cardSlot) : null}
+    </>
+  ) : (
+    fitting
   );
 }

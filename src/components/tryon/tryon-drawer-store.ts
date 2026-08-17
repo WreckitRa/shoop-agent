@@ -15,6 +15,8 @@ import {
 import { useChatStore } from "@/components/chat/chat-store";
 import { useCartStore } from "@/components/cart/cart-store";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
+import { accessNeedsAccountForMirror } from "@/components/tryon/mirror-entry";
+import { useAppSessionStore } from "@/lib/client/app-session";
 import {
   findActiveSlotConflict,
   fittingRoomGarmentType,
@@ -518,6 +520,14 @@ function queueActiveOutfitRender() {
   });
 }
 
+function denyGuestDrawer(): boolean {
+  if (!accessNeedsAccountForMirror(useAppSessionStore.getState().mode)) {
+    return false;
+  }
+  useSelfAvatarStore.getState().openCreateFlow();
+  return true;
+}
+
 export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   open: false,
   itemsById: {},
@@ -540,6 +550,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   lookScanVerdict: null,
 
   openFittingRoom: () => {
+    if (denyGuestDrawer()) return;
     syncChromeForTryOnDrawer(true);
     set({ open: true });
     if (!get().avatarUrl) {
@@ -599,6 +610,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   },
 
   tryOnItem: (id, opts) => {
+    if (denyGuestDrawer()) return;
     const state = get();
     const item = state.itemsById[id];
     if (!item) return;
@@ -666,6 +678,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   },
 
   openLookTryOn: (params) => {
+    if (denyGuestDrawer()) return;
     clearPollTimer();
     const generation = get().renderGeneration + 1;
     syncChromeForTryOnDrawer(true);
@@ -711,6 +724,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   },
 
   openAndDressItems: (params) => {
+    if (denyGuestDrawer()) return;
     clearPollTimer();
     const generation = get().renderGeneration + 1;
     syncChromeForTryOnDrawer(true);
@@ -806,6 +820,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   },
 
   openAvatarViewer: async () => {
+    if (denyGuestDrawer()) return;
     const current = get();
     if (current.open) {
       get().close();

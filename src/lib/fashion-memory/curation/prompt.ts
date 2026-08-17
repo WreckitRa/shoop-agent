@@ -100,14 +100,15 @@ the brief is vague). Max 2 per brand. If palette_source is "spread", span
 2–3 palette families across the ${CURATION_HERO_PICKS}.`;
 
 export const MODE_SECTION_OUTFIT = `MODE: OUTFIT
-Use every imaged candidate you need across slots. Your job is to form
-exactly ${CURATION_LOOKS_TARGET} named looks you are confident the client
-would wear — short evocative names, each with per-item refs and the look's
-total price. Keep checking until ${CURATION_LOOKS_TARGET} looks are solid,
-or the bench is exhausted (then present what is honest and set thin_note).
-Looks must differ in character. Every item swappable — choose supports
-that tolerate substitution. Also fill each slot with the picks those looks
-use (anchor picks first).`;
+Use every imaged candidate you need across slots. Form up to
+${CURATION_LOOKS_TARGET} named looks you are confident the client would
+wear — short evocative names, each with per-item refs and the look's
+total price. Looks must differ in character AND in item_refs — never
+repeat a combo or emit a look that is a subset of another. If the bench
+only supports one honest combo, deliver that one and set thin_note. Do
+not pad to ${CURATION_LOOKS_TARGET} with clones. Every item swappable —
+choose supports that tolerate substitution. Also fill each slot with the
+picks those looks use (anchor picks first).`;
 
 export const MODE_SECTION_CAPSULE = `MODE: CAPSULE (wardrobe — largest image set)
 This is a wardrobe refresh: use the full image set. Select a MIXABLE SET

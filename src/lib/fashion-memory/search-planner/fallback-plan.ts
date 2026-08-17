@@ -53,25 +53,38 @@ export function garmentsForPlanFromBrief(brief: FashionSearchBrief): string[] {
   return selectGarmentsForPlan(brief.garments);
 }
 
+export const FALLBACK_OPTIONS_WANTED = 4;
+
+/** "one outfit" / "3 looks" is look count, not per-slot depth. */
+export function isLookCountQuantityHint(
+  quantityHint: string | null | undefined,
+): boolean {
+  return /\b(outfit|outfits|look|looks|ensemble|ensembles)\b/i.test(
+    `${quantityHint ?? ""}`,
+  );
+}
+
 function parseExplicitOptionsWanted(brief: FashionSearchBrief): number | null {
   const qty = `${brief.quantity_hint ?? ""}`.toLowerCase();
-  const wordMap: Record<string, number> = {
-    one: 1,
-    two: 2,
-    three: 3,
-    four: 4,
-    five: 5,
-    six: 6,
-    seven: 7,
-    eight: 8,
-  };
-  for (const [word, n] of Object.entries(wordMap)) {
-    if (new RegExp(`\\b${word}\\b`).test(qty)) return n;
-  }
-  const digit = qty.match(/\b(\d+)\b/);
-  if (digit) {
-    const n = Number(digit[1]);
-    if (Number.isFinite(n) && n >= 1 && n <= 8) return n;
+  if (!isLookCountQuantityHint(qty)) {
+    const wordMap: Record<string, number> = {
+      one: 1,
+      two: 2,
+      three: 3,
+      four: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+    };
+    for (const [word, n] of Object.entries(wordMap)) {
+      if (new RegExp(`\\b${word}\\b`).test(qty)) return n;
+    }
+    const digit = qty.match(/\b(\d+)\b/);
+    if (digit) {
+      const n = Number(digit[1]);
+      if (Number.isFinite(n) && n >= 1 && n <= 8) return n;
+    }
   }
   for (const mh of brief.must_haves) {
     const m = mh.toLowerCase().match(/\b(\d+)\s+(shirt|shirts|pant|pants|shoe|shoes|dress|dresses)\b/);
@@ -84,7 +97,7 @@ function parseExplicitOptionsWanted(brief: FashionSearchBrief): number | null {
 }
 
 function optionsWantedForFallback(brief: FashionSearchBrief): number {
-  return parseExplicitOptionsWanted(brief) ?? 4;
+  return parseExplicitOptionsWanted(brief) ?? FALLBACK_OPTIONS_WANTED;
 }
 
 function pickAnchorIndex(garments: string[]): number {

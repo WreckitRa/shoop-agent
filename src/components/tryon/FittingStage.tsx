@@ -290,6 +290,7 @@ export function FittingStage({
   const removeFromAvatar = useTryOnDrawerStore((s) => s.removeFromAvatar);
   const sendFeedback = useTryOnDrawerStore((s) => s.sendFeedback);
   const jobId = useTryOnDrawerStore((s) => s.jobId);
+  const renderGeneration = useTryOnDrawerStore((s) => s.renderGeneration);
   const hydrateAskShareForJob = useTryOnDrawerStore(
     (s) => s.hydrateAskShareForJob,
   );
@@ -325,9 +326,12 @@ export function FittingStage({
     status === "starting" ||
     status === "processing";
   const showResult = Boolean(resultUrl) && status === "completed";
-  // Don't swap the mirror / start StudyingScan until the dressed look has
-  // actually loaded — otherwise the scan choreography runs on the bare avatar.
   const [lookPainted, setLookPainted] = useState(false);
+  const dressingLook =
+    (status === "starting" || status === "processing") &&
+    activeItems.length > 0;
+  const scanLive = activeItems.length > 0 && (dressingLook || showResult);
+  const dressingScan = dressingLook || (showResult && !lookPainted);
   const mirrorSrc =
     showResult && lookPainted && resultUrl
       ? resultUrl
@@ -335,7 +339,6 @@ export function FittingStage({
 
   useEffect(() => {
     setLookPainted(false);
-    setScanScanning(false);
     if (!showResult || !resultUrl) return;
 
     let cancelled = false;
@@ -738,6 +741,7 @@ export function FittingStage({
               "shoop-twin",
               dropGlow && "shoop-twin--glow",
               scanScanning && "shoop-twin--scanning",
+              (scanScanning || dressingScan) && "shoop-twin--baking",
               showResult && lookPainted && "shoop-twin--studied",
               Boolean(dressFlash) && "shoop-twin--dressing",
             )}
@@ -823,23 +827,29 @@ export function FittingStage({
             )}
 
             {busy && avatarUrl ? (
-              <>
-                <div className="absolute inset-0 bg-ink/15 backdrop-brightness-95" />
+              scanLive ? (
                 <GarmentShadows
                   items={activeItems.length ? activeItems : rackItems}
                 />
-                <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-ink/55 via-ink/20 to-transparent px-4 pb-10 pt-16">
-                  <div className="flex items-center gap-2 text-white">
-                    <Loader2
-                      className="size-4 shrink-0 animate-spin"
-                      aria-hidden
-                    />
-                    <p className="text-sm font-medium">
-                      <StageStatusLine />
-                    </p>
+              ) : (
+                <>
+                  <div className="absolute inset-0 bg-ink/15 backdrop-brightness-95" />
+                  <GarmentShadows
+                    items={activeItems.length ? activeItems : rackItems}
+                  />
+                  <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-ink/55 via-ink/20 to-transparent px-4 pb-10 pt-16">
+                    <div className="flex items-center gap-2 text-white">
+                      <Loader2
+                        className="size-4 shrink-0 animate-spin"
+                        aria-hidden
+                      />
+                      <p className="text-sm font-medium">
+                        <StageStatusLine />
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </>
+                </>
+              )
             ) : null}
 
             {dropGlow ? (
@@ -872,10 +882,11 @@ export function FittingStage({
           ) : null}
 
           <div className="shoop-croom__readout">
-            {showResult && resultUrl && lookPainted ? (
+            {scanLive ? (
               <StudyingScan
-                key={resultUrl}
-                imageUrl={resultUrl}
+                key={`g-${renderGeneration}`}
+                dressing={dressingScan}
+                imageUrl={lookPainted ? resultUrl : null}
                 frameEl={twinEl}
                 onScanningChange={setScanScanning}
                 pieces={activeItems.map((item) => ({

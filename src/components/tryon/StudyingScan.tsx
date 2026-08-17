@@ -15,9 +15,13 @@ import {
 } from "@/lib/ask/share-client";
 import {
   formatScanEmphasis,
+  PREVIEW_SCAN_DIM_LABEL,
+  previewScanNotes,
+  previewScanWhispers,
   resolveLookScanMode,
   type LookScanPiece,
   type LookScanVerdict,
+  type PreviewScanNote,
 } from "@/lib/tryon/look-scan-types";
 
 const FALLBACK_ANNOS = [
@@ -38,8 +42,18 @@ type Phase = "idle" | "scanning" | "done" | "error";
 
 type CheckKey = "fit" | "palette" | "nolist";
 
+type RailNote = {
+  key: string;
+  dim?: string;
+  dimColor?: string;
+  name?: string;
+  html: string;
+};
+
 type Props = {
-  imageUrl: string;
+  imageUrl?: string | null;
+  /** True while Fashn is dressing — keep scanning chrome, don't reveal yet. */
+  dressing?: boolean;
   pieces: LookScanPiece[];
   className?: string;
   /** Existing mirror twin — scan chrome portals into this. */
@@ -148,8 +162,73 @@ function notesFromVerdict(verdict: LookScanVerdict): Array<{
   }));
 }
 
+function dimColor(dim: PreviewScanNote["dim"]): string {
+  if (dim === "fit" || dim === "set") return "#16A34A";
+  return "#C98A0E";
+}
+
+function railsFromPreview(notes: PreviewScanNote[]): RailNote[] {
+  return notes.map((n) => ({
+    key: `${n.dim}-${n.name}`,
+    dim: PREVIEW_SCAN_DIM_LABEL[n.dim],
+    dimColor: dimColor(n.dim),
+    name: n.name,
+    html: formatScanEmphasis(n.text),
+  }));
+}
+
+function railsFromVerdict(verdict: LookScanVerdict): {
+  likes: RailNote[];
+  gripes: RailNote[];
+} {
+  const likes: RailNote[] = [];
+  const gripes: RailNote[] = [];
+  notesFromVerdict(verdict).forEach((n, i) => {
+    const row: RailNote = { key: `v-${i}`, html: n.html };
+    if (n.tone === "pass") likes.push(row);
+    else gripes.push(row);
+  });
+  return { likes, gripes };
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function RailNoteItems({ notes }: { notes: RailNote[] }) {
+  return (
+    <>
+      {notes.map((n) => (
+        <li key={n.key} className="typein">
+          {n.dim ? (
+            <span
+              className="shoop-dimchip"
+              style={{ borderColor: n.dimColor, color: n.dimColor }}
+            >
+              {n.dim}
+            </span>
+          ) : null}
+          <span>
+            {n.name ? (
+              <>
+                <b>{n.name}</b>
+                {" — "}
+              </>
+            ) : null}
+            <span dangerouslySetInnerHTML={{ __html: n.html }} />
+          </span>
+        </li>
+      ))}
+    </>
+  );
+}
+
 export function StudyingScan({
-  imageUrl,
+  imageUrl = null,
+  dressing = false,
   pieces,
   className,
   frameEl,
@@ -177,6 +256,10 @@ export function StudyingScan({
     nolist: "idle" | "busy" | "tied";
   }>({ fit: "idle", palette: "idle", nolist: "idle" });
   const [verdict, setVerdict] = useState<LookScanVerdict | null>(null);
+  const [likeNotes, setLikeNotes] = useState<RailNote[]>([]);
+  const [gripeNotes, setGripeNotes] = useState<RailNote[]>([]);
+  const [fog, setFog] = useState<"off" | "on" | "wipe">("off");
+  const [kick, setKick] = useState("Reading it on you...");
   const [error, setError] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [asked, setAsked] = useState(false);
@@ -189,7 +272,11 @@ export function StudyingScan({
   const timersRef = useRef<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const verdictReadyRef = useRef<LookScanVerdict | null>(null);
-  const choreographyDoneRef = useRef(false);
+  const bakeReadyRef = useRef(false);
+  const revealedRef = useRef(false);
+  const dressingRef = useRef(dressing);
+  const imageUrlRef = useRef(imageUrl);
+  const replayRef = useRef(false);
   const showToast = useToastStore((s) => s.show);
   const jobId = useTryOnDrawerStore((s) => s.jobId);
   const ownerVerdict = useTryOnDrawerStore((s) => s.ownerVerdict);
@@ -207,87 +294,127 @@ export function StudyingScan({
     timersRef.current.push(window.setTimeout(fn, ms));
   }
 
+  dressingRef.current = dressing;
+  imageUrlRef.current = imageUrl;
+
   function resetVisuals() {
-    clearTimers();
-    setWhisper(FALLBACK_WHISPERS[0]);
+    setWhisper(previewScanWhispers(pieces)[0]);
     setWhisperDim(false);
     setAnnoLit([false, false, false, false]);
     setChecks({ fit: "idle", palette: "idle", nolist: "idle" });
     setVerdict(null);
+    setLikeNotes([]);
+    setGripeNotes([]);
+    setKick("Reading it on you...");
+    setFog("on");
+  }
+
+  function tryReveal() {
+    const v = verdictReadyRef.current;
+    if (!v || revealedRef.current || !bakeReadyRef.current) return;
+    if (!replayRef.current && dressingRef.current) return;
+    if (!replayRef.current && !imageUrlRef.current) return;
+    revealVerdict(v);
   }
 
   function revealVerdict(v: LookScanVerdict) {
+    if (revealedRef.current) return;
+    revealedRef.current = true;
+    clearTimers();
     setChecks({ fit: "tied", palette: "tied", nolist: "tied" });
     setAnnoLit([false, false, false, true]);
     setWhisperDim(true);
+    setWhisper("");
     setVerdict(v);
+    const rails = railsFromVerdict(v);
+    setLikeNotes(rails.likes);
+    setGripeNotes(rails.gripes);
+    setKick("Verdict");
+    setFog("wipe");
+    schedule(() => setFog("off"), 1200);
     setPhase("done");
   }
 
   function runChoreography(whispers: readonly string[]) {
-    choreographyDoneRef.current = false;
-
-    const say = (i: number) => {
+    const lines = whispers.some(Boolean) ? whispers : FALLBACK_WHISPERS;
+    let wi = 0;
+    const cycle = () => {
       setWhisperDim(true);
       schedule(() => {
-        setWhisper(whispers[i] ?? FALLBACK_WHISPERS[i] ?? "");
+        setWhisper(lines[wi] ?? "");
         setWhisperDim(false);
-      }, 300);
+        wi = (wi + 1) % lines.length;
+      }, 280);
+      schedule(cycle, 2100);
     };
+    cycle();
 
     schedule(() => setAnnoLit((a) => [true, a[1]!, a[2]!, a[3]!]), 350);
-    schedule(() => setChecks((c) => ({ ...c, fit: "busy" })), 300);
-    schedule(() => say(1), 750);
+    schedule(() => setChecks((c) => ({ ...c, nolist: "busy" })), 1000);
+    schedule(() => setChecks((c) => ({ ...c, fit: "busy" })), 1400);
     schedule(() => {
-      setChecks((c) => ({ ...c, fit: "tied", palette: "busy" }));
+      setChecks((c) => ({ ...c, palette: "busy" }));
       setAnnoLit((a) => [a[0]!, true, a[2]!, a[3]!]);
-    }, 1050);
-    schedule(() => say(2), 1500);
-    schedule(() => {
-      setChecks((c) => ({ ...c, palette: "tied", nolist: "busy" }));
-      setAnnoLit((a) => [a[0]!, a[1]!, true, a[3]!]);
-    }, 1750);
-    schedule(() => setAnnoLit((a) => [a[0]!, a[1]!, a[2]!, true]), 2050);
-    schedule(() => say(3), 2150);
-    schedule(() => {
-      choreographyDoneRef.current = true;
-      const ready = verdictReadyRef.current;
-      if (ready) revealVerdict(ready);
-    }, 2500);
+    }, 2600);
+    schedule(() => setAnnoLit((a) => [a[0]!, a[1]!, true, a[3]!]), 3200);
   }
 
-  async function startScan(replay = false) {
-    abortRef.current?.abort();
+  function streamPreviewNotes() {
+    const preview = previewScanNotes(pieces);
+    const likes = railsFromPreview(preview.likes);
+    const gripes = railsFromPreview(preview.gripes);
+    if (prefersReducedMotion()) {
+      setLikeNotes(likes);
+      setGripeNotes(gripes);
+      return;
+    }
+    likes.forEach((n, i) => {
+      schedule(() => setLikeNotes((prev) => [...prev, n]), 2200 + i * 1500);
+    });
+    gripes.forEach((n, i) => {
+      schedule(
+        () => setGripeNotes((prev) => [...prev, n]),
+        2200 + likes.length * 1500 + i * 1600,
+      );
+    });
+  }
+
+  function beginBake() {
     clearTimers();
-    verdictReadyRef.current = null;
-    choreographyDoneRef.current = false;
+    revealedRef.current = false;
+    bakeReadyRef.current = false;
     setError(null);
     setShareHint(null);
-
-    const cached = useTryOnDrawerStore.getState().lookScanVerdict;
-    if (cached && !replay) {
-      revealVerdict(cached);
-      return;
-    }
-
     setPhase("scanning");
     resetVisuals();
-    runChoreography(
-      cached?.whispers?.some(Boolean) ? cached.whispers : FALLBACK_WHISPERS,
-    );
+    runChoreography(previewScanWhispers(pieces));
+    streamPreviewNotes();
+    const readyIn = prefersReducedMotion() ? 0 : 3400;
+    schedule(() => {
+      bakeReadyRef.current = true;
+      tryReveal();
+    }, readyIn);
+  }
 
-    if (cached && replay) {
+  async function fetchVerdict() {
+    const url = imageUrlRef.current;
+    if (!url) return;
+
+    const cached = useTryOnDrawerStore.getState().lookScanVerdict;
+    if (cached) {
       verdictReadyRef.current = cached;
+      tryReveal();
       return;
     }
 
+    abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
 
     try {
-      const absoluteUrl = /^https?:\/\//i.test(imageUrl)
-        ? imageUrl
-        : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+      const absoluteUrl = /^https?:\/\//i.test(url)
+        ? url
+        : `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
 
       const lookMode = resolveLookScanMode(pieces);
       const res = await guestFetch("/api/tryon/look-scan", {
@@ -314,24 +441,26 @@ export function StudyingScan({
       const v = body.verdict;
       verdictReadyRef.current = v;
       setLookScanVerdict(v);
-
-      if (body.cached) {
-        clearTimers();
-        revealVerdict(v);
-        return;
-      }
-
-      if (choreographyDoneRef.current) {
-        revealVerdict(v);
-      }
+      tryReveal();
     } catch (err) {
       if (ac.signal.aborted) return;
       clearTimers();
+      setFog("off");
       setPhase("error");
       setError(
         err instanceof Error ? err.message : "Couldn't study this look.",
       );
     }
+  }
+
+  function startScan(replay = false) {
+    abortRef.current?.abort();
+    replayRef.current = replay;
+    verdictReadyRef.current = replay
+      ? useTryOnDrawerStore.getState().lookScanVerdict
+      : null;
+    beginBake();
+    if (imageUrlRef.current) void fetchVerdict();
   }
 
   async function ensureAskShareUrl(): Promise<string | null> {
@@ -342,7 +471,7 @@ export function StudyingScan({
       setShareUrl(url);
       return url;
     }
-    if (!verdict || shareBusy) return null;
+    if (!verdict || shareBusy || !imageUrl) return null;
     setShareBusy(true);
     setShareHint(null);
     try {
@@ -415,14 +544,23 @@ export function StudyingScan({
   }
 
   useEffect(() => {
-    if (!imageUrl) return;
     setShareUrl(null);
     setShareHint(null);
     setAsked(false);
-    void startScan();
-    // Auto-study each new dressed look.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- startScan closes over latest pieces/imageUrl
+    beginBake();
+    // One bake per mount — parent keys this on the try-on generation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!imageUrl) return;
+    void fetchVerdict();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrl]);
+
+  useEffect(() => {
+    tryReveal();
+  }, [dressing, imageUrl]);
 
   useEffect(() => {
     return () => {
@@ -462,6 +600,21 @@ export function StudyingScan({
     showOnAvatar && frameEl
       ? createPortal(
           <>
+            <div
+              className={cn(
+                "shoop-sscan__fog",
+                fog !== "off" && "on",
+                fog === "wipe" && "wipe",
+              )}
+              aria-hidden
+            />
+            <div
+              className={cn(
+                "shoop-sscan__scanline",
+                phase === "scanning" && "run",
+              )}
+              aria-hidden
+            />
             <div className="shoop-sscan__band" aria-hidden>
               <div className="shoop-sscan__line" />
             </div>
@@ -506,6 +659,51 @@ export function StudyingScan({
               })}
             </div>
 
+            {likeNotes.length ? (
+              <div className="shoop-vrail">
+                <div className="shoop-vg">
+                  <h5>
+                    <i style={{ background: "#16A34A" }} aria-hidden />
+                    {phase === "done" ? "What I like" : "What I'm checking"}
+                  </h5>
+                  <ul className="shoop-vg__notes">
+                    <RailNoteItems notes={likeNotes} />
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+
+            {gripeNotes.length ? (
+              <div className="shoop-vrail shoop-vrail--gripes">
+                <div className="shoop-vg">
+                  <h5>
+                    <i style={{ background: "#C98A0E" }} aria-hidden />
+                    {phase === "done" ? "What I don't" : "Still reading"}
+                  </h5>
+                  <ul className="shoop-vg__notes">
+                    <RailNoteItems notes={gripeNotes} />
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+
+            <div
+              className={cn(
+                "shoop-sscan__overlay",
+                (phase === "scanning" || phase === "done") && "on",
+                phase === "scanning" && "shoop-sscan__overlay--reading",
+              )}
+            >
+              <div className="shoop-sscan__overlay-k">{kick}</div>
+              {verdict && phase === "done" ? (
+                <h3
+                  dangerouslySetInnerHTML={{
+                    __html: formatScanEmphasis(verdict.verdict_title),
+                  }}
+                />
+              ) : null}
+            </div>
+
             <div
               className={cn(
                 "shoop-sscan__whisper shoop-sscan__whisper--stage",
@@ -529,7 +727,11 @@ export function StudyingScan({
             <div className={cn("shoop-arail", !actionsReady && "is-wait")}>
               {!actionsReady ? (
                 <p className="shoop-arail__wait">
-                  {phase === "scanning" ? "Studying…" : "After the scan"}
+                  {dressing
+                    ? "Dressing…"
+                    : phase === "scanning"
+                      ? "Studying…"
+                      : "After the scan"}
                 </p>
               ) : null}
               <RailAb
@@ -596,12 +798,22 @@ export function StudyingScan({
     <div className={cn("shoop-sscan shoop-sscan--readout", className)}>
       {overlays}
 
-      {phase === "idle" || phase === "scanning" ? (
+      {phase === "idle" ? (
         <p className="shoop-sscan__empty">
-          {phase === "scanning"
-            ? "Studying this look on you…"
-            : "Tap a look on the left, or drag a piece from the fitting room. I'll tell you what I like and what I don't."}
+          Tap a look on the left, or drag a piece from the fitting room. I'll
+          tell you what I like and what I don't.
         </p>
+      ) : null}
+
+      {phase === "scanning" ? (
+        <>
+          <p className="shoop-sscan__empty">Reading it on you…</p>
+          {likeNotes.length || gripeNotes.length ? (
+            <ul className="shoop-sscan__bake-notes">
+              <RailNoteItems notes={[...likeNotes, ...gripeNotes]} />
+            </ul>
+          ) : null}
+        </>
       ) : null}
 
       {verdict && phase === "done" ? (

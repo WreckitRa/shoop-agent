@@ -4,12 +4,18 @@ import type { RenderLook } from "@/lib/fashion-memory/types/render-contract";
 import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
 import type { FittingRoomItem } from "@/lib/tryon/fitting-room-types";
 import { useToastStore } from "@/lib/client/toast-store";
+import { useAppSessionStore } from "@/lib/client/app-session";
 import { fittingRoomItemFromSearchPick } from "./fitting-room-item-builders";
 import { useTryOnDrawerStore } from "./tryon-drawer-store";
 import {
   resolveTryonCta,
   useSelfAvatarStore,
 } from "./self-avatar-store";
+import {
+  accessNeedsAccountForMirror,
+  guestFittingCtaLabel,
+} from "./mirror-entry";
+import { requestMirror } from "./request-mirror";
 
 type LookTryon = NonNullable<RenderLook["tryon"]>;
 
@@ -78,6 +84,9 @@ export function TryOnLookButton({
   );
   const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
   const avatarStatus = useSelfAvatarStore((s) => s.status);
+  const needsAccount = accessNeedsAccountForMirror(
+    useAppSessionStore((s) => s.mode),
+  );
   const showToast = useToastStore((s) => s.show);
   const busy = useTryOnDrawerStore(
     (s) =>
@@ -88,12 +97,33 @@ export function TryOnLookButton({
   );
 
   const cta = resolveTryonCta({
-    available: look.tryon?.available,
+    available: look.tryon == null || look.tryon.available === true,
     cta: look.tryon?.cta,
     avatarStatus,
   });
 
   if (cta === "hidden") return null;
+
+  if (needsAccount) {
+    const guestLabel = guestFittingCtaLabel("look");
+    return (
+      <button
+        type="button"
+        className="shoop-seeyou"
+        aria-label={guestLabel}
+        onClick={() => requestMirror()}
+      >
+        <span className="shoop-seeyou__txt">
+          Sign up to see
+          <br />
+          the full look
+        </span>
+        <svg className="shoop-seeyou__tri" viewBox="0 0 34 46" aria-hidden>
+          <polygon points="2,2 32,23 2,44" fill="currentColor" />
+        </svg>
+      </button>
+    );
+  }
 
   if (cta === "create_avatar") {
     return (
@@ -155,7 +185,7 @@ export function TryOnLookButton({
         data-tryon-trigger
         className="shoop-seeyou"
         disabled={busy}
-        aria-label={busy ? "Dressing this look" : "See this look on you"}
+        aria-label={busy ? "Dressing this look" : "See full look on you"}
         onClick={() =>
           openLookTryOn({
             searchId,
@@ -174,7 +204,7 @@ export function TryOnLookButton({
             </>
           ) : (
             <>
-              See it
+              See full look
               <br />
               on you
             </>

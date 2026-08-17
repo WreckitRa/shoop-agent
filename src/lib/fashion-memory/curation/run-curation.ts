@@ -493,9 +493,10 @@ PHASE PICK (Stage A): Spend tokens on correct refs, roles, looks, and vetoes.
 Set every stylist_line to exactly "${STAGE_A_PLACEHOLDER_STYLIST_LINE}" and narration.opening to
 "${STAGE_A_PLACEHOLDER_OPENING}" — a later voice pass fills real prose. Do not write
 long narration here.
-OUTFIT MODE (required): include looks[] with exactly the named looks the mode
-section asks for. Each look needs item_refs spanning the slots. Omitting looks
-is a contract failure — never return slots without looks in outfit mode.`
+OUTFIT MODE (required): include looks[] with distinct named looks (never
+duplicate or subset item_refs). Each look needs item_refs spanning the slots.
+Omitting looks is a contract failure — never return slots without looks in
+outfit mode.`
     : systemPromptBase;
 
   if (params.deterministicOnly) {

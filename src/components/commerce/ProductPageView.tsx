@@ -731,7 +731,7 @@ export function ProductPageView({
                 type="button"
                 onClick={onClose}
                 aria-label="Close product details"
-                className="inline-flex size-9 items-center justify-center rounded-lg text-ink-soft transition hover:bg-surface-subtle hover:text-ink"
+                className="inline-flex size-9 items-center justify-center rounded-[10px] text-ink-soft transition hover:bg-surface-tint hover:text-ink"
               >
                 <X className="size-5" aria-hidden />
               </button>
@@ -1078,7 +1078,7 @@ function ProductHeroGallery({
                     key={i}
                     className={cn(
                       "size-1.5 rounded-full",
-                      i === activeIndex ? "bg-ink" : "bg-surface-muted",
+                      i === activeIndex ? "bg-ink" : "bg-surface-tint",
                     )}
                     aria-hidden
                   />
@@ -1798,10 +1798,10 @@ function HandoffConfirm({
           if (!busy) onCancel();
         }}
       />
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-hairline bg-white shadow-[0_24px_64px_rgba(15,23,42,0.18)]">
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-hairline bg-white shadow-card">
         <div className="border-b border-hairline bg-surface-subtle/80 px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-info-bg text-info-accent">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-tint text-ink">
               <ExternalLink className="size-5" aria-hidden />
             </div>
             <div className="min-w-0 flex-1">
@@ -1830,7 +1830,7 @@ function HandoffConfirm({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="btn-secondary h-10 px-5 text-sm"
+            className="btn-secondary h-11 px-5 text-sm"
           >
             Cancel
           </button>
@@ -1838,7 +1838,7 @@ function HandoffConfirm({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className="btn-primary inline-flex h-10 items-center justify-center gap-2 px-5 text-sm"
+            className="btn-primary inline-flex h-11 items-center justify-center gap-2 px-5 text-sm"
           >
             {busy ? (
               <Loader2 className="size-4 animate-spin" aria-hidden />

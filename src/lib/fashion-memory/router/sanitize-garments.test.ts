@@ -55,4 +55,11 @@ describe("sanitizeBriefGarments", () => {
     assert.deepEqual(out.garments, []);
     assert.match(out.style_direction, /cool style|effortless/i);
   });
+
+  it("collapses shoe/shoes to one family (cmsriozum0017k4xg4g6nm2h9)", () => {
+    const out = sanitizeBriefGarments(
+      baseBrief({ garments: ["top", "bottom", "shoe", "shoes"] }),
+    );
+    assert.deepEqual(out.garments, ["top", "bottom", "shoe"]);
+  });
 });

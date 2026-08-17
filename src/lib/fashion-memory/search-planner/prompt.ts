@@ -70,8 +70,13 @@ you want to see for this slot?
 - Capsule: derive from rotation count (tops ≈ outfit count, bottoms ≈
   ceil(count/1.5), shoes 1–2).
 
-Explicit user counts ALWAYS win: "show me 6 shirts" → options_wanted 6
+Explicit ITEM counts ALWAYS win: "show me 6 shirts" → options_wanted 6
 for that slot. No further empathy reasoning when the user named a number.
+
+Look counts are NOT per-slot: "one outfit", "an outfit", "3 looks"
+describe how many complete looks to compose, not options_wanted. Leave
+per-slot depth at the empathy default (typically 4) unless the user
+named an item count.
 
 Hard cap: options_wanted at most 8 per slot.
 

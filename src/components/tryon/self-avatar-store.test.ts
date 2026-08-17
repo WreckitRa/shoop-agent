@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { resolveTryonCta } from "@/components/tryon/self-avatar-store";
+import {
+  guestFittingCtaLabel,
+  resolveMirrorEntry,
+} from "@/components/tryon/mirror-entry";
 
 describe("resolveTryonCta", () => {
   it("keeps create_avatar when avatar missing", () => {
@@ -42,6 +46,74 @@ describe("resolveTryonCta", () => {
         avatarStatus: "ready",
       }),
       "hidden",
+    );
+  });
+});
+
+describe("resolveMirrorEntry", () => {
+  it("sends guests to signup even when the rack has items", () => {
+    assert.equal(
+      resolveMirrorEntry({
+        accessMode: "guest",
+        avatarReady: false,
+        hasRackOrActive: true,
+      }),
+      "signup",
+    );
+  });
+
+  it("sends anonymous visitors to signup", () => {
+    assert.equal(
+      resolveMirrorEntry({
+        accessMode: "anonymous",
+        avatarReady: false,
+        hasRackOrActive: false,
+      }),
+      "signup",
+    );
+  });
+
+  it("opens create-avatar for signed-in users without a twin", () => {
+    assert.equal(
+      resolveMirrorEntry({
+        accessMode: "authenticated",
+        avatarReady: false,
+        hasRackOrActive: false,
+      }),
+      "create_avatar",
+    );
+  });
+
+  it("opens the fitting room when the twin is ready and the rack has pieces", () => {
+    assert.equal(
+      resolveMirrorEntry({
+        accessMode: "authenticated",
+        avatarReady: true,
+        hasRackOrActive: true,
+      }),
+      "fitting_room",
+    );
+  });
+
+  it("opens the avatar viewer when the twin is ready and the rack is empty", () => {
+    assert.equal(
+      resolveMirrorEntry({
+        accessMode: "authenticated",
+        avatarReady: true,
+        hasRackOrActive: false,
+      }),
+      "avatar_viewer",
+    );
+  });
+});
+
+describe("guestFittingCtaLabel", () => {
+  it("does not promise an on-you preview for guests", () => {
+    assert.equal(guestFittingCtaLabel("overlay"), "CLAIM PRINT →");
+    assert.equal(guestFittingCtaLabel("button"), "Sign up to see it on you");
+    assert.equal(
+      guestFittingCtaLabel("look"),
+      "Sign up to see the full look",
     );
   });
 });

@@ -170,7 +170,7 @@ export function CatalogCountryPicker({
                 maxHeight: menuLayout.maxHeight,
                 zIndex: MENU_Z,
               }}
-              className="flex flex-col overflow-hidden rounded-2xl border border-hairline bg-white shadow-card ring-1 ring-black/5"
+              className="flex flex-col overflow-hidden rounded-2xl border border-hairline bg-white shadow-card"
             >
               <div className="relative shrink-0 border-b border-hairline px-2 py-2">
                 <Search
@@ -182,7 +182,7 @@ export function CatalogCountryPicker({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search countries"
-                  className="w-full rounded-lg border border-hairline bg-white py-1.5 pl-8 pr-2 text-xs text-ink outline-none placeholder:text-ink-muted focus:border-brand/40 focus:ring-2 focus:ring-brand/15"
+                  className="w-full rounded-xl border border-hairline bg-white py-1.5 pl-8 pr-2 text-xs text-ink outline-none placeholder:text-ink-muted focus:border-ink/40 focus:ring-2 focus:ring-ink/5"
                   onKeyDown={(e) => {
                     if (e.key === "Escape") close();
                     if (e.key === "Enter") {
@@ -212,9 +212,9 @@ export function CatalogCountryPicker({
                           onClick={() => void pick(country.code)}
                           disabled={saving}
                           className={cn(
-                            "flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors disabled:opacity-50",
+                            "flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-2 text-left text-xs transition-colors disabled:opacity-50",
                             active
-                              ? "bg-brand/10 text-brand"
+                              ? "bg-surface-tint text-ink"
                               : "text-ink hover:bg-surface-subtle",
                           )}
                         >
@@ -224,7 +224,7 @@ export function CatalogCountryPicker({
                               {country.code}
                             </span>
                             {active ? (
-                              <Check className="size-3 text-brand" aria-hidden />
+                              <Check className="size-3 text-ink" aria-hidden />
                             ) : null}
                           </span>
                         </button>

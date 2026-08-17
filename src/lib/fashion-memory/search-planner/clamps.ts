@@ -1,8 +1,13 @@
 import type { FashionSearchPlan, FashionSearchPlanSlot, SearchPlanMode } from "./types";
 import { recordPipelineEvent } from "../observability/trace";
 import { ensureBrandProbeVariant, statedBrands } from "../brand/brand-handling";
+import { garmentSlotFamilyKey } from "../router/garment-family";
 import { repairSlotQueryVariants } from "./query-builder";
 import { reconcilePlanPalettes } from "./palette-ladder";
+import {
+  FALLBACK_OPTIONS_WANTED,
+  isLookCountQuantityHint,
+} from "./fallback-plan";
 
 const TOP_GARMENT_RE =
   /\b(shirt|blazer|jacket|coat|dress|top|blouse|sweater|hoodie|suit)\b/i;
@@ -64,15 +69,55 @@ export type ClampFashionSearchPlanResult = {
 };
 
 /** Code-side sanity clamps after planner LLM output. */
+function uniqueSlotsByFamily(
+  slots: FashionSearchPlanSlot[],
+): FashionSearchPlanSlot[] {
+  const seen = new Set<string>();
+  const out: FashionSearchPlanSlot[] = [];
+  for (const s of slots) {
+    const key = garmentSlotFamilyKey(s.garment);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+  return out;
+}
+
+function liftLookCountOptionsWanted(
+  plan: FashionSearchPlan,
+  slots: FashionSearchPlanSlot[],
+  traceId?: string | null,
+): FashionSearchPlanSlot[] {
+  if (plan.mode !== "outfit" && plan.mode !== "capsule") return slots;
+  if (!isLookCountQuantityHint(plan.brief.quantity_hint)) return slots;
+  let lifted = false;
+  const next = slots.map((s) => {
+    if (s.options_wanted > 1) return s;
+    lifted = true;
+    return { ...s, options_wanted: FALLBACK_OPTIONS_WANTED };
+  });
+  if (lifted) {
+    recordPipelineEvent({
+      traceId,
+      stage: "clamp",
+      payload: { kind: "look_count_options_lifted" },
+    });
+  }
+  return next;
+}
+
 export function clampFashionSearchPlan(
   plan: FashionSearchPlan,
   opts?: { traceId?: string | null },
 ): ClampFashionSearchPlanResult {
   let mode: SearchPlanMode = plan.mode;
-  let slots = plan.slots.slice(0, MAX_PLAN_SLOTS).map((s) => ({
-    ...s,
-    options_wanted: clampOptionsWanted(s.options_wanted),
-  }));
+  let slots = uniqueSlotsByFamily(
+    plan.slots.slice(0, MAX_PLAN_SLOTS).map((s) => ({
+      ...s,
+      options_wanted: clampOptionsWanted(s.options_wanted),
+    })),
+  );
+  slots = liftLookCountOptionsWanted(plan, slots, opts?.traceId);
 
   if (mode === "single_item" && slots.length > 1) {
     recordPipelineEvent({

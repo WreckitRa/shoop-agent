@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { accessNeedsAccountForMirror } from "@/components/tryon/mirror-entry";
+import { requestMirror } from "@/components/tryon/request-mirror";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
+import { useAppSessionStore } from "@/lib/client/app-session";
 import { BuildSilhouette } from "@/components/tryon/avatar-silhouettes";
 import { useUserIdentity } from "@/hooks/useUserIdentity";
 import { extractFirstName } from "@/lib/shared/timeGreeting";
@@ -26,9 +29,9 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const avatarUrl = useSelfAvatarStore((s) => s.avatarUrl);
   const status = useSelfAvatarStore((s) => s.status);
   const refresh = useSelfAvatarStore((s) => s.refresh);
-  const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
-  const openAvatarViewer = useTryOnDrawerStore((s) => s.openAvatarViewer);
   const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
+  const accessMode = useAppSessionStore((s) => s.mode);
+  const needsAccount = accessNeedsAccountForMirror(accessMode);
   const rackCount = useTryOnDrawerStore((s) => s.rackIds.length);
   const activeCount = useTryOnDrawerStore((s) => s.activeIds.length);
   const { preferredName, firstName } = useUserIdentity();
@@ -61,17 +64,11 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const ready = status === "ready" && Boolean(avatarUrl);
   const loading = status === "loading";
 
-  const openMirror = () => {
-    if (ready) {
-      void openAvatarViewer();
-      return;
-    }
-    openCreateFlow();
-  };
+  const openMirror = () => requestMirror();
 
   const openRoom = () => {
     if (!ready) {
-      openCreateFlow();
+      requestMirror();
       return;
     }
     openFittingRoom();
@@ -108,7 +105,13 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
         type="button"
         data-tryon-trigger
         onClick={openMirror}
-        aria-label={ready ? "Open fitting room" : "Create your avatar"}
+        aria-label={
+          ready
+            ? "Open the Mirror"
+            : needsAccount
+              ? "Sign up to see it on you"
+              : "Create your avatar"
+        }
         className={cn(
           "relative flex-1 overflow-hidden rounded-lg border border-hairline bg-white text-left transition hover:border-ink/20",
           compact ? "min-h-[220px] lg:min-h-0" : "min-h-[280px] lg:min-h-[340px]",
@@ -127,11 +130,17 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
               <BuildSilhouette width={16} />
             </span>
             <span className="font-display text-[13px] font-extrabold tracking-tight text-ink">
-              {loading ? "Loading your twin…" : "See it on you"}
+              {loading
+                ? "Loading your twin…"
+                : needsAccount
+                  ? "Claim your print"
+                  : "See it on you"}
             </span>
             {!loading ? (
               <span className="text-[11px] font-medium text-ink-muted">
-                Tap to create your avatar
+                {needsAccount
+                  ? "Tap to claim your print"
+                  : "Tap to create your avatar"}
               </span>
             ) : null}
           </div>
@@ -174,7 +183,13 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
         onClick={openRoom}
         className="mt-3 flex items-center justify-between rounded-[13px] border border-hairline bg-white px-3.5 py-2.5 text-[11.5px] font-bold text-ink transition hover:border-ink/20"
       >
-        <span>{ready ? "Fitting room" : "Create your twin"}</span>
+        <span>
+          {ready
+            ? "Fitting room"
+            : needsAccount
+              ? "Claim your print"
+              : "Create your twin"}
+        </span>
         <span className="rounded-full bg-ink px-2 py-0.5 text-[9.5px] font-black text-white">
           {ready ? `${rackCount}` : "Start"}
         </span>

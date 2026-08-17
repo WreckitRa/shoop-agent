@@ -1,5 +1,6 @@
 "use client";
 
+import { requestMirror } from "@/components/tryon/request-mirror";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { BuildSilhouette } from "@/components/tryon/avatar-silhouettes";
@@ -16,14 +17,11 @@ type Props = {
 export function MirrorPeek({ className }: Props) {
   const avatarUrl = useSelfAvatarStore((s) => s.avatarUrl);
   const status = useSelfAvatarStore((s) => s.status);
-  const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
   const drawerOpen = useTryOnDrawerStore((s) => s.open);
   const resultUrl = useTryOnDrawerStore((s) => s.resultUrl);
   const dressing = useTryOnDrawerStore(
     (s) => s.status === "starting" || s.status === "processing",
   );
-  const openAvatarViewer = useTryOnDrawerStore((s) => s.openAvatarViewer);
-  const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
   const rackCount = useTryOnDrawerStore((s) => s.rackIds.length);
   const activeCount = useTryOnDrawerStore((s) => s.activeIds.length);
 
@@ -33,17 +31,7 @@ export function MirrorPeek({ className }: Props) {
   const thumb = activeCount > 0 && resultUrl ? resultUrl : avatarUrl;
   const badge = activeCount > 0 ? activeCount : rackCount > 0 ? rackCount : null;
 
-  const openMirror = () => {
-    if (!ready) {
-      openCreateFlow();
-      return;
-    }
-    if (activeCount > 0 || rackCount > 0) {
-      openFittingRoom();
-      return;
-    }
-    void openAvatarViewer();
-  };
+  const openMirror = () => requestMirror();
 
   return (
     <button

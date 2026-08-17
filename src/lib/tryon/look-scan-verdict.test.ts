@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveLookScanMode } from "./look-scan-types";
+import {
+  previewScanNotes,
+  previewScanWhispers,
+  resolveLookScanMode,
+  shortPieceName,
+} from "./look-scan-types";
 import { coerceLookScanPayload } from "./look-scan-verdict";
 
 describe("resolveLookScanMode", () => {
@@ -100,5 +105,36 @@ describe("coerceLookScanPayload", () => {
 
     assert.equal(out.verdict_title, "Yes");
     assert.equal(out.verdict_body, "Works.");
+  });
+});
+
+describe("previewScanNotes", () => {
+  it("streams process copy from piece titles, not a fake verdict", () => {
+    const out = previewScanNotes([
+      { title: "The Classic Oxford Shirt | White", priceLabel: "$49" },
+      { title: "Taylor Suit Pants · Tan" },
+    ]);
+    assert.equal(out.likes[0]?.name, "The Classic Oxford Shirt");
+    assert.match(out.likes[0]?.text ?? "", /checking/);
+    assert.equal(out.likes.at(-1)?.name, "Together");
+    assert.equal(out.gripes[0]?.name, "Taylor Suit Pants");
+    assert.match(out.gripes[0]?.text ?? "", /palette/);
+  });
+
+  it("uses a price check when a label is present", () => {
+    const out = previewScanNotes([
+      { title: "Navy Shirt", priceLabel: "$20" },
+    ]);
+    assert.ok(out.gripes.some((n) => n.dim === "price" && n.text.includes("$20")));
+  });
+});
+
+describe("previewScanWhispers", () => {
+  it("names the first piece in the palette whisper", () => {
+    const lines = previewScanWhispers([
+      { title: "Fine Wale Corduroy Chore Blazer | Navy" },
+    ]);
+    assert.match(lines[1], /fine wale corduroy chore blazer/i);
+    assert.equal(shortPieceName("A | B"), "A");
   });
 });

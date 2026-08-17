@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
 import {
+  getInlineFittingSlot,
+  useInlineFittingStore,
+} from "@/components/onboarding/inline-fitting-store";
+import {
   guestHasPersistedData,
   isGuestSessionActive,
   startGuestSessionAsync,
@@ -30,6 +34,9 @@ export function useGuestMode() {
 }
 
 export function openAuthModal(mode: "login" | "signup" = "signup") {
+  if (getInlineFittingSlot()) {
+    useInlineFittingStore.getState().openColumn();
+  }
   window.dispatchEvent(
     new CustomEvent("shoop-open-auth", { detail: { mode } }),
   );

@@ -2,7 +2,9 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useChatStore } from "@/components/chat/chat-store";
+import { requestMirror } from "@/components/tryon/request-mirror";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
+import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import { cn } from "@/lib/ai-chat/cn";
 import {
   conversationPath,
@@ -17,15 +19,17 @@ export function AppTabBar() {
   const router = useRouter();
   const pathname = usePathname();
   const tryOnOpen = useTryOnDrawerStore((s) => s.open);
+  const fittingColumnOpen = useInlineFittingStore((s) => s.columnOpen);
   const dressing = useTryOnDrawerStore(
     (s) => s.status === "starting" || s.status === "processing",
   );
 
-  const current: Tab = tryOnOpen
-    ? "mirror"
-    : pathname.startsWith("/moodboard")
-      ? "board"
-      : "stylist";
+  const current: Tab =
+    fittingColumnOpen || tryOnOpen
+      ? "mirror"
+      : pathname.startsWith("/moodboard")
+        ? "board"
+        : "stylist";
 
   function goStylist() {
     useTryOnDrawerStore.getState().close();
@@ -35,13 +39,8 @@ export function AppTabBar() {
   }
 
   function goMirror() {
-    if (tryOnOpen) return;
-    const store = useTryOnDrawerStore.getState();
-    if (store.activeIds.length > 0 || store.rackIds.length > 0) {
-      store.openFittingRoom();
-      return;
-    }
-    void store.openAvatarViewer();
+    if (tryOnOpen || fittingColumnOpen) return;
+    requestMirror();
   }
 
   function goBoard() {

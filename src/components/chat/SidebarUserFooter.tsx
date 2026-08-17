@@ -67,7 +67,7 @@ export function SidebarUserFooter() {
                   setOpen(false);
                   openAuthModal("signup");
                 }}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm font-medium text-brand transition hover:bg-brand-tint"
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm font-medium text-brand transition hover:bg-brand-soft"
               >
                 <UserPlus className="size-4 shrink-0" />
                 Sign up to save
@@ -101,7 +101,7 @@ export function SidebarUserFooter() {
                 role="menuitem"
                 disabled={busy}
                 onClick={() => void logout()}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm font-medium text-brand transition hover:bg-brand-soft disabled:opacity-50"
               >
                 <LogOut className="size-4 shrink-0" />
                 Log out
@@ -117,7 +117,7 @@ export function SidebarUserFooter() {
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex h-10 w-full items-center gap-2.5 rounded-xl px-2 text-left transition hover:bg-surface-tint",
+          "flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2 text-left transition hover:bg-surface-tint",
           open && "bg-surface-tint",
         )}
       >

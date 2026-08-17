@@ -174,7 +174,7 @@ export function SearchableSelect({
                 maxHeight: menuLayout.maxHeight,
                 zIndex: MENU_Z,
               }}
-              className="overflow-y-auto rounded-xl border border-hairline bg-white p-1 shadow-2xl ring-1 ring-black/5"
+              className="overflow-y-auto rounded-2xl border border-hairline bg-white p-1 shadow-card"
             >
               {filtered.length ? (
                 filtered.map((option) => {
@@ -190,9 +190,9 @@ export function SearchableSelect({
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => pick(option)}
                         className={cn(
-                          "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                          "flex w-full items-center justify-between gap-2 rounded-[10px] px-3 py-2 text-left text-sm transition-colors",
                           active
-                            ? "bg-brand-tint text-brand-dark"
+                            ? "bg-surface-tint text-ink"
                             : "text-ink hover:bg-surface-tint",
                         )}
                       >
@@ -203,7 +203,7 @@ export function SearchableSelect({
                               {option.hint}
                             </span>
                           ) : null}
-                          {active ? <Check className="size-3.5 text-brand" aria-hidden /> : null}
+                          {active ? <Check className="size-3.5 text-ink" aria-hidden /> : null}
                         </span>
                       </button>
                     </li>
@@ -215,7 +215,7 @@ export function SearchableSelect({
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={commitCustom}
-                    className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-surface-tint"
+                    className="flex w-full rounded-[10px] px-3 py-2 text-left text-sm text-ink hover:bg-surface-tint"
                   >
                     Use &ldquo;{query.trim()}&rdquo;
                   </button>
@@ -266,7 +266,7 @@ export function SearchableSelect({
               else commitCustom();
             }
           }}
-          className="w-full rounded-xl border border-hairline bg-white py-2.5 pl-9 pr-9 text-sm text-ink outline-none transition-colors duration-150 ease-ios placeholder:text-ink-muted focus:border-brand/40 focus:ring-2 focus:ring-brand/15"
+          className="input w-full rounded-xl border-hairline bg-white py-2.5 pl-9 pr-9 text-sm placeholder:text-ink-muted"
         />
         <ChevronDown
           className={cn(

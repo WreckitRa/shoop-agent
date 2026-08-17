@@ -43,3 +43,80 @@ export function formatScanEmphasis(text: string): string {
     .replace(/>/g, "&gt;")
     .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
 }
+
+export type PreviewScanNote = {
+  dim: "fit" | "color" | "set" | "price";
+  name: string;
+  text: string;
+};
+
+export const PREVIEW_SCAN_DIM_LABEL: Record<PreviewScanNote["dim"], string> = {
+  fit: "Fit",
+  color: "Color",
+  set: "Set",
+  price: "Price",
+};
+
+export function shortPieceName(title: string): string {
+  const cut = title.replace(/\s*[|·].*$/, "").trim();
+  return cut || title;
+}
+
+/** Honest bake-time copy from what's on the twin — process, not a fake verdict. */
+export function previewScanWhispers(
+  pieces: LookScanPiece[],
+): [string, string, string, string] {
+  const first = pieces[0] ? shortPieceName(pieces[0].title) : null;
+  return [
+    "checking the inseam against your height...",
+    first
+      ? `holding ${first.toLowerCase()} against your palette...`
+      : "holding the cloth against your palette...",
+    "reading the drape on your shoulders...",
+    "almost... steaming the mirror",
+  ];
+}
+
+export function previewScanNotes(pieces: LookScanPiece[]): {
+  likes: PreviewScanNote[];
+  gripes: PreviewScanNote[];
+} {
+  const likes: PreviewScanNote[] = [];
+  const gripes: PreviewScanNote[] = [];
+
+  for (const [i, piece] of pieces.entries()) {
+    const name = shortPieceName(piece.title);
+    if (i % 2 === 0) {
+      likes.push({
+        dim: "fit",
+        name,
+        text: "checking the drape on you...",
+      });
+    } else {
+      gripes.push({
+        dim: "color",
+        name,
+        text: "holding it against your palette...",
+      });
+    }
+  }
+
+  if (pieces.length >= 2) {
+    likes.push({
+      dim: "set",
+      name: "Together",
+      text: "reading how the pieces sit as a set...",
+    });
+  }
+
+  const priced = pieces.find((p) => p.priceLabel);
+  if (priced && gripes.length < 2) {
+    gripes.push({
+      dim: "price",
+      name: shortPieceName(priced.title),
+      text: `checking ${priced.priceLabel} against your budget...`,
+    });
+  }
+
+  return { likes: likes.slice(0, 3), gripes: gripes.slice(0, 2) };
+}

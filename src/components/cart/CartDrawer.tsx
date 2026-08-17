@@ -159,14 +159,14 @@ export function CartDrawer() {
             <h2 className="font-display text-xl font-extrabold tracking-tight text-ink">
               Your cart
             </h2>
-            <span className="inline-flex size-6 items-center justify-center rounded-full bg-surface-muted text-xs font-semibold text-ink-secondary">
+            <span className="inline-flex size-6 items-center justify-center rounded-full bg-surface-tint text-xs font-semibold text-ink-secondary">
               {itemCount}
             </span>
           </div>
           <button
             type="button"
             onClick={() => setDrawerOpen(false)}
-            className="inline-flex size-9 items-center justify-center rounded-xl text-ink-soft transition hover:bg-surface-tint hover:text-ink"
+            className="inline-flex size-9 items-center justify-center rounded-[10px] text-ink-soft transition hover:bg-surface-tint hover:text-ink"
             aria-label="Close cart"
           >
             <X className="size-5" strokeWidth={1.75} />
@@ -234,14 +234,14 @@ export function CartDrawer() {
                 type="button"
                 disabled={mutating || itemCount === 0}
                 onClick={() => void clearCart()}
-                className="btn-secondary h-10 px-4 text-body-sm disabled:opacity-50"
+                className="btn-secondary h-11 px-4 text-body-sm disabled:opacity-50"
               >
                 Clear all
               </button>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
-                className="rounded-lg px-3 py-2 text-body-sm font-medium text-ink-soft transition hover:bg-surface-tint hover:text-ink"
+                className="rounded-full px-3 py-2 text-body-sm font-medium text-ink-soft transition hover:bg-surface-tint hover:text-ink"
               >
                 Keep shopping
               </button>
@@ -275,7 +275,7 @@ function MerchantCartCard({
   const count = groupItemCount(group);
 
   return (
-    <section className="overflow-hidden rounded-[22px] border border-hairline bg-white shadow-card">
+    <section className="overflow-hidden rounded-2xl border border-hairline bg-white shadow-card">
       <div className="border-b border-hairline bg-surface-subtle/80 px-4 py-3 sm:px-5">
         <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-secondary">
           {friendlyStoreName(group.shopDomain)}
@@ -305,7 +305,7 @@ function MerchantCartCard({
           return (
             <li key={line.variantId} className="p-4 sm:px-5">
               <div className="grid grid-cols-[5.5rem_1fr_auto] gap-3 sm:grid-cols-[6rem_1fr_auto] sm:gap-4">
-                <div className="flex size-[5.5rem] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-muted text-ink-muted sm:size-24">
+                <div className="flex size-[5.5rem] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-tint text-ink-muted sm:size-24">
                   {line.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -375,7 +375,7 @@ function MerchantCartCard({
                 <button
                   type="button"
                   onClick={() => void onRemove(line.variantId)}
-                  className="inline-flex size-9 items-center justify-center rounded-lg text-ink-muted transition hover:bg-error-bg hover:text-error-deep disabled:opacity-50"
+                  className="inline-flex size-9 items-center justify-center rounded-[10px] text-ink-muted transition hover:bg-error-bg hover:text-error-deep disabled:opacity-50"
                   aria-label={`Remove ${line.title}`}
                 >
                   <Trash2 className="size-4" />

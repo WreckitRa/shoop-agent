@@ -50,6 +50,7 @@ describe("buildSearchPlannerPrompt", () => {
     assert.match(prompt, /BANNED from every query string/);
     assert.match(prompt, /department word MUST be[\s\S]*FIRST token/i);
     assert.match(prompt, /OPTIONS_WANTED \(mandatory per slot\)/);
+    assert.match(prompt, /Look counts are NOT per-slot/);
     assert.match(prompt, /4–5 variants ordered BEST/);
   });
 });
@@ -257,6 +258,89 @@ describe("plan clamps", () => {
     );
     assert.ok(clamped.slots.every((s) => s.query_variants.length >= 4));
   });
+
+  it("does not treat one outfit as options_wanted 1; drops shoe/shoes clone slots", () => {
+    const raw: FashionSearchPlan = {
+      version: 1,
+      mode: "outfit",
+      reasoning: "test",
+      brief: {
+        ...sampleBrief,
+        request_type: "outfit",
+        garments: ["top", "bottom", "shoe", "shoes"],
+        quantity_hint: "one outfit",
+        occasion_context: "beach sunset",
+      },
+      currentDate: "2026-08-17",
+      slots: [
+        {
+          slot_id: "top",
+          garment: "top",
+          role: "anchor",
+          style_direction: "relaxed top",
+          palette_constraint: null,
+          palette_source: "spread",
+          options_wanted: 1,
+          query_variants: [
+            "mens relaxed linen top",
+            "mens cotton camp shirt",
+            "mens open collar shirt",
+            "mens breathable summer top",
+          ],
+        },
+        {
+          slot_id: "bottom",
+          garment: "bottom",
+          role: "support",
+          style_direction: "easy pant",
+          palette_constraint: null,
+          palette_source: "spread",
+          options_wanted: 1,
+          query_variants: [
+            "mens relaxed linen pant",
+            "mens cotton easy pant",
+            "mens drawstring trouser",
+            "mens summer chino",
+          ],
+        },
+        {
+          slot_id: "shoe",
+          garment: "shoe",
+          role: "support",
+          style_direction: "trail sandal",
+          palette_constraint: null,
+          palette_source: "spread",
+          options_wanted: 1,
+          query_variants: [
+            "mens trail sandal",
+            "mens leather sandal",
+            "mens summer sandal",
+            "mens casual slide",
+          ],
+        },
+        {
+          slot_id: "shoes",
+          garment: "shoes",
+          role: "support",
+          style_direction: "trail sandal",
+          palette_constraint: null,
+          palette_source: "spread",
+          options_wanted: 1,
+          query_variants: [
+            "mens trail sandal",
+            "mens leather sandal",
+            "mens summer sandal",
+            "mens casual slide",
+          ],
+        },
+      ],
+    };
+
+    const clamped = clampFashionSearchPlan(raw).plan;
+    assert.equal(clamped.slots.length, 3);
+    assert.ok(!clamped.slots.some((s) => s.garment === "shoes"));
+    assert.ok(clamped.slots.every((s) => s.options_wanted === 4));
+  });
 });
 
 describe("plan_search tool schema", () => {
@@ -344,6 +428,45 @@ describe("fallback_decomposes_all_garments", () => {
     assert.ok(selected.some((g) => /shirt/i.test(g)));
     assert.ok(selected.some((g) => /pant|trouser/i.test(g)));
     assert.ok(selected.some((g) => /shoe/i.test(g)));
+  });
+
+  it("one outfit is not 1 option per slot; 6 shirts still is", () => {
+    const outfit = buildFallbackPlan({
+      brief: {
+        ...sampleBrief,
+        request_type: "outfit",
+        garments: ["top", "bottom", "shoes"],
+        quantity_hint: "one outfit",
+        must_haves: [],
+        occasion_context: "beach sunset",
+      },
+      currentDate: "2026-08-17",
+    });
+    assert.ok(outfit.slots.every((s) => s.options_wanted === 4));
+
+    const sixShirts = buildFallbackPlan({
+      brief: {
+        ...sampleBrief,
+        request_type: "single_item",
+        garments: ["shirt"],
+        quantity_hint: "show me 6 shirts",
+        must_haves: ["6 shirts"],
+      },
+      currentDate: "2026-08-17",
+    });
+    assert.equal(sixShirts.slots[0]?.options_wanted, 6);
+
+    const oneItem = buildFallbackPlan({
+      brief: {
+        ...sampleBrief,
+        request_type: "single_item",
+        garments: ["shirt"],
+        quantity_hint: "one",
+        must_haves: [],
+      },
+      currentDate: "2026-08-17",
+    });
+    assert.equal(oneItem.slots[0]?.options_wanted, 1);
   });
 });
 

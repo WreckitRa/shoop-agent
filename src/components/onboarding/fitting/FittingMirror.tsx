@@ -184,6 +184,7 @@ type Props = {
   onTell?: (text: string) => void;
   tellFeedback?: string | null;
   tellBusy?: boolean;
+  layout?: "page" | "column";
 };
 
 export function FittingMirror({
@@ -191,6 +192,7 @@ export function FittingMirror({
   onTell,
   tellFeedback,
   tellBusy,
+  layout = "page",
 }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -269,7 +271,14 @@ export function FittingMirror({
     ];
 
   return (
-    <div className="sticky top-3 flex h-[calc(100dvh-24px)] flex-col overflow-auto rounded-[18px] border border-[var(--fitting-line)] bg-gradient-to-b from-[#FCFCFD] to-[#F5F5F7] px-[18px] py-4">
+    <div
+      className={cn(
+        "flex flex-col overflow-auto rounded-[18px] border border-[var(--fitting-line)] bg-gradient-to-b from-[#FCFCFD] to-[#F5F5F7] text-[var(--fitting-ink)]",
+        layout === "column"
+          ? "h-full min-h-0 px-2.5 py-2.5"
+          : "sticky top-3 h-[calc(100dvh-24px)] px-[18px] py-4",
+      )}
+    >
       <div className="mb-2.5 flex items-baseline justify-between">
         <span className="text-[9.5px] font-extrabold tracking-[0.22em] text-[var(--fitting-ink)]">
           THE MIRROR
@@ -283,7 +292,10 @@ export function FittingMirror({
       <div
         ref={printRef}
         onMouseMove={onMove}
-        className="relative aspect-[5/7] overflow-hidden rounded-2xl border border-[var(--fitting-line)] bg-white shadow-[0_18px_40px_-24px_rgba(14,14,17,0.22)]"
+        className={cn(
+          "relative overflow-hidden rounded-2xl border border-[var(--fitting-line)] bg-white shadow-[0_18px_40px_-24px_rgba(14,14,17,0.22)]",
+          layout === "column" ? "min-h-0 flex-1" : "aspect-[5/7]",
+        )}
       >
         <div
           className="fitting-motion pointer-events-none absolute inset-0 z-[6] opacity-0 transition-opacity duration-[1.2s]"
@@ -294,7 +306,7 @@ export function FittingMirror({
             filter: "saturate(0.8)",
           }}
         />
-        <div className="absolute inset-0 flex flex-col p-4 text-[var(--fitting-ink)]">
+        <div className={cn("absolute inset-0 flex flex-col text-[var(--fitting-ink)]", layout === "column" ? "p-3" : "p-4")}>
           <div className="flex items-baseline justify-between">
             <span
               className={cn(
@@ -319,7 +331,7 @@ export function FittingMirror({
               : "era... still guessing"}
           </div>
 
-          <div className="relative my-2 min-h-[180px] flex-1">
+          <div className={cn("relative my-2 flex-1", layout === "column" ? "min-h-[120px]" : "min-h-[180px]")} >
             {mirror.twinAvatarUrl && mirror.twinStatus === "ready" ? (
               /* Full FASHN twin (or dressed worn look on verdict). */
               <div

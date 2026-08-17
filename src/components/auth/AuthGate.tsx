@@ -1,8 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
+import { FittingMirror } from "@/components/onboarding/fitting/FittingMirror";
+import { EMPTY_MIRROR } from "@/components/onboarding/fitting/types";
+import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
+import { useInlineFittingSlots } from "@/components/onboarding/useInlineFittingSlot";
 import { GuestLeavePrompt } from "@/components/auth/GuestLeavePrompt";
 import { ShoopLogo } from "@/components/brand/ShoopBrand";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
@@ -82,6 +87,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     showAuthModal && guestActive,
   );
   const askGuestBootRef = useRef(false);
+  const fittingColumnOpen = useInlineFittingStore((s) => s.columnOpen);
+  const { questions: inlineSlot, card: cardSlot } = useInlineFittingSlots();
 
   const refreshGuest = useCallback(() => {
     setGuestActive(isGuestSessionActive());
@@ -156,6 +163,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, [refresh, refreshGuest]);
 
+  const prevColumnOpen = useRef(fittingColumnOpen);
+  useLayoutEffect(() => {
+    if (prevColumnOpen.current && !fittingColumnOpen) {
+      setShowAuthModal(false);
+      setLoginDataLossAcknowledged(false);
+    }
+    prevColumnOpen.current = fittingColumnOpen;
+  }, [fittingColumnOpen]);
+
   // Public Ask-your-friends pages: silent guest — never block on auth modal.
   useEffect(() => {
     if (!isAskPage || user || guestActive || loading) return;
@@ -225,7 +241,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         user: json.user ?? null,
       });
       await queueClientIdentityResync("auth", { force: true });
-      leaveConversationRoute();
+      if (!useInlineFittingStore.getState().columnOpen) {
+        leaveConversationRoute();
+      }
       setShowAuthModal(false);
       setLoginDataLossAcknowledged(false);
       setPassword("");
@@ -261,36 +279,49 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (guestActive) {
+    const authForm = showAuthModal ? (
+      <AuthModal
+        layout={inlineSlot ? "column" : "overlay"}
+        mode={mode}
+        onModeChange={handleAuthModeChange}
+        email={email}
+        password={password}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        error={error}
+        busy={busy}
+        onSubmit={submit}
+        showGuestCta={false}
+        isGuestBrowsing
+        guestHasDataToLose={guestHasDataToLose}
+        loginDataLossAcknowledged={loginDataLossAcknowledged}
+        onLoginDataLossAcknowledgedChange={setLoginDataLossAcknowledged}
+        onContinueAsGuest={handleContinueAsGuest}
+      />
+    ) : null;
+
     return (
       <>
         {children}
         {!isAskPage ? <GuestLeavePrompt /> : null}
-        {showAuthModal ? (
-          <AuthOverlay
-            onDismiss={() => {
-              setShowAuthModal(false);
-              setLoginDataLossAcknowledged(false);
-            }}
-          >
-            <AuthModal
-              mode={mode}
-              onModeChange={handleAuthModeChange}
-              email={email}
-              password={password}
-              onEmailChange={setEmail}
-              onPasswordChange={setPassword}
-              error={error}
-              busy={busy}
-              onSubmit={submit}
-              showGuestCta={false}
-              isGuestBrowsing
-              guestHasDataToLose={guestHasDataToLose}
-              loginDataLossAcknowledged={loginDataLossAcknowledged}
-              onLoginDataLossAcknowledgedChange={setLoginDataLossAcknowledged}
-              onContinueAsGuest={handleContinueAsGuest}
-            />
-          </AuthOverlay>
-        ) : null}
+        {authForm && inlineSlot
+          ? createPortal(authForm, inlineSlot)
+          : authForm ? (
+              <AuthOverlay
+                onDismiss={() => {
+                  setShowAuthModal(false);
+                  setLoginDataLossAcknowledged(false);
+                }}
+              >
+                {authForm}
+              </AuthOverlay>
+            ) : null}
+        {authForm && cardSlot
+          ? createPortal(
+              <FittingMirror layout="column" mirror={EMPTY_MIRROR} />,
+              cardSlot,
+            )
+          : null}
       </>
     );
   }
@@ -362,6 +393,7 @@ type AuthModalProps = {
   loginDataLossAcknowledged?: boolean;
   onLoginDataLossAcknowledgedChange?: (acknowledged: boolean) => void;
   onContinueAsGuest: () => void;
+  layout?: "overlay" | "column";
 };
 
 function AuthModal({
@@ -380,29 +412,40 @@ function AuthModal({
   loginDataLossAcknowledged = false,
   onLoginDataLossAcknowledgedChange,
   onContinueAsGuest,
+  layout = "overlay",
 }: AuthModalProps) {
   const showLoginDataLossGuard =
     isGuestBrowsing && mode === "login" && guestHasDataToLose;
   const loginSubmitBlocked =
     showLoginDataLossGuard && !loginDataLossAcknowledged;
+  const column = layout === "column";
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
+      role={column ? "region" : "dialog"}
+      aria-modal={column ? undefined : true}
       aria-labelledby="auth-title"
-      className="w-full max-w-md overflow-hidden rounded-[22px] border border-[var(--fitting-line)] bg-white shadow-[0_26px_54px_-22px_rgba(14,14,17,0.45)]"
+      className={
+        column
+          ? "flex h-full min-h-0 flex-col overflow-y-auto bg-gradient-to-b from-white to-[#F7F7F9]"
+          : "w-full max-w-md overflow-hidden rounded-[22px] border border-[var(--fitting-line)] bg-white shadow-[0_26px_54px_-22px_rgba(14,14,17,0.45)]"
+      }
     >
-      <div className="border-b border-[var(--fitting-line)] px-7 py-6">
-        <div className="mb-4">
-          <ShoopLogo className="h-6" />
+      <div className={cn("border-b border-[var(--fitting-line)]", column ? "px-4 py-4 pr-12" : "px-7 py-6")} >
+        <div className={cn("mb-4", column && "mb-3")}>
+          <ShoopLogo className={column ? "h-5" : "h-6"} />
         </div>
         <p className="text-[10.5px] font-extrabold tracking-[0.14em] text-[var(--fitting-red)]">
           {mode === "signup" ? "THE FITTING · START" : "WELCOME BACK"}
         </p>
         <h2
           id="auth-title"
-          className="mt-2 font-display text-[clamp(28px,4vw,34px)] font-extrabold leading-[1.05] tracking-[-0.02em] text-[var(--fitting-ink)]"
+          className={cn(
+            "mt-2 font-display font-extrabold leading-[1.05] tracking-[-0.02em] text-[var(--fitting-ink)]",
+            column
+              ? "text-[clamp(24px,3vw,30px)]"
+              : "text-[clamp(28px,4vw,34px)]",
+          )}
         >
           {mode === "signup" ? "Claim your print." : "Unlock your print."}
         </h2>
@@ -411,7 +454,7 @@ function AuthModal({
             ? "Seven quick questions. Your twin develops while you answer."
             : "Pick up where you left off — memory, chats, and fit intact."}
         </p>
-        <div className="mt-5 inline-flex overflow-hidden rounded-xl border border-[#D6D6DE] bg-white">
+        <div className={cn("mt-5 inline-flex overflow-hidden rounded-xl border border-[#D6D6DE] bg-white", column && "mt-4")}>
           <button
             type="button"
             onClick={() => onModeChange("login")}
@@ -442,7 +485,7 @@ function AuthModal({
       {showLoginDataLossGuard ? (
         <div
           role="alert"
-          className="mx-7 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm leading-snug text-amber-950"
+          className={cn("mx-7 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm leading-snug text-amber-950", column && "mx-4")}
         >
           <span className="font-medium">Heads up:</span> signing in opens your
           existing account and erases this device&apos;s guest chats, cart, and
@@ -450,7 +493,7 @@ function AuthModal({
         </div>
       ) : null}
 
-      <form onSubmit={(e) => void onSubmit(e)} className="space-y-5 px-7 py-6">
+      <form onSubmit={(e) => void onSubmit(e)} className={cn("space-y-5 px-7 py-6", column && "space-y-4 px-4 py-4")}>
         <label className="block space-y-2">
           <span className="text-[12.5px] font-extrabold text-[var(--fitting-ink)]">
             Email
@@ -506,7 +549,10 @@ function AuthModal({
         <button
           type="submit"
           disabled={busy || loginSubmitBlocked}
-          className="group inline-flex h-14 w-full items-center justify-center gap-3 rounded-[14px] bg-[var(--fitting-ink)] font-display text-[14.5px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50"
+          className={cn(
+            "group inline-flex h-14 w-full items-center justify-center gap-3 rounded-[14px] bg-[var(--fitting-ink)] font-display text-[14.5px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50",
+            column && "h-12",
+          )}
         >
           {busy
             ? mode === "signup"
@@ -524,7 +570,7 @@ function AuthModal({
       </form>
 
       {showGuestCta ? (
-        <div className="border-t border-[var(--fitting-line)] px-7 py-5">
+        <div className={cn("border-t border-[var(--fitting-line)] px-7 py-5", column && "px-4 py-4")}>
           <button
             type="button"
             onClick={onContinueAsGuest}
@@ -537,7 +583,7 @@ function AuthModal({
           </p>
         </div>
       ) : (
-        <p className="border-t border-[var(--fitting-line)] px-7 py-4 text-center text-[11px] leading-relaxed text-[var(--fitting-quiet)]">
+        <p className={cn("border-t border-[var(--fitting-line)] px-7 py-4 text-center text-[11px] leading-relaxed text-[var(--fitting-quiet)]", column && "px-4 py-3")}>
           {isGuestBrowsing && mode === "signup"
             ? "Sign up to save your guest session and pick up on any device."
             : isGuestBrowsing && mode === "login" && guestHasDataToLose

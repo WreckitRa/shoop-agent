@@ -59,7 +59,7 @@ function CollapsedSidebarExpandTrigger() {
       aria-label="Expand sidebar"
       title="Expand sidebar"
       onClick={() => toggleSidebarCollapsed()}
-      className="group relative mb-2 flex size-9 items-center justify-center rounded-xl transition hover:bg-surface-tint"
+      className="group relative mb-2 flex size-9 items-center justify-center rounded-[10px] transition hover:bg-surface-tint"
     >
       <ShoopIcon
         size={28}
@@ -175,7 +175,7 @@ function SidebarCollapsedRail({ onNewShoop }: { onNewShoop: () => void }) {
             onClick={() => void logout()}
             className={cn(
               sidebarRailButtonClass,
-              "my-0.5 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50",
+              "my-0.5 text-brand hover:bg-brand-soft hover:text-brand-dark disabled:opacity-50",
             )}
           >
             <LogOut className={sidebarRailIconClass} strokeWidth={1.75} />
@@ -266,7 +266,7 @@ export const ChatSidebar = memo(function ChatSidebar() {
             </Link>
             <button
               type="button"
-              className="flex size-8 items-center justify-center rounded-xl text-ink-muted transition hover:bg-surface-tint hover:text-ink lg:hidden"
+              className="flex size-8 items-center justify-center rounded-[10px] text-ink-muted transition hover:bg-surface-tint hover:text-ink lg:hidden"
               aria-label="Close sidebar"
               onClick={() => setSidebarOpen(false)}
             >
@@ -274,7 +274,7 @@ export const ChatSidebar = memo(function ChatSidebar() {
             </button>
             <button
               type="button"
-              className="hidden size-8 items-center justify-center rounded-xl text-ink-muted transition hover:bg-surface-tint hover:text-ink lg:inline-flex"
+              className="hidden size-8 items-center justify-center rounded-[10px] text-ink-muted transition hover:bg-surface-tint hover:text-ink lg:inline-flex"
               aria-label="Collapse sidebar"
               onClick={() => toggleSidebarCollapsed()}
             >

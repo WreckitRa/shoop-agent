@@ -86,7 +86,7 @@ export function ConversationList({
                   type="button"
                   disabled={isDeleting}
                   onClick={() => setConfirmDeleteId(null)}
-                  className="rounded-lg px-2 py-1 text-[11px] font-medium text-ink-secondary transition hover:bg-surface-subtle"
+                  className="rounded-full px-2 py-1 text-[11px] font-medium text-ink-secondary transition hover:bg-surface-subtle"
                 >
                   Cancel
                 </button>
@@ -94,7 +94,7 @@ export function ConversationList({
                   type="button"
                   disabled={isDeleting}
                   onClick={() => void handleConfirmDelete(c.id)}
-                  className="rounded-lg bg-error/10 px-2 py-1 text-[11px] font-medium text-error-deep transition hover:bg-error/15 disabled:opacity-60"
+                  className="rounded-full bg-brand-soft px-2 py-1 text-[11px] font-medium text-brand-dark transition hover:bg-brand/15 disabled:opacity-60"
                 >
                   {isDeleting ? "Deleting…" : "Delete"}
                 </button>

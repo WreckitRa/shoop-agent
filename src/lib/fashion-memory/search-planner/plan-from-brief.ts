@@ -1,5 +1,5 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
-import { isKnownGarmentFamily } from "../router/garment-family";
+import { garmentSlotFamilyKey, isKnownGarmentFamily } from "../router/garment-family";
 import type { FashionSearchBrief } from "../router/types";
 import type { GuestFashionMemorySnapshot } from "../local/store";
 import { checkPlanInvariants } from "../observability/invariants";
@@ -53,9 +53,11 @@ function reconcileOutfitCoverage(plan: FashionSearchPlan): FashionSearchPlan {
   }
   const expected = selectGarmentsForPlan(plan.brief.garments);
   const existing = new Set(
-    plan.slots.map((s) => s.garment.toLowerCase().trim()),
+    plan.slots.map((s) => garmentSlotFamilyKey(s.garment)),
   );
-  const missing = expected.filter((g) => !existing.has(g.toLowerCase().trim()));
+  const missing = expected.filter(
+    (g) => !existing.has(garmentSlotFamilyKey(g)),
+  );
   if (!missing.length) return plan;
   const added = buildSlotsFromGarments({
     garments: missing,

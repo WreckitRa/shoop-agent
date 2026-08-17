@@ -2,7 +2,7 @@ import { logAiChat } from "@/lib/ai-chat/observability";
 import { recordPipelineEvent } from "../observability/trace";
 import type { FashionSearchPlan } from "../search-planner/types";
 import type { HydratedCandidate } from "../hydration/types";
-import { isDegradedOutfitPlan, validateCurationOutput } from "./validate";
+import { isDegradedOutfitPlan, validateCurationOutput, dropRedundantLooks } from "./validate";
 import type {
   CurationRefRegistry,
   DeliverCurationInput,
@@ -261,7 +261,7 @@ export function synthesizeOutfitLooks(params: {
     });
   }
 
-  return looks;
+  return dropRedundantLooks(looks);
 }
 
 function repairFallbackNarration(params: {

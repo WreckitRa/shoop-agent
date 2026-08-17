@@ -3,12 +3,18 @@
 import type { MouseEvent } from "react";
 import { cn } from "@/lib/ai-chat/cn";
 import { useToastStore } from "@/lib/client/toast-store";
+import { useAppSessionStore } from "@/lib/client/app-session";
 import type { FittingRoomItem } from "@/lib/tryon/fitting-room-types";
 import { useTryOnDrawerStore } from "./tryon-drawer-store";
 import {
   resolveTryonCta,
   useSelfAvatarStore,
 } from "./self-avatar-store";
+import {
+  accessNeedsAccountForMirror,
+  guestFittingCtaLabel,
+} from "./mirror-entry";
+import { requestMirror } from "./request-mirror";
 
 type FittingRoomActionProps = {
   item: FittingRoomItem;
@@ -36,6 +42,8 @@ export function FittingRoomAction({
   const rackFull = useTryOnDrawerStore((s) => s.isRackFull());
   const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
   const avatarStatus = useSelfAvatarStore((s) => s.status);
+  const accessMode = useAppSessionStore((s) => s.mode);
+  const needsAccount = accessNeedsAccountForMirror(accessMode);
 
   const cta = resolveTryonCta({
     available: tryonAvailable ?? item.tryonSupported,
@@ -44,6 +52,45 @@ export function FittingRoomAction({
   });
 
   if (cta === "hidden") return null;
+
+  if (needsAccount) {
+    const guestLabel = guestFittingCtaLabel(
+      variant === "overlay" ? "overlay" : "button",
+    );
+    const startOnboarding = (e: MouseEvent) => {
+      e.stopPropagation();
+      requestMirror();
+    };
+    if (variant === "overlay") {
+      return (
+        <div className={cn("shoop-tryb-row", className)}>
+          <button
+            type="button"
+            data-tryon-trigger
+            className="shoop-tryb"
+            aria-label={guestFittingCtaLabel("button")}
+            onClick={startOnboarding}
+          >
+            {guestLabel}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <button
+        type="button"
+        data-tryon-trigger
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border border-hairline px-3 py-1 text-xs font-medium text-ink transition hover:bg-surface-tint",
+          compact && "px-2.5 py-0.5 text-[11px]",
+          className,
+        )}
+        onClick={startOnboarding}
+      >
+        {guestLabel}
+      </button>
+    );
+  }
 
   if (cta === "create_avatar") {
     if (variant === "overlay") {

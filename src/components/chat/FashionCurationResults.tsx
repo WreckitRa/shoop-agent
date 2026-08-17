@@ -30,6 +30,12 @@ import {
   resolveTryonCta,
   useSelfAvatarStore,
 } from "@/components/tryon/self-avatar-store";
+import {
+  accessNeedsAccountForMirror,
+  guestFittingCtaLabel,
+} from "@/components/tryon/mirror-entry";
+import { requestMirror } from "@/components/tryon/request-mirror";
+import { useAppSessionStore } from "@/lib/client/app-session";
 
 function dragLookOntoStage(
   event: DragEvent,
@@ -136,14 +142,12 @@ function CuratedPickCard({
   compact = false,
   onOpen,
   selected,
-  hideTryOnOverlay = false,
 }: {
   pick: RenderPick;
   searchId: string;
   compact?: boolean;
   onOpen: () => void;
   selected?: boolean;
-  hideTryOnOverlay?: boolean;
 }) {
   const meta = whyMeta(pick);
   const item = fittingRoomItemFromSearchPick({ pick, searchId });
@@ -159,9 +163,8 @@ function CuratedPickCard({
       compact={compact}
       onOpen={onOpen}
       fittingItem={item}
-      tryonAvailable={pick.tryon?.available}
+      tryonAvailable={pick.tryon == null || pick.tryon.available === true}
       tryonCta={pick.tryon?.cta}
-      hideTryOnOverlay={hideTryOnOverlay}
     />
   );
 }
@@ -180,6 +183,9 @@ function ChangingRoomCta({
   const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
   const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
   const avatarStatus = useSelfAvatarStore((s) => s.status);
+  const needsAccount = accessNeedsAccountForMirror(
+    useAppSessionStore((s) => s.mode),
+  );
 
   if (!picks.length) return null;
 
@@ -198,6 +204,19 @@ function ChangingRoomCta({
   });
 
   if (cta === "hidden") return null;
+
+  if (needsAccount) {
+    return (
+      <button
+        type="button"
+        className="shoop-quiz-apply"
+        onClick={() => requestMirror()}
+      >
+        {guestFittingCtaLabel("button")}
+        <span aria-hidden>→</span>
+      </button>
+    );
+  }
 
   if (cta === "create_avatar") {
     return (
@@ -428,14 +447,13 @@ export const FashionCurationResults = memo(function FashionCurationResults({
                         pick={pick}
                         searchId={searchId}
                         compact
-                        hideTryOnOverlay
                         selected={selectedProductId === pick.id}
                         onOpen={() => openProduct(pick)}
                       />
                     );
                   })}
                 </div>
-                {look.tryon?.available || look.tryon?.cta === "create_avatar" ? (
+                {look.item_refs.length ? (
                   <div className="shoop-look__cta">
                     <TryOnLookButton
                       look={look}
@@ -505,15 +523,13 @@ export const FashionCurationResults = memo(function FashionCurationResults({
                           pick={pick}
                           searchId={searchId}
                           compact
-                          hideTryOnOverlay
                           selected={selectedProductId === pick.id}
                           onOpen={() => openProduct(pick)}
                         />
                       );
                     })}
                   </div>
-                  {outfit.tryon?.available ||
-                  outfit.tryon?.cta === "create_avatar" ? (
+                  {outfit.item_refs.length ? (
                     <div className="shoop-look__cta">
                       <TryOnLookButton
                         look={{

@@ -106,7 +106,7 @@ export function CartButton({ className }: { className?: string }) {
       data-cart-trigger
       onClick={() => setDrawerOpen(!drawerOpen)}
       className={cn(
-        "group relative inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-ink-secondary transition hover:bg-surface-tint hover:text-ink",
+        "group relative inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] text-ink-secondary transition hover:bg-surface-tint hover:text-ink",
         className,
       )}
       aria-label={`${drawerOpen ? "Close" : "Open"} cart${count ? ` with ${count} item${count === 1 ? "" : "s"}` : ""}`}

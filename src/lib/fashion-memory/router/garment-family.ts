@@ -41,6 +41,50 @@ export function isKnownGarmentFamily(garment: string): boolean {
   return false;
 }
 
+/** Plural/singular of the same slot noun — "shoe" and "shoes" are one family. */
+const SLOT_FAMILY_CANON: Record<string, string> = {
+  shoe: "shoe",
+  shoes: "shoe",
+  pant: "pant",
+  pants: "pant",
+  trouser: "trouser",
+  trousers: "trouser",
+  bottom: "bottom",
+  bottoms: "bottom",
+  shirt: "shirt",
+  shirts: "shirt",
+  top: "top",
+  tops: "top",
+  dress: "dress",
+  dresses: "dress",
+  skirt: "skirt",
+  skirts: "skirt",
+  jean: "jean",
+  jeans: "jean",
+  sneaker: "sneaker",
+  sneakers: "sneaker",
+  boot: "boot",
+  boots: "boot",
+  blazer: "blazer",
+  blazers: "blazer",
+  jacket: "jacket",
+  jackets: "jacket",
+  coat: "coat",
+  coats: "coat",
+  sweater: "sweater",
+  sweaters: "sweater",
+};
+
+/**
+ * Last-token family key so "shoe"/"shoes" (and "dress shoes") collapse to one
+ * slot. Does not merge sneakers into shoes — those are distinct asks.
+ */
+export function garmentSlotFamilyKey(garment: string): string {
+  const tokens = garment.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const last = tokens[tokens.length - 1] ?? "";
+  return SLOT_FAMILY_CANON[last] ?? last;
+}
+
 /**
  * User asked for accessories (generically or by name) but brief.garments is
  * only clothing families — the router destroyed the category.

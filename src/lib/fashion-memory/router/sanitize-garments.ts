@@ -2,7 +2,7 @@
  * Router garment sanitizer (v1.1): style phrases must never become slots.
  * Merge style fluff into style_direction; keep real garments.
  */
-import { isKnownGarmentFamily } from "./garment-family";
+import { garmentSlotFamilyKey, isKnownGarmentFamily } from "./garment-family";
 import type { FashionSearchBrief } from "./types";
 
 /** Tokens that are clearly style/occasion descriptors, not SKUs. */
@@ -46,14 +46,13 @@ export function sanitizeBriefGarments(
     kept.push(g);
   }
 
-  const uniqueKept = [...new Set(kept.map((g) => g.toLowerCase()))].map(
-    (lower) => kept.find((g) => g.toLowerCase() === lower)!,
-  );
+  const uniqueKept = uniqueBySlotFamily(kept);
   const uniqueStyle = [...new Set(mergedStyle)];
 
   if (
     !uniqueStyle.length &&
-    uniqueKept.length === (brief.garments?.length ?? 0)
+    uniqueKept.length === (brief.garments?.length ?? 0) &&
+    uniqueKept.every((g, i) => g === (brief.garments ?? [])[i])
   ) {
     return brief;
   }
@@ -73,4 +72,17 @@ export function sanitizeBriefGarments(
     must_haves,
     style_direction: style_direction || brief.style_direction,
   };
+}
+
+/** First occurrence wins; "shoe" then "shoes" keeps "shoe". */
+function uniqueBySlotFamily(garments: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const g of garments) {
+    const family = garmentSlotFamilyKey(g) || g.toLowerCase();
+    if (seen.has(family)) continue;
+    seen.add(family);
+    out.push(g);
+  }
+  return out;
 }

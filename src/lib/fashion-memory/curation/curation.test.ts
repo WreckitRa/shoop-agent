@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildRefRegistry } from "./refs";
-import { validateCurationOutput } from "./validate";
+import { dropRedundantLooks, validateCurationOutput } from "./validate";
 import {
   buildDeterministicFallback,
   validateAndRepairFallback,
@@ -524,6 +524,17 @@ describe("curation prompt", () => {
     assert.match(prompt, /You are Shoop's head stylist/);
     assert.match(prompt, /Call deliver_curation exactly once/);
     assert.match(prompt, /MODE: SINGLE ITEM/);
+  });
+
+  it("tells the curator not to pad outfit looks with clones", () => {
+    const prompt = buildCurationSystemPrompt({
+      mode: "outfit",
+      department: "mens",
+      occasion_context: "beach sunset",
+      style_direction: "relaxed",
+    });
+    assert.match(prompt, /never\s+repeat a combo/i);
+    assert.doesNotMatch(prompt, /exactly 3 named looks/);
   });
 });
 
@@ -1303,5 +1314,105 @@ describe("outfit_looks_synthesized_when_stage_a_omits", () => {
 
     assert.equal(presentation.looks?.length, looks.length);
     assert.ok((presentation.looks?.length ?? 0) > 0);
+  });
+});
+
+describe("outfit_looks_drop_duplicates", () => {
+  it("drops clone + subset looks (cmsriozum0017k4xg4g6nm2h9)", () => {
+    const outfitPlan: FashionSearchPlan = {
+      ...plan,
+      mode: "outfit",
+      brief: {
+        ...plan.brief,
+        request_type: "outfit",
+        garments: ["top", "bottom", "shoes"],
+        quantity_hint: "one outfit",
+      },
+      slots: [
+        { ...plan.slots[0]!, slot_id: "top", garment: "top", role: "anchor" },
+        {
+          ...plan.slots[0]!,
+          slot_id: "bottom",
+          garment: "bottom",
+          role: "support",
+        },
+        {
+          ...plan.slots[0]!,
+          slot_id: "shoes",
+          garment: "shoes",
+          role: "support",
+        },
+      ],
+    };
+    const registry = buildRefRegistry({
+      mode: "outfit",
+      slots: [
+        {
+          slot_id: "top",
+          planSlot: outfitPlan.slots[0]!,
+          verified: [candidate("t1", "top", 80)],
+        },
+        {
+          slot_id: "bottom",
+          planSlot: outfitPlan.slots[1]!,
+          verified: [candidate("b1", "bottom", 90)],
+        },
+        {
+          slot_id: "shoes",
+          planSlot: outfitPlan.slots[2]!,
+          verified: [candidate("s1", "shoes", 70)],
+        },
+      ],
+    });
+    const top = [...registry.keys()].find((r) => r.startsWith("top"))!;
+    const bottom = [...registry.keys()].find((r) => r.startsWith("bottom"))!;
+    const shoe = [...registry.keys()].find((r) => r.startsWith("shoes"))!;
+
+    const looks = dropRedundantLooks([
+      { name: "Golden Hour Set", item_refs: [top, bottom, shoe], total: 240 },
+      { name: "Quiet Coastal", item_refs: [top, bottom], total: 170 },
+      { name: "Minimal Spread", item_refs: [top, bottom, shoe], total: 240 },
+    ]);
+    assert.equal(looks.length, 1);
+    assert.equal(looks[0]?.name, "Golden Hour Set");
+
+    const validated = validateCurationOutput({
+      output: {
+        slots: [
+          {
+            slot_id: "top",
+            picks: [{ ref: top, role: "anchor", stylist_line: "Top." }],
+          },
+          {
+            slot_id: "bottom",
+            picks: [{ ref: bottom, role: "support", stylist_line: "Bottom." }],
+          },
+          {
+            slot_id: "shoes",
+            picks: [{ ref: shoe, role: "support", stylist_line: "Shoe." }],
+          },
+        ],
+        looks: [
+          { name: "Golden Hour Set", item_refs: [top, bottom, shoe], total: 240 },
+          { name: "Quiet Coastal", item_refs: [top, bottom], total: 170 },
+          { name: "Minimal Spread", item_refs: [top, bottom, shoe], total: 240 },
+        ],
+        vetoes: [],
+        narration: { opening: "Three looks." },
+      },
+      registry,
+      plan: outfitPlan,
+      slots: [
+        { slot_id: "top", garment: "top" },
+        { slot_id: "bottom", garment: "bottom" },
+        { slot_id: "shoes", garment: "shoes" },
+      ],
+    });
+    assert.equal(validated.ok, true);
+    assert.equal(validated.output?.looks?.length, 1);
+    assert.ok(
+      validated.issues.some((i) => i.code === "looks_redundant_dropped"),
+    );
+    assert.ok(validated.issues.some((i) => i.code === "looks_short"));
   });
 });

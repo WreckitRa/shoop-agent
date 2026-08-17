@@ -12,6 +12,11 @@ import { HomeMirrorCard } from "@/components/chat/HomeMirrorCard";
 import { MirrorPeek } from "@/components/chat/MirrorPeek";
 import { FittingStage } from "@/components/tryon/FittingStage";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
+import {
+  INLINE_FITTING_CARD_SLOT_ID,
+  INLINE_FITTING_SLOT_ID,
+  useInlineFittingStore,
+} from "@/components/onboarding/inline-fitting-store";
 import { useChatScroll } from "@/components/chat/useChatScroll";
 import { ChatFocusHighlightProvider } from "@/components/chat/ChatFocusHighlightContext";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
@@ -41,6 +46,8 @@ export const ChatLayout = memo(function ChatLayout() {
   const loadConversation = useChatStore((s) => s.loadConversation);
   const collapseInlineProduct = useInlineProductStore((s) => s.collapse);
   const tryOnOpen = useTryOnDrawerStore((s) => s.open);
+  const fittingColumnOpen = useInlineFittingStore((s) => s.columnOpen);
+  const closeFittingColumn = useInlineFittingStore((s) => s.dismissColumn);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [desktop, setDesktop] = useState(false);
 
@@ -60,9 +67,13 @@ export const ChatLayout = memo(function ChatLayout() {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
+  useEffect(() => {
+    if (fittingColumnOpen) useTryOnDrawerStore.getState().close();
+  }, [fittingColumnOpen]);
+
   const showEmpty = !activeConversationId && messageCount === 0;
   const showLoading = loadingMessages && messageCount === 0;
-  const shopping = tryOnOpen && desktop;
+  const shopping = tryOnOpen && desktop && !fittingColumnOpen;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { highlight: focusHighlight, restoringFocus } = useChatScrollFocus({
@@ -91,7 +102,14 @@ export const ChatLayout = memo(function ChatLayout() {
           ref={scrollRef}
           className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
         >
-          <div className="tp-chat-content relative flex w-full flex-col gap-4 md:gap-5">
+          <div
+            className={cn(
+              "tp-chat-content relative flex w-full flex-col",
+              fittingColumnOpen
+                ? "gap-3 px-4 py-3.5"
+                : "gap-4 md:gap-5",
+            )}
+          >
             {showLoading ? (
               <div className="flex min-h-[40vh] items-center justify-center py-20 text-sm text-ink-muted">
                 Loading…
@@ -100,6 +118,7 @@ export const ChatLayout = memo(function ChatLayout() {
               <EmptyChatState
                 previewUrl={previewUrl}
                 onPreview={setPreviewUrl}
+                compact={fittingColumnOpen}
               />
             ) : (
               <MessageList />
@@ -114,7 +133,9 @@ export const ChatLayout = memo(function ChatLayout() {
         ) : null}
       </div>
 
-      {showEmpty ? null : <ChatComposer nested stage={shopping} />}
+      {showEmpty ? null : (
+        <ChatComposer nested stage={shopping || fittingColumnOpen} />
+      )}
     </>
   );
 
@@ -172,27 +193,80 @@ export const ChatLayout = memo(function ChatLayout() {
                 </div>
               ) : (
                 <>
-                  <div className="shoop-page-x mx-auto flex min-h-0 w-full max-w-page-wide flex-1 flex-col">
+                  <div
+                    className={cn(
+                      "flex min-h-0 w-full flex-1 flex-col",
+                      fittingColumnOpen
+                        ? "min-h-0"
+                        : "shoop-page-x mx-auto max-w-page-wide",
+                    )}
+                  >
                     <div
                       className={cn(
                         "grid min-h-0 flex-1 grid-cols-1",
-                        "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
+                        fittingColumnOpen
+                          ? "grid-rows-[minmax(0,0.7fr)_minmax(0,1.1fr)_minmax(200px,0.9fr)] gap-2.5 p-2.5 lg:grid-rows-1 lg:grid-cols-[2fr_2fr_1fr]"
+                          : "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
                       )}
                     >
-                      <div className="relative flex min-h-0 min-w-0 flex-col">
+                      <div
+                        className={cn(
+                          "relative flex min-h-0 min-w-0 flex-col",
+                          fittingColumnOpen &&
+                            "overflow-hidden rounded-[14px] bg-white lg:border lg:border-hairline",
+                        )}
+                      >
                         {thread}
                       </div>
 
-                      <aside className="hidden min-h-0 py-7 lg:flex lg:flex-col">
-                        <HomeMirrorCard
-                          previewUrl={previewUrl}
-                          compact={!showEmpty}
+                      <section
+                        className={cn(
+                          "relative min-h-0 flex-col overflow-hidden rounded-[14px] border border-hairline bg-white",
+                          fittingColumnOpen ? "flex" : "hidden",
+                        )}
+                      >
+                        {fittingColumnOpen ? (
+                          <button
+                            type="button"
+                            aria-label="Keep chatting"
+                            onClick={closeFittingColumn}
+                            className="absolute right-2.5 top-2.5 z-20 grid size-8 place-items-center rounded-full border border-hairline bg-white text-ink-muted transition hover:text-ink"
+                          >
+                            <span aria-hidden className="text-lg leading-none">
+                              ×
+                            </span>
+                          </button>
+                        ) : null}
+                        <div
+                          id={INLINE_FITTING_SLOT_ID}
+                          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                        />
+                      </section>
+
+                      <aside
+                        className={cn(
+                          "min-h-0 flex-col overflow-hidden",
+                          fittingColumnOpen ? "flex" : "hidden",
+                        )}
+                      >
+                        <div
+                          id={INLINE_FITTING_CARD_SLOT_ID}
+                          className="flex min-h-0 flex-1 flex-col overflow-hidden"
                         />
                       </aside>
+
+                      {fittingColumnOpen ? null : (
+                        <aside className="hidden min-h-0 py-7 lg:flex lg:flex-col">
+                          <HomeMirrorCard
+                            previewUrl={previewUrl}
+                            compact={!showEmpty}
+                          />
+                        </aside>
+                      )}
                     </div>
                   </div>
 
-                  {showEmpty ? null : <MirrorPeek />}
+                  {showEmpty || fittingColumnOpen ? null : <MirrorPeek />}
                 </>
               )}
             </div>

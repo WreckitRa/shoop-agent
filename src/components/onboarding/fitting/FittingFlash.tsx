@@ -10,6 +10,7 @@ type Props = {
   statusLabel: string;
   /** Optional secondary line under the headline (what work is running). */
   detail?: string | null;
+  layout?: "page" | "column";
 };
 
 /**
@@ -22,11 +23,14 @@ export function FittingFlash({
   coverHtml,
   statusLabel,
   detail,
+  layout = "page",
 }: Props) {
+  const column = layout === "column";
   return (
     <div
       className={cn(
-        "fitting-motion fixed inset-0 z-[120] grid place-items-center bg-[var(--fitting-ink)] transition-opacity duration-300",
+        "fitting-motion grid place-items-center bg-[var(--fitting-ink)] transition-opacity duration-300",
+        column ? "absolute inset-0 z-10 rounded-[18px]" : "fixed inset-0 z-[120]",
         show
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-0",

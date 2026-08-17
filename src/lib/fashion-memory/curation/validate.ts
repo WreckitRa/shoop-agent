@@ -457,6 +457,38 @@ export function isDegradedOutfitPlan(plan: FashionSearchPlan): boolean {
   return plan.slots.length < expected;
 }
 
+function lookRefKey(refs: string[]): string {
+  return [...new Set(refs)].sort().join("\0");
+}
+
+function isStrictRefSubset(a: string[], b: string[]): boolean {
+  if (a.length === 0 || a.length >= b.length) return false;
+  const other = new Set(b);
+  return a.every((r) => other.has(r));
+}
+
+/** Drop exact duplicate item_refs and looks that are a strict subset of another. */
+export function dropRedundantLooks<T extends { item_refs: string[] }>(
+  looks: T[],
+): T[] {
+  const unique: T[] = [];
+  const uniqueRefs: string[][] = [];
+  const seen = new Set<string>();
+  for (const look of looks) {
+    const refs = [...new Set(look.item_refs)];
+    if (refs.length === 0) continue;
+    const key = lookRefKey(refs);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(look);
+    uniqueRefs.push(refs);
+  }
+  return unique.filter((_, i) => {
+    const a = uniqueRefs[i]!;
+    return !uniqueRefs.some((b, j) => i !== j && isStrictRefSubset(a, b));
+  });
+}
+
 function stripUnknownRefs(
   output: DeliverCurationInput,
   registry: CurationRefRegistry,
@@ -825,21 +857,27 @@ export function validateCurationOutput(params: {
   }
 
   if (params.plan.mode === "outfit" && output.looks?.length) {
-    if (output.looks.length > CURATION_LOOKS_TARGET) {
-      output = {
-        ...output,
-        looks: output.looks.slice(0, CURATION_LOOKS_TARGET),
-      };
+    const beforeDedup = output.looks.length;
+    let looks = dropRedundantLooks(output.looks);
+    if (looks.length < beforeDedup) {
+      issues.push({
+        code: "looks_redundant_dropped",
+        message: `Dropped ${beforeDedup - looks.length} duplicate or subset look(s)`,
+      });
+    }
+    if (looks.length > CURATION_LOOKS_TARGET) {
+      looks = looks.slice(0, CURATION_LOOKS_TARGET);
       issues.push({
         code: "looks_trimmed",
         message: `Trimmed looks to ${CURATION_LOOKS_TARGET}`,
       });
-    } else if (output.looks.length < CURATION_LOOKS_TARGET) {
+    } else if (looks.length < CURATION_LOOKS_TARGET) {
       issues.push({
         code: "looks_short",
-        message: `Only ${output.looks.length}/${CURATION_LOOKS_TARGET} looks`,
+        message: `Only ${looks.length}/${CURATION_LOOKS_TARGET} looks`,
       });
     }
+    output = { ...output, looks };
   }
 
   if (params.plan.mode === "capsule") {

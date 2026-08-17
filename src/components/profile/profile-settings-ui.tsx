@@ -15,7 +15,7 @@ export function SettingsCard({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-[22px] border border-hairline bg-white",
+        "overflow-hidden rounded-2xl border border-hairline bg-white",
         "shadow-card",
         className,
       )}
@@ -112,7 +112,7 @@ export function ProfileOptionChips({
                 "rounded-full px-3.5 py-1.5 text-sm transition-all duration-150 ease-ios active:scale-[0.98]",
                 active
                   ? "bg-ink font-medium text-white shadow-[0_2px_8px_rgba(26,26,46,0.18)]"
-                  : "bg-surface-tint text-ink-soft hover:bg-surface-muted hover:text-ink",
+                  : "bg-surface-tint text-ink-soft hover:bg-hairline-soft hover:text-ink",
               )}
             >
               {option.label}
@@ -247,7 +247,7 @@ export function DangerActionModal({
               onClick={onClose}
               disabled={busy}
               aria-label="Close"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-error-deep/70 transition hover:bg-error/10 hover:text-error-deep disabled:opacity-50"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-[10px] text-error-deep/70 transition hover:bg-error/10 hover:text-error-deep disabled:opacity-50"
             >
               <X className="size-4" />
             </button>
@@ -275,7 +275,7 @@ export function DangerActionModal({
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="btn-secondary h-10 px-5 text-sm"
+              className="btn-secondary h-11 px-5 text-sm"
             >
               Cancel
             </button>
@@ -283,7 +283,7 @@ export function DangerActionModal({
               type="button"
               onClick={onConfirm}
               disabled={busy || !password.trim()}
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-error-deep px-5 text-sm font-semibold text-white transition hover:bg-error-deep/90 disabled:opacity-50"
+              className="inline-flex h-11 items-center justify-center rounded-full bg-error-deep px-5 text-sm font-semibold text-white transition hover:bg-error-deep/90 disabled:opacity-50"
             >
               {busy ? "Working…" : confirmLabel}
             </button>
@@ -338,8 +338,8 @@ export function StickySaveBar({
   return (
     <div
       className={cn(
-        "fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-white/92 backdrop-blur-xl",
-        "pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_rgba(15,23,42,0.06)]",
+        "fixed inset-x-0 z-30 border-t border-hairline bg-white/92 backdrop-blur-xl",
+        "bottom-[var(--shoop-tabbar-h,0px)] pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3",
         "transition-transform duration-300 ease-ios",
         visible || saved ? "translate-y-0" : "translate-y-full",
       )}
@@ -355,7 +355,7 @@ export function StickySaveBar({
                 type="button"
                 onClick={onDiscard}
                 disabled={saving}
-                className="btn-secondary h-9 px-4 text-xs"
+                className="btn-secondary h-11 px-4 text-xs"
               >
                 Discard
               </button>
@@ -363,7 +363,7 @@ export function StickySaveBar({
                 type="button"
                 onClick={onSave}
                 disabled={!canSave || saving}
-                className="btn-primary h-9 px-5 text-xs"
+                className="btn-primary h-11 px-5 text-xs"
               >
                 {saving ? "Saving…" : "Save"}
               </button>

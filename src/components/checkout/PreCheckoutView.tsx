@@ -262,7 +262,7 @@ function CountrySelect({
                     setQuery("");
                     setOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-ink transition hover:bg-surface-subtle"
+                  className="flex w-full items-center justify-between rounded-[10px] px-2.5 py-2 text-left text-xs text-ink transition hover:bg-surface-subtle"
                 >
                   <span>{country.label}</span>
                   <span className="font-mono text-[10px] text-ink-muted">
@@ -854,7 +854,7 @@ export function PreCheckoutView() {
                   type="checkbox"
                   checked={saveAddress}
                   onChange={(event) => setSaveAddress(event.target.checked)}
-                  className="size-4 rounded border-hairline text-brand focus:ring-brand/20"
+                  className="size-4 rounded border-hairline text-ink focus:ring-ink/20"
                 />
                 Save this address for next time
               </label>
@@ -864,7 +864,7 @@ export function PreCheckoutView() {
 
         <SettingsCard className="h-fit">
           <div className="border-b border-hairline px-5 py-4 sm:px-6">
-            <h2 className="text-sm font-semibold tracking-tight text-ink">
+            <h2 className="font-display text-xl font-extrabold tracking-tight text-ink">
               Order summary
             </h2>
             <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-secondary">
@@ -874,7 +874,7 @@ export function PreCheckoutView() {
 
           <div className="px-5 py-4 sm:px-6">
             <div className="flex gap-3">
-              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-muted text-ink-muted">
+              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-tint text-ink-muted">
                 {line.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

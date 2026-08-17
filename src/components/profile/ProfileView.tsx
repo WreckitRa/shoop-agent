@@ -232,14 +232,8 @@ export function ProfileView() {
           <ProfileHeroSkeleton />
         ) : (
           <header className="flex flex-col items-center text-center">
-            <div className="relative">
-              <div
-                className="absolute -inset-1 rounded-full bg-gradient-to-br from-brand/20 via-transparent to-ink/5"
-                aria-hidden
-              />
-              <div className="relative flex size-20 items-center justify-center rounded-full bg-ink text-2xl font-semibold tracking-tight text-white shadow-lift">
-                {initials}
-              </div>
+            <div className="relative flex size-20 items-center justify-center rounded-full bg-ink text-2xl font-semibold tracking-tight text-white">
+              {initials}
             </div>
             <h1 className="mt-5 font-display text-2xl font-extrabold tracking-tight text-ink">
               {displayName}

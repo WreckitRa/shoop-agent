@@ -100,7 +100,7 @@ function AvatarFlowModal({
             }}
             disabled={avatarBusy}
             aria-label="Close"
-            className="inline-flex size-8 items-center justify-center rounded-lg text-ink-muted transition hover:bg-surface-subtle hover:text-ink disabled:opacity-40"
+            className="inline-flex size-8 items-center justify-center rounded-[10px] text-ink-muted transition hover:bg-surface-tint hover:text-ink disabled:opacity-40"
           >
             <X className="size-4" />
           </button>
