@@ -1,0 +1,20 @@
+/** First-pass constants from shoop-five-looks.md. Do not widen to make a test pass. */
+export const CALIBRATE = {
+  whiteBalanceCast: 0.09,
+  whiteBalanceNeutralSpread: 0.18,
+  whiteBalanceMinNeutrals: 60,
+  minShortEdge: 480,
+  faceMinFrameFrac: 0.004,
+  singleSubjectRatio: 3,
+  fullLengthMinHeightFrac: 0.62,
+  contrastHigh: 46,
+  contrastMedium: 24,
+  oliveAbRatio: 0.34,
+  warmHue: 56,
+  coolHue: 46,
+  undertoneCentreHue: 51,
+  backgroundSpreadFloor: 34,
+  backgroundSpreadMul: 1.9,
+  backgroundSpreadRisk: 46,
+  faceBoxMinFrameFrac: 0.05,
+} as const;

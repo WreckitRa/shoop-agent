@@ -12,6 +12,7 @@ import {
 } from "@/components/onboarding/fitting/FittingPhotoStep";
 import { FittingShell } from "@/components/onboarding/fitting/FittingShell";
 import { FittingVerdictStep } from "@/components/onboarding/fitting/FittingVerdictStep";
+import { FittingAnalysisPanel } from "@/components/onboarding/fitting/FittingAnalysisPanel";
 import {
   EMPTY_MIRROR,
   FITTING_Q_STEPS,
@@ -28,6 +29,7 @@ import {
 } from "@/components/onboarding/fitting/types";
 import { TasteCircleStep } from "@/components/onboarding/TasteCircleStep";
 import { TasteHonestyStep } from "@/components/onboarding/TasteHonestyStep";
+import { TasteLifeStep, type TasteLifeValues } from "@/components/onboarding/TasteLifeStep";
 import { TasteLovesVetoesStep } from "@/components/onboarding/TasteLovesVetoesStep";
 import {
   TasteOutfitGridStep,
@@ -59,7 +61,10 @@ import {
   currencyHintForCountry,
   isAtLeastAge,
   joinCsvValues,
+  lifestyleTagsFromLife,
+  isComfortConstraint,
   normalizeAgeRange,
+  normalizeClimate,
   normalizeGender,
   parseCsvValues,
   styleEraLabel,
@@ -178,6 +183,11 @@ type OnboardingPrefill = {
   brandLikes?: string;
   brandAvoids?: string;
   hardAvoids?: string;
+  comfort?: string;
+  weekIs?: string;
+  dressingFor?: string;
+  kids?: string;
+  climate?: string;
   honestyPreference?: string;
   circleNames?: string;
   heightCm?: number;
@@ -210,6 +220,11 @@ function mergePrefillLatch(
       mergeCsvLabels(prev.brandAvoids, next.brandAvoids) ?? prev.brandAvoids,
     hardAvoids:
       mergeCsvLabels(prev.hardAvoids, next.hardAvoids) ?? prev.hardAvoids,
+    comfort: mergeCsvLabels(prev.comfort, next.comfort) ?? prev.comfort,
+    weekIs: next.weekIs?.trim() || prev.weekIs,
+    dressingFor: next.dressingFor?.trim() || prev.dressingFor,
+    kids: next.kids?.trim() || prev.kids,
+    climate: next.climate?.trim() || prev.climate,
     honestyPreference:
       next.honestyPreference?.trim() || prev.honestyPreference,
     circleNames:
@@ -244,23 +259,32 @@ type OnboardingStatus = {
     honestyPreference: string | null;
     complimentPreferences: string[] | null;
     lifestyleTags: string[] | null;
+    climate: string | null;
+    weekIs: string | null;
+    dressingFor: string | null;
+    kids: string | null;
     styleMix: StyleMix | null;
   } | null;
   sizing: {
     heightCm?: number | null;
     weightKg?: number | null;
     bodyType?: string | null;
+    sensitivities?: string[] | null;
     topUsualSize: string | null;
     bottomUsualSize: string | null;
     shoeEU: number | null;
     shoeUS: number | null;
   } | null;
   brandPreferences: Array<{ brand: string; sentiment: string }>;
-  hardNegatives: Array<{ scope: string; value: string }>;
+  hardNegatives: Array<{
+    scope: string;
+    value: string;
+    note?: string | null;
+  }>;
   tasteTags: Array<{ tag: string; polarity: string; category?: string | null }>;
 };
 
-const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v2";
+const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v4";
 
 type OnboardingUiSession = { step: FittingStep };
 
@@ -322,12 +346,23 @@ function profileTasteSaved(status: OnboardingStatus): boolean {
   return false;
 }
 
+function profileLifeSaved(profile: OnboardingStatus["profile"]): boolean {
+  if (!profile) return false;
+  return Boolean(
+    profile.weekIs?.trim() ||
+      profile.dressingFor?.trim() ||
+      profile.kids?.trim() ||
+      profile.climate?.trim(),
+  );
+}
+
 function resumeFloorFromStatus(status: OnboardingStatus): FittingStep {
-  if (!status.onboarding.started) return "name";
+  if (!status.onboarding.started) return "photo";
   if (profileTasteSaved(status)) return "honesty";
   if (status.sizing?.heightCm || status.sizing?.bodyType) return "worn";
-  if (status.profile?.valuePhilosophy) return "photo";
-  if (profileYouSaved(status.profile)) return "spend";
+  if (status.profile?.valuePhilosophy) return "fit";
+  if (profileLifeSaved(status.profile)) return "spend";
+  if (profileYouSaved(status.profile)) return "life";
   return "name";
 }
 
@@ -446,6 +481,7 @@ function leanFromPicks(
  */
 function developPctFromFlags(flags: {
   identity: boolean;
+  life: boolean;
   spend: boolean;
   sizing: boolean;
   photoAccepted: boolean;
@@ -463,6 +499,7 @@ function developPctFromFlags(flags: {
 }): number {
   let pct = 4;
   if (flags.identity) pct = 12;
+  if (flags.life) pct = Math.max(pct, 17);
   if (flags.spend) pct = Math.max(pct, 22);
   if (flags.sizing) pct = Math.max(pct, 32);
   if (flags.photoAccepted) pct = Math.max(pct, 40);
@@ -485,7 +522,7 @@ export function OnboardingGate() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<FittingStep>("name");
+  const [step, setStep] = useState<FittingStep>("photo");
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
   const [holdOpen, setHoldOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
@@ -518,6 +555,8 @@ export function OnboardingGate() {
   const avatarStartedRef = useRef(false);
   /** Server accepted photo draft (not just local preview). */
   const photoReadyRef = useRef(false);
+  const pendingPhotoFileRef = useRef<File | null>(null);
+  const [analysisPhotoFile, setAnalysisPhotoFile] = useState<File | null>(null);
   /** Prevent double FASHN spend. */
   const mintInFlightRef = useRef(false);
   const mintDoneRef = useRef(false);
@@ -528,7 +567,11 @@ export function OnboardingGate() {
   const [birthDate, setBirthDate] = useState("");
   const [birthDateSkipped, setBirthDateSkipped] = useState(false);
   const [styleEras, setStyleEras] = useState<string[]>([]);
-  const [lifestyleTags] = useState<string[]>([]);
+  const [storedLifestyleTags, setStoredLifestyleTags] = useState<string[]>([]);
+  const [weekIs, setWeekIs] = useState("");
+  const [dressingFor, setDressingFor] = useState("");
+  const [kids, setKids] = useState("");
+  const [climate, setClimate] = useState("");
   const detectedArea = useUserProfileStore((s) => s.detectedArea);
   const [city, setCity] = useState(DEFAULT_CITY);
   const [shippingCountry, setShippingCountry] = useState(
@@ -558,6 +601,7 @@ export function OnboardingGate() {
   const [brandLikes, setBrandLikes] = useState<string[]>([]);
   const [brandAvoids, setBrandAvoids] = useState<string[]>([]);
   const [hardAvoids, setHardAvoids] = useState<string[]>([]);
+  const [comfort, setComfort] = useState<string[]>([]);
   const [honestyPreference, setHonestyPreference] = useState("");
   /** Trusted Circle first-name slots (sparse; up to 3). */
   const [circleNames, setCircleNames] = useState<string[]>(["", "", ""]);
@@ -595,6 +639,7 @@ export function OnboardingGate() {
   const dressKickRef = useRef(false);
   const [persistedFlags, setPersistedFlags] = useState({
     identity: false,
+    life: false,
     spend: false,
     sizing: false,
     wornSaved: false,
@@ -620,6 +665,8 @@ export function OnboardingGate() {
     genderPresentation.trim().toLowerCase(),
     joinCsvValues(styleEras),
     joinCsvValues(budgetPhilosophies),
+    weekIs,
+    kids,
   ].join("|");
 
   useEffect(() => {
@@ -692,6 +739,23 @@ export function OnboardingGate() {
         ),
       );
     }
+    if (prefill.comfort) {
+      setComfort((prev) =>
+        mergeLabelLists(
+          prev,
+          prefill.comfort!
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean),
+        ),
+      );
+    }
+    if (prefill.weekIs) setWeekIs(prefill.weekIs);
+    if (prefill.dressingFor) setDressingFor(prefill.dressingFor);
+    if (prefill.kids) setKids(prefill.kids);
+    if (prefill.climate) {
+      setClimate(normalizeClimate(prefill.climate) || prefill.climate);
+    }
     if (prefill.honestyPreference) {
       setHonestyPreference(prefill.honestyPreference);
     }
@@ -758,6 +822,14 @@ export function OnboardingGate() {
     // Advance develop flags when free-text filled later steps early.
     setPersistedFlags((f) => ({
       ...f,
+      life:
+        f.life ||
+        Boolean(
+          prefill.weekIs?.trim() ||
+            prefill.dressingFor?.trim() ||
+            prefill.kids?.trim() ||
+            prefill.climate?.trim(),
+        ),
       spend:
         f.spend ||
         Boolean(prefill.budgetPhilosophy?.trim()),
@@ -769,7 +841,8 @@ export function OnboardingGate() {
         Boolean(
           prefill.brandLikes?.trim() ||
             prefill.brandAvoids?.trim() ||
-            prefill.hardAvoids?.trim(),
+            prefill.hardAvoids?.trim() ||
+            prefill.comfort?.trim(),
         ),
       tasteFinal: f.tasteFinal || Boolean(prefill.honestyPreference?.trim()),
       circleSaved:
@@ -829,11 +902,37 @@ export function OnboardingGate() {
         setBrandAvoids((prev) => mergeLabelLists(prev, avoidedBrands));
       }
       if (next.hardNegatives.length) {
-        setHardAvoids((prev) =>
-          mergeLabelLists(
-            prev,
-            next.hardNegatives.map((h) => h.value),
-          ),
+        const vetoes = next.hardNegatives
+          .filter((h) => h.note !== "comfort" && !isComfortConstraint(h.value))
+          .map((h) => h.value);
+        if (vetoes.length) {
+          setHardAvoids((prev) => mergeLabelLists(prev, vetoes));
+        }
+        const comfortFromNegatives = next.hardNegatives
+          .filter((h) => h.note === "comfort" || isComfortConstraint(h.value))
+          .map((h) => h.value);
+        if (comfortFromNegatives.length) {
+          setComfort((prev) => mergeLabelLists(prev, comfortFromNegatives));
+        }
+      }
+      if (next.sizing?.sensitivities?.length) {
+        setComfort((prev) =>
+          mergeLabelLists(prev, next.sizing!.sensitivities!),
+        );
+      }
+      if (next.profile?.weekIs?.trim()) setWeekIs(next.profile.weekIs.trim());
+      if (next.profile?.dressingFor?.trim()) {
+        setDressingFor(next.profile.dressingFor.trim());
+      }
+      if (next.profile?.kids?.trim()) setKids(next.profile.kids.trim());
+      if (next.profile?.climate?.trim()) {
+        setClimate(
+          normalizeClimate(next.profile.climate) || next.profile.climate.trim(),
+        );
+      }
+      if (next.profile?.lifestyleTags?.length) {
+        setStoredLifestyleTags((prev) =>
+          mergeLabelLists(prev, next.profile!.lifestyleTags!),
         );
       }
       if (next.profile?.honestyPreference) {
@@ -867,6 +966,7 @@ export function OnboardingGate() {
       setPersistedFlags((prev) => ({
         ...prev,
         identity: profileYouSaved(next.profile),
+        life: prev.life || profileLifeSaved(next.profile),
         spend:
           prev.spend || Boolean(next.profile?.valuePhilosophy?.trim()),
         sizing:
@@ -939,6 +1039,11 @@ export function OnboardingGate() {
     writeOnboardingUiSession({ step });
   }, [loading, status, step]);
 
+  const lifestyleTags = useMemo(() => {
+    const derived = lifestyleTagsFromLife({ weekIs, kids });
+    return derived.length ? derived : storedLifestyleTags;
+  }, [weekIs, kids, storedLifestyleTags]);
+
   const identityValues = useMemo<YouIdentityValues>(
     () => ({
       preferredName,
@@ -980,6 +1085,31 @@ export function OnboardingGate() {
           setStyleEras(value as string[]);
           break;
         case "lifestyleTags":
+          break;
+      }
+    },
+    [],
+  );
+
+  const lifeValues = useMemo<TasteLifeValues>(
+    () => ({ weekIs, dressingFor, kids, climate }),
+    [weekIs, dressingFor, kids, climate],
+  );
+
+  const lifeOnChange = useCallback(
+    <K extends keyof TasteLifeValues>(key: K, value: TasteLifeValues[K]) => {
+      switch (key) {
+        case "weekIs":
+          setWeekIs(value);
+          break;
+        case "dressingFor":
+          setDressingFor(value);
+          break;
+        case "kids":
+          setKids(value);
+          break;
+        case "climate":
+          setClimate(value);
           break;
       }
     },
@@ -1289,9 +1419,55 @@ export function OnboardingGate() {
         setSelfPersonId(patchJson.selfPerson.id);
       }
       setPersistedFlags((f) => ({ ...f, identity: true }));
+      const personId =
+        patchJson.selfPerson?.id ?? selfPersonId ?? (await ensurePersonId());
+      const pending = pendingPhotoFileRef.current;
+      if (personId && pending) {
+        void attachAvatarPhoto(personId, pending);
+      }
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save your profile.");
+      return false;
+    } finally {
+      submissionLockRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function saveLife(): Promise<boolean> {
+    if (!weekIs && !dressingFor && !kids && !climate) {
+      return true;
+    }
+    if (submissionLockRef.current) return false;
+    submissionLockRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const derivedTags = lifestyleTagsFromLife({ weekIs, kids });
+      const res = await fetch("/api/onboarding/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patch: {
+            profile: {
+              weekIs: weekIs || null,
+              dressingFor: dressingFor || null,
+              kids: kids || null,
+              climate: climate || null,
+              lifestyleTags: derivedTags,
+            },
+          },
+          requestKey: crypto.randomUUID(),
+        }),
+      });
+      const json = (await res.json()) as OnboardingStatus & { error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Could not save your week.");
+      hydrateFromStatus(json);
+      setPersistedFlags((f) => ({ ...f, life: true }));
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save your week.");
       return false;
     } finally {
       submissionLockRef.current = false;
@@ -1519,27 +1695,19 @@ export function OnboardingGate() {
     }
   }
 
-  async function uploadPhoto(file: File) {
-    const preview = URL.createObjectURL(file);
-    setPhotoValues((p) => ({ ...p, photoPreview: preview }));
-    setLocalFacePreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return preview;
+  function kickPhotoAnalysis(file: File) {
+    const form = new FormData();
+    form.append("photo", file);
+    void guestFetch("/api/onboarding/photo-analysis", {
+      method: "POST",
+      body: form,
+    }).catch(() => {
+      /* panel polls GET; analysis never blocks onboarding */
     });
-    setTwinStatus("idle");
-    setTwinError(null);
-    photoReadyRef.current = false;
-    mintDoneRef.current = false;
+  }
 
-    const personId = await ensurePersonId();
-    if (!personId) {
-      setError(
-        "Save your name first so we can attach the photo to your profile.",
-      );
-      return;
-    }
+  async function attachAvatarPhoto(personId: string, file: File): Promise<boolean> {
     await startAvatarIfNeeded(personId);
-
     try {
       const form = new FormData();
       form.append("person_id", personId);
@@ -1551,14 +1719,14 @@ export function OnboardingGate() {
       const body = await readAvatarJson(res);
       if (!res.ok || body.error) {
         setError(body.error ?? "Could not upload photo. Try another.");
-        return;
+        return false;
       }
       if (body.draft?.step === "refused_minor") {
         setError(
           body.draft.intake?.refusal_message ?? "We can't use this photo.",
         );
         photoReadyRef.current = false;
-        return;
+        return false;
       }
 
       const checkRes = await guestFetch("/api/avatar/upload", {
@@ -1573,10 +1741,9 @@ export function OnboardingGate() {
             "We can't use this photo.",
         );
         photoReadyRef.current = false;
-        return;
+        return false;
       }
 
-      // Apply soft body_shape suggestion from full-body intake if user has none yet.
       const suggestedShape =
         checkBody.draft?.intake?.clear?.body_shape ??
         checkBody.draft?.attributes?.body_shape;
@@ -1588,9 +1755,31 @@ export function OnboardingGate() {
 
       photoReadyRef.current = true;
       setError(null);
+      return true;
     } catch {
       setError("Upload failed — try another photo.");
+      return false;
     }
+  }
+
+  async function uploadPhoto(file: File) {
+    const preview = URL.createObjectURL(file);
+    setPhotoValues((p) => ({ ...p, photoPreview: preview }));
+    setLocalFacePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return preview;
+    });
+    setTwinStatus("idle");
+    setTwinError(null);
+    photoReadyRef.current = false;
+    mintDoneRef.current = false;
+    pendingPhotoFileRef.current = file;
+    setAnalysisPhotoFile(file);
+    kickPhotoAnalysis(file);
+
+    const personId = await ensurePersonId();
+    if (!personId) return;
+    await attachAvatarPhoto(personId, file);
   }
 
   async function saveSpend(): Promise<boolean> {
@@ -1677,6 +1866,11 @@ export function OnboardingGate() {
       const personId =
         json.selfPerson?.id ?? selfPersonId ?? (await ensurePersonId());
 
+      const pending = pendingPhotoFileRef.current;
+      if (personId && pending && !photoReadyRef.current) {
+        await attachAvatarPhoto(personId, pending);
+      }
+
       if (personId && photoReadyRef.current) {
         void kickBackgroundMint({
           personId,
@@ -1733,6 +1927,7 @@ export function OnboardingGate() {
           brandLikes,
           brandAvoids,
           hardAvoids,
+          comfort,
           compliments: [],
           honestyPreference: honestyPreference || null,
           valuePhilosophy: valuePhilosophyWire,
@@ -1757,7 +1952,11 @@ export function OnboardingGate() {
         nolistSaved:
           f.nolistSaved ||
           mark === "nolist" ||
-          brandLikes.length + brandAvoids.length + hardAvoids.length > 0,
+          brandLikes.length +
+            brandAvoids.length +
+            hardAvoids.length +
+            comfort.length >
+            0,
         tasteFinal: f.tasteFinal || mark === "final" || complete,
         spend: f.spend || Boolean(valuePhilosophyWire),
       }));
@@ -1874,30 +2073,45 @@ export function OnboardingGate() {
 
   async function advanceFrom(current: FittingStep) {
     setError(null);
+    if (current === "photo") {
+      await runWithLoading({
+        from: "photo",
+        nextStep: "name",
+        work: async () => true,
+      });
+      return;
+    }
     if (current === "name") {
       await runWithLoading({
         from: "name",
-        nextStep: "spend",
+        nextStep: "life",
         work: () => saveIdentity(),
+      });
+      return;
+    }
+    if (current === "life") {
+      await runWithLoading({
+        from: "life",
+        nextStep: "spend",
+        work: () => saveLife(),
       });
       return;
     }
     if (current === "spend") {
       await runWithLoading({
         from: "spend",
-        nextStep: "photo",
+        nextStep: "fit",
         work: () => saveSpend(),
       });
       return;
     }
-    if (current === "photo") {
+    if (current === "fit") {
       await runWithLoading({
-        from: "photo",
+        from: "fit",
         nextStep: "worn",
         work: async () => {
           const ok = await savePhotoAndAttrs();
           if (!ok) return false;
-          // Prefetch worn deck while user is on the loading screen
           await loadOutfitDeck("worn");
           return true;
         },
@@ -1990,6 +2204,11 @@ export function OnboardingGate() {
             brandLikes: brandLikes.length ? brandLikes : undefined,
             brandAvoids: brandAvoids.length ? brandAvoids : undefined,
             hardAvoids: hardAvoids.length ? hardAvoids : undefined,
+            comfort: comfort.length ? comfort : undefined,
+            weekIs: weekIs || undefined,
+            dressingFor: dressingFor || undefined,
+            kids: kids || undefined,
+            climate: climate || undefined,
             honestyPreference: honestyPreference || undefined,
             circleNames: circleNames.map((n) => n.trim()).filter(Boolean),
             heightCm: photoValues.heightCm || null,
@@ -2019,6 +2238,11 @@ export function OnboardingGate() {
           brandLikes?: string[];
           brandAvoids?: string[];
           hardAvoids?: string[];
+          comfort?: string[];
+          weekIs?: string;
+          dressingFor?: string;
+          kids?: string;
+          climate?: string;
           honestyPreference?: string;
           circleNames?: string[];
           muscularity?: string;
@@ -2063,6 +2287,12 @@ export function OnboardingGate() {
           json.prefill?.brandAvoids,
         hardAvoids:
           json.extraction?.hardAvoids?.join(", ") ?? json.prefill?.hardAvoids,
+        comfort:
+          json.extraction?.comfort?.join(", ") ?? json.prefill?.comfort,
+        weekIs: json.extraction?.weekIs ?? json.prefill?.weekIs,
+        dressingFor: json.extraction?.dressingFor ?? json.prefill?.dressingFor,
+        kids: json.extraction?.kids ?? json.prefill?.kids,
+        climate: json.extraction?.climate ?? json.prefill?.climate,
         budgetPhilosophy:
           json.extraction?.budgetPhilosophies?.join(",") ??
           json.prefill?.budgetPhilosophy,
@@ -2098,6 +2328,7 @@ export function OnboardingGate() {
 
   const developPct = developPctFromFlags({
     identity: persistedFlags.identity || profileYouSaved(status?.profile ?? null),
+    life: persistedFlags.life || profileLifeSaved(status?.profile ?? null),
     spend:
       persistedFlags.spend || Boolean(status?.profile?.valuePhilosophy?.trim()),
     sizing: persistedFlags.sizing || Boolean(status?.sizing?.heightCm),
@@ -2366,7 +2597,7 @@ export function OnboardingGate() {
 
   const stepMeta =
     step === "verdict"
-      ? { n: 8, stage: "THE FITTING" }
+      ? { n: FITTING_Q_STEPS.length, stage: "THE FITTING" }
       : STEP_META[step];
 
   const inline = Boolean(inlineSlot);
@@ -2433,18 +2664,43 @@ export function OnboardingGate() {
           step === "verdict" ? "THE FITTING" : stepMeta.stage
         }
         stepCountLabel={
-          step === "verdict" ? "DONE" : `${stepMeta.n} of 8`
+          step === "verdict"
+            ? "DONE"
+            : `${stepMeta.n} of ${FITTING_Q_STEPS.length}`
         }
         mirror={mirror}
         onTell={handleTell}
         tellFeedback={tellFeedback}
         tellBusy={tellBusy}
       >
-        {step !== "verdict" && step !== "name" ? (
+        {step !== "verdict" && step !== "photo" ? (
           <FittingBackLink onClick={goBack} />
         ) : null}
         {step !== "verdict" ? (
-          <FittingCount n={stepMeta.n} total={8} />
+          <FittingCount n={stepMeta.n} total={FITTING_Q_STEPS.length} />
+        ) : null}
+
+        {step === "photo" ? (
+          <>
+            <FittingPhotoStep
+              mode="scan"
+              values={photoValues}
+              onChange={photoOnChange}
+              onPhotoFile={(f) => void uploadPhoto(f)}
+              onSkipPhoto={() => {
+                photoReadyRef.current = false;
+                void advanceFrom("photo");
+              }}
+              onContinue={() => void advanceFrom("photo")}
+              busy={busy}
+              showContinue
+            />
+            <FittingAnalysisPanel
+              enabled={Boolean(photoValues.photoPreview)}
+              photoFile={analysisPhotoFile}
+              photoPreview={photoValues.photoPreview}
+            />
+          </>
         ) : null}
 
         {step === "name" ? (
@@ -2452,6 +2708,15 @@ export function OnboardingGate() {
             values={identityValues}
             onChange={identityOnChange}
             onContinue={() => void advanceFrom("name")}
+            busy={busy}
+          />
+        ) : null}
+
+        {step === "life" ? (
+          <TasteLifeStep
+            values={lifeValues}
+            onChange={lifeOnChange}
+            onContinue={() => void advanceFrom("life")}
             busy={busy}
           />
         ) : null}
@@ -2467,16 +2732,17 @@ export function OnboardingGate() {
           />
         ) : null}
 
-        {step === "photo" ? (
+        {step === "fit" ? (
           <FittingPhotoStep
+            mode="body"
             values={photoValues}
             onChange={photoOnChange}
             onPhotoFile={(f) => void uploadPhoto(f)}
             onSkipPhoto={() => {
               photoReadyRef.current = false;
-              void advanceFrom("photo");
+              void advanceFrom("fit");
             }}
-            onContinue={() => void advanceFrom("photo")}
+            onContinue={() => void advanceFrom("fit")}
             busy={busy}
             showContinue
             showBust={normalizeGender(genderPresentation) === "feminine"}
@@ -2541,9 +2807,11 @@ export function OnboardingGate() {
             brandLikes={brandLikes}
             brandAvoids={brandAvoids}
             hardAvoids={hardAvoids}
+            comfort={comfort}
             onChangeBrandLikes={setBrandLikes}
             onChangeBrandAvoids={setBrandAvoids}
             onChangeHardAvoids={setHardAvoids}
+            onChangeComfort={setComfort}
             onContinue={() => void advanceFrom("nolist")}
             busy={busy}
           />
@@ -2610,32 +2878,39 @@ export function OnboardingGate() {
         ) : null}
 
         {step === "verdict" ? (
-          <FittingVerdictStep
-            preferredName={preferredName}
-            wornLabels={wornPicks.map((p) => p.label)}
-            stealLabels={aspirationalPicks.map((p) => p.label)}
-            leanLabel={mirror.leanLabel}
-            form={mirror.form}
-            build={photoValues.build}
-            vetoCount={hardAvoids.length + brandAvoids.length}
-            developPct={mirror.developPct}
-            circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
-            dressStatus={dressStatus}
-            dressStyleLabel={dressStyleLabel}
-            busy={busy}
-            onMeetTwin={() => void completeOnboarding()}
-            shareCopied={shareCopied}
-            onShare={(selectedCircle) => {
-              const circleBit = selectedCircle.length
-                ? ` Asking ${selectedCircle.join(", ")}.`
-                : "";
-              const text = `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} shoop.world`;
-              void navigator.clipboard?.writeText(text).then(() => {
-                setShareCopied(true);
-                setTimeout(() => setShareCopied(false), 2000);
-              });
-            }}
-          />
+          <>
+            <FittingVerdictStep
+              preferredName={preferredName}
+              wornLabels={wornPicks.map((p) => p.label)}
+              stealLabels={aspirationalPicks.map((p) => p.label)}
+              leanLabel={mirror.leanLabel}
+              form={mirror.form}
+              build={photoValues.build}
+              vetoCount={hardAvoids.length + brandAvoids.length + comfort.length}
+              developPct={mirror.developPct}
+              circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
+              dressStatus={dressStatus}
+              dressStyleLabel={dressStyleLabel}
+              busy={busy}
+              onMeetTwin={() => void completeOnboarding()}
+              shareCopied={shareCopied}
+              onShare={(selectedCircle) => {
+                const circleBit = selectedCircle.length
+                  ? ` Asking ${selectedCircle.join(", ")}.`
+                  : "";
+                const text = `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} shoop.world`;
+                void navigator.clipboard?.writeText(text).then(() => {
+                  setShareCopied(true);
+                  setTimeout(() => setShareCopied(false), 2000);
+                });
+              }}
+            />
+            <FittingAnalysisPanel
+              enabled={Boolean(photoValues.photoPreview)}
+              photoFile={analysisPhotoFile}
+              photoPreview={photoValues.photoPreview}
+            />
+          </>
         ) : null}
 
         {error ? (

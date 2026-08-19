@@ -1,7 +1,9 @@
 export type FittingStep =
-  | "name"
-  | "spend"
   | "photo"
+  | "name"
+  | "life"
+  | "spend"
+  | "fit"
   | "worn"
   | "wanted"
   | "nolist"
@@ -10,9 +12,11 @@ export type FittingStep =
   | "verdict";
 
 export const FITTING_STEPS: FittingStep[] = [
-  "name",
-  "spend",
   "photo",
+  "name",
+  "life",
+  "spend",
+  "fit",
   "worn",
   "wanted",
   "nolist",
@@ -23,9 +27,11 @@ export const FITTING_STEPS: FittingStep[] = [
 
 /** Question steps only (excludes verdict). */
 export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
-  "name",
-  "spend",
   "photo",
+  "name",
+  "life",
+  "spend",
+  "fit",
   "worn",
   "wanted",
   "nolist",
@@ -34,22 +40,23 @@ export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
 ];
 
 export const STITCH_KNOTS = [
-  { id: "name", label: "Name", top: "3%" },
-  { id: "era", label: "Era", top: "14%" },
-  { id: "spend", label: "Spend", top: "25%" },
-  { id: "photo", label: "Photo", top: "36%" },
-  { id: "worn", label: "Worn", top: "47%" },
-  { id: "wanted", label: "Wanted", top: "58%" },
-  { id: "nolist", label: "No-list", top: "69%" },
-  { id: "circle", label: "Circle", top: "80%" },
+  { id: "photo", label: "Photo", top: "3%" },
+  { id: "name", label: "Name", top: "13%" },
+  { id: "life", label: "Life", top: "23%" },
+  { id: "spend", label: "Spend", top: "33%" },
+  { id: "fit", label: "Fit", top: "43%" },
+  { id: "worn", label: "Worn", top: "53%" },
+  { id: "wanted", label: "Wanted", top: "63%" },
+  { id: "nolist", label: "No-list", top: "73%" },
+  { id: "circle", label: "Circle", top: "84%" },
   { id: "mint", label: "The mint", top: "96%", emphasis: true },
 ] as const;
 
 /** sewn % per knot index */
-export const SEWN_PCT = [3, 14, 25, 36, 47, 58, 69, 80, 100];
+export const SEWN_PCT = [3, 13, 23, 33, 43, 53, 63, 73, 84, 100];
 
-/** progress bar % per question step 1–8 */
-export const STEP_PROGRESS_PCT = [6, 17, 29, 41, 53, 65, 77, 89];
+/** progress bar % per question step */
+export const STEP_PROGRESS_PCT = [5, 14, 24, 34, 44, 54, 64, 74, 84, 93];
 
 export const STEP_META: Record<
   Exclude<FittingStep, "verdict">,
@@ -64,57 +71,71 @@ export const STEP_META: Record<
     loadingDetail: string;
   }
 > = {
-  name: {
+  photo: {
     n: 1,
+    stage: "Getting to know you",
+    flashCover: "While that develops...<br><em>who are you?</em>",
+    flashNext: "next up... your name",
+    loadingDetail: "Reading the photo two ways…",
+  },
+  name: {
+    n: 2,
+    stage: "Getting to know you",
+    flashCover: "Your week...<br><em>three taps.</em>",
+    flashNext: "next up... how you live",
+    loadingDetail: "Saving your name and era…",
+  },
+  life: {
+    n: 3,
     stage: "Getting to know you",
     flashCover: "Money stuff...<br><em>quick and painless.</em>",
     flashNext: "next up... how you spend",
-    loadingDetail: "Saving your name and era…",
+    loadingDetail: "Saving how your week actually looks…",
   },
   spend: {
-    n: 2,
+    n: 4,
     stage: "Getting to know you",
-    flashCover: "Best for last?<br>No... <em>best in the middle.</em>",
-    flashNext: "next up... your photo",
+    flashCover: "A few numbers...<br><em>never judged.</em>",
+    flashNext: "next up... height and build",
     loadingDetail: "Saving how you like to spend…",
   },
-  photo: {
-    n: 3,
+  fit: {
+    n: 5,
     stage: "Getting to know you",
     flashCover: "Now the real you...<br><em>hoodie included.</em>",
     flashNext: "next up... what you actually wore",
     loadingDetail: "Saving fit stats… starting your twin if a photo is ready…",
   },
   worn: {
-    n: 4,
+    n: 6,
     stage: "Getting to know you",
     flashCover: "Okay, now<br><em>dream a little.</em>",
     flashNext: "next up... the closet you would steal",
     loadingDetail: "Saving what you actually wore… loading your dream set…",
   },
   wanted: {
-    n: 5,
+    n: 7,
     stage: "Getting to know you",
     flashCover: "And the stuff<br>I <em>never</em> show you.",
     flashNext: "next up... your no-list",
     loadingDetail: "Saving your steal list…",
   },
   nolist: {
-    n: 6,
+    n: 8,
     stage: "Getting to know you",
     flashCover: "Almost done...<br><em>how honest do you want me?</em>",
     flashNext: "next up... the honesty dial",
-    loadingDetail: "Saving brands and vetoes…",
+    loadingDetail: "Saving brands, comfort, and vetoes…",
   },
   honesty: {
-    n: 7,
+    n: 9,
     stage: "Getting to know you",
     flashCover: "One more...<br>and it is about <em>them</em>, not you.",
     flashNext: "next up... who you actually ask",
     loadingDetail: "Locking taste and honesty…",
   },
   circle: {
-    n: 8,
+    n: 10,
     stage: "Getting to know you",
     flashCover: "Say hello<br>to <em>you.</em>",
     flashNext: "next up... your card",
@@ -125,23 +146,27 @@ export const STEP_META: Record<
 /** Knot index highlighted / sewn for each step */
 export function knotNowIndex(step: FittingStep): number {
   switch (step) {
-    case "name":
-      return 0;
-    case "spend":
-      return 2;
     case "photo":
+      return 0;
+    case "name":
+      return 1;
+    case "life":
+      return 2;
+    case "spend":
       return 3;
-    case "worn":
+    case "fit":
       return 4;
-    case "wanted":
+    case "worn":
       return 5;
-    case "nolist":
+    case "wanted":
       return 6;
+    case "nolist":
+      return 7;
     case "honesty":
     case "circle":
-      return 7;
-    case "verdict":
       return 8;
+    case "verdict":
+      return 9;
     default:
       return 0;
   }
@@ -149,24 +174,28 @@ export function knotNowIndex(step: FittingStep): number {
 
 export function sewnThroughIndex(step: FittingStep): number {
   switch (step) {
-    case "name":
-      return -1;
-    case "spend":
-      return 0;
     case "photo":
+      return -1;
+    case "name":
+      return 0;
+    case "life":
+      return 1;
+    case "spend":
       return 2;
-    case "worn":
+    case "fit":
       return 3;
-    case "wanted":
+    case "worn":
       return 4;
-    case "nolist":
+    case "wanted":
       return 5;
-    case "honesty":
+    case "nolist":
       return 6;
-    case "circle":
+    case "honesty":
       return 7;
-    case "verdict":
+    case "circle":
       return 8;
+    case "verdict":
+      return 9;
     default:
       return -1;
   }

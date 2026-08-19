@@ -50,6 +50,8 @@ type Props = {
   showContinue?: boolean;
   /** Show bust-fullness chips when gender presentation is feminine. */
   showBust?: boolean;
+  /** scan = photo + analysis first; body = height/build after identity. */
+  mode?: "scan" | "body";
 };
 
 /** Smart default when user skips definition — still satisfies FASHN required attrs. */
@@ -252,6 +254,7 @@ export function FittingPhotoStep({
   busy,
   showContinue = true,
   showBust = false,
+  mode = "scan",
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -285,21 +288,39 @@ export function FittingPhotoStep({
     onChange("weightUnit", next);
   }
 
+  const scan = mode === "scan";
+
   return (
     <section>
       <FittingTitle
-        lines={[
-          { text: "Give me your" },
-          { text: "best %%angle.%%", red: true },
-        ]}
+        lines={
+          scan
+            ? [
+                { text: "Give me your" },
+                { text: "best %%angle.%%", red: true },
+              ]
+            : [
+                { text: "A few" },
+                { text: "%%numbers.%%", red: true },
+              ]
+        }
       />
-      <FittingWhisper>
-        One photo, and here&apos;s the trick:{" "}
-        <b>I build your twin in the background while you finish the quiz.</b> By
-        the last question it&apos;s ready and waiting... no loading screen, ever.
-      </FittingWhisper>
+      {scan ? (
+        <FittingWhisper>
+          One photo, and I start measuring immediately — colour, face, body if
+          you&apos;re full-length.{" "}
+          <b>The twin builds later, while you finish the quiz.</b>
+        </FittingWhisper>
+      ) : (
+        <FittingWhisper>
+          Height, build, the honest bits. Used for the twin — never shown, never
+          judged.
+        </FittingWhisper>
+      )}
 
-      <div className="flex flex-wrap items-center gap-2.5">
+      {scan ? (
+        <>
+          <div className="flex flex-wrap items-center gap-2.5">
         {!values.photoPreview ? (
           <>
             <label className="cursor-pointer">
@@ -355,16 +376,58 @@ export function FittingPhotoStep({
             />
           </div>
         )}
-      </div>
+          </div>
 
-      <OnboardingWhy>
-        Face the light, just you, no heavy filters.{" "}
-        <b className="font-bold text-[var(--fitting-red)]">
-          Your photos train nothing and are sold to no one
-        </b>
-        ... delete anytime.
-      </OnboardingWhy>
+          <OnboardingWhy>
+            Face the light, just you, no heavy filters.{" "}
+            <b className="font-bold text-[var(--fitting-red)]">
+              Your photos train nothing and are sold to no one
+            </b>
+            ... delete anytime.
+          </OnboardingWhy>
+        </>
+      ) : (
+        <div className="mb-2 flex flex-wrap items-center gap-2.5">
+          {values.photoPreview ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={values.photoPreview}
+                alt="Your photo"
+                className="h-14 w-14 rounded-full object-cover outline outline-2 outline-[var(--fitting-line)]"
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="text-[12.5px] font-bold text-[var(--fitting-quiet)] hover:text-[var(--fitting-ink)]"
+              >
+                Change photo
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="inline-flex h-12 items-center rounded-[14px] bg-[var(--fitting-ink)] px-5 text-[13px] font-extrabold text-white"
+            >
+              Add my photo
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onPhotoFile(f);
+            }}
+          />
+        </div>
+      )}
 
+      {scan ? null : (
+        <>
       <FittingQlbl>How tall are you?</FittingQlbl>
       <div className="flex flex-wrap items-center gap-3">
         <UnitSeg
@@ -517,9 +580,11 @@ export function FittingPhotoStep({
           </div>
         </>
       ) : null}
+        </>
+      )}
 
       {showContinue ? (
-        values.photoPreview ? (
+        scan && values.photoPreview ? (
           <div className="mt-10">
             <FittingCta onClick={onContinue} disabled={busy}>
               {busy ? "Saving…" : "Keep going... it's developing"}
@@ -529,7 +594,7 @@ export function FittingPhotoStep({
           <FittingNavRow
             onNext={onContinue}
             busy={busy}
-            nextLabel="Lock it in"
+            nextLabel={scan ? "Skip for now" : "Lock it in"}
           />
         )
       ) : null}

@@ -55,6 +55,7 @@ export function buildPatchFromTastePicks(input: {
   brandLikes?: string[];
   brandAvoids?: string[];
   hardAvoids?: string[];
+  comfort?: string[];
   compliments?: string[];
   honestyPreference?: string | null;
   valuePhilosophy?: string | null;
@@ -87,13 +88,27 @@ export function buildPatchFromTastePicks(input: {
   }
 
   const hardNegatives: NonNullable<OnboardingPatch["hardNegatives"]> = [];
+  const comfortSet = new Set(
+    (input.comfort ?? []).map((c) => c.trim().toLowerCase()).filter(Boolean),
+  );
   for (const value of input.hardAvoids ?? []) {
     const v = value.trim();
     if (!v) continue;
+    if (comfortSet.has(v.toLowerCase())) continue;
     hardNegatives.push({
       scope: "style",
       value: v.slice(0, 120),
       reason: "taste",
+    });
+  }
+  for (const value of input.comfort ?? []) {
+    const v = value.trim();
+    if (!v) continue;
+    hardNegatives.push({
+      scope: "fit",
+      value: v.slice(0, 120),
+      reason: "other",
+      note: "comfort",
     });
   }
 
@@ -121,8 +136,14 @@ export function buildPatchFromTastePicks(input: {
     profile.valuePhilosophy = input.valuePhilosophy.trim();
   }
 
+  const sizing: NonNullable<OnboardingPatch["sizing"]> | undefined =
+    input.comfort != null
+      ? { sensitivities: input.comfort.map((c) => c.trim()).filter(Boolean) }
+      : undefined;
+
   return {
     profile,
+    ...(sizing ? { sizing } : {}),
     ...(tasteTags.length ? { tasteTags } : {}),
     ...(brands.length ? { brands } : {}),
     ...(hardNegatives.length ? { hardNegatives } : {}),

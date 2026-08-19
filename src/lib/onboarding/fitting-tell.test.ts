@@ -82,4 +82,34 @@ describe("fitting-tell", () => {
     assert.equal(filled.weightKg, 82);
     assert.ok(filled.hardAvoids?.some((h) => /neon/i.test(h)));
   });
+
+  it("backfills week, dating, kids, climate, and comfort", () => {
+    const filled = backfillFittingTellFromText(
+      "I work from home, dating, no kids, no heels. Hot and humid here.",
+      { summary: "x" },
+    );
+    assert.equal(filled.weekIs, "working_home");
+    assert.equal(filled.dressingFor, "dating");
+    assert.equal(filled.kids, "none");
+    assert.equal(filled.climate, "hot_humid");
+    assert.ok(filled.comfort?.includes("no heels"));
+  });
+
+  it("patches life fields onto the profile", () => {
+    const patch = buildPatchFromFittingTell({
+      weekIs: "studying",
+      dressingFor: "dating",
+      kids: "none",
+      climate: "cold",
+      comfort: ["no heels"],
+      summary: "Noted.",
+    });
+    assert.equal(patch.profile?.weekIs, "studying");
+    assert.deepEqual(patch.profile?.lifestyleTags, ["campus_life"]);
+    assert.equal(patch.profile?.climate, "cold");
+    assert.deepEqual(patch.sizing?.sensitivities, ["no heels"]);
+    assert.ok(
+      patch.hardNegatives?.some((h) => h.note === "comfort" && h.value === "no heels"),
+    );
+  });
 });

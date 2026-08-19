@@ -48,6 +48,7 @@ const postSchema = z
     brandLikes: z.array(z.string().max(120)).max(20).optional(),
     brandAvoids: z.array(z.string().max(120)).max(20).optional(),
     hardAvoids: z.array(z.string().max(120)).max(20).optional(),
+    comfort: z.array(z.string().max(160)).max(16).optional(),
     compliments: z.array(z.string().max(40)).max(4).optional(),
     honestyPreference: z.enum(["gentle", "straight", "no_mercy"]).optional().nullable(),
     valuePhilosophy: z.string().max(120).optional().nullable(),

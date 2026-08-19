@@ -40,6 +40,115 @@ export const WORLD_OPTIONS = [
   { value: "time_is_mine", label: "My time is mine again" },
 ] as const;
 
+/** What her week is — picks the daily + second occasion. */
+export const WEEK_IS_OPTIONS = [
+  { value: "studying", label: "Studying" },
+  { value: "working_onsite", label: "Working on-site" },
+  { value: "working_home", label: "Working from home" },
+  { value: "working_mixed", label: "Mix of home and office" },
+  { value: "own_thing", label: "Doing my own thing" },
+  { value: "home_with_kids", label: "Home with kids" },
+  { value: "between_things", label: "Between things" },
+  { value: "retired", label: "Retired" },
+] as const;
+
+/** Relationship context — picks the night occasion. */
+export const DRESSING_FOR_OPTIONS = [
+  { value: "dating", label: "Dating" },
+  { value: "with_someone", label: "With someone" },
+  { value: "not_right_now", label: "Not right now" },
+] as const;
+
+export const KIDS_OPTIONS = [
+  { value: "young", label: "Young kids" },
+  { value: "older", label: "Older kids" },
+  { value: "none", label: "No kids" },
+] as const;
+
+export const CLIMATE_OPTIONS = [
+  { value: "hot_humid", label: "Hot and humid" },
+  { value: "hot_dry", label: "Hot and dry" },
+  { value: "four_seasons", label: "Four seasons" },
+  { value: "mild_wet", label: "Mild and wet" },
+  { value: "cold", label: "Cold" },
+] as const;
+
+/** Hard predicates that filter items. Never scores. */
+export const COMFORT_OPTIONS = [
+  { value: "no heels", label: "No heels" },
+  { value: "nothing sleeveless", label: "Nothing sleeveless" },
+  { value: "nothing short", label: "Nothing short" },
+  { value: "no tight fits", label: "No tight fits" },
+  { value: "covered shoulders", label: "Covered shoulders" },
+  { value: "nothing sheer", label: "Nothing sheer" },
+  { value: "no low rise", label: "No low rise" },
+] as const;
+
+export type ClimateValue = (typeof CLIMATE_OPTIONS)[number]["value"];
+
+const CLIMATE_VALUES = new Set<string>(CLIMATE_OPTIONS.map((o) => o.value));
+const COMFORT_VALUES = new Set<string>(COMFORT_OPTIONS.map((o) => o.value));
+
+const CLIMATE_ALIASES: Record<string, ClimateValue> = {
+  "hot humid": "hot_humid",
+  "hot and humid": "hot_humid",
+  humid: "hot_humid",
+  "hot dry": "hot_dry",
+  "hot and dry": "hot_dry",
+  "four seasons": "four_seasons",
+  "mild wet": "mild_wet",
+  "mild and wet": "mild_wet",
+  "cold": "cold",
+};
+
+/** Map the three life answers onto existing lifestyleTags so the outfit grid keeps working. */
+export function lifestyleTagsFromLife(input: {
+  weekIs?: string | null;
+  kids?: string | null;
+}): string[] {
+  const tags = new Set<string>();
+  switch (input.weekIs) {
+    case "studying":
+      tags.add("campus_life");
+      break;
+    case "working_onsite":
+    case "working_home":
+    case "working_mixed":
+      tags.add("deep_in_career");
+      break;
+    case "own_thing":
+      tags.add("running_the_show");
+      break;
+    case "home_with_kids":
+      tags.add("kids_in_the_mix");
+      break;
+    case "retired":
+      tags.add("time_is_mine");
+      break;
+    default:
+      break;
+  }
+  if (input.kids === "young" || input.kids === "older") {
+    tags.add("kids_in_the_mix");
+  }
+  return [...tags];
+}
+
+export function normalizeClimate(
+  raw: string | null | undefined,
+): ClimateValue | "" {
+  if (!raw?.trim()) return "";
+  const t = raw.trim().toLowerCase().replace(/\s+/g, "_");
+  if (CLIMATE_VALUES.has(t)) return t as ClimateValue;
+  const spaced = raw.trim().toLowerCase();
+  return CLIMATE_ALIASES[spaced] ?? "";
+}
+
+export function isComfortConstraint(raw: string | null | undefined): boolean {
+  if (!raw?.trim()) return false;
+  return COMFORT_VALUES.has(raw.trim().toLowerCase());
+}
+
 export const HONESTY_OPTIONS = [
   {
     value: "gentle",

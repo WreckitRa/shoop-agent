@@ -245,7 +245,11 @@ export async function seedOnboardingIntoFashionMemory(
       profile.ageRange?.trim() ||
       profile.valuePhilosophy?.trim() ||
       profile.styleEra?.trim() ||
-      profile.honestyPreference?.trim()
+      profile.honestyPreference?.trim() ||
+      profile.weekIs?.trim() ||
+      profile.dressingFor?.trim() ||
+      profile.kids?.trim() ||
+      profile.climate?.trim()
     ) {
       writes.push(upsertFashionFact({
         userId,
@@ -271,6 +275,12 @@ export async function seedOnboardingIntoFashionMemory(
           ...(profile.lifestyleTags?.length
             ? { lifestyle_tags: profile.lifestyleTags }
             : {}),
+          ...(profile.weekIs?.trim() ? { week_is: profile.weekIs.trim() } : {}),
+          ...(profile.dressingFor?.trim()
+            ? { dressing_for: profile.dressingFor.trim() }
+            : {}),
+          ...(profile.kids?.trim() ? { kids: profile.kids.trim() } : {}),
+          ...(profile.climate?.trim() ? { climate: profile.climate.trim() } : {}),
           ...(profile.styleMix
             ? { style_mix: profile.styleMix }
             : {}),

@@ -15,11 +15,17 @@ import type { onboardingPatchSchema } from "@/lib/onboarding/status";
 import {
   AGE_RANGES,
   BUDGET_OPTIONS,
+  CLIMATE_OPTIONS,
+  DRESSING_FOR_OPTIONS,
   GENDER_OPTIONS,
   HONESTY_OPTIONS,
+  KIDS_OPTIONS,
   STYLE_ERAS,
+  WEEK_IS_OPTIONS,
   joinCsvValues,
+  lifestyleTagsFromLife,
   normalizeAgeRange,
+  normalizeClimate,
   normalizeGender,
   styleEraFromAge,
   styleEraToAgeRange,
@@ -27,9 +33,11 @@ import {
 import { tagsFromFreeText } from "@/lib/onboarding/taste-tags";
 
 export type FittingTellStep =
-  | "name"
-  | "spend"
   | "photo"
+  | "name"
+  | "life"
+  | "spend"
+  | "fit"
   | "worn"
   | "wanted"
   | "nolist"
@@ -45,6 +53,11 @@ export type FittingTellKnown = {
   brandLikes?: string[];
   brandAvoids?: string[];
   hardAvoids?: string[];
+  comfort?: string[];
+  weekIs?: string;
+  dressingFor?: string;
+  kids?: string;
+  climate?: string;
   honestyPreference?: string;
   circleNames?: string[];
   heightCm?: number | null;
@@ -57,8 +70,9 @@ export type FittingTellKnown = {
 /** Where each extracted fact surfaces in the left-side flow. */
 export type FittingTellBucket =
   | "name"
+  | "life"
   | "spend"
-  | "photo"
+  | "fit"
   | "nolist"
   | "honesty"
   | "circle"
@@ -75,6 +89,18 @@ const eraEnum = z.enum(
 );
 const honestyEnum = z.enum(
   HONESTY_OPTIONS.map((h) => h.value) as [string, ...string[]],
+);
+const weekEnum = z.enum(
+  WEEK_IS_OPTIONS.map((o) => o.value) as [string, ...string[]],
+);
+const dressingEnum = z.enum(
+  DRESSING_FOR_OPTIONS.map((o) => o.value) as [string, ...string[]],
+);
+const kidsEnum = z.enum(
+  KIDS_OPTIONS.map((o) => o.value) as [string, ...string[]],
+);
+const climateEnum = z.enum(
+  CLIMATE_OPTIONS.map((o) => o.value) as [string, ...string[]],
 );
 const ageEnum = z.enum(AGE_RANGES as unknown as [string, ...string[]]);
 const buildEnum = z.enum(["slim", "average", "athletic", "broad", "plus"]);
@@ -183,6 +209,49 @@ export function backfillFittingTellFromText(
     if (/\blogos?\b/i.test(t) && /\b(no|never|hate|avoid)\b/i.test(t))
       hard.push("logos");
     if (hard.length) out.hardAvoids = hard;
+  }
+
+  if (!out.weekIs) {
+    if (/\b(student|studying|at (?:uni|college))\b/i.test(t))
+      out.weekIs = "studying";
+    else if (/\bwork(?:ing)? from home|\bwfh\b/i.test(t))
+      out.weekIs = "working_home";
+    else if (/\bon[-\s]?site|in the office\b/i.test(t))
+      out.weekIs = "working_onsite";
+    else if (/\bretired\b/i.test(t)) out.weekIs = "retired";
+    else if (/\bhome with (?:the )?kids\b/i.test(t))
+      out.weekIs = "home_with_kids";
+  }
+
+  if (!out.dressingFor) {
+    if (/\bnot (?:dating|right now)\b/i.test(t)) out.dressingFor = "not_right_now";
+    else if (/\bdating\b/i.test(t)) out.dressingFor = "dating";
+    else if (/\b(married|partner|with someone|in a relationship)\b/i.test(t))
+      out.dressingFor = "with_someone";
+  }
+
+  if (!out.kids) {
+    if (/\bno kids|don'?t have kids|child[- ]?free\b/i.test(t)) out.kids = "none";
+    else if (/\b(toddler|young kids|babies|preschool)\b/i.test(t))
+      out.kids = "young";
+    else if (/\b(teenagers|older kids)\b/i.test(t)) out.kids = "older";
+  }
+
+  if (!out.climate) {
+    const climate = normalizeClimate(t);
+    if (climate) out.climate = climate;
+    else if (/\bhot and humid|\bhumid\b/i.test(t)) out.climate = "hot_humid";
+    else if (/\bhot and dry\b/i.test(t)) out.climate = "hot_dry";
+    else if (/\bfour seasons\b/i.test(t)) out.climate = "four_seasons";
+    else if (/\bmild and wet\b/i.test(t)) out.climate = "mild_wet";
+  }
+
+  if (!out.comfort?.length) {
+    const c: string[] = [];
+    if (/\bno heels\b/i.test(t)) c.push("no heels");
+    if (/\bnothing sleeveless|no sleeveless\b/i.test(t))
+      c.push("nothing sleeveless");
+    if (c.length) out.comfort = c;
   }
 
   if (!out.circleNames?.length) {
@@ -355,6 +424,11 @@ export const fittingTellExtractionSchema = z
     brandLikes: z.array(z.string().min(1).max(60)).max(12).optional(),
     brandAvoids: z.array(z.string().min(1).max(60)).max(12).optional(),
     hardAvoids: z.array(z.string().min(1).max(80)).max(16).optional(),
+    comfort: z.array(z.string().min(1).max(80)).max(16).optional(),
+    weekIs: weekEnum.optional(),
+    dressingFor: dressingEnum.optional(),
+    kids: kidsEnum.optional(),
+    climate: climateEnum.optional(),
     styleLikes: z.array(z.string().min(1).max(60)).max(16).optional(),
     styleAvoids: z.array(z.string().min(1).max(60)).max(16).optional(),
     honestyPreference: honestyEnum.optional(),
@@ -375,7 +449,7 @@ ALWAYS extract every actionable field, even if it doesn't match the current step
 (e.g. brands on the name step, height on spend step, hard nos before the no-list).
 Return ONE JSON object only (no markdown, no prose outside JSON).
 
-FITTING STEPS (order): name → spend → photo → worn looks → wanted looks → brands/nolist → honesty → trusted circle → verdict
+FITTING STEPS (order): photo → name → life → spend → fit (height/build) → worn looks → wanted looks → brands/nolist → honesty → trusted circle → verdict
 
 RULES
 - Only set fields the user actually communicated. Omit unknowns entirely (do not invent).
@@ -396,12 +470,17 @@ RULES
 - brandLikes / brandAvoids: brand names ONLY (Everlane, COS, Nike…) — not style adjectives
   "I love Everlane and Uniqlo" → brandLikes: ["Everlane","Uniqlo"]
 - hardAvoids: hard style bans as short phrase array (e.g. ["logos", "neon", "skinny jeans"])
+- comfort: hard predicates she will not wear (e.g. ["no heels", "nothing sleeveless"])
+- weekIs: studying | working_onsite | working_home | working_mixed | own_thing | home_with_kids | between_things | retired
+- dressingFor: dating | with_someone | not_right_now
+- kids: young | older | none
+- climate: hot_humid | hot_dry | four_seasons | mild_wet | cold
 - styleLikes / styleAvoids: style descriptors (minimal, Parisian, preppy…)
 - honestyPreference: gentle | straight | no_mercy (only if they request feedback tone)
 - circleNames: up to 3 first names of people they ask for style opinions
   ("I ask Maya and Jordan" → ["Maya","Jordan"])
 - summary: warm 1-sentence confirmation. If some facts belong to later steps, say so plainly
-  e.g. "Got it — Alex. Locked Everlane + no logos for brands later. Height noted for photo."
+  e.g. "Got it — Alex. Locked Everlane + no logos for brands later. Height noted for fit."
   If nothing actionable: say so briefly and leave other fields omitted.
 - Never invent size numbers or brands that were not stated.
 - Return numbers as JSON numbers (not strings). Always use arrays for multi-value fields.`;
@@ -447,6 +526,9 @@ export function filledLabels(extraction: FittingTellExtraction): string[] {
   if (extraction.brandLikes?.length) labels.push("brands loved");
   if (extraction.brandAvoids?.length) labels.push("brands avoided");
   if (extraction.hardAvoids?.length) labels.push("no-list");
+  if (extraction.comfort?.length) labels.push("comfort");
+  if (extraction.weekIs || extraction.dressingFor || extraction.kids || extraction.climate)
+    labels.push("life");
   if (extraction.styleLikes?.length || extraction.styleAvoids?.length)
     labels.push("taste");
   if (extraction.honestyPreference) labels.push("honesty");
@@ -468,6 +550,14 @@ export function bucketsFromExtraction(
   ) {
     buckets.push("name");
   }
+  if (
+    extraction.weekIs ||
+    extraction.dressingFor ||
+    extraction.kids ||
+    extraction.climate
+  ) {
+    buckets.push("life");
+  }
   if (extraction.budgetPhilosophies?.length) buckets.push("spend");
   if (
     resolveHeightCm(extraction) != null ||
@@ -477,12 +567,13 @@ export function bucketsFromExtraction(
     extraction.bodyShape ||
     extraction.bustFullness
   ) {
-    buckets.push("photo");
+    buckets.push("fit");
   }
   if (
     extraction.brandLikes?.length ||
     extraction.brandAvoids?.length ||
-    extraction.hardAvoids?.length
+    extraction.hardAvoids?.length ||
+    extraction.comfort?.length
   ) {
     buckets.push("nolist");
   }
@@ -495,9 +586,11 @@ export function bucketsFromExtraction(
 }
 
 const BUCKET_ORDER: FittingTellStep[] = [
-  "name",
-  "spend",
   "photo",
+  "name",
+  "life",
+  "spend",
+  "fit",
   "worn",
   "wanted",
   "nolist",
@@ -508,8 +601,9 @@ const BUCKET_ORDER: FittingTellStep[] = [
 
 const BUCKET_STEP: Record<FittingTellBucket, FittingTellStep> = {
   name: "name",
+  life: "life",
   spend: "spend",
-  photo: "photo",
+  fit: "fit",
   nolist: "nolist",
   honesty: "honesty",
   circle: "circle",
@@ -518,8 +612,9 @@ const BUCKET_STEP: Record<FittingTellBucket, FittingTellStep> = {
 
 const BUCKET_LABEL: Record<FittingTellBucket, string> = {
   name: "who you are",
+  life: "your week",
   spend: "spend",
-  photo: "body & photo",
+  fit: "body & fit",
   nolist: "brands & no-list",
   honesty: "honesty",
   circle: "trusted circle",
@@ -609,12 +704,24 @@ export function buildPatchFromFittingTell(
   if (extraction.honestyPreference) {
     profile.honestyPreference = extraction.honestyPreference;
   }
+  if (extraction.weekIs) profile.weekIs = extraction.weekIs;
+  if (extraction.dressingFor) profile.dressingFor = extraction.dressingFor;
+  if (extraction.kids) profile.kids = extraction.kids;
+  if (extraction.climate) profile.climate = extraction.climate;
+  const lifeTags = lifestyleTagsFromLife({
+    weekIs: extraction.weekIs ?? known.weekIs,
+    kids: extraction.kids ?? known.kids,
+  });
+  if (lifeTags.length) profile.lifestyleTags = lifeTags;
 
   const sizing: NonNullable<OnboardingPatch["sizing"]> = {};
   const heightCm = resolveHeightCm(extraction);
   if (heightCm != null) sizing.heightCm = heightCm;
   if (extraction.weightKg != null) sizing.weightKg = extraction.weightKg;
   if (extraction.build) sizing.bodyType = extraction.build;
+  if (extraction.comfort?.length) {
+    sizing.sensitivities = extraction.comfort.map((c) => c.trim()).filter(Boolean);
+  }
 
   const brands: NonNullable<OnboardingPatch["brands"]> = [];
   for (const brand of extraction.brandLikes ?? []) {
@@ -625,9 +732,24 @@ export function buildPatchFromFittingTell(
   }
 
   const hardNegatives: NonNullable<OnboardingPatch["hardNegatives"]> = [];
+  const comfortSet = new Set(
+    (extraction.comfort ?? []).map((c) => c.trim().toLowerCase()).filter(Boolean),
+  );
   for (const value of extraction.hardAvoids ?? []) {
     const v = value.trim();
-    if (v) hardNegatives.push({ scope: "style", value: v, reason: "taste" });
+    if (!v || comfortSet.has(v.toLowerCase())) continue;
+    hardNegatives.push({ scope: "style", value: v, reason: "taste" });
+  }
+  for (const value of extraction.comfort ?? []) {
+    const v = value.trim();
+    if (v) {
+      hardNegatives.push({
+        scope: "fit",
+        value: v,
+        reason: "other",
+        note: "comfort",
+      });
+    }
   }
 
   const tasteTags: NonNullable<OnboardingPatch["tasteTags"]> = [];
@@ -675,6 +797,11 @@ export function prefillFromFittingTell(
     brandLikes: extraction.brandLikes?.join(", "),
     brandAvoids: extraction.brandAvoids?.join(", "),
     hardAvoids: extraction.hardAvoids?.join(", "),
+    comfort: extraction.comfort?.join(", "),
+    weekIs: extraction.weekIs,
+    dressingFor: extraction.dressingFor,
+    kids: extraction.kids,
+    climate: extraction.climate,
     honestyPreference: extraction.honestyPreference,
     circleNames: extraction.circleNames?.join(", "),
     heightCm,
@@ -712,6 +839,12 @@ export async function extractFittingTell(params: {
     knownLines.push(`brands avoided: ${known.brandAvoids.join(", ")}`);
   if (known.hardAvoids?.length)
     knownLines.push(`no-list: ${known.hardAvoids.join(", ")}`);
+  if (known.comfort?.length)
+    knownLines.push(`comfort: ${known.comfort.join(", ")}`);
+  if (known.weekIs) knownLines.push(`weekIs: ${known.weekIs}`);
+  if (known.dressingFor) knownLines.push(`dressingFor: ${known.dressingFor}`);
+  if (known.kids) knownLines.push(`kids: ${known.kids}`);
+  if (known.climate) knownLines.push(`climate: ${known.climate}`);
   if (known.honestyPreference)
     knownLines.push(`honesty: ${known.honestyPreference}`);
   if (known.circleNames?.length)
@@ -779,6 +912,8 @@ export async function extractFittingTell(params: {
     if (avoids?.length) salvage.brandAvoids = avoids.slice(0, 12);
     const hard = asStringArray(asRec.hardAvoids);
     if (hard?.length) salvage.hardAvoids = hard.slice(0, 16);
+    const comfort = asStringArray(asRec.comfort);
+    if (comfort?.length) salvage.comfort = comfort.slice(0, 16);
     extraction = salvage;
   } else {
     const data = out.data;
@@ -800,6 +935,11 @@ export async function extractFittingTell(params: {
       brandLikes: data.brandLikes,
       brandAvoids: data.brandAvoids,
       hardAvoids: data.hardAvoids,
+      comfort: data.comfort,
+      weekIs: data.weekIs,
+      dressingFor: data.dressingFor,
+      kids: data.kids,
+      climate: data.climate,
       styleLikes: data.styleLikes,
       styleAvoids: data.styleAvoids,
       honestyPreference: data.honestyPreference,

@@ -157,6 +157,9 @@ export async function applyOnboardingPatch(
   if (sizingData && input.sizing?.brandSizingNotes !== undefined) {
     sizingData.brandSizingNotes = (input.sizing.brandSizingNotes ?? []) as InputJsonValue;
   }
+  if (sizingData && input.sizing?.sensitivities !== undefined) {
+    sizingData.sensitivities = input.sizing.sensitivities;
+  }
 
   await prisma.$transaction(
     async (tx) => {

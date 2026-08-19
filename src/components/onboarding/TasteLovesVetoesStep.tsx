@@ -9,6 +9,7 @@ import {
   FittingWhisper,
   OnboardingChip,
 } from "@/components/onboarding/onboarding-ui";
+import { COMFORT_OPTIONS } from "@/lib/onboarding/form-options";
 import {
   suggestBrandAvoids,
   suggestBrandLikes,
@@ -21,9 +22,11 @@ type Props = {
   brandLikes: string[];
   brandAvoids: string[];
   hardAvoids: string[];
+  comfort: string[];
   onChangeBrandLikes: (values: string[]) => void;
   onChangeBrandAvoids: (values: string[]) => void;
   onChangeHardAvoids: (values: string[]) => void;
+  onChangeComfort: (values: string[]) => void;
   onContinue?: () => void;
   busy?: boolean;
 };
@@ -50,9 +53,11 @@ export function TasteLovesVetoesStep({
   brandLikes,
   brandAvoids,
   hardAvoids,
+  comfort,
   onChangeBrandLikes,
   onChangeBrandAvoids,
   onChangeHardAvoids,
+  onChangeComfort,
   onContinue,
   busy,
 }: Props) {
@@ -67,6 +72,9 @@ export function TasteLovesVetoesStep({
   );
   const vetoSuggestionSet = new Set(
     vetoSuggestions.map((v) => v.toLowerCase()),
+  );
+  const comfortOptionSet = new Set(
+    COMFORT_OPTIONS.map((o) => o.value.toLowerCase()),
   );
   const avoidSuggestionSet = new Set(
     avoidBrandSuggestions.map((b) => b.toLowerCase()),
@@ -135,6 +143,42 @@ export function TasteLovesVetoesStep({
           placeholder="+ add a brand"
           onSubmit={(v) => toggleBrandLike(v)}
         />
+      </div>
+
+      <div className="mt-[46px] border-t border-dashed border-[#E4E4EA] pt-7">
+        <FittingQlbl>Comfort lines I won&apos;t cross</FittingQlbl>
+        <p className="mb-2.5 -mt-1.5 text-[11px] font-medium text-[var(--fitting-quiet)]">
+          hard filters... I never score my way around these
+        </p>
+        <div className="flex max-w-[660px] flex-wrap gap-2.5">
+          {COMFORT_OPTIONS.map((opt) => (
+            <OnboardingChip
+              key={opt.value}
+              variant="no"
+              selected={comfort.includes(opt.value)}
+              onClick={() => onChangeComfort(toggle(comfort, opt.value))}
+            >
+              {opt.label}
+            </OnboardingChip>
+          ))}
+          {comfort
+            .filter((v) => !comfortOptionSet.has(v.toLowerCase()))
+            .map((item) => (
+              <OnboardingChip
+                key={item}
+                variant="no"
+                selected
+                onClick={() => onChangeComfort(toggle(comfort, item))}
+              >
+                {item}
+              </OnboardingChip>
+            ))}
+          <FittingAddIn
+            placeholder="+ your own"
+            danger
+            onSubmit={(v) => onChangeComfort(toggle(comfort, v))}
+          />
+        </div>
       </div>
 
       <div className="mt-[46px] border-t border-dashed border-[#E4E4EA] pt-7">

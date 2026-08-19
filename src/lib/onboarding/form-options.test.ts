@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   ageYearsFromBirthDate,
+  lifestyleTagsFromLife,
+  normalizeClimate,
   styleEraFromAge,
   styleEraToAgeRange,
   styleErasForAge,
@@ -53,5 +55,34 @@ describe("ageYearsFromBirthDate", () => {
   it("computes age from ISO date", () => {
     const age = ageYearsFromBirthDate("1990-01-15");
     assert.ok(age != null && age >= 30);
+  });
+});
+
+describe("lifestyleTagsFromLife", () => {
+  it("maps week + kids onto existing world chips", () => {
+    assert.deepEqual(
+      lifestyleTagsFromLife({ weekIs: "studying", kids: "none" }),
+      ["campus_life"],
+    );
+    assert.deepEqual(
+      lifestyleTagsFromLife({
+        weekIs: "working_onsite",
+        kids: "young",
+      }).sort(),
+      ["deep_in_career", "kids_in_the_mix"].sort(),
+    );
+    assert.deepEqual(
+      lifestyleTagsFromLife({ weekIs: "retired", kids: "older" }).sort(),
+      ["kids_in_the_mix", "time_is_mine"].sort(),
+    );
+  });
+});
+
+describe("normalizeClimate", () => {
+  it("accepts quiz ids and spaced aliases", () => {
+    assert.equal(normalizeClimate("hot_humid"), "hot_humid");
+    assert.equal(normalizeClimate("hot humid"), "hot_humid");
+    assert.equal(normalizeClimate("Four seasons"), "four_seasons");
+    assert.equal(normalizeClimate("nope"), "");
   });
 });

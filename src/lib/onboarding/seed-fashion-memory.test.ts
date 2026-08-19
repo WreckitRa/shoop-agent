@@ -65,5 +65,9 @@ describe("classifyHardAvoid", () => {
       kind: "style",
       value: "logo-heavy",
     });
+    assert.deepEqual(classifyHardAvoid("no heels"), {
+      kind: "garment",
+      value: "no heels",
+    });
   });
 });

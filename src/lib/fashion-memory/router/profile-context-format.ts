@@ -4,8 +4,12 @@
  */
 import {
   BUDGET_OPTIONS,
+  CLIMATE_OPTIONS,
+  DRESSING_FOR_OPTIONS,
   HONESTY_OPTIONS,
+  KIDS_OPTIONS,
   STYLE_ERAS,
+  WEEK_IS_OPTIONS,
   WORLD_OPTIONS,
 } from "@/lib/onboarding/form-options";
 import type {
@@ -60,6 +64,14 @@ export function inferOccasionFamilyHint(text: string | undefined): string | null
     if (row.keywords.test(text)) return row.family;
   }
   return null;
+}
+
+function optionLabel(
+  options: readonly { value: string; label: string }[],
+  raw: string | undefined,
+): string | null {
+  if (!raw?.trim()) return null;
+  return options.find((o) => o.value === raw)?.label.toLowerCase() ?? null;
 }
 
 function lifestyleLabel(tag: string): string {
@@ -154,6 +166,10 @@ export type OnboardingMetaFromBodyNote = {
   value_philosophy?: string;
   honesty_preference?: string;
   compliment_preferences?: string[];
+  week_is?: string;
+  dressing_for?: string;
+  kids?: string;
+  climate?: string;
 };
 
 export function parseOnboardingMetaFromFacts(
@@ -187,6 +203,11 @@ export function parseOnboardingMetaFromFacts(
     compliment_preferences: Array.isArray(value.compliment_preferences)
       ? (value.compliment_preferences as string[])
       : undefined,
+    week_is: typeof value.week_is === "string" ? value.week_is : undefined,
+    dressing_for:
+      typeof value.dressing_for === "string" ? value.dressing_for : undefined,
+    kids: typeof value.kids === "string" ? value.kids : undefined,
+    climate: typeof value.climate === "string" ? value.climate : undefined,
   };
 }
 
@@ -214,6 +235,15 @@ export function composeContextLine(meta: OnboardingMetaFromBodyNote): string | n
   for (const tag of meta.lifestyle_tags ?? []) {
     parts.push(lifestyleLabel(tag));
   }
+
+  const week = optionLabel(WEEK_IS_OPTIONS, meta.week_is);
+  if (week && !parts.some((p) => p.includes(week))) parts.push(week);
+  const dating = optionLabel(DRESSING_FOR_OPTIONS, meta.dressing_for);
+  if (dating) parts.push(dating);
+  const kids = optionLabel(KIDS_OPTIONS, meta.kids);
+  if (kids && kids !== "no kids") parts.push(kids);
+  const climate = optionLabel(CLIMATE_OPTIONS, meta.climate);
+  if (climate) parts.push(climate);
 
   if (meta.value_philosophy) {
     const vp = valuePhilosophyLabel(meta.value_philosophy);

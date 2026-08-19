@@ -30,6 +30,7 @@ describe("buildPatchFromTastePicks", () => {
       brandLikes: ["COS", "Zara"],
       brandAvoids: ["FastBrand"],
       hardAvoids: ["loud logos", "neon"],
+      comfort: ["no heels"],
       compliments: ["Polished", "Expensive"],
       honestyPreference: "straight",
       valuePhilosophy: "premium",
@@ -42,7 +43,13 @@ describe("buildPatchFromTastePicks", () => {
       patch.brands?.map((b) => b.brand).sort(),
       ["COS", "FastBrand", "Zara"],
     );
-    assert.equal(patch.hardNegatives?.length, 2);
+    assert.equal(patch.hardNegatives?.length, 3);
+    assert.ok(
+      patch.hardNegatives?.some(
+        (h) => h.note === "comfort" && h.value === "no heels",
+      ),
+    );
+    assert.deepEqual(patch.sizing?.sensitivities, ["no heels"]);
     assert.equal(patch.profile?.honestyPreference, "straight");
     assert.equal(patch.profile?.valuePhilosophy, "premium");
     assert.ok(patch.profile?.styleMix);

@@ -436,6 +436,13 @@ model UserProfile {
   workEnvironment String?
   lifestyleTags   String[] @default([])
 
+  /// Quiz life-context: studying | working_onsite | working_home | working_mixed | own_thing | home_with_kids | between_things | retired
+  weekIs String?
+  /// dating | with_someone | not_right_now
+  dressingFor String?
+  /// young | older | none
+  kids String?
+
   valuePhilosophy  String?
   decisionStyle    String?
   riskTolerance    String?
@@ -1199,5 +1206,29 @@ model LookAskNote {
 
   @@index([shareId, createdAt])
   @@map("look_ask_notes")
+  @@schema("public")
+}
+
+/// Isolated photo bakeoff (spec vs GPT). Display only — never consumed by search.
+model PhotoAnalysis {
+  id            String   @id @default(cuid())
+  userId        String
+  photoHash     String
+  status        String   @default("running")
+  specStatus    String   @default("pending")
+  gptStatus     String   @default("pending")
+  specResult    Json?
+  gptResult     Json?
+  specError     String?
+  gptError      String?
+  specMs        Int?
+  gptMs         Int?
+  gptModel      String?
+  engineVersion String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, photoHash])
+  @@index([userId, createdAt(sort: Desc)])
   @@schema("public")
 }
