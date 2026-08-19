@@ -282,7 +282,8 @@ describe("personalized_clarification_options", () => {
 describe("voice_context_threads", () => {
   it("maps honesty modes and omits philosophy for gift recipient semantics", () => {
     assert.equal(mapHonestyToVoice("no_mercy"), "blunt");
-    assert.equal(mapHonestyToVoice("gentle"), "gentle");
+    assert.equal(mapHonestyToVoice("gentle"), "balanced");
+    assert.equal(mapHonestyToVoice("straight"), "balanced");
     const blunt = voiceToneAppendix({ honesty: "blunt" });
     const gentle = voiceToneAppendix({ honesty: "gentle" });
     assert.ok(blunt.includes("BLUNT"));

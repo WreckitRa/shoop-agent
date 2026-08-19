@@ -16,7 +16,7 @@ import {
   mapHonestyToVoice,
   honestyToneLine,
 } from "@/lib/fashion-memory/router/profile-context-format";
-import { HONESTY_OPTIONS } from "@/lib/onboarding/form-options";
+import { HONESTY_OPTIONS, normalizeHonestyPreference } from "@/lib/onboarding/form-options";
 import { getOnboardingStatus } from "@/lib/onboarding/status";
 import {
   resolveLookScanMode,
@@ -59,7 +59,7 @@ const FALLBACK_WHISPERS = [
 ] as const;
 
 function honestyQuote(honesty: string | null | undefined): string {
-  const v = honesty?.trim().toLowerCase();
+  const v = normalizeHonestyPreference(honesty);
   const opt = HONESTY_OPTIONS.find((o) => o.value === v);
   return opt?.quote ?? "Talk like a sharp personal stylist.";
 }
@@ -192,7 +192,7 @@ Field rules (required — never omit):
 - checks.fit / checks.palette / checks.nolist: each exactly "pass", "caution", or "fail"
 - vote: exactly one of "love" | "almost" | "meh" | "no" — MUST match the headline/body. If you say buy / get it / love it → "love". If you say wait / fix / almost → "almost". If shrug / meh / mid → "meh". If hard pass / skip / veto → "no". Never contradict yourself (e.g. title says Buy but vote is meh).
 
-Match the shopper's honesty preference (gentle / straight / no-mercy). Be specific to THIS photo and THESE pieces. Honor hard no-list and taste vetoes. Never invent review counts or prices you weren't given. The verdict is what Shoop thinks — not a guess at what the shopper would say.`;
+Match the shopper's honesty preference (straight / no-mercy). Be specific to THIS photo and THESE pieces. Honor hard no-list and taste vetoes. Never invent review counts or prices you weren't given. The verdict is what Shoop thinks — not a guess at what the shopper would say.`;
 }
 
 function asTrimmedString(v: unknown): string | undefined {

@@ -11,8 +11,8 @@ export type FittingStep =
 
 export const FITTING_STEPS: FittingStep[] = [
   "name",
-  "spend",
   "photo",
+  "spend",
   "worn",
   "wanted",
   "nolist",
@@ -24,8 +24,8 @@ export const FITTING_STEPS: FittingStep[] = [
 /** Question steps only (excludes verdict). */
 export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
   "name",
-  "spend",
   "photo",
+  "spend",
   "worn",
   "wanted",
   "nolist",
@@ -36,8 +36,8 @@ export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
 export const STITCH_KNOTS = [
   { id: "name", label: "Name", top: "3%" },
   { id: "era", label: "Era", top: "14%" },
-  { id: "spend", label: "Spend", top: "25%" },
-  { id: "photo", label: "Photo", top: "36%" },
+  { id: "photo", label: "Photo", top: "25%" },
+  { id: "spend", label: "Spend", top: "36%" },
   { id: "worn", label: "Worn", top: "47%" },
   { id: "wanted", label: "Wanted", top: "58%" },
   { id: "nolist", label: "No-list", top: "69%" },
@@ -67,23 +67,23 @@ export const STEP_META: Record<
   name: {
     n: 1,
     stage: "Getting to know you",
-    flashCover: "Money stuff...<br><em>quick and painless.</em>",
-    flashNext: "next up... how you spend",
+    flashCover: "Best for last?<br>No... <em>the body next.</em>",
+    flashNext: "next up... your photo",
     loadingDetail: "Saving your name and era…",
   },
-  spend: {
+  photo: {
     n: 2,
     stage: "Getting to know you",
-    flashCover: "Best for last?<br>No... <em>best in the middle.</em>",
-    flashNext: "next up... your photo",
-    loadingDetail: "Saving how you like to spend…",
+    flashCover: "Money stuff...<br><em>quick and painless.</em>",
+    flashNext: "next up... how you spend",
+    loadingDetail: "Saving fit stats… starting your twin if a photo is ready…",
   },
-  photo: {
+  spend: {
     n: 3,
     stage: "Getting to know you",
     flashCover: "Now the real you...<br><em>hoodie included.</em>",
     flashNext: "next up... what you actually wore",
-    loadingDetail: "Saving fit stats… starting your twin if a photo is ready…",
+    loadingDetail: "Saving how you like to spend…",
   },
   worn: {
     n: 4,
@@ -127,9 +127,9 @@ export function knotNowIndex(step: FittingStep): number {
   switch (step) {
     case "name":
       return 0;
-    case "spend":
-      return 2;
     case "photo":
+      return 2;
+    case "spend":
       return 3;
     case "worn":
       return 4;
@@ -151,9 +151,9 @@ export function sewnThroughIndex(step: FittingStep): number {
   switch (step) {
     case "name":
       return -1;
-    case "spend":
-      return 0;
     case "photo":
+      return 1;
+    case "spend":
       return 2;
     case "worn":
       return 3;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   ageYearsFromBirthDate,
+  normalizeHonestyPreference,
   styleEraFromAge,
   styleEraToAgeRange,
   styleErasForAge,
@@ -53,5 +54,14 @@ describe("ageYearsFromBirthDate", () => {
   it("computes age from ISO date", () => {
     const age = ageYearsFromBirthDate("1990-01-15");
     assert.ok(age != null && age >= 30);
+  });
+});
+
+describe("normalizeHonestyPreference", () => {
+  it("maps legacy gentle onto straight and keeps two live tones", () => {
+    assert.equal(normalizeHonestyPreference("gentle"), "straight");
+    assert.equal(normalizeHonestyPreference("straight"), "straight");
+    assert.equal(normalizeHonestyPreference("no_mercy"), "no_mercy");
+    assert.equal(normalizeHonestyPreference(""), "");
   });
 });

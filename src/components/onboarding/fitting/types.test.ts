@@ -11,12 +11,26 @@ import {
 import { backfillFittingTellFromText } from "@/lib/onboarding/fitting-tell";
 
 describe("fitting circle step model", () => {
+  it("places photo immediately after name, then spend", () => {
+    assert.deepEqual(FITTING_Q_STEPS.slice(0, 3), ["name", "photo", "spend"]);
+    assert.equal(FITTING_STEPS[1], "photo");
+    assert.equal(FITTING_STEPS[2], "spend");
+  });
+
   it("places circle between honesty and verdict", () => {
     assert.deepEqual(FITTING_Q_STEPS.slice(-2), ["honesty", "circle"]);
     assert.equal(FITTING_STEPS.at(-2), "circle");
     assert.equal(FITTING_STEPS.at(-1), "verdict");
     assert.ok(STITCH_KNOTS.some((k) => k.id === "circle"));
     assert.equal(STITCH_KNOTS.at(-1)?.id, "mint");
+  });
+
+  it("maps photo before spend on the stitch", () => {
+    assert.equal(knotNowIndex("name"), 0);
+    assert.equal(knotNowIndex("photo"), 2);
+    assert.equal(knotNowIndex("spend"), 3);
+    assert.equal(sewnThroughIndex("photo"), 1);
+    assert.equal(sewnThroughIndex("spend"), 2);
   });
 
   it("maps honesty/circle to the Circle knot and verdict to mint", () => {

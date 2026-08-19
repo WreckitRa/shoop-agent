@@ -12,7 +12,7 @@ export {
   resolveMirrorEntry,
 } from "@/components/tryon/mirror-entry";
 
-/** Mirror chrome: stay on this page; guests get signup in the Mirror column. */
+/** Mirror chrome: stay on this page; guests without a twin start onboarding. */
 export function requestMirror() {
   const fitting = useInlineFittingStore.getState();
   if (fitting.onboardingActive) {
@@ -29,6 +29,10 @@ export function requestMirror() {
     hasRackOrActive: tryon.activeIds.length > 0 || tryon.rackIds.length > 0,
   });
 
+  if (entry === "onboarding") {
+    fitting.openColumn();
+    return;
+  }
   if (entry === "signup") {
     openAuthModal("signup");
     return;

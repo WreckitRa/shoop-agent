@@ -3,6 +3,7 @@
 import {
   GENDER_OPTIONS,
   STYLE_ERAS,
+  WORLD_OPTIONS,
   ageYearsFromBirthDate,
   isAtLeastAge,
   maxBirthDateIso,
@@ -207,6 +208,26 @@ export function YouIdentityStep({
             }
           >
             {ERA_SHORT[era.value] ?? era.label}
+          </OnboardingChip>
+        ))}
+      </div>
+
+      <FittingQlbl hint="optional... helps me pull the right racks">
+        What&apos;s your world right now?
+      </FittingQlbl>
+      <div className="flex max-w-[620px] flex-wrap gap-2.5">
+        {WORLD_OPTIONS.map((opt) => (
+          <OnboardingChip
+            key={opt.value}
+            selected={values.lifestyleTags.includes(opt.value)}
+            onClick={() =>
+              onChange(
+                "lifestyleTags",
+                toggleInList(values.lifestyleTags, opt.value),
+              )
+            }
+          >
+            {opt.label}
           </OnboardingChip>
         ))}
       </div>

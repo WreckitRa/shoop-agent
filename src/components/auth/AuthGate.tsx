@@ -1,13 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
-import { FittingMirror } from "@/components/onboarding/fitting/FittingMirror";
-import { EMPTY_MIRROR } from "@/components/onboarding/fitting/types";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
-import { useInlineFittingSlots } from "@/components/onboarding/useInlineFittingSlot";
 import { GuestLeavePrompt } from "@/components/auth/GuestLeavePrompt";
 import { ShoopLogo } from "@/components/brand/ShoopBrand";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
@@ -89,8 +85,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     showAuthModal && guestActive,
   );
   const askGuestBootRef = useRef(false);
-  const fittingColumnOpen = useInlineFittingStore((s) => s.columnOpen);
-  const { questions: inlineSlot, card: cardSlot } = useInlineFittingSlots();
 
   const refreshGuest = useCallback(() => {
     setGuestActive(isGuestSessionActive());
@@ -202,18 +196,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, [refresh, refreshGuest]);
 
-  const prevColumnOpen = useRef(fittingColumnOpen);
-  useLayoutEffect(() => {
-    if (prevColumnOpen.current && !fittingColumnOpen) {
-      setShowAuthModal(false);
-      setLoginDataLossAcknowledged(false);
-    }
-    prevColumnOpen.current = fittingColumnOpen;
-  }, [fittingColumnOpen]);
-
-  // Public Ask-your-friends pages: silent guest — never block on auth modal.
+  // Logged-out visitors land in guest mode — auth modal only via Sign in.
   useEffect(() => {
-    if (!isAskPage || user || guestActive || loading) return;
+    if (user || guestActive || loading) return;
     if (askGuestBootRef.current) return;
     askGuestBootRef.current = true;
     useAppSessionStore.getState().setGuest();
@@ -221,7 +206,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setGuestActive(true);
       setError(null);
     });
-  }, [isAskPage, user, guestActive, loading]);
+  }, [user, guestActive, loading]);
 
   function handleContinueAsGuest() {
     leaveConversationRoute();
@@ -362,7 +347,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (guestActive) {
     const authForm = showAuthModal ? (
       <AuthModal
-        layout={inlineSlot ? "column" : "overlay"}
+        layout="overlay"
         mode={mode}
         onModeChange={handleAuthModeChange}
         email={email}
@@ -394,25 +379,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         {children}
+        {!isAskPage ? <OnboardingGate /> : null}
         {!isAskPage ? <GuestLeavePrompt /> : null}
-        {authForm && inlineSlot
-          ? createPortal(authForm, inlineSlot)
-          : authForm ? (
-              <AuthOverlay
-                onDismiss={() => {
-                  setShowAuthModal(false);
-                  setLoginDataLossAcknowledged(false);
-                }}
-              >
-                {authForm}
-              </AuthOverlay>
-            ) : null}
-        {authForm && cardSlot
-          ? createPortal(
-              <FittingMirror layout="column" mirror={EMPTY_MIRROR} />,
-              cardSlot,
-            )
-          : null}
+        {authForm ? (
+          <AuthOverlay
+            onDismiss={() => {
+              setShowAuthModal(false);
+              setLoginDataLossAcknowledged(false);
+            }}
+          >
+            {authForm}
+          </AuthOverlay>
+        ) : null}
       </>
     );
   }
@@ -422,31 +400,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthOverlay>
-      <AuthModal
-        mode={mode}
-        onModeChange={setMode}
-        email={email}
-        password={password}
-        onEmailChange={setEmail}
-        onPasswordChange={setPassword}
-        error={error}
-        busy={busy}
-        onSubmit={submit}
-        showGuestCta
-        onContinueAsGuest={handleContinueAsGuest}
-        pendingEmail={pendingEmail}
-        verifyCode={verifyCode}
-        onVerifyCodeChange={setVerifyCode}
-        onVerify={submitVerification}
-        onResendVerification={() => void resendVerification()}
-        onChangeEmail={() => {
-          setPendingEmail(null);
-          setVerifyCode("");
-          setError(null);
-        }}
-      />
-    </AuthOverlay>
+    <AuthShell>
+      <p className="text-sm font-semibold text-[var(--fitting-quiet)]">
+        Loading…
+      </p>
+    </AuthShell>
   );
 }
 

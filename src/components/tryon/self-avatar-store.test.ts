@@ -51,14 +51,14 @@ describe("resolveTryonCta", () => {
 });
 
 describe("resolveMirrorEntry", () => {
-  it("sends guests to signup even when the rack has items", () => {
+  it("sends guests without a twin into onboarding", () => {
     assert.equal(
       resolveMirrorEntry({
         accessMode: "guest",
         avatarReady: false,
         hasRackOrActive: true,
       }),
-      "signup",
+      "onboarding",
     );
   });
 

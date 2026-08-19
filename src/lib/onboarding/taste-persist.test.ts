@@ -50,4 +50,11 @@ describe("buildPatchFromTastePicks", () => {
     const axisLabels = patch.profile?.styleMix?.axes.map((a) => a.label) ?? [];
     assert.ok(axisLabels.includes("Sporty") || axisLabels.includes("Minimal"));
   });
+
+  it("maps legacy gentle honesty onto straight", () => {
+    const patch = buildPatchFromTastePicks({
+      honestyPreference: "gentle",
+    });
+    assert.equal(patch.profile?.honestyPreference, "straight");
+  });
 });

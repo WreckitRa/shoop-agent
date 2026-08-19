@@ -130,8 +130,9 @@ export function honestyToneLine(
 ): string | null {
   if (!honesty?.trim()) return null;
   const v = honesty.trim().toLowerCase();
-  if (v === "gentle") return `tone: honesty soft ("nudge kindly")`;
-  if (v === "straight") return `tone: honesty balanced ("tell me straight")`;
+  if (v === "gentle" || v === "straight") {
+    return `tone: honesty balanced ("tell me straight")`;
+  }
   if (v === "no_mercy") return `tone: honesty high ("full stylist mode")`;
   const opt = HONESTY_OPTIONS.find((o) => o.value === v);
   return opt ? `tone: honesty ${opt.label.toLowerCase()}` : `tone: honesty ${v}`;
@@ -141,8 +142,7 @@ export function mapHonestyToVoice(
   honesty: string | null | undefined,
 ): "gentle" | "balanced" | "blunt" | undefined {
   const v = honesty?.trim().toLowerCase();
-  if (v === "gentle") return "gentle";
-  if (v === "straight") return "balanced";
+  if (v === "gentle" || v === "straight") return "balanced";
   if (v === "no_mercy") return "blunt";
   return undefined;
 }

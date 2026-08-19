@@ -90,12 +90,11 @@ const BUST: { label: string; value: BustFullnessBand }[] = [
   { label: "Very full", value: "very_full" },
 ];
 
-/** Digit width for mono-ish numbers; pad so "4" / "175" never clip. */
+/** Digit width for tabular numbers; pad so "4" / "175" never clip. */
 function digitWidth(val: string | number, minDigits = 1) {
   const s = String(val === "" || val == null ? "0" : val);
   const digits = Math.max(minDigits, s.length);
-  // ~0.65em per digit in Archivo extrabold + padding breathing room
-  return `${Math.max(1.6, digits * 0.72 + 0.4)}em`;
+  return `${digits + 1}ch`;
 }
 
 function UnitSeg({
@@ -165,7 +164,7 @@ function NumBox({
   }
 
   return (
-    <span className="inline-flex h-[46px] items-center rounded-xl border border-[#D6D6DE] bg-white">
+    <span className="inline-flex h-[52px] items-center overflow-visible rounded-xl border border-[#D6D6DE] bg-white">
       <input
         type="text"
         inputMode="numeric"
@@ -203,7 +202,7 @@ function NumBox({
           commitClamp(n);
         }}
         style={{ width: digitWidth(display || placeholder || "0", minDigits) }}
-        className="min-w-[1.6em] border-0 bg-transparent py-2.5 pl-3.5 font-display text-[17px] font-extrabold tabular-nums text-[var(--fitting-ink)] outline-none placeholder:text-[#D9D9DE]"
+        className="min-w-[2.75em] border-0 bg-transparent py-2 pl-3.5 font-display text-[22px] font-extrabold leading-none tabular-nums text-[var(--fitting-ink)] outline-none placeholder:text-[#D9D9DE]"
       />
       <b className="shrink-0 pl-1 pr-2 text-[10.5px] font-bold uppercase tracking-[0.04em] text-[#B7B7BF]">
         {unit}
@@ -367,14 +366,6 @@ export function FittingPhotoStep({
 
       <FittingQlbl>How tall are you?</FittingQlbl>
       <div className="flex flex-wrap items-center gap-3">
-        <UnitSeg
-          value={values.heightUnit}
-          onChange={(id) => setHeightUnit(id as "ft" | "cm")}
-          options={[
-            { id: "ft", label: "ft / in" },
-            { id: "cm", label: "cm" },
-          ]}
-        />
         {values.heightUnit === "ft" ? (
           <div className="flex flex-wrap gap-2.5">
             <NumBox
@@ -404,6 +395,14 @@ export function FittingPhotoStep({
             onChange={(n) => onChange("heightCm", n ?? 175)}
           />
         )}
+        <UnitSeg
+          value={values.heightUnit}
+          onChange={(id) => setHeightUnit(id as "ft" | "cm")}
+          options={[
+            { id: "ft", label: "ft / in" },
+            { id: "cm", label: "cm" },
+          ]}
+        />
       </div>
       <OnboardingWhy>
         type it... and watch the card, the figure grows with you
@@ -413,14 +412,6 @@ export function FittingPhotoStep({
         And your weight?
       </FittingQlbl>
       <div className="flex flex-wrap items-center gap-3">
-        <UnitSeg
-          value={values.weightUnit}
-          onChange={(id) => setWeightUnit(id as "lb" | "kg")}
-          options={[
-            { id: "lb", label: "lb" },
-            { id: "kg", label: "kg" },
-          ]}
-        />
         <NumBox
           unit={values.weightUnit}
           value={values.weightSkipped ? null : values.weightValue}
@@ -432,6 +423,14 @@ export function FittingPhotoStep({
             onChange("weightSkipped", false);
             onChange("weightValue", n);
           }}
+        />
+        <UnitSeg
+          value={values.weightUnit}
+          onChange={(id) => setWeightUnit(id as "lb" | "kg")}
+          options={[
+            { id: "lb", label: "lb" },
+            { id: "kg", label: "kg" },
+          ]}
         />
         <OnboardingChip
           selected={values.weightSkipped}

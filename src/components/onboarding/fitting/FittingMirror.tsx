@@ -233,6 +233,11 @@ export function FittingMirror({
       )[mirror.build]
     : 1;
 
+  const legHalf =
+    (mirror.form === "m" ? 16 : mirror.form === "f" ? 14 : 15) *
+    (mirror.build === "plus" ? 1.18 : mirror.build === "slim" ? 0.88 : 1);
+  const armOut = (mirror.form === "m" ? 44 : 38) * scaleX;
+
   const onMove = useCallback((e: React.MouseEvent) => {
     const el = printRef.current;
     if (!el) return;
@@ -418,21 +423,31 @@ export function FittingMirror({
                     fill="url(#formSheen)"
                     style={{ transition: "d 0.65s ease-out" }}
                   />
-                  <rect
-                    x="58"
-                    y="176"
-                    width="4"
-                    height="26"
-                    rx="2"
-                    fill="#C7C7CF"
+                  <path
+                    d={`M ${60 - 22} 52 C ${60 - armOut} 70 ${60 - armOut + 2} 92 ${60 - armOut + 6} 108`}
+                    fill="none"
+                    stroke="#C7C7CF"
+                    strokeWidth="11"
+                    strokeLinecap="round"
+                    style={{ transition: "d 0.65s ease-out" }}
                   />
-                  <rect
-                    x="36"
-                    y="202"
-                    width="48"
-                    height="7"
-                    rx="3.5"
+                  <path
+                    d={`M ${60 + 22} 52 C ${60 + armOut} 70 ${60 + armOut - 2} 92 ${60 + armOut - 6} 108`}
+                    fill="none"
+                    stroke="#C7C7CF"
+                    strokeWidth="11"
+                    strokeLinecap="round"
+                    style={{ transition: "d 0.65s ease-out" }}
+                  />
+                  <path
+                    d={`M ${60 - legHalf * 0.55} 174 C ${60 - legHalf * 0.5} 188 ${60 - legHalf * 0.45} 200 ${60 - legHalf * 0.4} 214 L ${60 - 6} 214 C ${60 - 8} 200 ${60 - 10} 188 ${60 - 8} 174 Z`}
                     fill="#C7C7CF"
+                    style={{ transition: "d 0.65s ease-out" }}
+                  />
+                  <path
+                    d={`M ${60 + 8} 174 C ${60 + 10} 188 ${60 + 8} 200 ${60 + 6} 214 L ${60 + legHalf * 0.4} 214 C ${60 + legHalf * 0.45} 200 ${60 + legHalf * 0.5} 188 ${60 + legHalf * 0.55} 174 Z`}
+                    fill="#C7C7CF"
+                    style={{ transition: "d 0.65s ease-out" }}
                   />
                 </svg>
               </div>

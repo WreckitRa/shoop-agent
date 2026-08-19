@@ -2,12 +2,13 @@ import type { AppAccessMode } from "@/lib/client/app-session";
 
 export type MirrorEntry =
   | "signup"
+  | "onboarding"
   | "create_avatar"
   | "fitting_room"
   | "avatar_viewer";
 
 export function accessNeedsAccountForMirror(mode: AppAccessMode): boolean {
-  return mode === "guest" || mode === "anonymous";
+  return mode === "anonymous";
 }
 
 export function guestFittingCtaLabel(
@@ -23,8 +24,10 @@ export function resolveMirrorEntry(params: {
   avatarReady: boolean;
   hasRackOrActive: boolean;
 }): MirrorEntry {
-  if (accessNeedsAccountForMirror(params.accessMode)) return "signup";
-  if (!params.avatarReady) return "create_avatar";
+  if (params.accessMode === "anonymous") return "signup";
+  if (!params.avatarReady) {
+    return params.accessMode === "guest" ? "onboarding" : "create_avatar";
+  }
   if (params.hasRackOrActive) return "fitting_room";
   return "avatar_viewer";
 }
