@@ -1,5 +1,6 @@
 import { normalizeTasteTag } from "@/lib/onboarding/taste-tags";
 import { computeStyleMix } from "@/lib/onboarding/style-mix";
+import { normalizeHonestyPreference } from "@/lib/onboarding/form-options";
 import type { onboardingPatchSchema } from "@/lib/onboarding/status";
 import type { z } from "zod";
 
@@ -130,7 +131,8 @@ export function buildPatchFromTastePicks(input: {
     complimentPreferences: (input.compliments ?? []).slice(0, 4),
   };
   if (input.honestyPreference?.trim()) {
-    profile.honestyPreference = input.honestyPreference.trim();
+    const honesty = normalizeHonestyPreference(input.honestyPreference);
+    if (honesty) profile.honestyPreference = honesty;
   }
   if (input.valuePhilosophy?.trim()) {
     profile.valuePhilosophy = input.valuePhilosophy.trim();

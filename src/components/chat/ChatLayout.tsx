@@ -205,7 +205,7 @@ export const ChatLayout = memo(function ChatLayout() {
                       className={cn(
                         "grid min-h-0 flex-1 grid-cols-1",
                         fittingColumnOpen
-                          ? "grid-rows-[minmax(0,0.7fr)_minmax(0,1.1fr)_minmax(200px,0.9fr)] gap-2.5 p-2.5 lg:grid-rows-1 lg:grid-cols-[2fr_2fr_1fr]"
+                          ? "grid-rows-[minmax(0,0.7fr)_minmax(180px,0.5fr)_minmax(0,1.1fr)] gap-2.5 p-2.5 lg:grid-rows-1 lg:grid-cols-[2fr_1fr_2fr]"
                           : "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
                       )}
                     >
@@ -218,6 +218,18 @@ export const ChatLayout = memo(function ChatLayout() {
                       >
                         {thread}
                       </div>
+
+                      <aside
+                        className={cn(
+                          "min-h-0 flex-col overflow-hidden",
+                          fittingColumnOpen ? "flex" : "hidden",
+                        )}
+                      >
+                        <div
+                          id={INLINE_FITTING_CARD_SLOT_ID}
+                          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                        />
+                      </aside>
 
                       <section
                         className={cn(
@@ -242,18 +254,6 @@ export const ChatLayout = memo(function ChatLayout() {
                           className="flex min-h-0 flex-1 flex-col overflow-hidden"
                         />
                       </section>
-
-                      <aside
-                        className={cn(
-                          "min-h-0 flex-col overflow-hidden",
-                          fittingColumnOpen ? "flex" : "hidden",
-                        )}
-                      >
-                        <div
-                          id={INLINE_FITTING_CARD_SLOT_ID}
-                          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                        />
-                      </aside>
 
                       {fittingColumnOpen ? null : (
                         <aside className="hidden min-h-0 py-7 lg:flex lg:flex-col">

@@ -151,15 +151,10 @@ export function isComfortConstraint(raw: string | null | undefined): boolean {
 
 export const HONESTY_OPTIONS = [
   {
-    value: "gentle",
-    label: "Gentle",
-    quote: "Nudge me kindly. Wrap the truth in something soft.",
-  },
-  {
     value: "straight",
     label: "Straight with me",
     quote:
-      "Talk to me like a good friend. If it doesn't work on me, say so... and show me what does.",
+      "Talk to me like a good friend. Nudge me when you need to — if it doesn't work on me, say so... and show me what does.",
   },
   {
     value: "no_mercy",
@@ -168,6 +163,31 @@ export const HONESTY_OPTIONS = [
       "Full stylist mode. Tell me exactly what works, what doesn't, and why. I can take it.",
   },
 ] as const;
+
+export type HonestyPreference = (typeof HONESTY_OPTIONS)[number]["value"];
+
+/** Map UI + legacy stored values (`gentle`) onto the two live tones. */
+export function normalizeHonestyPreference(
+  value: string | null | undefined,
+): HonestyPreference | "" {
+  const v = value?.trim().toLowerCase().replace(/\s+/g, "_") ?? "";
+  if (!v) return "";
+  if (v === "no_mercy" || v.includes("mercy") || v.includes("brutal")) {
+    return "no_mercy";
+  }
+  if (
+    v === "straight" ||
+    v === "gentle" ||
+    v.includes("soft") ||
+    v.includes("kind") ||
+    v.includes("friend") ||
+    v.includes("direct") ||
+    v.includes("honest")
+  ) {
+    return "straight";
+  }
+  return "";
+}
 
 export const CURRENCY_OPTIONS = [
   { value: "USD", label: "USD — US Dollar" },

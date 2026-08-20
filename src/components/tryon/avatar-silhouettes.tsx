@@ -1,5 +1,39 @@
 /** SVG silhouette figures for avatar intake pickers — visual language only, never cm. */
 
+/** Standing figure for empty Mirror / start-fitting CTA. */
+export function FormingSilhouette() {
+  return (
+    <svg
+      viewBox="0 0 80 168"
+      className="h-[132px] w-[64px] text-ink"
+      aria-hidden
+    >
+      <ellipse cx="40" cy="16" rx="11" ry="12.5" fill="currentColor" opacity="0.32" />
+      <path
+        d="M40 29 C33 29 30 34 30 39 C24 42 18 50 19 62 C20 74 22 86 24 98 C26 112 30 124 33 146 C34 154 36 158 40 158 C44 158 46 154 47 146 C50 124 54 112 56 98 C58 86 60 74 61 62 C62 50 56 42 50 39 C50 34 47 29 40 29 Z"
+        fill="currentColor"
+        opacity="0.42"
+      />
+      <path
+        d="M28 48 C16 58 13 76 16 92"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        opacity="0.34"
+      />
+      <path
+        d="M52 48 C64 58 67 76 64 92"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        opacity="0.34"
+      />
+    </svg>
+  );
+}
+
 export function BuildSilhouette({ width }: { width: number }) {
   const torso = width;
   const head = 8;

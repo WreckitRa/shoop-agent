@@ -187,8 +187,7 @@ export function backfillFittingTellFromText(
   if (out.honestyPreference == null) {
     if (/\bno[-\s]?mercy|don'?t sugarcoat|brutal|harsh\b/i.test(t))
       out.honestyPreference = "no_mercy";
-    else if (/\bgentle|soft nudge/i.test(t)) out.honestyPreference = "gentle";
-    else if (/\bstraight with me|be (straight|direct|honest)\b/i.test(t))
+    else if (/\bgentle|soft nudge|straight with me|be (straight|direct|honest)\b/i.test(t))
       out.honestyPreference = "straight";
   }
 
@@ -292,9 +291,14 @@ export function normalizeFittingTellRaw(raw: unknown): unknown {
     const h = o.honestyPreference.trim().toLowerCase().replace(/\s+/g, "_");
     if (h.includes("mercy") || h.includes("brutal") || h.includes("harsh")) {
       o.honestyPreference = "no_mercy";
-    } else if (h.includes("gentle") || h.includes("soft") || h.includes("kind")) {
-      o.honestyPreference = "gentle";
-    } else if (h.includes("straight") || h.includes("honest") || h.includes("direct")) {
+    } else if (
+      h.includes("gentle") ||
+      h.includes("soft") ||
+      h.includes("kind") ||
+      h.includes("straight") ||
+      h.includes("honest") ||
+      h.includes("direct")
+    ) {
       o.honestyPreference = "straight";
     } else if (!(HONESTY_OPTIONS as readonly { value: string }[]).some((x) => x.value === h)) {
       delete o.honestyPreference;
@@ -446,7 +450,7 @@ type OnboardingPatch = z.infer<typeof onboardingPatchSchema>;
 const SYSTEM = `You parse free-text messages written during Shoop "The Fitting" onboarding.
 The user is talking to a stylist beside a multi-step form. They may mention facts for LATER steps while still on an EARLY step.
 ALWAYS extract every actionable field, even if it doesn't match the current step
-(e.g. brands on the name step, height on spend step, hard nos before the no-list).
+(e.g. brands on the name step, height on the photo step, hard nos before the no-list).
 Return ONE JSON object only (no markdown, no prose outside JSON).
 
 FITTING STEPS (order): photo → name → life → spend → fit (height/build) → worn looks → wanted looks → brands/nolist → honesty → trusted circle → verdict
@@ -476,7 +480,7 @@ RULES
 - kids: young | older | none
 - climate: hot_humid | hot_dry | four_seasons | mild_wet | cold
 - styleLikes / styleAvoids: style descriptors (minimal, Parisian, preppy…)
-- honestyPreference: gentle | straight | no_mercy (only if they request feedback tone)
+- honestyPreference: straight | no_mercy (only if they request feedback tone)
 - circleNames: up to 3 first names of people they ask for style opinions
   ("I ask Maya and Jordan" → ["Maya","Jordan"])
 - summary: warm 1-sentence confirmation. If some facts belong to later steps, say so plainly

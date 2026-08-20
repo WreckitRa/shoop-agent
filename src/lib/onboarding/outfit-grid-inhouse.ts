@@ -83,6 +83,80 @@ function splitCsv(raw?: string): string[] {
     .filter(Boolean);
 }
 
+const CAMPUS_ERAS = new Set(["13_14", "15_17", "18_22"]);
+const POLISHED_ERAS = new Set(["40s", "50s_60s", "65_plus"]);
+const LAID_BACK_LIFESTYLES = new Set([
+  "campus_life",
+  "kids_in_the_mix",
+  "time_is_mine",
+]);
+const CAREER_LIFESTYLES = new Set([
+  "deep_in_career",
+  "running_the_show",
+  "first_job",
+]);
+const EASY_TAGS = new Set([
+  "hoodie",
+  "joggers",
+  "jogger",
+  "leggings",
+  "tee",
+  "sneakers",
+  "sweat",
+  "campus",
+  "athleisure",
+  "denim",
+]);
+
+/** When the quiz skipped lifestyle chips, infer them from era. */
+export function inferredLifestyleTags(
+  eras: string[],
+  explicit: string[] = [],
+): string[] {
+  const tags = explicit.map((t) => t.trim().toLowerCase()).filter(Boolean);
+  if (tags.length) return tags;
+  const out: string[] = [];
+  if (eras.some((e) => CAMPUS_ERAS.has(e))) out.push("campus_life");
+  if (eras.some((e) => e === "23_29")) out.push("first_job");
+  if (eras.some((e) => e === "30s")) out.push("deep_in_career");
+  if (eras.some((e) => e === "40s")) out.push("running_the_show");
+  if (eras.some((e) => e === "50s_60s" || e === "65_plus")) {
+    out.push("time_is_mine");
+  }
+  return out;
+}
+
+function energyScore(
+  look: OutfitStyleLook,
+  eras: string[],
+  lifestyles: string[],
+): number {
+  const casualCtx =
+    eras.some((e) => CAMPUS_ERAS.has(e)) ||
+    lifestyles.some((l) => LAID_BACK_LIFESTYLES.has(l));
+  const polishedCtx =
+    eras.some((e) => POLISHED_ERAS.has(e)) ||
+    lifestyles.some((l) => CAREER_LIFESTYLES.has(l));
+  let n = 0;
+  if (casualCtx) {
+    if (look.formality === "casual" || look.formality === "athletic") n += 18;
+    if (look.formality === "formal") n -= 14;
+    if (look.formality === "smart") n -= 4;
+    if (look.tasteTags.some((t) => EASY_TAGS.has(t.toLowerCase()))) n += 12;
+    const arch = look.archetypes[0];
+    if (arch === "Sporty" || arch === "Street") n += 10;
+    if (arch === "Classic" || arch === "Parisian") n -= 8;
+  }
+  if (polishedCtx && !casualCtx) {
+    if (look.formality === "smart" || look.formality === "formal") n += 14;
+    if (look.formality === "athletic") n -= 6;
+    const arch = look.archetypes[0];
+    if (arch === "Classic" || arch === "Parisian") n += 8;
+    if (arch === "Sporty") n -= 4;
+  }
+  return n;
+}
+
 /**
  * Hard gender gate.
  * - Includes shopper presentation → match
@@ -173,6 +247,8 @@ export type LookScoreBreakdown = {
   wornConflict: number;
   /** Soft step bias (formality × worn|wanted) — not a hard lock. */
   stepBias: number;
+  /** Era/lifestyle energy (campus → hoodie/joggers, career → smart). */
+  energy: number;
 };
 
 export function scoreLookForContext(
@@ -184,8 +260,9 @@ export function scoreLookForContext(
   const bucket = genderBucketFromPresentation(ctx.genderPresentation);
   const eras = splitCsv(ctx.styleEra);
   const spend = splitCsv(ctx.valuePhilosophy);
-  const lifestyles = (ctx.lifestyleTags ?? []).map((t) =>
-    t.trim().toLowerCase(),
+  const lifestyles = inferredLifestyleTags(
+    eras,
+    (ctx.lifestyleTags ?? []).map((t) => t.trim().toLowerCase()),
   );
   const brandLikes = splitCsv(ctx.brandLikes);
   const brandAvoids = splitCsv(ctx.brandAvoids);
@@ -213,6 +290,7 @@ export function scoreLookForContext(
       brands: 0,
       wornConflict: 0,
       stepBias: 0,
+      energy: 0,
     };
   }
   // Prefer hard-matched assets when hardGender stage runs
@@ -227,6 +305,7 @@ export function scoreLookForContext(
       brands: 0,
       wornConflict: 0,
       stepBias: 0,
+      energy: 0,
     };
   }
 
@@ -242,6 +321,7 @@ export function scoreLookForContext(
       brands: 0,
       wornConflict: -10_000,
       stepBias: 0,
+      energy: 0,
     };
   }
 
@@ -313,6 +393,8 @@ export function scoreLookForContext(
     }
   }
 
+  const energy = energyScore(look, eras, lifestyles);
+
   const total =
     gender +
     stepBias +
@@ -321,7 +403,8 @@ export function scoreLookForContext(
     lifestyle +
     spendScore +
     brands +
-    wornConflict;
+    wornConflict +
+    energy;
 
   return {
     total,
@@ -333,6 +416,7 @@ export function scoreLookForContext(
     spend: spendScore,
     brands,
     wornConflict,
+    energy,
   };
 }
 
@@ -383,7 +467,9 @@ export function selectInhouseDeck(
   ctx: OutfitDeckContext,
   looks: readonly OutfitStyleLook[] = getInhouseOutfitLooks(),
 ): OutfitGridCard[] {
-  const matrix = buildCastingMatrix(ctx.lifestyleTags);
+  const matrix = buildCastingMatrix(
+    inferredLifestyleTags(splitCsv(ctx.styleEra), ctx.lifestyleTags ?? []),
+  );
   const used = new Set<string>();
   const usedColors = new Map<string, number>();
   const usedFormality = new Map<string, number>();

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { usePathname } from "next/navigation";
 import { FittingFlash } from "@/components/onboarding/fitting/FittingFlash";
 import { FittingMirror } from "@/components/onboarding/fitting/FittingMirror";
 import {
@@ -49,7 +48,6 @@ import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-st
 import { useInlineFittingSlots } from "@/components/onboarding/useInlineFittingSlot";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { guestFetch } from "@/lib/client/guest-fetch";
-import { isChatRoutePathname } from "@/lib/shared/chatRoutes";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import {
   BUDGET_OPTIONS,
@@ -66,6 +64,7 @@ import {
   normalizeAgeRange,
   normalizeClimate,
   normalizeGender,
+  normalizeHonestyPreference,
   parseCsvValues,
   styleEraLabel,
   styleEraToAgeRange,
@@ -526,11 +525,8 @@ export function OnboardingGate() {
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
   const [holdOpen, setHoldOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
-  const pathname = usePathname();
   const { questions: inlineSlot, card: cardSlot } = useInlineFittingSlots();
-  const openColumn = useInlineFittingStore((s) => s.openColumn);
   const closeColumn = useInlineFittingStore((s) => s.closeColumn);
-  const columnDismissed = useInlineFittingStore((s) => s.columnDismissed);
   const setOnboardingActive = useInlineFittingStore(
     (s) => s.setOnboardingActive,
   );
@@ -757,7 +753,10 @@ export function OnboardingGate() {
       setClimate(normalizeClimate(prefill.climate) || prefill.climate);
     }
     if (prefill.honestyPreference) {
-      setHonestyPreference(prefill.honestyPreference);
+      setHonestyPreference(
+        normalizeHonestyPreference(prefill.honestyPreference) ||
+          prefill.honestyPreference,
+      );
     }
     if (prefill.circleNames) {
       const parsed = prefill.circleNames
@@ -936,7 +935,10 @@ export function OnboardingGate() {
         );
       }
       if (next.profile?.honestyPreference) {
-        setHonestyPreference(next.profile.honestyPreference);
+        setHonestyPreference(
+          normalizeHonestyPreference(next.profile.honestyPreference) ||
+            next.profile.honestyPreference,
+        );
       }
       if (next.profile?.styleMix) setStyleMix(next.profile.styleMix);
       if (next.sizing?.heightCm) {
@@ -1929,7 +1931,8 @@ export function OnboardingGate() {
           hardAvoids,
           comfort,
           compliments: [],
-          honestyPreference: honestyPreference || null,
+          honestyPreference:
+            normalizeHonestyPreference(honestyPreference) || null,
           valuePhilosophy: valuePhilosophyWire,
           complete,
         }),
@@ -2297,8 +2300,10 @@ export function OnboardingGate() {
           json.extraction?.budgetPhilosophies?.join(",") ??
           json.prefill?.budgetPhilosophy,
         honestyPreference:
-          json.extraction?.honestyPreference ??
-          json.prefill?.honestyPreference,
+          normalizeHonestyPreference(
+            json.extraction?.honestyPreference ??
+              json.prefill?.honestyPreference,
+          ) || undefined,
         circleNames:
           json.extraction?.circleNames?.join(", ") ??
           json.prefill?.circleNames,
@@ -2563,25 +2568,9 @@ export function OnboardingGate() {
   useLayoutEffect(() => {
     if (loading) return;
     setOnboardingActive(incomplete);
-    if (
-      incomplete &&
-      isChatRoutePathname(pathname ?? "") &&
-      !columnDismissed
-    ) {
-      openColumn();
-      return;
-    }
     if (!incomplete) closeColumn();
     return () => setOnboardingActive(false);
-  }, [
-    closeColumn,
-    columnDismissed,
-    incomplete,
-    loading,
-    openColumn,
-    pathname,
-    setOnboardingActive,
-  ]);
+  }, [closeColumn, incomplete, loading, setOnboardingActive]);
 
   const progressPct =
     step === "verdict"
@@ -2600,9 +2589,6 @@ export function OnboardingGate() {
       ? { n: FITTING_Q_STEPS.length, stage: "THE FITTING" }
       : STEP_META[step];
 
-  const inline = Boolean(inlineSlot);
-  const onChat = isChatRoutePathname(pathname ?? "");
-  const fittingLayout = inline ? "column" : "page";
   const mirrorPane = (
     <FittingMirror
       layout="column"
@@ -2613,26 +2599,24 @@ export function OnboardingGate() {
     />
   );
 
+  if (!inlineSlot) return null;
+
   if (loading) {
-    const bootFlash = (
-      <FittingFlash
-        show
-        layout={fittingLayout}
-        coverHtml="Opening<br><em>The Fitting.</em>"
-        statusLabel="loading your print…"
-        detail="Fetching your profile…"
-      />
+    return (
+      <>
+        {createPortal(
+          <FittingFlash
+            show
+            layout="column"
+            coverHtml="Opening<br><em>The Fitting.</em>"
+            statusLabel="loading your print…"
+            detail="Fetching your profile…"
+          />,
+          inlineSlot,
+        )}
+        {cardSlot ? createPortal(mirrorPane, cardSlot) : null}
+      </>
     );
-    if (inline && inlineSlot) {
-      return (
-        <>
-          {createPortal(bootFlash, inlineSlot)}
-          {cardSlot ? createPortal(mirrorPane, cardSlot) : null}
-        </>
-      );
-    }
-    if (onChat) return null;
-    return bootFlash;
   }
 
   if (
@@ -2642,22 +2626,17 @@ export function OnboardingGate() {
     return null;
   }
 
-  if (onChat && !inlineSlot) return null;
-
-  // Initial bootstrap uses FittingFlash black screen (not a separate light panel).
-  // Keep shell mounted only after load so flash can cover it during step work.
-
   const fitting = (
     <>
       <FittingFlash
         show={Boolean(flash)}
-        layout={fittingLayout}
+        layout="column"
         coverHtml={flash?.cover ?? ""}
         statusLabel={flash?.status ?? ""}
         detail={flash?.detail ?? null}
       />
       <FittingShell
-        layout={fittingLayout}
+        layout="column"
         step={step}
         progressPct={progressPct}
         stageLabel={
@@ -2938,12 +2917,10 @@ export function OnboardingGate() {
     </>
   );
 
-  return inline && inlineSlot ? (
+  return (
     <>
       {createPortal(fitting, inlineSlot)}
       {cardSlot ? createPortal(mirrorPane, cardSlot) : null}
     </>
-  ) : (
-    fitting
   );
 }

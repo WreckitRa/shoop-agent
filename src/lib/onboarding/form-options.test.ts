@@ -4,6 +4,7 @@ import {
   ageYearsFromBirthDate,
   lifestyleTagsFromLife,
   normalizeClimate,
+  normalizeHonestyPreference,
   styleEraFromAge,
   styleEraToAgeRange,
   styleErasForAge,
@@ -84,5 +85,14 @@ describe("normalizeClimate", () => {
     assert.equal(normalizeClimate("hot humid"), "hot_humid");
     assert.equal(normalizeClimate("Four seasons"), "four_seasons");
     assert.equal(normalizeClimate("nope"), "");
+  });
+});
+
+describe("normalizeHonestyPreference", () => {
+  it("maps legacy gentle onto straight and keeps two live tones", () => {
+    assert.equal(normalizeHonestyPreference("gentle"), "straight");
+    assert.equal(normalizeHonestyPreference("straight"), "straight");
+    assert.equal(normalizeHonestyPreference("no_mercy"), "no_mercy");
+    assert.equal(normalizeHonestyPreference(""), "");
   });
 });

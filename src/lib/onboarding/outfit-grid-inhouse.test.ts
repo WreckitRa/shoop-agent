@@ -73,6 +73,52 @@ describe("inhouse outfit catalog", () => {
   });
 
 
+  it("campus-era masculine worn decks surface hoodie / jogger energy", () => {
+    const deck = selectInhouseDeck({
+      mode: "worn",
+      genderPresentation: "masculine",
+      styleEra: "18_22",
+    });
+    const hay = deck
+      .map((c) => `${c.label} ${c.tasteTags.join(" ")}`)
+      .join(" ")
+      .toLowerCase();
+    assert.ok(
+      /hoodie|jogger|campus|tee|denim/.test(hay),
+      `expected laid-back campus looks, got: ${hay}`,
+    );
+  });
+
+  it("scores hoodie/joggers above a blazer for campus + laid-back context", () => {
+    const cell = buildCastingMatrix(["campus_life"])[5]!; // Sporty
+    const hoodie = INHOUSE_OUTFIT_LOOKS.find((l) => l.id === "m-w-sporty-01")!;
+    const blazer = INHOUSE_OUTFIT_LOOKS.find((l) => l.id === "m-w-classic-01")!;
+    const hoodieScore = scoreLookForContext(
+      hoodie,
+      {
+        mode: "worn",
+        genderPresentation: "masculine",
+        styleEra: "18_22",
+        lifestyleTags: ["campus_life"],
+        valuePhilosophy: "best_value",
+      },
+      cell,
+    );
+    const blazerScore = scoreLookForContext(
+      blazer,
+      {
+        mode: "worn",
+        genderPresentation: "masculine",
+        styleEra: "18_22",
+        lifestyleTags: ["campus_life"],
+        valuePhilosophy: "best_value",
+      },
+      cell,
+    );
+    assert.ok(hoodieScore.total > blazerScore.total);
+    assert.ok(hoodieScore.energy > blazerScore.energy);
+  });
+
   it("scores era + spend matches higher", () => {
     const cell = buildCastingMatrix()[4]!; // Classic
     const look = INHOUSE_OUTFIT_LOOKS.find(
