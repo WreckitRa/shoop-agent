@@ -1,4 +1,5 @@
 -- Isolated photo bakeoff (spec vs GPT). Display only — never consumed by search.
+-- Replaced by 20260821120000_photo_analysis_llm.sql.
 CREATE TABLE IF NOT EXISTS "PhotoAnalysis" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,

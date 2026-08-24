@@ -37,7 +37,7 @@ Everything else is skippable.
 | `nolist` | `TasteLovesVetoesStep` |
 | `honesty` | `TasteHonestyStep` |
 | `circle` | `TasteCircleStep` (up to 3 first names → `FashionPerson` friends) |
-| `verdict` | `FittingVerdictStep` (+ `CardForgeStep` / avatar hosts as needed) |
+| `verdict` | `FittingVerdictStep` |
 
 Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v2`.
 
@@ -68,7 +68,7 @@ Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v2`.
 | Country / city / currency / sizes | Skip allowed; sizes can wait until checkout |
 | Taste / grids / loves | Advance without picks |
 | Trusted circle | Skip — “I’d rather decide later” |
-| Photo / card forge | Skip → complete without avatar |
+| Photo | Skip → complete without avatar |
 
 ---
 
@@ -119,7 +119,7 @@ Collected in `YouIdentityStep` — see table below. Ship-to / sizes may also be 
 
 Save path: `POST /api/onboarding/review` (also `ensureSelfPerson` for fashion roster).
 
-**Schema has more sizing columns** (`heightCm`, waist/inseam split, shoe US/UK, fits, notes, …) that onboarding UI does **not** currently fill — card forge height goes to **avatar**, not `SizingProfile.heightCm`.
+**Schema has more sizing columns** (`heightCm`, waist/inseam split, shoe US/UK, fits, notes, …) that onboarding UI does **not** currently fill — Fitting height goes to **avatar**, not `SizingProfile.heightCm`.
 
 ### 4.4 Taste
 
@@ -235,6 +235,7 @@ Many other columns exist (`occupation`, `workEnvironment`, units, …) for post-
 | `/api/onboarding/taste` | GET | Outfit decks | Live catalog grids |
 | `/api/onboarding/taste` | POST | End of taste / mid | Persist taste patch; optional `complete` |
 | `/api/cron/onboarding-jobs` | POST | Worker | Drain projection / extra-notes jobs |
+| `/api/cron/privacy-jobs` | POST | Worker | 24h source-photo delete + 3-year biometric inactivity purge |
 | `/api/avatar/*` | various | Card forge | Photo + body attributes |
 
 On every successful patch/complete, `enqueueOnboardingProjection` bumps version and a worker runs:
@@ -312,7 +313,6 @@ User answers (wizard / AI paste)
 | `src/components/onboarding/YouIdentityStep.tsx` | Name / gender / DOB / era / world |
 | `src/components/onboarding/Taste*.tsx` | Spend, grids, loves, honesty, trusted circle |
 | `src/components/onboarding/fitting/*` | Photo + verdict |
-| `src/components/onboarding/CardForgeStep.tsx` | Avatar forge |
 | `src/lib/onboarding/status.ts` | Required fields, patch, complete |
 | `src/lib/onboarding/form-options.ts` | Enums / size lists / labels |
 | `src/lib/onboarding/taste-persist.ts` | Picks → patch |

@@ -8,6 +8,7 @@ import {
   Nunito,
 } from "next/font/google";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { CookieBanner } from "@/components/legal/CookieBanner";
 import { SiteJsonLd } from "@/components/seo/SiteJsonLd";
 import { rootMetadata } from "@/lib/seo/site";
 import "./globals.css";
@@ -75,6 +76,7 @@ export default function RootLayout({
       <body className="flex h-[100dvh] flex-col overflow-hidden bg-page font-sans text-ink">
         <SiteJsonLd />
         <AuthGate>{children}</AuthGate>
+        <CookieBanner />
       </body>
     </html>
   );

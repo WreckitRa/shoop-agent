@@ -6,7 +6,7 @@ import { ownerVoterKey } from "./owner-vote";
 import { publicAskImagePath } from "./ask-image";
 
 export function generateAskToken(): string {
-  return randomBytes(8).toString("base64url").slice(0, 10);
+  return randomBytes(18).toString("base64url");
 }
 
 export function emptyTallies(): Record<AskVoteChoice, number> {
@@ -36,6 +36,8 @@ type ShareRow = {
   shoopVote: string;
   shoopVerdict: unknown;
   createdAt: Date;
+  expiresAt?: Date | null;
+  revokedAt?: Date | null;
   votes: Array<{
     choice: string;
     displayName: string;
@@ -146,5 +148,9 @@ export function buildLookAskPublic(params: {
       createdAt: n.createdAt.toISOString(),
     })),
     createdAt: share.createdAt.toISOString(),
+    expiresAt: (share.expiresAt ?? null)
+      ? share.expiresAt!.toISOString()
+      : null,
+    revoked: Boolean(share.revokedAt),
   };
 }

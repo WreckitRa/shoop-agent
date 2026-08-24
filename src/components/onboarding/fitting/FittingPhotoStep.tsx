@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import {
   FittingCta,
+  FittingKick,
   FittingNavRow,
   FittingQlbl,
   FittingTitle,
@@ -10,6 +11,7 @@ import {
   OnboardingChip,
   OnboardingWhy,
 } from "@/components/onboarding/onboarding-ui";
+import { ScanStage } from "./scan-ui";
 import { cn } from "@/lib/ai-chat/cn";
 import type {
   BodyShapeBand,
@@ -18,9 +20,13 @@ import type {
   MuscularityBand,
 } from "@/lib/tryon/types";
 import type { BuildKey } from "./types";
+import type { PhotoCoverage } from "@/lib/photo-analysis/result";
+
+export type LegLineBand = "long_torso" | "even" | "long_leg";
 
 export type FittingPhotoValues = {
   photoPreview: string | null;
+  photoCoverage: PhotoCoverage;
   heightUnit: "ft" | "cm";
   heightFt: number;
   heightIn: number;
@@ -35,6 +41,8 @@ export type FittingPhotoValues = {
   bodyShape: BodyShapeBand | null;
   /** Women's department only — optional visual band. */
   bustFullness: BustFullnessBand | null;
+  /** Typed in when the photo stops at the hips. */
+  legLine: LegLineBand | null;
 };
 
 type Props = {
@@ -43,7 +51,7 @@ type Props = {
     key: K,
     value: FittingPhotoValues[K],
   ) => void;
-  onPhotoFile: (file: File) => void;
+  onPhotoFile?: (file: File) => void;
   onSkipPhoto: () => void;
   onContinue: () => void;
   busy?: boolean;
@@ -90,6 +98,12 @@ const BUST: { label: string; value: BustFullnessBand }[] = [
   { label: "Average", value: "average" },
   { label: "Full", value: "full" },
   { label: "Very full", value: "very_full" },
+];
+
+const LEG_LINES: { label: string; value: LegLineBand; hint: string }[] = [
+  { label: "Long torso", value: "long_torso", hint: "Rise sits higher" },
+  { label: "Even", value: "even", hint: "Split at mid" },
+  { label: "Long legs", value: "long_leg", hint: "Inseam does the work" },
 ];
 
 /** Digit width for tabular numbers; pad so "4" / "175" never clip. */
@@ -288,15 +302,23 @@ export function FittingPhotoStep({
   }
 
   const scan = mode === "scan";
+  const showBody = true;
+  const showLegs = true;
+  const addLabel = "Add a face photo";
+  const dropHint =
+    "Hairline and jaw in the light, plain wall. Body traits are inferred — you can correct them in Settings.";
 
   return (
     <section>
+      {scan ? (
+        <FittingKick>THE SCAN · FACE</FittingKick>
+      ) : null}
       <FittingTitle
         lines={
           scan
             ? [
-                { text: "Give me your" },
-                { text: "best %%angle.%%", red: true },
+                { text: "The photo doesn't" },
+                { text: "round %%down.%%", red: true },
               ]
             : [
                 { text: "A few" },
@@ -306,9 +328,9 @@ export function FittingPhotoStep({
       />
       {scan ? (
         <FittingWhisper>
-          One photo, and I start measuring immediately — colour, face, body if
-          you&apos;re full-length.{" "}
-          <b>The twin builds later, while you finish the quiz.</b>
+          One face photograph. We never ask for a body photo. Height and build
+          are typed facts after this — used for the twin, never shown, never
+          judged.
         </FittingWhisper>
       ) : (
         <FittingWhisper>
@@ -319,43 +341,44 @@ export function FittingPhotoStep({
 
       {scan ? (
         <>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="w-full min-w-0">
         {!values.photoPreview ? (
           <>
-            <label className="cursor-pointer">
-              <span className="group inline-flex h-14 items-center gap-3 rounded-[14px] bg-[var(--fitting-ink)] px-[30px] font-display text-[14.5px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)]">
-                Add my photo{" "}
-                <span className="transition-transform group-hover:translate-x-1">
-                  →
-                </span>
-              </span>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onPhotoFile(f);
-                }}
-              />
-            </label>
+            <ScanStage size="drop">
+              <div className="z-[4] px-6 text-center">
+                <label className="cursor-pointer">
+                  <span className="group inline-flex h-12 max-w-full items-center gap-2 rounded-[14px] bg-[var(--fitting-ink)] px-4 font-display text-[13px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-12px_rgba(14,14,17,.5)]">
+                    {addLabel}{" "}
+                    <span className="transition-transform group-hover:translate-x-1">
+                      →
+                    </span>
+                  </span>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) onPhotoFile?.(f);
+                    }}
+                  />
+                </label>
+                <p className="mt-3 font-whisper text-[13px] italic leading-[1.5] text-[var(--fitting-quiet)]">
+                  {dropHint}
+                </p>
+              </div>
+            </ScanStage>
             <button
               type="button"
               onClick={onSkipPhoto}
-              className="border-0 border-b border-[var(--fitting-line)] bg-transparent pb-0.5 text-[12.5px] font-semibold text-[var(--fitting-quiet)]"
+              className="mt-3 border-0 border-b border-[var(--fitting-line)] bg-transparent pb-0.5 text-[12.5px] font-semibold text-[var(--fitting-quiet)]"
             >
               skip... you can add it at the Mirror
             </button>
           </>
         ) : (
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={values.photoPreview}
-              alt="Your photo"
-              className="h-14 w-14 rounded-full object-cover outline outline-2 outline-[var(--fitting-line)]"
-            />
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
@@ -370,7 +393,7 @@ export function FittingPhotoStep({
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) onPhotoFile(f);
+                if (f) onPhotoFile?.(f);
               }}
             />
           </div>
@@ -385,45 +408,7 @@ export function FittingPhotoStep({
             ... delete anytime.
           </OnboardingWhy>
         </>
-      ) : (
-        <div className="mb-2 flex flex-wrap items-center gap-2.5">
-          {values.photoPreview ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={values.photoPreview}
-                alt="Your photo"
-                className="h-14 w-14 rounded-full object-cover outline outline-2 outline-[var(--fitting-line)]"
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="text-[12.5px] font-bold text-[var(--fitting-quiet)] hover:text-[var(--fitting-ink)]"
-              >
-                Change photo
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="inline-flex h-12 items-center rounded-[14px] bg-[var(--fitting-ink)] px-5 text-[13px] font-extrabold text-white"
-            >
-              Add my photo
-            </button>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onPhotoFile(f);
-            }}
-          />
-        </div>
-      )}
+      ) : null}
 
       {scan ? null : (
         <>
@@ -506,6 +491,8 @@ export function FittingPhotoStep({
         </OnboardingChip>
       </div>
 
+      {showBody ? (
+        <>
       <FittingQlbl hint="honesty beats flattery... true fit is the whole point">
         Your build
       </FittingQlbl>
@@ -574,6 +561,27 @@ export function FittingPhotoStep({
                 }
               >
                 {b.label}
+              </OnboardingChip>
+            ))}
+          </div>
+        </>
+      ) : null}
+        </>
+      ) : null}
+
+      {showLegs ? (
+        <>
+          <FittingQlbl hint="where the vertical splits — rise vs inseam">
+            Legs
+          </FittingQlbl>
+          <div className="flex max-w-[620px] flex-wrap gap-2.5">
+            {LEG_LINES.map((l) => (
+              <OnboardingChip
+                key={l.value}
+                selected={values.legLine === l.value}
+                onClick={() => onChange("legLine", l.value)}
+              >
+                {l.label}
               </OnboardingChip>
             ))}
           </div>

@@ -7,6 +7,7 @@ import {
 } from "@/lib/onboarding/status";
 import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
 import { ensureSelfPerson } from "@/lib/fashion-memory/people";
+import { minorClosedResponse } from "@/lib/legal/close-account";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,7 +51,9 @@ export async function POST(req: Request) {
 
     after(kickOnboardingJobWorker);
     return Response.json({ ...status, selfPerson });
-  } catch {
+  } catch (error) {
+    const closed = minorClosedResponse(error);
+    if (closed) return closed;
     return Response.json(
       { error: "Could not save your onboarding profile." },
       { status: 500 },

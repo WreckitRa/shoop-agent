@@ -22,7 +22,13 @@ function friendVoteCount(share: LookAskSharePublic) {
   return share.votes.filter((v) => !v.isShoop && !v.isOwner).length;
 }
 
-function AskShareCard({ share }: { share: LookAskSharePublic }) {
+function AskShareCard({
+  share,
+  onRevoke,
+}: {
+  share: LookAskSharePublic;
+  onRevoke: (token: string) => Promise<void>;
+}) {
   const serial = String(share.serial).padStart(6, "0");
   const friends = friendVoteCount(share);
   const noteCount = share.notes.length;
@@ -93,6 +99,19 @@ function AskShareCard({ share }: { share: LookAskSharePublic }) {
               >
                 WhatsApp
               </button>
+              {!share.revoked ? (
+                <button
+                  type="button"
+                  onClick={() => void onRevoke(share.token)}
+                  className="inline-flex h-9 items-center rounded-full border border-hairline px-3 text-[11px] font-extrabold tracking-wide text-error-deep transition hover:border-error-deep"
+                >
+                  Hide link
+                </button>
+              ) : (
+                <span className="inline-flex h-9 items-center text-[11px] font-extrabold text-ink-muted">
+                  Hidden
+                </span>
+              )}
               <Link
                 href={askPath}
                 className="inline-flex h-9 items-center rounded-full border border-hairline px-3 text-[11px] font-extrabold tracking-wide text-ink-muted transition hover:border-ink hover:text-ink"
@@ -218,6 +237,16 @@ export function MyAsksView() {
     void load();
   }, [isGuest, load]);
 
+  async function revoke(token: string) {
+    const res = await guestFetch(`/api/ask/${encodeURIComponent(token)}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) return;
+    setShares((rows) =>
+      rows.map((s) => (s.token === token ? { ...s, revoked: true } : s)),
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-page-wide">
       <header className="mb-6 md:mb-8">
@@ -289,7 +318,7 @@ export function MyAsksView() {
         <ul className="space-y-4">
           {shares.map((share) => (
             <li key={share.token}>
-              <AskShareCard share={share} />
+              <AskShareCard share={share} onRevoke={revoke} />
             </li>
           ))}
         </ul>

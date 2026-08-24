@@ -1,0 +1,1224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SHOOP · The Fitting</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #0e0e11;
+        --red: #e42831;
+        --quiet: #8a8a93;
+        --line: #e8e8ec;
+        --warm: #f9f7f4;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        background: #fff;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        background: none;
+        color: inherit;
+      }
+      ::selection {
+        background: var(--red);
+        color: #fff;
+      }
+      .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 28px;
+        border-bottom: 1px solid var(--line);
+      }
+      .lf {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+      .mb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: "Archivo";
+        font-weight: 900;
+        font-size: 18px;
+      }
+      .mb em {
+        font-family: "Fraunces";
+        font-style: italic;
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--quiet);
+      }
+      .tabs {
+        display: flex;
+        gap: 18px;
+      }
+      .tb {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 11.5px;
+        letter-spacing: 0.1em;
+        color: #c3c3cb;
+      }
+      .tb.on {
+        color: var(--red);
+      }
+      .pill {
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        padding: 7px 13px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--quiet);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 24px 26px 40px;
+        align-items: start;
+      }
+      @media (max-width: 1040px) {
+        .cols {
+          grid-template-columns: 1fr;
+        }
+      }
+      .greet {
+        font-size: 13.5px;
+        color: var(--quiet);
+        margin-bottom: 4px;
+      }
+      h1.big {
+        font-family: "Archivo";
+        font-weight: 900;
+        font-size: clamp(30px, 3.3vw, 46px);
+        line-height: 0.98;
+        letter-spacing: -0.042em;
+      }
+      h1.big span {
+        color: var(--red);
+      }
+      .sub {
+        font-family: "Fraunces";
+        font-style: italic;
+        font-size: 16px;
+        color: var(--quiet);
+        line-height: 1.5;
+        margin: 14px 0 20px;
+      }
+      .sub b {
+        font-style: italic;
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .sbox {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 15px 17px;
+        box-shadow: 0 16px 36px -24px rgba(14, 14, 17, 0.3);
+      }
+      .bh {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        color: var(--red);
+        margin-bottom: 10px;
+      }
+      .bh i {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 3px solid var(--red);
+        display: block;
+      }
+      .inp {
+        width: 100%;
+        border: none;
+        outline: none;
+        font-family: "Fraunces";
+        font-style: italic;
+        font-size: 16.5px;
+        padding: 3px 0 13px;
+      }
+      .inp::placeholder {
+        color: #c3c3cb;
+      }
+      .brow {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex-wrap: wrap;
+      }
+      .minib {
+        border: 1px dashed #d6d6de;
+        border-radius: 11px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--quiet);
+      }
+      .gob {
+        margin-left: auto;
+        background: var(--ink);
+        color: #fff;
+        border-radius: 12px;
+        height: 42px;
+        padding: 0 19px;
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .sugg {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+      .sg {
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 10px 14px;
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .sg:hover {
+        border-color: var(--ink);
+      }
+      .res {
+        margin-top: 26px;
+        display: none;
+      }
+      .res.on {
+        display: block;
+      }
+      .rgrid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 11px;
+        margin-top: 12px;
+      }
+      .rc {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .rc .im {
+        aspect-ratio: 1/1.15;
+        display: grid;
+        place-items: center;
+      }
+      .cp {
+        padding: 9px 10px 11px;
+      }
+      .cp b {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 11.5px;
+        display: block;
+      }
+      .cp em {
+        font-style: normal;
+        font-size: 10px;
+        color: var(--quiet);
+        display: block;
+        margin-top: 3px;
+      }
+      .cp .pr {
+        font-family: "Archivo";
+        font-weight: 900;
+        font-size: 12px;
+        margin-top: 5px;
+        display: block;
+      }
+
+      /* ══ RIGHT · ONE SPACE ══ */
+      .fit {
+        position: sticky;
+        top: 20px;
+        border: 1px solid var(--line);
+        border-radius: 26px;
+        overflow: hidden;
+        background: linear-gradient(
+          160deg,
+          #fff 0%,
+          var(--warm) 58%,
+          #efece6 100%
+        );
+        box-shadow: 0 34px 80px -46px rgba(14, 14, 17, 0.4);
+        min-height: min(88vh, 900px);
+        display: flex;
+      }
+      .figlayer {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        justify-content: flex-end;
+        align-items: stretch;
+        pointer-events: none;
+        z-index: 1;
+      }
+      .figlayer svg {
+        height: 100%;
+        width: auto;
+        margin-right: 1%;
+        overflow: visible;
+      }
+      .bp {
+        fill: #dfdbd5;
+        transition: fill 0.9s;
+      }
+      .bp.l1 {
+        fill: #d5d0c9;
+      }
+      .bp.l2 {
+        fill: #c6c0b7;
+      }
+      .bp.l3 {
+        fill: #b5aea2;
+      }
+      .gm {
+        opacity: 0;
+        transition: opacity 0.8s;
+      }
+      #fg.dressed .gm {
+        opacity: 1;
+      }
+      #fg {
+        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      #torso,
+      #gTop {
+        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .headbtn {
+        position: absolute;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        border: 3px dashed #c7c1b8;
+        background: rgba(255, 255, 255, 0.95);
+        overflow: hidden;
+        transition: 0.25s;
+        z-index: 6;
+        pointer-events: auto;
+      }
+      .headbtn:hover {
+        border-color: var(--red);
+      }
+      .headbtn.has {
+        border: 3px solid var(--red);
+        border-style: solid;
+        box-shadow: 0 0 0 9px rgba(228, 40, 49, 0.08);
+      }
+      .headbtn img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: blur(11px);
+        transition: filter 1.3s;
+      }
+      .headbtn.ready img {
+        filter: none;
+      }
+      .headbtn .pl {
+        font-family: "Archivo";
+        font-weight: 200;
+        color: #c7c1b8;
+        line-height: 1;
+      }
+      .headbtn:hover .pl {
+        color: var(--red);
+      }
+      .headbtn.has .pl {
+        display: none;
+      }
+      .content {
+        position: relative;
+        z-index: 4;
+        padding: 26px 26px 24px;
+        width: 60%;
+        min-width: 340px;
+        display: flex;
+        flex-direction: column;
+      }
+      @media (max-width: 640px) {
+        .content {
+          width: 100%;
+        }
+      }
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 10.5px;
+        letter-spacing: 0.18em;
+        color: var(--red);
+      }
+      .eyebrow i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--red);
+        animation: pl 2s infinite;
+      }
+      @keyframes pl {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+      h2.act {
+        font-family: "Archivo";
+        font-weight: 900;
+        font-size: clamp(28px, 2.7vw, 40px);
+        line-height: 0.96;
+        letter-spacing: -0.042em;
+        margin: 11px 0 9px;
+      }
+      h2.act span {
+        color: var(--red);
+      }
+      .actsub {
+        font-family: "Fraunces";
+        font-style: italic;
+        font-size: 14.5px;
+        color: var(--quiet);
+        line-height: 1.5;
+      }
+      .actsub b {
+        font-style: italic;
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .prog {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 16px 0 20px;
+      }
+      .pbar {
+        flex: 1;
+        height: 6px;
+        background: rgba(14, 14, 17, 0.08);
+        border-radius: 99px;
+        overflow: hidden;
+      }
+      .pbar i {
+        display: block;
+        height: 100%;
+        width: 7%;
+        border-radius: 99px;
+        background: linear-gradient(90deg, var(--red), #ff6a72);
+        transition: width 0.8s cubic-bezier(0.5, 0, 0.2, 1);
+      }
+      .pnum {
+        font-family: "Archivo";
+        font-weight: 900;
+        font-size: 17px;
+        color: var(--red);
+        min-width: 40px;
+        text-align: right;
+      }
+      .qcount {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        color: var(--red);
+        margin-bottom: 9px;
+      }
+      .qcount span {
+        color: #c4bfb6;
+      }
+      h3.q {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: clamp(20px, 1.9vw, 26px);
+        line-height: 1.07;
+        letter-spacing: -0.028em;
+      }
+      h3.q .wipe {
+        display: inline-block;
+        clip-path: inset(0 100% 0 0);
+        animation: wipe 0.65s 0.08s cubic-bezier(0.7, 0, 0.2, 1) forwards;
+      }
+      @keyframes wipe {
+        to {
+          clip-path: inset(0 0 0 0);
+        }
+      }
+      .qw {
+        font-family: "Fraunces";
+        font-style: italic;
+        font-size: 12.5px;
+        color: var(--quiet);
+        margin: 9px 0 14px;
+        line-height: 1.5;
+      }
+      .qw b {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .field {
+        border: none;
+        border-bottom: 2.5px solid var(--ink);
+        background: none;
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 22px;
+        padding: 5px 2px;
+        width: 100%;
+        outline: none;
+      }
+      .field::placeholder {
+        color: #d6d0c7;
+      }
+      .field:focus {
+        border-color: var(--red);
+      }
+      .qlbl {
+        font-size: 11px;
+        font-weight: 800;
+        margin: 14px 0 8px;
+      }
+      .qlbl small {
+        color: var(--quiet);
+        font-weight: 600;
+        font-size: 9.5px;
+        margin-left: 5px;
+      }
+      .chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .chip {
+        border: 1px solid #dad4cb;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 11px;
+        padding: 8px 12px;
+        font-size: 11.5px;
+        font-weight: 700;
+        transition: 0.15s;
+      }
+      .chip:hover {
+        transform: translateY(-2px);
+        border-color: var(--ink);
+      }
+      .chip.on {
+        background: var(--ink);
+        color: #fff;
+        border-color: var(--ink);
+      }
+      .chip.nochip {
+        border-color: #eec9cb;
+        color: #b3454c;
+        background: #fffcfc;
+      }
+      .chip.no-on {
+        background: #fdecec;
+        border-color: var(--red);
+        color: var(--red);
+        text-decoration: line-through;
+      }
+      .hintline {
+        font-size: 10px;
+        color: var(--quiet);
+        margin-top: 9px;
+        line-height: 1.5;
+      }
+      .hintline b {
+        color: var(--red);
+        font-weight: 700;
+      }
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 7px;
+        max-width: 330px;
+      }
+      .tile {
+        aspect-ratio: 4/5;
+        position: relative;
+        cursor: pointer;
+        overflow: hidden;
+        border-radius: 12px;
+        border: 2.5px solid transparent;
+        transition: 0.16s;
+      }
+      .tile::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(0deg, rgba(0, 0, 0, 0.45), transparent 50%);
+      }
+      .tile:hover {
+        transform: translateY(-3px);
+      }
+      .tile.on {
+        border-color: var(--ink);
+        box-shadow: 0 12px 24px -12px rgba(14, 14, 17, 0.5);
+      }
+      .tl {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        z-index: 2;
+        color: #fff;
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 8.5px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        text-align: center;
+        padding: 0 4px;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+        line-height: 1.3;
+      }
+      .tick {
+        position: absolute;
+        top: 5px;
+        right: 6px;
+        z-index: 3;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        color: var(--ink);
+        display: grid;
+        place-items: center;
+        font-size: 10px;
+        font-weight: 800;
+        opacity: 0;
+        transition: 0.18s;
+      }
+      .tile.on .tick {
+        opacity: 1;
+      }
+      .hb {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #dad4cb;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.9);
+      }
+      .hb input {
+        border: none;
+        outline: none;
+        padding: 8px 0 8px 11px;
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 15px;
+        background: none;
+        width: 2.2ch;
+      }
+      .hb input::-webkit-outer-spin-button,
+      .hb input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      .hb b {
+        padding: 0 9px 0 2px;
+        color: #b3ada3;
+        font-size: 9.5px;
+        font-weight: 700;
+      }
+      .dial {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        max-width: 330px;
+      }
+      .dopt {
+        border: 1px solid #dad4cb;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 13px;
+        padding: 11px 13px;
+        text-align: left;
+        transition: 0.15s;
+      }
+      .dopt.on {
+        background: var(--ink);
+        border-color: var(--ink);
+      }
+      .dopt b {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 12.5px;
+        display: block;
+      }
+      .dopt.on b {
+        color: #fff;
+      }
+      .dopt i {
+        font-style: normal;
+        font-family: "Fraunces";
+        font-size: 10.5px;
+        color: var(--quiet);
+        display: block;
+        margin-top: 3px;
+      }
+      .dopt.on i {
+        color: #b8b2a8;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 18px;
+      }
+      .cta {
+        border-radius: 13px;
+        background: var(--ink);
+        color: #fff;
+        padding: 0 22px;
+        height: 46px;
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        transition: 0.16s;
+      }
+      .cta:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 28px -12px rgba(228, 40, 49, 0.5);
+      }
+      .back,
+      .skip {
+        color: var(--quiet);
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .verdict {
+        background: var(--ink);
+        color: #fff;
+        border-radius: 18px;
+        padding: 18px;
+        max-width: 350px;
+      }
+      .verdict .vh {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 9.5px;
+        letter-spacing: 0.14em;
+        color: #ff8a90;
+        margin: 12px 0 5px;
+      }
+      .verdict .vh:first-child {
+        margin-top: 0;
+      }
+      .verdict p {
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: #e4e4ea;
+      }
+      .verdict p b {
+        color: #fff;
+      }
+      .tracker {
+        margin-top: auto;
+        padding-top: 20px;
+      }
+      .tk {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(14, 14, 17, 0.09);
+        opacity: 0.4;
+        transition: 0.5s;
+      }
+      .tk.lit {
+        opacity: 1;
+      }
+      .tk .k {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        color: var(--quiet);
+      }
+      .tk .v {
+        font-family: "Archivo";
+        font-weight: 900;
+        font-size: 16px;
+        letter-spacing: -0.02em;
+        color: #c9c5be;
+        transition: 0.4s;
+      }
+      .tk.lit .v {
+        color: var(--ink);
+      }
+      .tk.lit .v.rd {
+        color: var(--red);
+      }
+      .closet {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 14px;
+      }
+      .closet .cl {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: var(--quiet);
+      }
+      .cs {
+        width: 32px;
+        height: 40px;
+        border-radius: 7px;
+        border: 1.5px dashed #d6d0c7;
+        transition: 0.4s;
+      }
+      .cs.fill {
+        border-style: solid;
+        border-color: rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+      }
+      .tw {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--quiet);
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .tw i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--red);
+        animation: bl 1.2s infinite;
+      }
+      .tw.rdy i {
+        background: #2bb673;
+        animation: none;
+      }
+      @keyframes bl {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.25;
+        }
+      }
+      .flash {
+        position: fixed;
+        inset: 0;
+        background: var(--ink);
+        z-index: 60;
+        display: grid;
+        place-items: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
+      }
+      .flash.show {
+        opacity: 1;
+      }
+      .flash .cl2 {
+        font-family: "Archivo";
+        font-weight: 800;
+        font-size: clamp(26px, 3.4vw, 46px);
+        color: #fff;
+        text-align: center;
+        padding: 0 8vw;
+        line-height: 1.08;
+      }
+      .flash .cl2 em {
+        font-style: normal;
+        color: var(--red);
+      }
+      .flash .nx {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--red);
+        margin-bottom: 14px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="lf">
+        <div class="mb">
+          <svg width="20" height="20" viewBox="0 0 24 24">
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              fill="none"
+              stroke="#E42831"
+              stroke-width="3.4"
+            />
+            <circle cx="12" cy="12" r="3.2" fill="#E42831" /></svg
+          >SHOOP <em>beta</em>
+        </div>
+        <div class="tabs">
+          <span class="tb on">FIND</span><span class="tb">TRY</span
+          ><span class="tb">DECIDE</span>
+        </div>
+      </div>
+      <button class="pill">Area: Choose</button>
+    </div>
+
+    <div class="cols">
+      <div>
+        <div class="greet">Good evening.</div>
+        <h1 class="big">What are we<br />looking for <span>today?</span></h1>
+        <p class="sub">
+          I search the stores that matter, cut the noise, and show you what's
+          worth buying... <b>on you.</b>
+        </p>
+        <div class="sbox">
+          <div class="bh"><i></i>ASK ME ANYTHING</div>
+          <input
+            class="inp"
+            id="q"
+            placeholder="Rebuild my work wardrobe — creative office, £600 total."
+            onkeydown="if (event.key === 'Enter') search();"
+          />
+          <div class="brow">
+            <button class="minib">Receipt</button
+            ><button class="minib">Find me this</button>
+            <button class="minib">Just tell me</button
+            ><button class="gob" onclick="search()">
+              Shoop it <span>→</span>
+            </button>
+          </div>
+        </div>
+        <div class="sugg">
+          <button class="sg" onclick="fq('wedding')">wedding</button>
+          <button class="sg" onclick="fq('style this blazer')">
+            style this blazer
+          </button>
+          <button class="sg" onclick="fq('like this, for less')">
+            like this, for less
+          </button>
+        </div>
+        <div class="res" id="res"><div class="rgrid" id="rgrid"></div></div>
+      </div>
+
+      <div class="fit" id="fit">
+        <div class="figlayer">
+          <svg
+            viewBox="0 0 260 700"
+            xmlns="http://www.w3.org/2000/svg"
+            id="figsvg"
+          >
+            <g id="fg">
+              <circle class="bp" cx="130" cy="72" r="58" />
+              <path class="bp" d="M112 122 L148 122 L151 158 L109 158 Z" />
+              <path
+                class="bp"
+                id="torso"
+                d="M130 150 C160 150 182 164 189 187 C197 214 191 241 186 268 C181 295 174 317 172 342 C170 369 177 391 181 414 C185 432 181 445 172 452 L88 452 C79 445 75 432 79 414 C83 391 90 369 88 342 C86 317 79 295 74 268 C69 241 63 214 71 187 C78 164 100 150 130 150 Z"
+              />
+              <path
+                class="bp"
+                d="M186 188 C202 200 209 227 211 259 C213 291 209 325 202 356 L181 351 C187 322 190 291 188 262 C186 233 181 210 174 197 Z"
+              />
+              <path
+                class="bp"
+                d="M74 188 C58 200 51 227 49 259 C47 291 51 325 58 356 L79 351 C73 322 70 291 72 262 C74 233 79 210 86 197 Z"
+              />
+              <path
+                class="bp"
+                d="M135 448 L180 450 C182 482 174 514 169 548 C164 584 161 626 160 664 L136 664 C135 626 134 580 133 546 Z"
+              />
+              <path
+                class="bp"
+                d="M125 448 L80 450 C78 482 86 514 91 548 C96 584 99 626 100 664 L124 664 C125 626 126 580 127 546 Z"
+              />
+              <ellipse class="bp" cx="158" cy="674" rx="25" ry="11" />
+              <ellipse class="bp" cx="102" cy="674" rx="25" ry="11" />
+              <path
+                class="gm"
+                id="gTop"
+                fill="#B8894F"
+                d="M130 150 C160 150 182 164 189 187 C197 214 191 241 186 268 C182 289 177 308 175 328 L85 328 C83 308 78 289 74 268 C69 241 63 214 71 187 C78 164 100 150 130 150 Z"
+              />
+              <path
+                class="gm"
+                fill="#2A2620"
+                d="M85 326 L175 326 C177 355 178 386 181 414 C185 432 181 445 172 452 L88 452 C79 445 75 432 79 414 C82 386 83 355 85 326 Z"
+              />
+            </g>
+          </svg>
+          <label class="headbtn" id="headbtn"
+            ><span class="pl">+</span><img id="pimg" style="display: none" />
+            <input
+              type="file"
+              accept="image/*"
+              style="display: none"
+              onchange="photoUp(this)"
+          /></label>
+        </div>
+
+        <div class="content">
+          <div class="eyebrow"><i></i><span id="eb">THE FITTING</span></div>
+          <h2 class="act" id="acth">
+            Let's build<br />your <span>twin.</span>
+          </h2>
+          <p class="actsub" id="acts">
+            Seven questions. <b>Watch yourself appear</b> as you answer.
+          </p>
+          <div class="prog">
+            <span class="pbar"><i id="pf"></i></span
+            ><span class="pnum" id="pn">7%</span>
+          </div>
+          <div id="qs"></div>
+          <div class="tracker">
+            <div class="tk" id="t-name">
+              <span class="k">NAME</span><span class="v" id="v-name">—</span>
+            </div>
+            <div class="tk" id="t-era">
+              <span class="k">ERA</span><span class="v" id="v-era">—</span>
+            </div>
+            <div class="tk" id="t-spend">
+              <span class="k">SPEND</span><span class="v" id="v-spend">—</span>
+            </div>
+            <div class="tk" id="t-lean">
+              <span class="k">LEANING</span><span class="v" id="v-lean">—</span>
+            </div>
+            <div class="tk" id="t-no">
+              <span class="k">NO-LIST</span
+              ><span class="v rd" id="v-no">—</span>
+            </div>
+            <div class="closet">
+              <span class="cl">CLOSET</span> <span class="cs" id="cs0"></span
+              ><span class="cs" id="cs1"></span
+              ><span class="cs" id="cs2"></span>
+            </div>
+            <div class="tw" id="tw" style="display: none">
+              <i></i><span id="twt">twin developing...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flash" id="flash">
+      <div>
+        <div class="nx" id="fnx"></div>
+        <div class="cl2" id="fcl"></div>
+      </div>
+    </div>
+
+    <script>
+      const G=i=>document.getElementById(i);
+      function placeHead(){
+       const svg=G('figsvg'),b=svg.getBoundingClientRect(),p=G('fit').getBoundingClientRect();
+       if(!b.height)return;
+       const k=b.height/700,d=116*k,h=G('headbtn');
+       h.style.width=h.style.height=d+'px';
+       h.style.left=(b.left-p.left)+(130*k)-d/2+'px';
+       h.style.top=(b.top-p.top)+(72*k)-d/2+'px';
+       h.querySelector('.pl').style.fontSize=(46*k)+'px';
+      }
+      window.addEventListener('resize',placeHead);
+      [60,300,900].forEach(t=>setTimeout(placeHead,t));
+
+      const FORM={n:{sx:1,w:1},m:{sx:1.1,w:1.15},f:{sx:.94,w:.85}};
+      const BUILDS={slim:.9,average:1,athletic:1.07,broad:1.16,plus:1.3};
+      let form='n',build='average',hCm=175;
+      function draw(){const f=FORM[form],k=BUILDS[build];
+       G('fg').style.transformOrigin='130px 685px';
+       G('fg').style.transform=`scaleX(${(f.sx*k).toFixed(3)}) scaleY(${(.95+(hCm-150)/500).toFixed(3)})`;
+       G('torso').style.transformOrigin='130px 300px';
+       G('torso').style.transform=`scaleX(${f.w.toFixed(3)})`;
+       G('gTop').style.transformOrigin='130px 300px';
+       G('gTop').style.transform=`scaleX(${f.w.toFixed(3)})`;
+       placeHead()}
+      function setForm(f){form=f;draw()}
+      function setBuild(b){build=b;draw()}
+      function setH(v){hCm=Math.max(140,Math.min(210,v));draw()}
+      function hFt(){setH(Math.round(((+G('ftv').value||5)*12+(+G('inv').value||0))*2.54))}
+      draw();
+
+      let step=0,vetoes=[],leanW={PARISIAN:0,MINIMAL:0,BOLD:0},worn=[],steal=[],eraN=0;
+      function tk(id,v,lit=true){G('t-'+id).classList.toggle('lit',lit);G('v-'+id).textContent=v}
+      function lean(k,x){leanW[k]+=x;const t=Object.entries(leanW).sort((a,b)=>b[1]-a[1])[0];
+       if(t[1]>0)tk('lean',t[0][0]+t[0].slice(1).toLowerCase())}
+      function shade(n){const c=n>=58?'l3':n>=34?'l2':n>=16?'l1':'';
+       document.querySelectorAll('.bp').forEach(p=>{p.classList.remove('l1','l2','l3');if(c)p.classList.add(c)});
+       if(n>=62)G('fg').classList.add('dressed')}
+      function one(el){[...el.parentElement.children].forEach(c=>c.classList.remove('on'));el.classList.add('on')}
+      function flash(c,n){const f=G('flash');G('fcl').innerHTML=c;G('fnx').textContent=n?'next... '+n:'';
+       f.classList.add('show');setTimeout(()=>f.classList.remove('show'),980)}
+      function tp(el,ar,max,key){const on=el.classList.contains('on');
+       const c=[...el.parentElement.children].filter(x=>x.classList.contains('on')).length;
+       if(!on&&c>=max)return;el.classList.toggle('on');lean(ar,on?-1:1);
+       const sel=[...el.parentElement.querySelectorAll('.tile.on')];
+       const names=sel.map(s=>s.querySelector('.tl').innerText.replace(/\s+/g,' ').trim());
+       if(key==='worn'){worn=names;
+        for(let i=0;i<3;i++){const s=G('cs'+i);
+         if(sel[i]){s.classList.add('fill');s.style.background=sel[i].style.background}
+         else{s.classList.remove('fill');s.style.background='none'}}}
+       else steal=names}
+      function veto(el,v){el.classList.toggle('no-on');
+       if(el.classList.contains('no-on'))vetoes.push(v);else vetoes=vetoes.filter(x=>x!==v);
+       tk('no',vetoes.length?vetoes.length+' refused':'—',vetoes.length>0)}
+      function photoUp(inp){const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();
+       r.onload=e=>{G('pimg').src=e.target.result;G('pimg').style.display='block';
+        G('headbtn').classList.add('has');G('tw').style.display='flex';shade(58);
+        setTimeout(()=>G('headbtn').classList.add('ready'),950)};r.readAsDataURL(f)}
+      function tiles(a,max,key){return `<div class="tiles">${a.map(([l,ar,g])=>
+       `<div class="tile" style="background:linear-gradient(${g})" onclick="tp(this,'${ar}',${max},'${key}')">
+         <span class="tick">✓</span><span class="tl">${l}</span></div>`).join('')}</div>
+       <div class="hintline">pick ${max}</div>`}
+
+      const PCT=[7,20,34,48,62,78,92,100];
+      const HERO=[
+       ["Let's build<br>your <span>twin.</span>","Seven questions. <b>Watch yourself appear</b> as you answer."],
+       ["Now the<br><span>money</span> bit.","Painless. It changes what I show you, never what you pay."],
+       ["Your face<br>is the <span>key.</span>","One photo and I start reading you... <b>while you keep answering.</b>"],
+       ["What you<br><span>actually</span> wear.","Not the aspiration. The truth. It votes on everything after."],
+       ["Now dream<br>a <span>little.</span>","Where you're headed matters as much as where you are."],
+       ["The stuff I'll<br><span>never</span> show you.","The no-list is sacred. It prints in red and I never break it."],
+       ["Last one.<br>How <span>honest?</span>","I always tell you the truth. This sets how I break it."],
+       ["Say hello<br>to <span>you.</span>","Everything you told me, in one place."]];
+      function head(i){G('acth').innerHTML=HERO[i-1][0];G('acts').innerHTML=HERO[i-1][1];
+       G('eb').textContent=i===8?'THE VERDICT':'THE FITTING';
+       G('pf').style.width=PCT[i-1]+'%';G('pn').textContent=PCT[i-1]+'%';
+       return (i>1&&i<8?'<button class="back" onclick="back()">← back</button><br>':'')+
+        (i<8?`<div class="qcount">${i} <span>of 7</span></div>`:'<div class="qcount">THE VERDICT</div>')}
+
+      const Q=G('qs');
+      const S=[
+      ()=>{Q.innerHTML=head(1)+`
+      <h3 class="q"><span class="wipe">What do we</span><br><span class="wipe" style="animation-delay:.22s">call you?</span></h3>
+      <p class="qw">Your name claims the card. <b>Everything after develops it.</b></p>
+      <input class="field" placeholder="Your name" autofocus oninput="tk('name',this.value.toUpperCase()||'—',this.value.length>0)">
+      <div class="qlbl">How do you shop for clothing?</div>
+      <div class="chips">${[['Masculine','m'],['Feminine','f'],['Androgynous','n'],['Non-binary','n'],['Rather not say','n']]
+       .map(([t,k])=>`<span class="chip" onclick="one(this);setForm('${k}')">${t}</span>`).join('')}</div>
+      <div class="qlbl">Which era is your style living in?</div>
+      <div class="chips" id="erac">${['23–29','30s Prime','40s Power','50s–60s','65+ Icon']
+       .map(x=>`<span class="chip" onclick="this.classList.toggle('on');eraN=document.querySelectorAll('#erac .on').length;tk('era',eraN?eraN+' picked':'—',eraN>0)">${x}</span>`).join('')}</div>
+      <div class="nav"><button class="cta" onclick="shade(16);flash('Money stuff...<br><em>quick and painless.</em>','how you spend');next()">Lock it in <span>→</span></button></div>`},
+      ()=>{Q.innerHTML=head(2)+`
+      <h3 class="q"><span class="wipe">How do you like</span><br><span class="wipe" style="animation-delay:.22s">to spend?</span></h3>
+      <p class="qw">I never rank by cheapest... I find the best match inside <b>how you buy.</b></p>
+      <div class="chips">${[['Smart value','Smart'],['Quality first','Quality'],['Luxury','Luxe'],['Deal hunter','Deals'],['Design-led','Design']]
+       .map(([t,v])=>`<span class="chip" onclick="one(this);tk('spend','${v}')">${t}</span>`).join('')}</div>
+      <div class="nav"><button class="cta" onclick="shade(28);flash('Best for last?<br>No... <em>best in the middle.</em>','your photo');next()">Lock it in <span>→</span></button></div>`},
+      ()=>{Q.innerHTML=head(3)+`
+      <h3 class="q"><span class="wipe">Give me your</span><br><span class="wipe" style="animation-delay:.22s">best angle.</span></h3>
+      <p class="qw">Tap the circle. <b>I build your twin in the background</b> while you finish.</p>
+      <div class="qlbl">How tall are you?</div>
+      <div class="chips" style="align-items:center;gap:8px">
+       <span class="hb"><input id="ftv" type="number" min="4" max="7" value="5" oninput="hFt()"><b>ft</b></span>
+       <span class="hb"><input id="inv" type="number" min="0" max="11" value="9" oninput="hFt()"><b>in</b></span></div>
+      <div class="qlbl">Your build <small>honesty beats flattery</small></div>
+      <div class="chips">${[['Slim','slim'],['Average','average'],['Athletic','athletic'],['Broad','broad'],['Plus','plus']]
+       .map(([t,k])=>`<span class="chip${k==='average'?' on':''}" onclick="one(this);setBuild('${k}')">${t}</span>`).join('')}</div>
+      <div class="hintline"><b>Trains nothing, sold to no one.</b> Delete it whenever you like.</div>
+      <div class="nav"><button class="cta" onclick="shade(44);flash('Now the real you...<br><em>hoodie included.</em>','what you actually wore');next()">Keep going <span>→</span></button>
+       <span class="skip" onclick="next()">skip photo</span></div>`},
+      ()=>{Q.innerHTML=head(4)+`
+      <h3 class="q"><span class="wipe">Which three did</span><br><span class="wipe" style="animation-delay:.22s">you wear most?</span></h3>
+      <p class="qw">No judgment... <b>a safe space for that hoodie.</b></p>
+      ${tiles([['Polished,<br>but easy','MINIMAL','165deg,#2E3440,#4A5468,#6E7890'],
+       ['Soft<br>layers','PARISIAN','160deg,#4A3E36,#77604E,#A08668'],
+       ['Weekend<br>off-duty','MINIMAL','165deg,#33402F,#5C7050,#84986E'],
+       ['Sharp<br>lines','PARISIAN','165deg,#20263E,#3A4470,#5A6494'],
+       ['One loud<br>piece','BOLD','160deg,#482432,#7C3A52,#A85A74'],
+       ['Light +<br>linen','PARISIAN','165deg,#4E4A3C,#847C60,#B0A480']],3,'worn')}
+      <div class="nav"><button class="cta" onclick="shade(62);flash('Okay, now<br><em>dream a little.</em>','the closet you would steal');next()">Lock it in <span>→</span></button></div>`},
+      ()=>{Q.innerHTML=head(5)+`
+      <h3 class="q"><span class="wipe">Whose closet</span><br><span class="wipe" style="animation-delay:.22s">would you steal?</span></h3>
+      <p class="qw">Pick two. <b>I dress where you are and where you're going.</b></p>
+      ${tiles([['Power<br>tailoring','BOLD','165deg,#22342A,#3E6448,#5E8A68'],
+       ['The<br>uniform','MINIMAL','165deg,#32363E,#5E6572,#8A93A0'],
+       ['Colour,<br>unapologetic','BOLD','160deg,#44202C,#7C3048,#A84E68'],
+       ['Quiet<br>luxury','PARISIAN','165deg,#3C342A,#6E5F48,#948060'],
+       ['Thrown-on<br>chic','PARISIAN','165deg,#342C3A,#5E5070,#847494'],
+       ['Gallery<br>black','MINIMAL','165deg,#1A1A20,#33333E,#50505E']],2,'steal')}
+      <div class="nav"><button class="cta" onclick="shade(70);flash('And the stuff<br>I <em>never</em> show you.','your no-list');next()">Lock it in <span>→</span></button></div>`},
+      ()=>{Q.innerHTML=head(6)+`
+      <h3 class="q"><span class="wipe">Quick vetoes</span><br><span class="wipe" style="animation-delay:.22s">and loyalties.</span></h3>
+      <p class="qw">Whatever lands on the no-list, <b>you'll never see me suggest it.</b></p>
+      <div class="qlbl">Brands you reach for</div>
+      <div class="chips">${['Massimo Dutti','Uniqlo','COS','Arket'].map(x=>`<span class="chip" onclick="this.classList.toggle('on')">${x}</span>`).join('')}</div>
+      <div class="qlbl">Never put me in...</div>
+      <div class="chips">${['skin-tight','loud logos','neon','distressed','see-through']
+       .map(x=>`<span class="chip nochip" onclick="veto(this,'${x}')">${x}</span>`).join('')}</div>
+      <div class="nav"><button class="cta" onclick="shade(76);flash('Last one...<br><em>and it is a good one.</em>','how honest you want me');next()">Lock it in <span>→</span></button></div>`},
+      ()=>{Q.innerHTML=head(7)+`
+      <h3 class="q"><span class="wipe">How honest</span><br><span class="wipe" style="animation-delay:.22s">do you want me?</span></h3>
+      <p class="qw">I'll never say a piece works when it doesn't. <b>Every no comes with a yes.</b></p>
+      <div class="dial">
+       <button class="dopt" onclick="one(this)"><b>Gentle</b><i>Nudge me kindly.</i></button>
+       <button class="dopt on" onclick="one(this)"><b>Straight with me</b><i>Like a good friend. If it doesn't work, say so.</i></button>
+       <button class="dopt" onclick="one(this)"><b>No mercy</b><i>Full stylist mode. I can take it.</i></button></div>
+      <div class="nav"><button class="cta" onclick="finale()">Show me <span>→</span></button></div>`},
+      ()=>{const l=Object.entries(leanW).sort((a,b)=>b[1]-a[1])[0][0];
+      const lt={PARISIAN:'effortless, thrown-on polish',MINIMAL:'clean lines and quiet confidence',BOLD:'statement pieces that own the room'}[l]||'a mix all your own';
+      const bt={slim:'your frame carries drape beautifully',average:'nearly every cut works... precise fit is your superpower',athletic:'structure and taper show your shape',broad:'clean lines, never cling',plus:'drape and the right rise do the work'}[build];
+      Q.innerHTML=head(8)+`
+      <div class="verdict">
+       <div class="vh">WHAT YOU LOVE</div><p>${worn.length?'<b>'+worn.join(' · ')+'</b>... ':''}you lean toward <b>${lt}</b>.</p>
+       <div class="vh">WHAT SUITS YOU</div><p>${bt.charAt(0).toUpperCase()+bt.slice(1)}.</p>
+       <div class="vh">WORTH CONSIDERING</div><p>${steal.length&&worn.length?"You live in <b>"+worn[0]+"</b> but you're drawn to <b>"+steal[0]+"</b>... that gap is where I push you.":'Your reality and your wishlist agree.'}</p></div>
+      <div class="nav"><button class="cta">Meet your twin <span>→</span></button></div>`}
+      ];
+      function next(){step++;setTimeout(()=>S[step](),620)}
+      function back(){if(step>0){step--;S[step]()}}
+      function finale(){shade(84);
+       if(G('headbtn').classList.contains('has')){G('tw').classList.add('rdy');G('twt').textContent='twin ready'}
+       flash('Say hello<br>to <em>you.</em>','');step=7;setTimeout(()=>S[7](),700)}
+      S[0]();
+
+      const IT=[['#4A5468','Wool blazer','Massimo Dutti','£179'],['#B8894F','Fine knit','COS','£78'],
+       ['#2A2620','Straight trouser','Arket','£95'],['#2E5B5B','Overshirt','Uniqlo','£59'],
+       ['#F2EBE0','Silk shell','Theory','£140'],['#8C5A3C','Suede boot','Massimo Dutti','£145']];
+      function fq(t){G('q').value=t;search()}
+      function search(){G('rgrid').innerHTML=IT.map(([c,n,b,p])=>`<div class="rc">
+       <div class="im" style="background:linear-gradient(170deg,${c}22,${c}44)">
+        <svg width="56%" viewBox="0 0 120 140"><rect x="18" y="14" width="84" height="112" rx="10" fill="${c}"/></svg></div>
+       <div class="cp"><b>${n}</b><em>${b}</em><span class="pr">${p}</span></div></div>`).join('');
+       G('res').classList.add('on')}
+    </script>
+  </body>
+</html>

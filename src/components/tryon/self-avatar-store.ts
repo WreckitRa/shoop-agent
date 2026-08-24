@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { openAuthModal } from "@/hooks/useGuestMode";
 import { useAppSessionStore } from "@/lib/client/app-session";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import { accessNeedsAccountForMirror } from "@/components/tryon/mirror-entry";
 
 type SelfAvatarStatus = "unknown" | "loading" | "ready" | "missing" | "signed_out";
@@ -12,21 +13,19 @@ type SelfAvatarState = {
   status: SelfAvatarStatus;
   personId: string | null;
   avatarUrl: string | null;
-  createFlowOpen: boolean;
   /** Generation for ignoring stale refresh responses. */
   refreshGen: number;
 
   refresh: () => Promise<void>;
   markReady: (avatarUrl?: string | null) => void;
+  /** Open The Fitting so the shopper can create their twin. */
   openCreateFlow: () => void;
-  closeCreateFlow: () => void;
 };
 
 export const useSelfAvatarStore = create<SelfAvatarState>((set, get) => ({
   status: "unknown",
   personId: null,
   avatarUrl: null,
-  createFlowOpen: false,
   refreshGen: 0,
 
   refresh: async () => {
@@ -76,7 +75,6 @@ export const useSelfAvatarStore = create<SelfAvatarState>((set, get) => ({
     set((s) => ({
       status: "ready",
       avatarUrl: avatarUrl ?? s.avatarUrl,
-      createFlowOpen: false,
     }));
   },
 
@@ -86,22 +84,8 @@ export const useSelfAvatarStore = create<SelfAvatarState>((set, get) => ({
       openAuthModal("signup");
       return;
     }
-    const { personId } = get();
-    if (personId) {
-      set({ createFlowOpen: true });
-      return;
-    }
-    void get().refresh().then(() => {
-      const nextMode = useAppSessionStore.getState().mode;
-      if (accessNeedsAccountForMirror(nextMode)) {
-        openAuthModal("signup");
-        return;
-      }
-      if (get().personId) set({ createFlowOpen: true });
-    });
+    useInlineFittingStore.getState().openColumn();
   },
-
-  closeCreateFlow: () => set({ createFlowOpen: false }),
 }));
 
 /** Effective try-on CTA after live avatar state (message tryon fields can be stale). */

@@ -69,21 +69,23 @@ ALTER TABLE "UserProfile"
 
 
 -- >>> supabase/migrations/20260818180000_photo_analysis.sql
--- Isolated photo bakeoff (spec vs GPT). Display only — never consumed by search.
+-- Isolated LLM style-photo analysis. Display only — never consumed by search.
 CREATE TABLE IF NOT EXISTS "PhotoAnalysis" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   "photoHash" TEXT NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'running',
-  "specStatus" TEXT NOT NULL DEFAULT 'pending',
-  "gptStatus" TEXT NOT NULL DEFAULT 'pending',
-  "specResult" JSONB,
-  "gptResult" JSONB,
-  "specError" TEXT,
-  "gptError" TEXT,
-  "specMs" INTEGER,
-  "gptMs" INTEGER,
-  "gptModel" TEXT,
+  "gate" JSONB,
+  "result" JSONB,
+  "userReview" JSONB,
+  "verdict" JSONB,
+  "verdictStatus" TEXT NOT NULL DEFAULT 'idle',
+  "verdictError" TEXT,
+  "verdictMs" INTEGER,
+  "verdictModel" TEXT,
+  "error" TEXT,
+  "ms" INTEGER,
+  "model" TEXT,
   "engineVersion" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -96,4 +98,62 @@ CREATE UNIQUE INDEX IF NOT EXISTS "PhotoAnalysis_userId_photoHash_key"
 CREATE INDEX IF NOT EXISTS "PhotoAnalysis_userId_createdAt_idx"
   ON "PhotoAnalysis" ("userId", "createdAt" DESC);
 
+-- Columns added after the first PhotoAnalysis table (CREATE IF NOT EXISTS
+-- does not upgrade an older shape).
+ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "gate" JSONB;
+ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "userReview" JSONB;
+ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdict" JSONB;
+ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictStatus" TEXT NOT NULL DEFAULT 'idle';
+ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictError" TEXT;
+ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictMs" INTEGER;
+ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictModel" TEXT;
+
+
+-- >>> supabase/migrations/20260824120000_legal_privacy_controls.sql
+ALTER TABLE "UserProfile"
+  ADD COLUMN IF NOT EXISTS "termsAcceptedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "termsVersion" TEXT,
+  ADD COLUMN IF NOT EXISTS "shareLikenessConsentAt" TIMESTAMP(3);
+
+ALTER TABLE "look_ask_shares"
+  ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "revokedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "revokeReason" TEXT;
+
+UPDATE "look_ask_shares"
+SET "expiresAt" = "createdAt" + INTERVAL '7 days'
+WHERE "expiresAt" IS NULL;
+
+CREATE INDEX IF NOT EXISTS "look_ask_shares_expiresAt_idx"
+  ON "look_ask_shares" ("expiresAt");
+
+CREATE TABLE IF NOT EXISTS "biometric_consents" (
+  "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "documentVersion" TEXT NOT NULL,
+  "acceptedAt" TIMESTAMP(3) NOT NULL,
+  "withdrawnAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "biometric_consents_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "biometric_consents_userId_createdAt_idx"
+  ON "biometric_consents" ("userId", "createdAt" DESC);
+
+CREATE TABLE IF NOT EXISTS "privacy_deletion_events" (
+  "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "kind" TEXT NOT NULL,
+  "fashnNote" TEXT NOT NULL,
+  "details" JSONB NOT NULL DEFAULT '{}',
+  "completedAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "privacy_deletion_events_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "privacy_deletion_events_userId_completedAt_idx"
+  ON "privacy_deletion_events" ("userId", "completedAt" DESC);
+
+CREATE INDEX IF NOT EXISTS "privacy_deletion_events_kind_completedAt_idx"
+  ON "privacy_deletion_events" ("kind", "completedAt");
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { MIN_ACCOUNT_AGE } from "@/lib/legal/constants";
 import {
   GENDER_OPTIONS,
   STYLE_ERAS,
@@ -56,8 +57,7 @@ const ERA_SHORT: Record<string, string> = {
   "65_plus": "65+ Icon",
 };
 
-const MIN_AGE = 13;
-const MAX_BIRTH_DATE = maxBirthDateIso(MIN_AGE);
+const MAX_BIRTH_DATE = maxBirthDateIso(MIN_ACCOUNT_AGE);
 
 export function YouIdentityStep({
   values,
@@ -68,7 +68,7 @@ export function YouIdentityStep({
   const ageYears =
     !values.birthDateSkipped &&
     /^\d{4}-\d{2}-\d{2}$/.test(values.birthDate) &&
-    isAtLeastAge(values.birthDate, MIN_AGE)
+    isAtLeastAge(values.birthDate, MIN_ACCOUNT_AGE)
       ? ageYearsFromBirthDate(values.birthDate)
       : null;
 
@@ -92,7 +92,7 @@ export function YouIdentityStep({
     Boolean(values.birthDate) &&
     /^\d{4}-\d{2}-\d{2}$/.test(values.birthDate) &&
     !values.birthDateSkipped &&
-    !isAtLeastAge(values.birthDate, MIN_AGE);
+    !isAtLeastAge(values.birthDate, MIN_ACCOUNT_AGE);
 
   function onBirthdayChange(raw: string) {
     onChange("birthDateSkipped", false);
@@ -101,7 +101,7 @@ export function YouIdentityStep({
       return;
     }
     onChange("birthDate", raw);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && isAtLeastAge(raw, MIN_AGE)) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && isAtLeastAge(raw, MIN_ACCOUNT_AGE)) {
       const age = ageYearsFromBirthDate(raw);
       if (age != null) {
         const guess = styleEraFromAge(age);
@@ -180,7 +180,7 @@ export function YouIdentityStep({
       </div>
       {underage ? (
         <p className="mt-2 text-xs font-semibold text-[var(--fitting-red)]">
-          You need to be at least {MIN_AGE} to use Shoop.
+          You need to be at least {MIN_ACCOUNT_AGE} to use Shoop.
         </p>
       ) : null}
       <OnboardingWhy>

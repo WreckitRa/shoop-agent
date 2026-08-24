@@ -19,7 +19,7 @@ export async function POST() {
   }
 
   const jar = await cookies();
-  const email = readVerifyEmailCookie(jar.get(VERIFY_EMAIL_COOKIE)?.value);
+  const email = readVerifyEmailCookie(jar.get(VERIFY_EMAIL_COOKIE)?.value)?.email;
   if (!email) {
     return NextResponse.json(
       { error: "Start signup again to send a new code." },

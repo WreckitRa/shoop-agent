@@ -1,5 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import type { CatalogProductSummary } from "@/lib/shopify/catalog";
 import type { FashionSearchBrief } from "../router/types";
 import type { FashionFactRow } from "../types";
@@ -21,7 +23,7 @@ import {
 } from "./components";
 import { paletteComponentScore, paletteMatch } from "./palette-match";
 import { scoreSlotProducts } from "./orchestrator";
-import { SCORING_WEIGHTS, SCORING_WEIGHTS_VERSION } from "./weights";
+import { SCORING_COMPONENT_KEYS, SCORING_WEIGHTS, SCORING_WEIGHTS_VERSION } from "./weights";
 
 function fact<T extends FashionFactRow["fact_type"]>(
   fact_type: T,
@@ -297,6 +299,70 @@ describe("suspicion penalties", () => {
     assert.equal(computeSuspicionPenalty(1), 0.03);
     assert.equal(computeSuspicionPenalty(3), 0.08);
     assert.equal(computeSuspicionPenalty(10), 0.08);
+  });
+});
+
+describe("commission is not a scoring input", () => {
+  const BANNED = [
+    "commission",
+    "affiliate",
+    "payout",
+    "cpc",
+    "cpa",
+    "revshare",
+  ] as const;
+  const bannedRe = new RegExp(`\\b(${BANNED.join("|")})\\b`, "i");
+
+  function assertClean(label: string, value: unknown) {
+    const blob = JSON.stringify(value).toLowerCase();
+    for (const word of BANNED) {
+      assert.equal(blob.includes(word), false, `${label} contains ${word}`);
+    }
+  }
+
+  function collectTs(dir: string, out: string[]) {
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) {
+        collectTs(path, out);
+        continue;
+      }
+      if (name.endsWith(".ts") && !name.endsWith(".test.ts")) out.push(path);
+    }
+  }
+
+  it("weights, brief, catalog product, and score output have no rate fields", () => {
+    assertClean("weights", {
+      weights: SCORING_WEIGHTS,
+      keys: SCORING_COMPONENT_KEYS,
+      version: SCORING_WEIGHTS_VERSION,
+    });
+    assertClean("brief", briefSizesUnknown);
+    assertClean("product", product("p1"));
+    const score = scoreProduct({
+      product: product("p1"),
+      slot: planSlot(),
+      brief: briefSizesUnknown,
+      recipientFacts: [],
+      bestRank: 0,
+    });
+    assertClean("score", score);
+  });
+
+  it("ranking-layer source has no commission or affiliate identifiers", () => {
+    const files: string[] = [];
+    collectTs(join(process.cwd(), "src/lib/fashion-memory/scoring"), files);
+    collectTs(join(process.cwd(), "src/lib/fashion-memory/router"), files);
+    files.push(
+      join(process.cwd(), "src/lib/fashion-memory/curation/build-input.ts"),
+      join(process.cwd(), "src/lib/fashion-memory/catalog-search/types.ts"),
+      join(process.cwd(), "src/lib/fashion-memory/hydration/types.ts"),
+    );
+    for (const file of files) {
+      const text = readFileSync(file, "utf8");
+      const hit = bannedRe.exec(text);
+      assert.equal(hit, null, `${file} contains ${hit?.[0]}`);
+    }
   });
 });
 

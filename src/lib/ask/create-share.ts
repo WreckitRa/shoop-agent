@@ -11,6 +11,7 @@ import {
 import { mapVerdictToShoopVote } from "./map-shoop-vote";
 import { upsertOwnerAskVote } from "./owner-vote";
 import { generateAskToken } from "./public-payload";
+import { isShareLive, shareExpiresAt } from "@/lib/legal/share-lifetime";
 import { isAskVoteChoice, type AskVoteChoice } from "./types";
 
 export type CreateLookAskInput = {
@@ -115,6 +116,7 @@ export async function createLookAskShare(input: CreateLookAskInput) {
         typeof input.killCount === "number" && Number.isFinite(input.killCount)
           ? Math.max(0, Math.round(input.killCount))
           : null,
+      expiresAt: shareExpiresAt(),
     },
   });
 
@@ -135,11 +137,33 @@ export async function createLookAskShare(input: CreateLookAskInput) {
 }
 
 export async function loadShareByToken(token: string) {
-  return prisma.lookAskShare.findUnique({
+  const share = await prisma.lookAskShare.findUnique({
     where: { token },
     include: {
       votes: { orderBy: { createdAt: "asc" } },
       notes: { orderBy: { createdAt: "asc" }, take: 40 },
     },
+  });
+  if (!share || !isShareLive(share)) return null;
+  return share;
+}
+
+export async function revokeShareByToken(params: {
+  token: string;
+  ownerUserId?: string;
+  reason: string;
+}) {
+  const share = await prisma.lookAskShare.findUnique({
+    where: { token: params.token },
+    select: { id: true, ownerUserId: true, revokedAt: true },
+  });
+  if (!share) return null;
+  if (params.ownerUserId && share.ownerUserId !== params.ownerUserId) {
+    return null;
+  }
+  if (share.revokedAt) return share;
+  return prisma.lookAskShare.update({
+    where: { token: params.token },
+    data: { revokedAt: new Date(), revokeReason: params.reason.slice(0, 120) },
   });
 }

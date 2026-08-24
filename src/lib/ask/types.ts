@@ -45,6 +45,8 @@ export type LookAskSharePublic = {
     createdAt: string;
   }>;
   createdAt: string;
+  expiresAt: string | null;
+  revoked: boolean;
 };
 
 export function isAskVoteChoice(v: unknown): v is AskVoteChoice {

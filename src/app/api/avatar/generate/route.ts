@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
+import { assertPhotoProcessingAllowed } from "@/lib/legal/photo-gate";
 import {
   approveAvatar,
   generateAvatarPreview,
@@ -30,6 +31,10 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.response;
   if (auth.isGuest) {
     return Response.json({ error: "Sign in required." }, { status: 401 });
+  }
+  const gate = await assertPhotoProcessingAllowed(auth);
+  if (!gate.ok) {
+    return Response.json({ error: gate.error }, { status: gate.status });
   }
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {

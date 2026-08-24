@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import Link from "next/link";
 import { ComposerReplyChip } from "@/components/chat/ComposerReplyChip";
 import { ReceiptPlusButton } from "@/components/chat/ReceiptPlusButton";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useSuggestedPrompt } from "@/components/chat/useSuggestedPrompt";
 import { ShoopIcon } from "@/components/brand/ShoopBrand";
+import { LegalFooterLinks } from "@/components/legal/LegalFooterLinks";
 import { cn } from "@/lib/ai-chat/cn";
 
 const HOME_PLACEHOLDERS = [
@@ -261,7 +261,12 @@ export function ChatComposer({
           </p>
         ) : null}
 
-        {isFirstMessage && !isHeroComposer ? <ComposerLegalFooter /> : null}
+        {isHeroComposer || isFirstMessage ? (
+          <div className="px-2 text-center text-[11px] leading-5 text-ink-muted">
+            Shoop may make mistakes. Please review important details.{" "}
+            <LegalFooterLinks compact className="inline-flex" />
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -332,26 +337,5 @@ function StopButton({ onStop }: { onStop: () => void }) {
     >
       <span className="size-2.5 rounded-[2px] bg-white" />
     </button>
-  );
-}
-
-function ComposerLegalFooter() {
-  return (
-    <p className="px-2 text-center text-[11px] leading-5 text-ink-muted">
-      Shoop may make mistakes. Please review important details.{" "}
-      <Link
-        href="/terms"
-        className="underline underline-offset-2 hover:text-ink"
-      >
-        Terms
-      </Link>
-      {" · "}
-      <Link
-        href="/privacy"
-        className="underline underline-offset-2 hover:text-ink"
-      >
-        Privacy
-      </Link>
-    </p>
   );
 }

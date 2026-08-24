@@ -3,11 +3,16 @@
 export const PHOTO_ERROR = {
   rate_limited: "OpenAI rate limit — tap re-run in a few seconds.",
   timeout: "GPT timed out — tap re-run.",
-  missing_key: "GPT key isn't set, so only the spec read ran.",
+  missing_key: "OPENAI_API_KEY isn't set.",
   empty: "GPT returned nothing — tap re-run.",
   non_json: "GPT returned unreadable output — tap re-run.",
   incomplete: "GPT ran out of room — tap re-run.",
   failed: "GPT didn't finish — tap re-run.",
+  no_face: "Couldn't find a face in this photo.",
+  face_off: "Face is too small or cut off — try a clearer shot.",
+  unread: "Couldn't open this as a photo.",
+  too_small: "This photo is too small to read.",
+  not_person: "Need a photo of you — a real human face, just you.",
 } as const;
 
 export type PhotoErrorCode = keyof typeof PHOTO_ERROR;
@@ -26,6 +31,9 @@ export function stripProviderSecrets(message: string): string {
 }
 
 export function classifyPhotoError(message: string): PhotoErrorCode {
+  for (const code of Object.keys(PHOTO_ERROR) as PhotoErrorCode[]) {
+    if (message === PHOTO_ERROR[code]) return code;
+  }
   const lower = message.toLowerCase();
   if (lower.includes("openai_api_key") || lower.includes("isn't set")) {
     return "missing_key";

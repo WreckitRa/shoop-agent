@@ -1,4 +1,5 @@
 import { SHOPIFY_COUNTRIES } from "@/lib/cart/countries";
+import { MIN_ACCOUNT_AGE } from "@/lib/legal/constants";
 
 export const AGE_RANGES = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"] as const;
 
@@ -343,7 +344,7 @@ export function ageYearsFromBirthDate(isoOrDate: string | Date): number | null {
 }
 
 /** Latest YYYY-MM-DD allowed so the person is at least `minAge` years old. */
-export function maxBirthDateIso(minAge = 13): string {
+export function maxBirthDateIso(minAge = MIN_ACCOUNT_AGE): string {
   const d = new Date();
   d.setFullYear(d.getFullYear() - minAge);
   const y = d.getFullYear();
@@ -354,7 +355,7 @@ export function maxBirthDateIso(minAge = 13): string {
 
 export function isAtLeastAge(
   isoOrDate: string | Date,
-  minAge = 13,
+  minAge = MIN_ACCOUNT_AGE,
 ): boolean {
   const age = ageYearsFromBirthDate(isoOrDate);
   return age != null && age >= minAge;

@@ -13,6 +13,10 @@ import {
   userProfilePatchSchema,
 } from "@/lib/ai-chat/profile/validators";
 import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
+import {
+  closeIfUnderageBirthDate,
+  MinorAccountClosedError,
+} from "@/lib/legal/close-account";
 
 export const REQUIRED_ONBOARDING_FIELDS = [
   "preferredName",
@@ -139,6 +143,11 @@ export async function applyOnboardingPatch(
   if (typeof profileData.birthDate === "string") {
     const d = new Date(profileData.birthDate);
     profileData.birthDate = Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (profileData.birthDate instanceof Date) {
+    if (await closeIfUnderageBirthDate(userId, profileData.birthDate)) {
+      throw new MinorAccountClosedError();
+    }
   }
   if (input.profile?.styleMix !== undefined) {
     profileData.styleMix =

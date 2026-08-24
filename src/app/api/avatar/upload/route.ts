@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
 import { applyStatedMeasurements } from "@/lib/fashion-memory/intake/apply-stated-measurements";
+import { assertPhotoProcessingAllowed } from "@/lib/legal/photo-gate";
 import {
   checkAvatarAttributes,
   submitAvatarAttributes,
@@ -26,6 +27,10 @@ export async function POST(req: Request) {
   try {
     const contentType = req.headers.get("content-type") ?? "";
     if (contentType.includes("multipart/form-data")) {
+      const gate = await assertPhotoProcessingAllowed(auth);
+      if (!gate.ok) {
+        return Response.json({ error: gate.error }, { status: gate.status });
+      }
       const form = await req.formData();
       const personId = String(form.get("person_id") ?? "");
       const file = form.get("photo");

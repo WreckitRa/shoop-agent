@@ -23,7 +23,7 @@ describe("isTryonPersonUuid", () => {
 describe("tryonUserFacingError", () => {
   it("maps avatar required to a shopper line", () => {
     const out = tryonUserFacingError(new Error("Avatar required"));
-    assert.match(out.message, /Shoop card/i);
+    assert.match(out.message, /Fitting/i);
     assert.equal(out.status, 400);
   });
 

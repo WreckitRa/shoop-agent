@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
+import { BiometricReconsentGate } from "@/components/legal/BiometricReconsentGate";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import { GuestLeavePrompt } from "@/components/auth/GuestLeavePrompt";
 import { ShoopLogo } from "@/components/brand/ShoopBrand";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
 import { cn } from "@/lib/ai-chat/cn";
+import { LEGAL_PATHS, MIN_ACCOUNT_AGE } from "@/lib/legal/constants";
+import { maxBirthDateIso } from "@/lib/onboarding/form-options";
 import {
   clearGuestSession,
   exportGuestDataForMigration,
@@ -67,6 +70,11 @@ async function migrateGuestDataAfterAuth(): Promise<boolean> {
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAskPage = pathname?.startsWith("/ask/") ?? false;
+  const isLegalPage =
+    (pathname?.startsWith("/legal") ?? false) ||
+    pathname === "/terms" ||
+    pathname === "/privacy";
+  const skipFittingChrome = isAskPage || isLegalPage;
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -75,6 +83,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -241,7 +251,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     setBusy(true);
     try {
       const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
-      const body = { email, password };
+      const body =
+        mode === "signup"
+          ? { email, password, birthDate, acceptTerms }
+          : { email, password };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -339,7 +352,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         {children}
-        {!isAskPage ? <OnboardingGate /> : null}
+        {!skipFittingChrome ? <BiometricReconsentGate enabled /> : null}
+        {!skipFittingChrome ? <OnboardingGate /> : null}
       </>
     );
   }
@@ -352,8 +366,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         onModeChange={handleAuthModeChange}
         email={email}
         password={password}
+        birthDate={birthDate}
+        acceptTerms={acceptTerms}
         onEmailChange={setEmail}
         onPasswordChange={setPassword}
+        onBirthDateChange={setBirthDate}
+        onAcceptTermsChange={setAcceptTerms}
         error={error}
         busy={busy}
         onSubmit={submit}
@@ -379,8 +397,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         {children}
-        {!isAskPage ? <OnboardingGate /> : null}
-        {!isAskPage ? <GuestLeavePrompt /> : null}
+        {!skipFittingChrome ? <OnboardingGate /> : null}
+        {!skipFittingChrome ? <GuestLeavePrompt /> : null}
         {authForm ? (
           <AuthOverlay
             onDismiss={() => {
@@ -395,7 +413,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isAskPage) {
+  if (skipFittingChrome) {
     return <>{children}</>;
   }
 
@@ -441,8 +459,12 @@ type AuthModalProps = {
   onModeChange: (mode: AuthMode) => void;
   email: string;
   password: string;
+  birthDate: string;
+  acceptTerms: boolean;
   onEmailChange: (v: string) => void;
   onPasswordChange: (v: string) => void;
+  onBirthDateChange: (v: string) => void;
+  onAcceptTermsChange: (v: boolean) => void;
   error: string | null;
   busy: boolean;
   onSubmit: (e: React.FormEvent) => void;
@@ -466,8 +488,12 @@ function AuthModal({
   onModeChange,
   email,
   password,
+  birthDate,
+  acceptTerms,
   onEmailChange,
   onPasswordChange,
+  onBirthDateChange,
+  onAcceptTermsChange,
   error,
   busy,
   onSubmit,
@@ -489,6 +515,8 @@ function AuthModal({
     isGuestBrowsing && mode === "login" && guestHasDataToLose;
   const loginSubmitBlocked =
     showLoginDataLossGuard && !loginDataLossAcknowledged;
+  const signupSubmitBlocked =
+    mode === "signup" && (!birthDate || !acceptTerms);
   const column = layout === "column";
 
   return (
@@ -666,6 +694,56 @@ function AuthModal({
             placeholder="At least 8 characters"
           />
         </label>
+        {mode === "signup" ? (
+          <>
+            <label className="block space-y-2">
+              <span className="text-[12.5px] font-extrabold text-[var(--fitting-ink)]">
+                Date of birth
+              </span>
+              <input
+                type="date"
+                required
+                max={maxBirthDateIso(MIN_ACCOUNT_AGE)}
+                value={birthDate}
+                onChange={(e) => onBirthDateChange(e.target.value)}
+                className={inputClassName}
+              />
+              <span className="block text-[11px] font-semibold text-[var(--fitting-quiet)]">
+                You must be at least {MIN_ACCOUNT_AGE}. We don&apos;t create
+                accounts for anyone younger.
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-snug text-[var(--fitting-quiet)]">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => onAcceptTermsChange(e.target.checked)}
+                className="mt-0.5 size-4 shrink-0 rounded border-[#D6D6DE]"
+              />
+              <span>
+                I agree to the{" "}
+                <a
+                  href={LEGAL_PATHS.terms}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-[var(--fitting-ink)] underline underline-offset-2"
+                >
+                  Terms of Service
+                </a>{" "}
+                and{" "}
+                <a
+                  href={LEGAL_PATHS.privacy}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-[var(--fitting-ink)] underline underline-offset-2"
+                >
+                  Privacy Policy
+                </a>
+                . United States only.
+              </span>
+            </label>
+          </>
+        ) : null}
         {showLoginDataLossGuard ? (
           <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/60 px-3.5 py-3 text-sm leading-snug text-amber-950">
             <input
@@ -689,7 +767,7 @@ function AuthModal({
         ) : null}
         <button
           type="submit"
-          disabled={busy || loginSubmitBlocked}
+          disabled={busy || loginSubmitBlocked || signupSubmitBlocked}
           className={cn(
             "group inline-flex h-14 w-full items-center justify-center gap-3 rounded-[14px] bg-[var(--fitting-ink)] font-display text-[14.5px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50",
             column && "h-12",

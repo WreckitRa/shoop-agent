@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { cn } from "@/lib/ai-chat/cn";
+import { ShareLikenessDialog } from "@/components/ask/ShareLikenessDialog";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { useToastStore } from "@/lib/client/toast-store";
 import { HOLD_COMING_SOON_TOAST } from "@/lib/client/coming-soon-toasts";
@@ -264,6 +265,10 @@ export function StudyingScan({
   const [shareBusy, setShareBusy] = useState(false);
   const [asked, setAsked] = useState(false);
   const [shareHint, setShareHint] = useState<string | null>(null);
+  const [shareConsentOpen, setShareConsentOpen] = useState(false);
+  const [pendingShareAction, setPendingShareAction] = useState<
+    "copy" | "whatsapp" | null
+  >(null);
   const [shareUrl, setShareUrl] = useState<string | null>(() => {
     const token = useTryOnDrawerStore.getState().askShareToken;
     if (!token || typeof window === "undefined") return null;
@@ -525,11 +530,45 @@ export function StudyingScan({
     }
   }
 
+  async function ensureShareConsent(): Promise<boolean> {
+    try {
+      const remembered =
+        window.localStorage.getItem("shoop.share-likeness-consent") === "1";
+      if (remembered) return true;
+      const res = await guestFetch("/api/privacy/share-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareLikenessConsent: true }),
+      });
+      if (!res.ok) return false;
+      window.localStorage.setItem("shoop.share-likeness-consent", "1");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function runShare(kind: "copy" | "whatsapp") {
+    const consented =
+      window.localStorage.getItem("shoop.share-likeness-consent") === "1";
+    if (!consented) {
+      setPendingShareAction(kind);
+      setShareConsentOpen(true);
+      return;
+    }
+    if (kind === "whatsapp") await shareAskOnWhatsApp();
+    else await copyAskLink();
+  }
+
   async function copyAskLink() {
     const url = await ensureAskShareUrl();
     if (!url) return;
     const ok = await copyAskShareUrl(url);
-    setShareHint(ok ? "Link copied — send it to your friends" : url);
+    setShareHint(
+      ok
+        ? "Link copied — anyone with it can see this render of you. Expires in 7 days."
+        : url,
+    );
   }
 
   async function shareAskOnWhatsApp() {
@@ -782,7 +821,7 @@ export function StudyingScan({
                 disabled={!actionsReady || shareBusy}
                 ariaLabel="Share this look"
                 label={shareBusy ? "Sharing…" : asked ? "Shared" : "Share"}
-                onClick={() => void shareAskOnWhatsApp()}
+                onClick={() => void runShare("whatsapp")}
               >
                 <svg className="shoop-ab__ic" viewBox="0 0 24 24">
                   <path d="M14 4.2v3.7C7.4 8.7 4.2 13.4 3 19.8c2.4-3.4 5.9-5 11-5.1v3.8L21.4 12 14 4.2z" />
@@ -877,7 +916,7 @@ export function StudyingScan({
             type="button"
             className="shoop-sscan__btn shoop-sscan__btn--primary"
             disabled={!actionsReady || shareBusy}
-            onClick={() => void shareAskOnWhatsApp()}
+            onClick={() => void runShare("whatsapp")}
           >
             <i aria-hidden />
             {shareBusy ? "Making the card…" : "Share on WhatsApp"}
@@ -886,7 +925,7 @@ export function StudyingScan({
             type="button"
             className="shoop-sscan__btn shoop-sscan__btn--ghost"
             disabled={!actionsReady || shareBusy}
-            onClick={() => void copyAskLink()}
+            onClick={() => void runShare("copy")}
           >
             {shareBusy ? "Making link…" : "Copy link"}
           </button>
@@ -912,7 +951,7 @@ export function StudyingScan({
           type="button"
           className="shoop-sscan__copy-link"
           disabled={shareBusy}
-          onClick={() => void copyAskLink()}
+          onClick={() => void runShare("copy")}
         >
           {shareBusy ? "Making link…" : "Copy the ask link"}
         </button>
@@ -939,6 +978,31 @@ export function StudyingScan({
           Replay the scan
         </button>
       ) : null}
+
+      <ShareLikenessDialog
+        open={shareConsentOpen}
+        busy={shareBusy}
+        onCancel={() => {
+          setShareConsentOpen(false);
+          setPendingShareAction(null);
+        }}
+        onConfirm={() => {
+          void (async () => {
+            setShareBusy(true);
+            const ok = await ensureShareConsent();
+            setShareBusy(false);
+            if (!ok) {
+              setShareHint("Could not save sharing consent.");
+              return;
+            }
+            setShareConsentOpen(false);
+            const next = pendingShareAction;
+            setPendingShareAction(null);
+            if (next === "whatsapp") await shareAskOnWhatsApp();
+            else await copyAskLink();
+          })();
+        }}
+      />
     </div>
   );
 }

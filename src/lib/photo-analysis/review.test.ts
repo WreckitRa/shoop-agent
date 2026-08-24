@@ -1,0 +1,99 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  buildStyleUserReview,
+  listReviewableAssessments,
+  parseStyleUserReview,
+} from "./review";
+import { verdictReadiness } from "./verdict-input";
+import { parseStylistVerdict, STYLIST_VERDICT_ROOT_KEYS } from "./verdict";
+import { STYLIST_VERDICT_SCHEMA } from "./verdict-prompt";
+import type { StylePhotoAnalysis } from "./result";
+
+describe("style photo review", () => {
+  it("builds confirm / correct / reject paths", () => {
+    const rows = [
+      {
+        path: "visible_profile.face.primary_shape",
+        section: "Face",
+        label: "primary shape",
+        value: "oval",
+        confidence: 0.8,
+        evidence: "oval outline",
+      },
+      {
+        path: "visible_profile.color.eye_color",
+        section: "Colour",
+        label: "eye color",
+        value: "dark brown",
+        confidence: 0.7,
+        evidence: "iris visible",
+      },
+    ];
+    const review = buildStyleUserReview({
+      rows,
+      edits: { "visible_profile.color.eye_color": "medium warm brown" },
+      rejected: ["visible_profile.face.primary_shape"],
+      notes: "Regular ease, not slim.",
+    });
+    assert.deepEqual(review.confirmed_paths, []);
+    assert.equal(review.corrections[0]?.corrected_value, "medium warm brown");
+    assert.deepEqual(review.rejected_paths, [
+      "visible_profile.face.primary_shape",
+    ]);
+    assert.equal(parseStyleUserReview(review)?.notes[0], "Regular ease, not slim.");
+  });
+
+  it("lists visible-profile assessments", () => {
+    const analysis = {
+      visible_profile: {
+        color: {
+          eye_color: {
+            value: "brown",
+            confidence: 0.6,
+            evidence: "iris visible",
+            caveats: [],
+          },
+        },
+        face: {},
+        hair_and_grooming: {},
+        body_proportions: {},
+        current_style_signals: {},
+      },
+    } as unknown as StylePhotoAnalysis;
+    const rows = listReviewableAssessments(analysis);
+    assert.equal(rows[0]?.path, "visible_profile.color.eye_color");
+  });
+});
+
+describe("stylist verdict readiness", () => {
+  it("blocks until analysis, review, identity, lifestyle, and height exist", () => {
+    const missing = verdictReadiness({
+      analysisUsable: false,
+      reviewSubmitted: false,
+      genderPresentation: "",
+      lifestyle: null,
+      heightCm: null,
+    });
+    assert.equal(missing.length, 5);
+    assert.equal(
+      verdictReadiness({
+        analysisUsable: true,
+        reviewSubmitted: true,
+        genderPresentation: "masculine",
+        lifestyle: "working_mixed",
+        heightCm: 179,
+      }).length,
+      0,
+    );
+  });
+
+  it("keeps the verdict schema strict", () => {
+    assert.equal(STYLIST_VERDICT_SCHEMA.additionalProperties, false);
+    assert.deepEqual(
+      [...STYLIST_VERDICT_SCHEMA.required],
+      [...STYLIST_VERDICT_ROOT_KEYS],
+    );
+    assert.equal(parseStylistVerdict({}), null);
+  });
+});

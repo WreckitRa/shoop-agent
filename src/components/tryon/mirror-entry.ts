@@ -3,7 +3,6 @@ import type { AppAccessMode } from "@/lib/client/app-session";
 export type MirrorEntry =
   | "signup"
   | "onboarding"
-  | "create_avatar"
   | "fitting_room"
   | "avatar_viewer";
 
@@ -25,9 +24,7 @@ export function resolveMirrorEntry(params: {
   hasRackOrActive: boolean;
 }): MirrorEntry {
   if (params.accessMode === "anonymous") return "signup";
-  if (!params.avatarReady) {
-    return params.accessMode === "guest" ? "onboarding" : "create_avatar";
-  }
+  if (!params.avatarReady) return "onboarding";
   if (params.hasRackOrActive) return "fitting_room";
   return "avatar_viewer";
 }

@@ -8,6 +8,10 @@ import {
   signVerifyEmailCookie,
   verifyEmailCookieOptions,
 } from "@/lib/auth/email-verification";
+import { assertSignupAge } from "@/lib/legal/age-gate";
+import { LEGAL_DOC_VERSION } from "@/lib/legal/constants";
+import { decideSignupRegion } from "@/lib/legal/geo-gate";
+import { detectRequestArea } from "@/lib/server/request-area";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +29,11 @@ export async function POST(req: Request) {
     );
   }
 
+  const region = decideSignupRegion(detectRequestArea(req.headers)?.countryCode);
+  if (!region.ok) {
+    return NextResponse.json({ error: region.reason }, { status: 403 });
+  }
+
   try {
     const raw = await req.json();
     const parsed = signUpBodySchema.safeParse(raw);
@@ -34,6 +43,11 @@ export async function POST(req: Request) {
         { error: issue?.message ?? "Invalid request." },
         { status: 400 },
       );
+    }
+
+    const age = assertSignupAge(parsed.data.birthDate);
+    if (!age.ok) {
+      return NextResponse.json({ error: age.error }, { status: 403 });
     }
 
     const { email, password } = parsed.data;
@@ -48,7 +62,11 @@ export async function POST(req: Request) {
     });
     res.cookies.set(
       VERIFY_EMAIL_COOKIE,
-      signVerifyEmailCookie(email),
+      signVerifyEmailCookie({
+        email,
+        birthDate: age.birthDate,
+        termsVersion: LEGAL_DOC_VERSION,
+      }),
       verifyEmailCookieOptions(),
     );
     return res;

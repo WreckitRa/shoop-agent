@@ -109,7 +109,7 @@ export function FittingShell({
       </div>
 
       {column ? (
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-5 pt-3 [&_.fitting-count]:hidden [&_.fitting-whisper]:mb-4 [&_.fitting-whisper]:mt-2.5 [&_.fitting-whisper]:text-[15px] [&_h1]:text-[clamp(22px,2.2vw,28px)]">
+        <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-5 pt-3 [&_.fitting-count]:hidden [&_.fitting-whisper]:mb-4 [&_.fitting-whisper]:mt-2.5 [&_.fitting-whisper]:text-[15px] [&_h1]:text-[clamp(22px,6.4vw,28px)]">
           {children}
         </div>
       ) : (

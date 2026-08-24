@@ -3783,6 +3783,8 @@
   --fitting-mist: #f4f4f6;
   --fitting-quiet: #8a8a93;
   --fitting-line: #e8e8ec;
+  --fitting-good: #16a34a;
+  --fitting-watch: #c98a0e;
 }
 
 @keyframes fitting-wipe {
@@ -3808,6 +3810,42 @@
   }
   50% {
     opacity: 0.25;
+  }
+}
+
+@keyframes fitting-scan {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.fitting-scan-line {
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--fitting-red), transparent);
+  box-shadow: 0 0 14px rgba(228, 40, 49, 0.7);
+  animation: fitting-scan 1.6s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fitting-scan-line {
+    animation: none;
+    opacity: 0;
   }
 }
 

@@ -1,0 +1,184 @@
+{
+  "$comment": "Canonical share-meta constants as of the code in src/lib/seo, src/app, and src/lib/ask. ORIGIN is NEXT_PUBLIC_APP_URL (fallback APP_URL / VERCEL_URL / RAILWAY_PUBLIC_DOMAIN / http://localhost:3000).",
+  "identity": {
+    "siteName": "Shoop",
+    "tagline": "AI Shopping Concierge",
+    "defaultTitle": "Shoop — AI Shopping Concierge",
+    "titleTemplate": "%s | Shoop",
+    "locale": "en_US",
+    "htmlLang": "en",
+    "category": "shopping",
+    "applicationName": "Shoop",
+    "creator": "Shoop",
+    "publisher": "Shoop"
+  },
+  "copy": {
+    "description": "Shoop is your AI shopping concierge. Search every store, compare real products, and get honest buy, wait, or skip picks tailored to you.",
+    "keywords": [
+      "AI shopping assistant",
+      "shopping concierge",
+      "product search",
+      "compare products",
+      "personalized shopping",
+      "buy recommendations",
+      "gift finder",
+      "online shopping help"
+    ],
+    "ogCardBody": "Your AI shopping concierge — real products, clear verdicts, no guesswork.",
+    "ogCardFeatures": [
+      "Search every store",
+      "Honest buy · wait · skip picks",
+      "Personalized to you"
+    ]
+  },
+  "brandColors": {
+    "ogCardBrand": "#E42831",
+    "ogCardBrandSoft": "#FDECEC",
+    "ogCardInk": "#0E0E11",
+    "ogCardInkSoft": "#1A1A1E",
+    "ogCardInkSecondary": "#4B5563",
+    "ogCardPage": "#F5F5F7",
+    "ogCardHairline": "#E8E8EC",
+    "iconSvgRed": "#E3100F",
+    "manifestThemeColor": "#E3100F",
+    "viewportThemeColor": "#ffffff",
+    "viewportColorScheme": "light"
+  },
+  "images": {
+    "defaultOg": {
+      "path": "/opengraph-image",
+      "twitterPath": "/twitter-image",
+      "alt": "Shoop — AI Shopping Concierge",
+      "altFile": "src/app/opengraph-image.alt.txt",
+      "width": 1200,
+      "height": 630,
+      "type": "image/png",
+      "renderer": "src/lib/seo/og-image.tsx → renderOgImage()",
+      "logoEmbedded": "/assets/shoop-logo.svg"
+    },
+    "lookOg": {
+      "metadataUrl": "/api/ask/{token}/image",
+      "fileConventionUrl": "/ask/{token}/opengraph-image",
+      "twitterFileConventionUrl": "/ask/{token}/twitter-image",
+      "type": "image/jpeg (look photo as-is; may follow a 302 to signed storage)",
+      "fileAlt": "The look — should they get it?",
+      "metadataAlt": "{askerFirstName}'s try-on look",
+      "instagram": "No dedicated 1080×1080 IG thumbnail. Instagram, WhatsApp, iMessage, Slack, and Discord all read og:image (this look photo)."
+    },
+    "icons": {
+      "appIconSvg": "/icon.svg",
+      "publicIcon": "/assets/shoop-icon.svg",
+      "publicLogo": "/assets/shoop-logo.svg",
+      "iconType": "image/svg+xml",
+      "appleTouch": "/assets/shoop-icon.svg"
+    }
+  },
+  "surfaces": {
+    "home": {
+      "url": "/",
+      "title": "Shoop — AI Shopping Concierge",
+      "description": "Shoop is your AI shopping concierge. Search every store, compare real products, and get honest buy, wait, or skip picks tailored to you.",
+      "canonical": "{ORIGIN}/",
+      "ogType": "website",
+      "twitterCard": "summary_large_image",
+      "robots": "index, follow",
+      "googleBot": "index, follow, max-image-preview:large, max-snippet:-1",
+      "ogImage": "{ORIGIN}/opengraph-image",
+      "source": ["src/app/layout.tsx rootMetadata()", "src/app/(chat)/page.tsx createPageMetadata()"]
+    },
+    "lookShare": {
+      "url": "/ask/{token}",
+      "shareCopy": "Should I get it? Vote before you peek at Shoop’s take — {url}",
+      "title": "Should {askerFirstName} get it? · Shoop",
+      "description": "Vote before you peek at Shoop’s verdict.",
+      "canonical": "{ORIGIN}/ask/{token}",
+      "ogType": "website",
+      "twitterCard": "summary_large_image",
+      "robots": "noindex, nofollow",
+      "ogImage": "{ORIGIN}/api/ask/{token}/image",
+      "source": ["src/app/ask/[token]/page.tsx generateMetadata()"]
+    },
+    "lookMissing": {
+      "url": "/ask/{token}",
+      "title": "Look not found · Shoop",
+      "description": "This Ask card isn’t available.",
+      "robots": "noindex, nofollow",
+      "ogImage": "{ORIGIN}/opengraph-image"
+    },
+    "conversation": {
+      "url": "/c/{conversationId}",
+      "title": "Conversation | Shoop",
+      "description": "Your private shopping conversation with Shoop.",
+      "robots": "noindex, nofollow",
+      "canonicalNote": "createPageMetadata() is called without path, so canonical falls back to {ORIGIN}/"
+    },
+    "moodboard": {
+      "url": "/moodboard",
+      "title": "Moodboard | Shoop",
+      "description": "My moodboard, The Hold, and My cart — looks you loved and what you're buying.",
+      "robots": "noindex, nofollow"
+    },
+    "asksInbox": {
+      "url": "/asks",
+      "title": "Shared cards | Shoop",
+      "description": "Looks you asked friends about — votes, notes, and Shoop’s take.",
+      "robots": "noindex, nofollow"
+    },
+    "profile": {
+      "url": "/profile",
+      "title": "Your profile | Shoop",
+      "description": "Manage your Shoop shopping profile — sizes, tastes, budgets, and saved preferences.",
+      "robots": "noindex, nofollow"
+    },
+    "inheritedRootOnly": ["/admin", "/order/confirmed", "/pre-checkout"]
+  },
+  "jsonLd": {
+    "organization": {
+      "@type": "Organization",
+      "name": "Shoop",
+      "url": "{ORIGIN}",
+      "logo": "{ORIGIN}/assets/shoop-logo.svg",
+      "description": "Shoop is your AI shopping concierge. Search every store, compare real products, and get honest buy, wait, or skip picks tailored to you."
+    },
+    "website": {
+      "@type": "WebSite",
+      "name": "Shoop",
+      "url": "{ORIGIN}",
+      "description": "Shoop is your AI shopping concierge. Search every store, compare real products, and get honest buy, wait, or skip picks tailored to you.",
+      "publisher": { "@type": "Organization", "name": "Shoop" }
+    }
+  },
+  "pwa": {
+    "manifest": "/manifest.webmanifest",
+    "name": "Shoop",
+    "shortName": "Shoop",
+    "startUrl": "/",
+    "display": "standalone",
+    "backgroundColor": "#ffffff",
+    "themeColor": "#E3100F",
+    "lang": "en",
+    "orientation": "portrait-primary",
+    "categories": ["shopping", "lifestyle", "productivity"],
+    "appleWebAppCapable": true,
+    "appleWebAppTitle": "Shoop",
+    "appleWebAppStatusBarStyle": "default"
+  },
+  "robotsTxt": {
+    "allow": ["/"],
+    "disallow": ["/api/", "/c/", "/ask/", "/profile", "/_next/"],
+    "sitemap": "{ORIGIN}/sitemap.xml",
+    "host": "{ORIGIN}"
+  },
+  "sitemap": {
+    "entries": ["{ORIGIN}"],
+    "changeFrequency": "daily",
+    "priority": 1
+  },
+  "notPresent": [
+    "twitter:site / twitter:creator handle",
+    "fb:app_id / Facebook App ID",
+    "og:image:width / og:image:height on look shares",
+    "Dedicated Instagram 1080×1080 thumbnail",
+    "Product-page Open Graph (PDP is an in-app panel, not a share URL)"
+  ]
+}

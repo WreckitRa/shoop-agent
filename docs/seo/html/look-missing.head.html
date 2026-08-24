@@ -1,0 +1,29 @@
+<!--
+  Expected <head> when /ask/{token} does not resolve to a share.
+  Source: src/app/ask/[token]/page.tsx generateMetadata() not-found branch.
+-->
+<html lang="en">
+<head>
+  <title>Look not found · Shoop</title>
+  <meta name="description" content="This Ask card isn’t available." />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="googlebot" content="noindex, nofollow" />
+  <link rel="canonical" href="{ORIGIN}/ask/{token}" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Shoop" />
+  <meta property="og:title" content="Look not found · Shoop" />
+  <meta property="og:description" content="This Ask card isn’t available." />
+  <meta property="og:url" content="{ORIGIN}/ask/{token}" />
+  <meta property="og:image" content="{ORIGIN}/opengraph-image" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:alt" content="Shoop — AI Shopping Concierge" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Look not found · Shoop" />
+  <meta name="twitter:description" content="This Ask card isn’t available." />
+  <meta name="twitter:image" content="{ORIGIN}/opengraph-image" />
+</head>
+</html>

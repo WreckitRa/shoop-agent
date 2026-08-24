@@ -15,6 +15,10 @@ const passwordSchema = z
 export const signUpBodySchema = z.object({
   email: emailSchema,
   password: passwordSchema,
+  birthDate: z.string().trim().min(10).max(10),
+  acceptTerms: z
+    .boolean()
+    .refine((v) => v === true, "Accept the Terms of Service and Privacy Policy."),
 });
 
 export const signInBodySchema = z.object({

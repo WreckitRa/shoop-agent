@@ -15,15 +15,33 @@ function verifyCookieSecret(): string {
   );
 }
 
-export function signVerifyEmailCookie(email: string): string {
-  const payload = Buffer.from(email.trim().toLowerCase()).toString("base64url");
+export type SignupVerifyCookie = {
+  email: string;
+  birthDate?: string | null;
+  termsVersion?: string | null;
+};
+
+export function signVerifyEmailCookie(
+  payload: string | SignupVerifyCookie,
+): string {
+  const data: SignupVerifyCookie =
+    typeof payload === "string"
+      ? { email: payload.trim().toLowerCase() }
+      : {
+          email: payload.email.trim().toLowerCase(),
+          birthDate: payload.birthDate ?? null,
+          termsVersion: payload.termsVersion ?? null,
+        };
+  const encoded = Buffer.from(JSON.stringify(data)).toString("base64url");
   const sig = createHmac("sha256", verifyCookieSecret())
-    .update(payload)
+    .update(encoded)
     .digest("hex");
-  return `${payload}.${sig}`;
+  return `${encoded}.${sig}`;
 }
 
-export function readVerifyEmailCookie(raw: string | undefined): string | null {
+export function readVerifyEmailCookie(
+  raw: string | undefined,
+): SignupVerifyCookie | null {
   if (!raw) return null;
   const secret = verifyCookieSecret();
   if (!secret) return null;
@@ -42,11 +60,23 @@ export function readVerifyEmailCookie(raw: string | undefined): string | null {
     return null;
   }
   try {
-    return Buffer.from(payload, "base64url").toString("utf8");
+    const decoded = Buffer.from(payload, "base64url").toString("utf8");
+    if (decoded.startsWith("{")) {
+      const parsed = JSON.parse(decoded) as SignupVerifyCookie;
+      const email = parsed.email?.trim().toLowerCase();
+      if (!email) return null;
+      return {
+        email,
+        birthDate: parsed.birthDate ?? null,
+        termsVersion: parsed.termsVersion ?? null,
+      };
+    }
+    return { email: decoded.trim().toLowerCase() };
   } catch {
     return null;
   }
 }
+
 
 export function verifyEmailCookieOptions() {
   return {

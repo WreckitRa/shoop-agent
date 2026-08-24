@@ -1,0 +1,59 @@
+<!--
+  Expected <head> tags when someone shares the main site URL: {ORIGIN}/
+  Sources: src/app/layout.tsx (rootMetadata + viewport) + src/app/(chat)/page.tsx
+  File conventions also emit /opengraph-image, /twitter-image, /icon.svg, /manifest.webmanifest
+  Replace {ORIGIN} with NEXT_PUBLIC_APP_URL (no trailing slash).
+-->
+<html lang="en">
+<head>
+  <title>Shoop — AI Shopping Concierge</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="color-scheme" content="light" />
+
+  <meta name="description" content="Shoop is your AI shopping concierge. Search every store, compare real products, and get honest buy, wait, or skip picks tailored to you." />
+  <meta name="application-name" content="Shoop" />
+  <meta name="creator" content="Shoop" />
+  <meta name="publisher" content="Shoop" />
+  <meta name="category" content="shopping" />
+  <meta name="keywords" content="AI shopping assistant,shopping concierge,product search,compare products,personalized shopping,buy recommendations,gift finder,online shopping help" />
+  <meta name="format-detection" content="telephone=no, address=no, email=no" />
+  <meta name="robots" content="index, follow" />
+  <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1" />
+
+  <link rel="canonical" href="{ORIGIN}" />
+  <link rel="manifest" href="{ORIGIN}/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/assets/shoop-icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/assets/shoop-icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://cdn.shopify.com" />
+  <link rel="dns-prefetch" href="https://cdn.shopify.com" />
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Shoop" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+  <!-- Open Graph (Facebook, Instagram, WhatsApp, iMessage, Slack, LinkedIn) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Shoop" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="Shoop — AI Shopping Concierge" />
+  <meta property="og:description" content="Shoop is your AI shopping concierge. Search every store, compare real products, and get honest buy, wait, or skip picks tailored to you." />
+  <meta property="og:url" content="{ORIGIN}" />
+  <meta property="og:image" content="{ORIGIN}/opengraph-image" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:alt" content="Shoop — AI Shopping Concierge" />
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Shoop — AI Shopping Concierge" />
+  <meta name="twitter:description" content="Shoop is your AI shopping concierge. Search every store, compare real products, and get honest buy, wait, or skip picks tailored to you." />
+  <meta name="twitter:image" content="{ORIGIN}/opengraph-image" />
+  <!-- twitter-image.tsx re-exports the same 1200×630 PNG as opengraph-image -->
+
+  <!-- Instagram: no ig: meta tags exist. Link stickers / in-app browser read og:* above. Thumbnail = og:image (1200×630 PNG). -->
+</head>
+</html>

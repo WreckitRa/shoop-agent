@@ -12,35 +12,30 @@ export {
   resolveMirrorEntry,
 } from "@/components/tryon/mirror-entry";
 
-/** Mirror chrome: stay on this page; guests without a twin start onboarding. */
+/** Mirror chrome: stay on this page; missing twin opens The Fitting. */
 export function requestMirror() {
   const fitting = useInlineFittingStore.getState();
-  if (fitting.onboardingActive) {
-    fitting.openColumn();
-    return;
-  }
-
   const accessMode = useAppSessionStore.getState().mode;
   const self = useSelfAvatarStore.getState();
   const tryon = useTryOnDrawerStore.getState();
-  const entry = resolveMirrorEntry({
-    accessMode,
-    avatarReady: self.status === "ready" && Boolean(self.avatarUrl),
-    hasRackOrActive: tryon.activeIds.length > 0 || tryon.rackIds.length > 0,
-  });
+  const avatarReady = self.status === "ready" && Boolean(self.avatarUrl);
 
-  if (entry === "onboarding") {
-    fitting.openColumn();
-    return;
-  }
-  if (entry === "signup") {
+  if (accessMode === "anonymous") {
     openAuthModal("signup");
     return;
   }
-  if (entry === "create_avatar") {
-    self.openCreateFlow();
+
+  if (fitting.onboardingActive || !avatarReady) {
+    fitting.openColumn();
     return;
   }
+
+  const entry = resolveMirrorEntry({
+    accessMode,
+    avatarReady,
+    hasRackOrActive: tryon.activeIds.length > 0 || tryon.rackIds.length > 0,
+  });
+
   if (entry === "fitting_room") {
     tryon.openFittingRoom();
     return;

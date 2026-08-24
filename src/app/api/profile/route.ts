@@ -8,6 +8,8 @@ import {
 } from "@/lib/shopify/catalog-localization";
 import { loadDefaultSavedAddressLocale } from "@/lib/shopify/default-saved-address";
 import { detectRequestArea } from "@/lib/server/request-area";
+import { assertSignupAge } from "@/lib/legal/age-gate";
+import { closeIfUnderageBirthDate } from "@/lib/legal/close-account";
 
 /**
  * GET /api/profile
@@ -125,8 +127,17 @@ export async function PATCH(req: Request) {
     for (const [k, v] of Object.entries(body)) {
       if (v === undefined) continue;
       if (k === "birthDate" && typeof v === "string") {
-        const d = new Date(v);
-        if (!Number.isNaN(d.getTime())) data[k] = d;
+        if (await closeIfUnderageBirthDate(userId, v.slice(0, 10))) {
+          return Response.json(
+            { error: "This account has been closed.", closed: true },
+            { status: 403 },
+          );
+        }
+        const age = assertSignupAge(v.slice(0, 10));
+        if (!age.ok) {
+          return Response.json({ error: age.error }, { status: 403 });
+        }
+        data[k] = new Date(`${age.birthDate}T00:00:00.000Z`);
         continue;
       }
       if (k === "currency" && typeof v === "string") {

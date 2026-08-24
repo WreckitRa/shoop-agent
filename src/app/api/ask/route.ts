@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
 import { createLookAskShare } from "@/lib/ask/create-share";
 import { getSiteUrl } from "@/lib/seo/site";
+import { hasShareLikenessConsent } from "@/lib/legal/consents";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +53,15 @@ const bodySchema = z
 export async function POST(req: Request) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
+  if (auth.isGuest) {
+    return Response.json({ error: "Sign in required." }, { status: 401 });
+  }
+  if (!(await hasShareLikenessConsent(auth.userId))) {
+    return Response.json(
+      { error: "Confirm you want to send a likeness of you before sharing." },
+      { status: 403 },
+    );
+  }
 
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {

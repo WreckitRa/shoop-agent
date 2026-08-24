@@ -2,15 +2,14 @@
  * Isolated photo-analysis runner. Results are stored and displayed only.
  * Do not import this from fashion-memory, hard-drops, scoring, or curation.
  */
-import { analyzeGptFromBytes, photoAnalysisGptModel } from "./gpt-analyze";
-import { analyzeSpecFromBytes } from "./spec-analyze";
 import {
-  markDone,
-  saveGptError,
-  saveGptResult,
-  saveSpecError,
-  saveSpecResult,
-} from "./store";
+  photoAnalysisModel,
+  photoPreflightModel,
+  preflightThenAnalyzeFromBytes,
+} from "./analyze";
+import { DEFAULT_TARGET_PERSON } from "./types";
+import { saveError, saveOutcome } from "./store";
+import { parsePhotoCoverage, type PhotoCoverage } from "./result";
 
 const generationById = new Map<string, number>();
 
@@ -21,33 +20,35 @@ function isCurrent(id: string, generation: number): boolean {
 export async function runPhotoAnalysis(
   id: string,
   bytes: Buffer,
+  opts?: {
+    targetPerson?: string;
+    declaredContext?: Record<string, unknown>;
+    requestedCoverage?: PhotoCoverage;
+  },
 ): Promise<void> {
   const generation = (generationById.get(id) ?? 0) + 1;
   generationById.set(id, generation);
 
-  const specStarted = Date.now();
+  const started = Date.now();
   try {
-    const spec = await analyzeSpecFromBytes(bytes);
+    const { gate, analysis } = await preflightThenAnalyzeFromBytes(bytes, {
+      targetPerson: opts?.targetPerson?.trim() || DEFAULT_TARGET_PERSON,
+      declaredContext: opts?.declaredContext ?? {},
+      requestedCoverage: parsePhotoCoverage(opts?.requestedCoverage),
+      allowPartialAnalysis: false,
+    });
     if (!isCurrent(id, generation)) return;
-    await saveSpecResult(id, spec, Date.now() - specStarted);
+    await saveOutcome({
+      id,
+      gate,
+      result: analysis,
+      ms: Date.now() - started,
+      model: analysis ? photoAnalysisModel() : photoPreflightModel(),
+    });
   } catch (error) {
     if (!isCurrent(id, generation)) return;
-    const message = error instanceof Error ? error.message : "Spec analysis failed";
-    await saveSpecError(id, message, Date.now() - specStarted);
+    const message =
+      error instanceof Error ? error.message : "Photo analysis failed";
+    await saveError(id, message, Date.now() - started, photoPreflightModel());
   }
-
-  const gptStarted = Date.now();
-  const model = photoAnalysisGptModel();
-  try {
-    const gpt = await analyzeGptFromBytes(bytes);
-    if (!isCurrent(id, generation)) return;
-    await saveGptResult(id, gpt, Date.now() - gptStarted, gpt.engine || model);
-  } catch (error) {
-    if (!isCurrent(id, generation)) return;
-    const message = error instanceof Error ? error.message : "GPT analysis failed";
-    await saveGptError(id, message, Date.now() - gptStarted, model);
-  }
-
-  if (!isCurrent(id, generation)) return;
-  await markDone(id);
 }

@@ -903,7 +903,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
         set({
           status: "failed",
           avatarUrl: null,
-          error: "Create your Shoop card to see yourself here.",
+          error: "Finish The Fitting to see yourself here.",
         });
         useSelfAvatarStore.getState().openCreateFlow();
         return;

@@ -76,7 +76,7 @@ export const STEP_META: Record<
     stage: "Getting to know you",
     flashCover: "While that develops...<br><em>who are you?</em>",
     flashNext: "next up... your name",
-    loadingDetail: "Reading the photo two ways…",
+    loadingDetail: "Checking the photo…",
   },
   name: {
     n: 2,
@@ -138,7 +138,7 @@ export const STEP_META: Record<
     n: 10,
     stage: "Getting to know you",
     flashCover: "Say hello<br>to <em>you.</em>",
-    flashNext: "next up... your card",
+    flashNext: "next up... you",
     loadingDetail: "Saving your trusted circle… building your verdict…",
   },
 };
@@ -314,4 +314,11 @@ export function circleMirrorLabel(names: string[]): string {
   if (cleaned.length === 1) return cleaned[0]!;
   if (cleaned.length === 2) return `${cleaned[0]}, ${cleaned[1]}`;
   return `${cleaned[0]}, ${cleaned[1]} +${cleaned.length - 2}`;
+}
+
+export function stubSerialFromId(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  const n = (h % 900000) + 1;
+  return String(n).padStart(6, "0");
 }

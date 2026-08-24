@@ -32,7 +32,7 @@ export async function resolveTryonPersonId(
 const FRIENDLY_BY_MESSAGE: Array<{ test: RegExp; message: string; status: number }> = [
   {
     test: /avatar required/i,
-    message: "Create your Shoop card first so I can dress you.",
+    message: "Finish The Fitting first so I can dress you.",
     status: 400,
   },
   {

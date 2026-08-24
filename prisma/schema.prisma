@@ -476,6 +476,10 @@ model UserProfile {
   tryonEnabled        Boolean @default(true) @map("tryon_enabled")
   tryonOutfitsEnabled Boolean @default(true) @map("tryon_outfits_enabled")
 
+  termsAcceptedAt         DateTime?
+  termsVersion            String?
+  shareLikenessConsentAt  DateTime?
+
   evidenceCount Int      @default(0)
   confidence    Float    @default(0)
   updatedAt     DateTime @updatedAt
@@ -1165,6 +1169,9 @@ model LookAskShare {
   askerName      String
   serial         Int
   killCount      Int?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  revokeReason   String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -1173,6 +1180,7 @@ model LookAskShare {
 
   @@index([ownerUserId, createdAt(sort: Desc)])
   @@index([token])
+  @@index([expiresAt])
   @@map("look_ask_shares")
   @@schema("public")
 }
@@ -1209,26 +1217,58 @@ model LookAskNote {
   @@schema("public")
 }
 
-/// Isolated photo bakeoff (spec vs GPT). Display only — never consumed by search.
+/// Isolated LLM style-photo analysis. Display only — never consumed by search.
 model PhotoAnalysis {
   id            String   @id @default(cuid())
   userId        String
   photoHash     String
   status        String   @default("running")
-  specStatus    String   @default("pending")
-  gptStatus     String   @default("pending")
-  specResult    Json?
-  gptResult     Json?
-  specError     String?
-  gptError      String?
-  specMs        Int?
-  gptMs         Int?
-  gptModel      String?
+  gate          Json?
+  result        Json?
+  userReview    Json?
+  verdict       Json?
+  verdictStatus String   @default("idle")
+  verdictError  String?
+  verdictMs     Int?
+  verdictModel  String?
+  error         String?
+  ms            Int?
+  model         String?
   engineVersion String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@unique([userId, photoHash])
   @@index([userId, createdAt(sort: Desc)])
+  @@schema("public")
+}
+
+/// Survives account wipe. Evidence that a privacy deletion completed.
+model PrivacyDeletionEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  kind        String
+  fashnNote   String
+  details     Json     @default("{}")
+  completedAt DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId, completedAt(sort: Desc)])
+  @@index([kind, completedAt])
+  @@map("privacy_deletion_events")
+  @@schema("public")
+}
+
+/// BIPA written release log — one row per accept; withdraw sets withdrawnAt.
+model BiometricConsent {
+  id              String    @id @default(cuid())
+  userId          String
+  documentVersion String
+  acceptedAt      DateTime
+  withdrawnAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("biometric_consents")
   @@schema("public")
 }

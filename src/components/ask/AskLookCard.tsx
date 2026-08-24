@@ -514,12 +514,30 @@ export function AskLookCard({ token, initialShare }: Props) {
                 </div>
               ) : null}
 
-              <Link href="/" className="shoop-ask-detonate">
-                Make your twin — free
-              </Link>
-              <div className="shoop-ask-detsub">
-                same dress · your body · your verdict
-              </div>
+          <Link href="/" className="shoop-ask-detonate">
+            Make your twin — free
+          </Link>
+          <div className="shoop-ask-detsub">
+            same dress · your body · your verdict
+          </div>
+          <p className="mt-6 text-center text-[11px] leading-[1.5] text-[var(--fitting-quiet)]">
+            Vote on the garment, not the person. Don&apos;t screenshot and
+            redistribute.{" "}
+            <button
+              type="button"
+              className="font-semibold underline underline-offset-2"
+              onClick={() => {
+                void guestFetch(`/api/ask/${encodeURIComponent(token)}/report`, {
+                  method: "POST",
+                }).then(() => {
+                  setError("This link has been disabled.");
+                  setShare(null);
+                });
+              }}
+            >
+              Report this link
+            </button>
+          </p>
             </div>
           )}
 

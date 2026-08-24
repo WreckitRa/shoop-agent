@@ -808,7 +808,7 @@ export function FittingStage({
             ) : (
               <div className="flex size-full flex-col items-center justify-center gap-2 px-6 text-center text-ink-muted">
                 <p className="text-sm text-ink-secondary">
-                  Your avatar will show up here once your card is minted.
+                  Your twin will show up here once you finish The Fitting.
                 </p>
                 <button
                   type="button"
@@ -821,7 +821,7 @@ export function FittingStage({
                     );
                   }}
                 >
-                  Complete your card
+                  Start your fitting
                 </button>
               </div>
             )}

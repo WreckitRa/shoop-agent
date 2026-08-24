@@ -1,6 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
-import { getSupabaseAdminClient } from "@/lib/auth/supabase-admin";
-import { deleteAllUserData } from "@/lib/auth/delete-user-data";
+import { closeAndPurgeUser } from "@/lib/legal/close-account";
 import { getAuthUser } from "@/lib/auth/session";
 import { deleteAccountBodySchema } from "@/lib/auth/validators";
 import { isSupabaseAuthConfigured } from "@/lib/auth/env";
@@ -41,18 +40,14 @@ export async function DELETE(req: Request) {
       return Response.json({ error: "Incorrect password." }, { status: 401 });
     }
 
-    await deleteAllUserData(user.id);
+    await closeAndPurgeUser({
+      userId: user.id,
+      kind: eraseDataOnly ? "erase_content" : "account_close",
+      deleteAuthUser: !eraseDataOnly,
+    });
 
     if (eraseDataOnly) {
       return Response.json({ ok: true, erasedDataOnly: true });
-    }
-
-    const admin = getSupabaseAdminClient();
-    const { error: deleteAuthError } = await admin.auth.admin.deleteUser(
-      user.id,
-    );
-    if (deleteAuthError) {
-      return Response.json({ error: deleteAuthError.message }, { status: 500 });
     }
 
     await supabase.auth.signOut();

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/ai-chat/cn";
 import {
   FittingCta,
+  FittingKick,
   FittingTitle,
   FittingWhisper,
 } from "@/components/onboarding/onboarding-ui";
@@ -103,9 +104,7 @@ export function FittingVerdictStep({
 
   return (
     <section>
-      <div className="mb-[18px] text-xs font-extrabold tracking-[0.08em] text-[var(--fitting-red)]">
-        The verdict
-      </div>
+      <FittingKick>THE VERDICT · FROM THE FITTING</FittingKick>
       <FittingTitle
         lines={[
           {

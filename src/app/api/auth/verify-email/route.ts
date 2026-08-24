@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/auth/supabase-server";
 import { isSupabaseAuthConfigured } from "@/lib/auth/env";
+import {
+  VERIFY_EMAIL_COOKIE,
+  readVerifyEmailCookie,
+} from "@/lib/auth/email-verification";
+import { prisma } from "@/lib/ai-chat/db";
+import { LEGAL_DOC_VERSION } from "@/lib/legal/constants";
+import { assertSignupAge } from "@/lib/legal/age-gate";
+import { normalizeAgeRange } from "@/lib/onboarding/form-options";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +57,38 @@ export async function POST(req: Request) {
         { status: 401 },
       );
     }
+
+    const jar = await cookies();
+    const pending = readVerifyEmailCookie(jar.get(VERIFY_EMAIL_COOKIE)?.value);
+    const age =
+      pending?.birthDate ? assertSignupAge(pending.birthDate) : null;
+    if (!age?.ok) {
+      return NextResponse.json(
+        {
+          error:
+            age && !age.ok
+              ? age.error
+              : "Sign up again so we have your date of birth.",
+        },
+        { status: 403 },
+      );
+    }
+    await prisma.userProfile.upsert({
+      where: { userId: result.data.user.id },
+      create: {
+        userId: result.data.user.id,
+        birthDate: new Date(`${age.birthDate}T00:00:00.000Z`),
+        ageRange: normalizeAgeRange(String(age.ageYears)),
+        termsAcceptedAt: new Date(),
+        termsVersion: pending?.termsVersion ?? LEGAL_DOC_VERSION,
+      },
+      update: {
+        birthDate: new Date(`${age.birthDate}T00:00:00.000Z`),
+        ageRange: normalizeAgeRange(String(age.ageYears)),
+        termsAcceptedAt: new Date(),
+        termsVersion: pending?.termsVersion ?? LEGAL_DOC_VERSION,
+      },
+    });
 
     return NextResponse.json({
       user: {

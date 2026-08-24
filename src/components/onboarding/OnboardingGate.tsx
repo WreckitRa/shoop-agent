@@ -9,6 +9,10 @@ import {
   defaultMuscularityForBuild,
   type FittingPhotoValues,
 } from "@/components/onboarding/fitting/FittingPhotoStep";
+import {
+  FittingAccountRequired,
+  FittingBiometricConsent,
+} from "@/components/onboarding/fitting/FittingBiometricConsent";
 import { FittingShell } from "@/components/onboarding/fitting/FittingShell";
 import { FittingVerdictStep } from "@/components/onboarding/fitting/FittingVerdictStep";
 import { FittingAnalysisPanel } from "@/components/onboarding/fitting/FittingAnalysisPanel";
@@ -22,6 +26,7 @@ import {
   formFromGender,
   shortEraLabel,
   spendShort,
+  stubSerialFromId,
   type BuildKey,
   type FittingStep,
   type MirrorState,
@@ -43,11 +48,13 @@ import {
   FittingBackLink,
   FittingCount,
 } from "@/components/onboarding/onboarding-ui";
-import { stubSerialFromId } from "@/components/onboarding/ShoopCard";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import { useInlineFittingSlots } from "@/components/onboarding/useInlineFittingSlot";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
+import { useAppSessionStore } from "@/lib/client/app-session";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { fillPhotoAnalysisForm } from "@/lib/photo-analysis/types";
+import type { PhotoCoverage } from "@/lib/photo-analysis/result";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import {
   BUDGET_OPTIONS,
@@ -69,6 +76,7 @@ import {
   styleEraLabel,
   styleEraToAgeRange,
 } from "@/lib/onboarding/form-options";
+import { MIN_ACCOUNT_AGE } from "@/lib/legal/constants";
 import type { StyleMix } from "@/lib/onboarding/style-mix";
 import {
   TRYON_CLIENT_POLL_MAX_MS,
@@ -527,6 +535,11 @@ export function OnboardingGate() {
   const [shareCopied, setShareCopied] = useState(false);
   const { questions: inlineSlot, card: cardSlot } = useInlineFittingSlots();
   const closeColumn = useInlineFittingStore((s) => s.closeColumn);
+  const replayFitting = useInlineFittingStore((s) => s.replayFitting);
+  const accessMode = useAppSessionStore((s) => s.mode);
+  const accountReady = accessMode === "authenticated" || accessMode === "local";
+  const [biometricAccepted, setBiometricAccepted] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
   const setOnboardingActive = useInlineFittingStore(
     (s) => s.setOnboardingActive,
   );
@@ -605,6 +618,7 @@ export function OnboardingGate() {
 
   const [photoValues, setPhotoValues] = useState<FittingPhotoValues>({
     photoPreview: null,
+    photoCoverage: "face",
     heightUnit: "ft",
     heightFt: 5,
     heightIn: 9,
@@ -616,6 +630,7 @@ export function OnboardingGate() {
     muscularity: null,
     bodyShape: null,
     bustFullness: null,
+    legLine: null,
   });
   /** Local face preview (object URL) while FASHN twin is generating. */
   const [localFacePreview, setLocalFacePreview] = useState<string | null>(null);
@@ -655,6 +670,24 @@ export function OnboardingGate() {
     // Latch non-empty picks; don't wipe closet if picks are accidentally cleared.
     if (urls.length > 0) setClosetImages(urls);
   }, [wornPicks]);
+
+  useEffect(() => {
+    if (!accountReady) {
+      setBiometricAccepted(false);
+      return;
+    }
+    let cancelled = false;
+    void guestFetch("/api/privacy/biometric-consent", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = (await res.json()) as { accepted?: boolean };
+        if (!cancelled) setBiometricAccepted(Boolean(json.accepted));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [accountReady]);
 
   /** Only when identity context *content* changes — not new array refs from hydrate. */
   const outfitDeckContextKey = [
@@ -1041,6 +1074,13 @@ export function OnboardingGate() {
     writeOnboardingUiSession({ step });
   }, [loading, status, step]);
 
+  const replayWasOn = useRef(false);
+  useEffect(() => {
+    const started = replayFitting && !replayWasOn.current;
+    replayWasOn.current = replayFitting;
+    if (started && status?.onboarding.completed) setStep("photo");
+  }, [replayFitting, status?.onboarding.completed]);
+
   const lifestyleTags = useMemo(() => {
     const derived = lifestyleTagsFromLife({ weekIs, kids });
     return derived.length ? derived : storedLifestyleTags;
@@ -1124,6 +1164,11 @@ export function OnboardingGate() {
       value: FittingPhotoValues[K],
     ) => {
       setPhotoValues((prev) => ({ ...prev, [key]: value }));
+      if (key === "photoCoverage" && pendingPhotoFileRef.current) {
+        kickPhotoAnalysis(pendingPhotoFileRef.current, {
+          coverage: value as PhotoCoverage,
+        });
+      }
     },
     [],
   );
@@ -1354,13 +1399,13 @@ export function OnboardingGate() {
     if (
       birthDate.trim() &&
       !birthDateSkipped &&
-      !isAtLeastAge(birthDate, 13)
+      !isAtLeastAge(birthDate, MIN_ACCOUNT_AGE)
     ) {
-      setError("You need to be at least 13 to use Shoop.");
+      setError(`You need to be at least ${MIN_ACCOUNT_AGE} to use Shoop.`);
       return false;
     }
     const ageFromDob =
-      !birthDateSkipped && birthDate && isAtLeastAge(birthDate, 13)
+      !birthDateSkipped && birthDate && isAtLeastAge(birthDate, MIN_ACCOUNT_AGE)
         ? ageYearsFromBirthDate(birthDate)
         : null;
     const ageRange =
@@ -1400,7 +1445,7 @@ export function OnboardingGate() {
               birthDate:
                 !birthDateSkipped &&
                 birthDate &&
-                isAtLeastAge(birthDate, 13)
+                isAtLeastAge(birthDate, MIN_ACCOUNT_AGE)
                   ? new Date(`${birthDate}T12:00:00.000Z`).toISOString()
                   : null,
             },
@@ -1534,7 +1579,7 @@ export function OnboardingGate() {
   }
 
   /**
-   * Same sequence as CardForge mint, fire-and-forget during quiz:
+   * Start the FASHN twin during the quiz, fire-and-forget:
    * measurements → check (intake merge) → attributes → FASHN generate → poll → approve.
    * Sends every body-related AvatarAttributes field we have so the prompt is complete.
    */
@@ -1697,10 +1742,59 @@ export function OnboardingGate() {
     }
   }
 
-  function kickPhotoAnalysis(file: File) {
+  function buildDeclaredStyleContext(): Record<string, unknown> {
+    const ctx: Record<string, unknown> = {};
+    if (genderPresentation.trim()) {
+      ctx.gender_presentation = genderPresentation.trim();
+    }
+    if (!birthDateSkipped) {
+      const age = ageYearsFromBirthDate(birthDate);
+      if (age != null) ctx.age = age;
+    }
+    if (persistedFlags.identity && shippingCountry.trim()) {
+      ctx.location = shippingCountry.trim();
+    }
+    if (persistedFlags.sizing) {
+      ctx.height_cm = heightCmFromPhoto(photoValues);
+    }
+    const weightKg = weightKgFromPhoto(photoValues);
+    if (weightKg != null) ctx.weight_kg = weightKg;
+    if (photoValues.legLine) ctx.torso_to_leg = photoValues.legLine;
+    ctx.requested_coverage = photoValues.photoCoverage;
+    if (dressingFor.trim()) ctx.goal = dressingFor.trim();
+    if (weekIs.trim()) ctx.week_is = weekIs.trim();
+    if (climate.trim()) ctx.climate = climate.trim();
+    return ctx;
+  }
+
+  function stylistQuizGaps(): string[] {
+    const gaps: string[] = [];
+    if (!genderPresentation.trim()) gaps.push("How you dress");
+    if (!weekIs.trim() && !dressingFor.trim()) {
+      gaps.push("How your week looks");
+    }
+    if (!persistedFlags.sizing) gaps.push("Your height");
+    return gaps;
+  }
+
+  function kickPhotoAnalysis(
+    file: File,
+    opts?: { force?: boolean; coverage?: PhotoCoverage },
+  ) {
+    const coverage = opts?.coverage ?? photoValues.photoCoverage;
     const form = new FormData();
-    form.append("photo", file);
-    void guestFetch("/api/onboarding/photo-analysis", {
+    fillPhotoAnalysisForm(form, {
+      photo: file,
+      declaredContext: {
+        ...buildDeclaredStyleContext(),
+        requested_coverage: coverage,
+      },
+      requestedCoverage: coverage,
+    });
+    const path = opts?.force
+      ? "/api/onboarding/photo-analysis?force=1"
+      : "/api/onboarding/photo-analysis";
+    void guestFetch(path, {
       method: "POST",
       body: form,
     }).catch(() => {
@@ -2048,6 +2142,7 @@ export function OnboardingGate() {
 
       const res = await fetch("/api/onboarding", { method: "POST" });
       const next = (await res.json()) as OnboardingStatus & { error?: string };
+      useInlineFittingStore.getState().clearReplay();
       if (!res.ok) {
         submissionLockRef.current = false;
         const tasteRes = await saveTaste(true, "final");
@@ -2563,7 +2658,9 @@ export function OnboardingGate() {
   ]);
 
   const incomplete =
-    holdOpen || Boolean(status?.onboarding && !status.onboarding.completed);
+    holdOpen ||
+    replayFitting ||
+    Boolean(status?.onboarding && !status.onboarding.completed);
 
   useLayoutEffect(() => {
     if (loading) return;
@@ -2621,7 +2718,8 @@ export function OnboardingGate() {
 
   if (
     (!status?.onboarding || status.onboarding.completed) &&
-    !holdOpen
+    !holdOpen &&
+    !replayFitting
   ) {
     return null;
   }
@@ -2660,12 +2758,53 @@ export function OnboardingGate() {
         ) : null}
 
         {step === "photo" ? (
+          !accountReady ? (
+            <FittingAccountRequired
+              onSkip={() => {
+                photoReadyRef.current = false;
+                void advanceFrom("photo");
+              }}
+            />
+          ) : !biometricAccepted ? (
+            <FittingBiometricConsent
+              busy={biometricBusy}
+              onSkip={() => {
+                photoReadyRef.current = false;
+                void advanceFrom("photo");
+              }}
+              onAccept={async () => {
+                setBiometricBusy(true);
+                setError(null);
+                try {
+                  const res = await guestFetch(
+                    "/api/privacy/biometric-consent",
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "accept" }),
+                    },
+                  );
+                  const json = (await res.json()) as { error?: string };
+                  if (!res.ok) {
+                    setError(json.error ?? "Could not save consent.");
+                    return;
+                  }
+                  setBiometricAccepted(true);
+                } finally {
+                  setBiometricBusy(false);
+                }
+              }}
+            />
+          ) : (
           <>
             <FittingPhotoStep
               mode="scan"
               values={photoValues}
               onChange={photoOnChange}
-              onPhotoFile={(f) => void uploadPhoto(f)}
+              onPhotoFile={(f) => {
+                photoOnChange("photoCoverage", "face");
+                void uploadPhoto(f);
+              }}
               onSkipPhoto={() => {
                 photoReadyRef.current = false;
                 void advanceFrom("photo");
@@ -2678,8 +2817,12 @@ export function OnboardingGate() {
               enabled={Boolean(photoValues.photoPreview)}
               photoFile={analysisPhotoFile}
               photoPreview={photoValues.photoPreview}
+              declaredContext={buildDeclaredStyleContext()}
+              quizGaps={stylistQuizGaps()}
+              requestedCoverage="face"
             />
           </>
+          )
         ) : null}
 
         {step === "name" ? (
@@ -2716,7 +2859,6 @@ export function OnboardingGate() {
             mode="body"
             values={photoValues}
             onChange={photoOnChange}
-            onPhotoFile={(f) => void uploadPhoto(f)}
             onSkipPhoto={() => {
               photoReadyRef.current = false;
               void advanceFrom("fit");
@@ -2888,6 +3030,9 @@ export function OnboardingGate() {
               enabled={Boolean(photoValues.photoPreview)}
               photoFile={analysisPhotoFile}
               photoPreview={photoValues.photoPreview}
+              declaredContext={buildDeclaredStyleContext()}
+              quizGaps={stylistQuizGaps()}
+              requestedCoverage="face"
             />
           </>
         ) : null}

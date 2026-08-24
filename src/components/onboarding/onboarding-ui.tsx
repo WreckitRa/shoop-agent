@@ -18,6 +18,15 @@ export function FittingWhisper({ children }: { children: React.ReactNode }) {
   );
 }
 
+export function FittingKick({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2 font-display text-[10.5px] font-extrabold tracking-[0.14em] text-[var(--fitting-red)]">
+      <i className="size-1.5 shrink-0 rounded-full bg-[var(--fitting-red)]" />
+      {children}
+    </div>
+  );
+}
+
 export function FittingTitle({
   lines,
 }: {
@@ -95,7 +104,7 @@ export function FittingCta({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="group inline-flex h-14 items-center gap-3 rounded-[14px] border-0 bg-[var(--fitting-ink)] px-[30px] font-display text-[14.5px] font-extrabold tracking-[0.01em] text-white transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50"
+      className="group inline-flex h-12 max-w-full items-center gap-2 rounded-[14px] border-0 bg-[var(--fitting-ink)] px-5 font-display text-[13px] font-extrabold tracking-[0.01em] text-white transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50"
     >
       {children}
       <span className="transition-transform group-hover:translate-x-1">→</span>

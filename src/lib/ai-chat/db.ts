@@ -25,8 +25,12 @@ const POOL_TIMEOUT_S = Number(process.env.PRISMA_POOL_TIMEOUT ?? "15");
 
 const POOL_EXHAUSTION_DELAYS_MS = [250, 500, 1000, 2000, 3000];
 
+/** Bump when PhotoAnalysis columns change so a hot reload drops the stale client. */
+const PRISMA_RUNTIME_EPOCH = "photo-analysis-v3";
+
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
+  prismaEpoch?: string;
   prismaOverride?: PrismaClient;
   prismaWarnedMissingDelegates?: boolean;
   prismaReconnecting?: Promise<void>;
@@ -173,6 +177,12 @@ async function runWithConnectionRetry<T>(
 function client(): PrismaClient {
   if (globalForPrisma.prismaOverride) {
     return globalForPrisma.prismaOverride;
+  }
+  if (globalForPrisma.prismaEpoch !== PRISMA_RUNTIME_EPOCH) {
+    const old = globalForPrisma.prisma;
+    globalForPrisma.prisma = undefined;
+    globalForPrisma.prismaEpoch = PRISMA_RUNTIME_EPOCH;
+    if (old) void old.$disconnect().catch(() => undefined);
   }
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createPrismaClient();

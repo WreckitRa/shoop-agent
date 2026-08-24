@@ -73,14 +73,14 @@ describe("resolveMirrorEntry", () => {
     );
   });
 
-  it("opens create-avatar for signed-in users without a twin", () => {
+  it("sends signed-in users without a twin into onboarding", () => {
     assert.equal(
       resolveMirrorEntry({
         accessMode: "authenticated",
         avatarReady: false,
         hasRackOrActive: false,
       }),
-      "create_avatar",
+      "onboarding",
     );
   });
 

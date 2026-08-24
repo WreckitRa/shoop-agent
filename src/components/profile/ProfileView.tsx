@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ProfileAccountActions } from "@/components/profile/ProfileAccountActions";
 import { ProfileAvatarSettings } from "@/components/profile/ProfileAvatarSettings";
+import { ProfilePrivacyControls } from "@/components/profile/ProfilePrivacyControls";
 import {
   ProfileHeroSkeleton,
   ProfileOptionChips,
@@ -338,6 +339,8 @@ export function ProfileView() {
             </SettingsCard>
 
             <ProfileAvatarSettings />
+
+            <ProfilePrivacyControls />
 
             {saveError ? (
               <p className="text-center text-xs text-error-deep">{saveError}</p>

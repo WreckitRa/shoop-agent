@@ -631,7 +631,7 @@ export async function approveAvatar(params: {
     .from("people")
     .update({
       avatar: stored,
-      avatar_source_photo_path: draft.photo_path ?? null,
+      avatar_source_photo_path: null,
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", params.userId)
@@ -641,7 +641,7 @@ export async function approveAvatar(params: {
   }
 
   const keepPaths = new Set(
-    [variant.preview_path, draft.photo_path].filter(Boolean) as string[],
+    [variant.preview_path].filter(Boolean) as string[],
   );
   const unusedPreviewPaths = collectPreviewPaths(draft).filter(
     (path) => !keepPaths.has(path),
@@ -650,6 +650,7 @@ export async function approveAvatar(params: {
     ...oldPaths.filter((path) => !keepPaths.has(path)),
     ...unusedPreviewPaths,
   ];
+  if (draft.photo_path) toDelete.push(draft.photo_path);
   await deleteDraft(params.personId);
   if (toDelete.length) await deletePrivateObjects(toDelete);
 

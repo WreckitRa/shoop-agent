@@ -7,6 +7,7 @@ import {
 import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
 import { getAuthContext } from "@/lib/auth/session";
 import { after } from "next/server";
+import { minorClosedResponse } from "@/lib/legal/close-account";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,9 @@ export async function PATCH(req: Request) {
     const status = await applyOnboardingPatch(parsed.data, auth.userId);
     after(kickOnboardingJobWorker);
     return Response.json(status);
-  } catch {
+  } catch (error) {
+    const closed = minorClosedResponse(error);
+    if (closed) return closed;
     return Response.json({ error: "Could not save onboarding answers." }, { status: 500 });
   }
 }
