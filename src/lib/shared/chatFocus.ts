@@ -69,6 +69,16 @@ export function stashChatFocusReturn(stash: ChatFocusReturnStash): void {
   }
 }
 
+/** Drop a stashed return target when identity changes. */
+export function clearChatFocusReturn() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(CHAT_FOCUS_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Read-once fallback when the chat URL has no focus query params. */
 export function consumeChatFocusReturn(
   conversationId: string,

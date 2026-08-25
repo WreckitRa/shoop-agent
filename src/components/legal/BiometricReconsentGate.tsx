@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FittingBiometricConsent } from "@/components/onboarding/fitting/FittingBiometricConsent";
+import {
+  BiometricConsentSheet,
+  notifyBiometricConsent,
+} from "@/components/legal/BiometricConsentSheet";
 import { guestFetch } from "@/lib/client/guest-fetch";
 
 export function BiometricReconsentGate({
@@ -31,55 +34,38 @@ export function BiometricReconsentGate({
     };
   }, [enabled]);
 
+  async function post(action: "accept" | "withdraw") {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await guestFetch("/api/privacy/biometric-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error("failed");
+      setNeeded(false);
+      notifyBiometricConsent(action === "accept");
+    } catch {
+      setError(
+        action === "accept"
+          ? "Could not save consent."
+          : "Could not withdraw consent.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!enabled || !needed) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] overflow-y-auto bg-white px-6 py-10">
-      <div className="mx-auto max-w-[560px]">
-        <FittingBiometricConsent
-          busy={busy}
-          skipLabel="No thanks — delete my twin and keep the account"
-          onSkip={async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              const res = await guestFetch("/api/privacy/biometric-consent", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "withdraw" }),
-              });
-              if (!res.ok) throw new Error("failed");
-              setNeeded(false);
-            } catch {
-              setError("Could not withdraw consent.");
-            } finally {
-              setBusy(false);
-            }
-          }}
-          onAccept={async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              const res = await guestFetch("/api/privacy/biometric-consent", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "accept" }),
-              });
-              if (!res.ok) throw new Error("failed");
-              setNeeded(false);
-            } catch {
-              setError("Could not save consent.");
-            } finally {
-              setBusy(false);
-            }
-          }}
-        />
-        {error ? (
-          <p className="mt-4 text-sm font-semibold text-[var(--fitting-red)]">
-            {error}
-          </p>
-        ) : null}
-      </div>
-    </div>
+    <BiometricConsentSheet
+      busy={busy}
+      error={error}
+      skipLabel="No thanks — delete my twin"
+      onSkip={() => void post("withdraw")}
+      onAccept={() => void post("accept")}
+    />
   );
 }

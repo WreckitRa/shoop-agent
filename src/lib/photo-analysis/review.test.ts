@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildStyleUserReview,
-  listReviewableAssessments,
+  listConfirmableTraits,
   parseStyleUserReview,
 } from "./review";
 import { verdictReadiness } from "./verdict-input";
@@ -44,25 +44,84 @@ describe("style photo review", () => {
     assert.equal(parseStyleUserReview(review)?.notes[0], "Regular ease, not slim.");
   });
 
-  it("lists visible-profile assessments", () => {
+  it("lists only the confirmable face traits", () => {
     const analysis = {
       visible_profile: {
         color: {
+          visible_skin_surface_tone: {
+            value: "medium olive",
+            confidence: 0.7,
+            evidence: "cheek",
+            caveats: [],
+          },
+          skin_depth: {
+            value: "medium",
+            confidence: 0.8,
+            evidence: "cheek",
+            caveats: [],
+          },
           eye_color: {
             value: "brown",
             confidence: 0.6,
             evidence: "iris visible",
             caveats: [],
           },
+          hair_color: {
+            value: "dark brown",
+            confidence: 0.7,
+            evidence: "roots",
+            caveats: [],
+          },
         },
-        face: {},
+        face: {
+          primary_shape: {
+            value: "oval",
+            confidence: 0.5,
+            evidence: "outline",
+            caveats: [],
+          },
+        },
         hair_and_grooming: {},
         body_proportions: {},
         current_style_signals: {},
       },
     } as unknown as StylePhotoAnalysis;
-    const rows = listReviewableAssessments(analysis);
-    assert.equal(rows[0]?.path, "visible_profile.color.eye_color");
+    const rows = listConfirmableTraits(analysis);
+    assert.deepEqual(
+      rows.map((r) => r.label),
+      ["Skin tone", "Eyes", "Hair", "Face"],
+    );
+    assert.equal(rows[0]?.path, "visible_profile.color.visible_skin_surface_tone");
+  });
+
+  it("attaches confirmed body to the review payload", () => {
+    const review = buildStyleUserReview({
+      rows: [
+        {
+          path: "visible_profile.color.eye_color",
+          section: "You",
+          label: "Eyes",
+          value: "brown",
+          confidence: 0.6,
+          evidence: "iris",
+        },
+      ],
+      edits: {},
+      rejected: [],
+      notes: "",
+      confirmedBody: {
+        height_cm: 179,
+        weight_kg: 78,
+        body_type: "athletic",
+        muscularity: "moderate",
+        body_shape: "rectangle",
+        bust_fullness: null,
+        leg_line: "even",
+      },
+    });
+    assert.equal(review.confirmed_body?.height_cm, 179);
+    assert.equal(review.confirmed_body?.muscularity, "moderate");
+    assert.equal(parseStyleUserReview(review)?.confirmed_body?.weight_kg, 78);
   });
 });
 

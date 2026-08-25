@@ -71,13 +71,21 @@ export const RATE_LIMIT_TIERS = {
   profile: { namespace: "profile", maxRequests: 120, windowMs: 60_000 },
   /** General API fallback. */
   general: { namespace: "general", maxRequests: 200, windowMs: 60_000 },
+  /** Photo uploads (analysis + avatar) — POST only, per IP. */
+  photoUpload: { namespace: "photo-upload", maxRequests: 6, windowMs: 10 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
-function clientIp(req: { headers: { get(name: string): string | null } }): string {
+export function requestClientIp(req: {
+  headers: { get(name: string): string | null };
+}): string {
   const xff = req.headers.get("x-forwarded-for");
   const first = xff?.split(",")[0]?.trim();
   if (first) return first;
   return req.headers.get("x-real-ip") ?? "unknown";
+}
+
+function clientIp(req: { headers: { get(name: string): string | null } }): string {
+  return requestClientIp(req);
 }
 
 /**
@@ -92,4 +100,13 @@ export function checkRateLimit(
 ): { ok: true } | { ok: false; retryAfter: number } {
   const key = `${rule.namespace}:${clientIp(req)}`;
   return store.check(key, rule.maxRequests, rule.windowMs);
+}
+
+/** Consume a named bucket (user id, IP-day, spend). Same store as middleware. */
+export function consumeRateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number,
+): { ok: true } | { ok: false; retryAfter: number } {
+  return store.check(key, maxRequests, windowMs);
 }

@@ -5,6 +5,12 @@ import {
   ensureRideAlongDefaults,
   normalizeClarificationOption,
 } from "./clarification-defaults";
+import {
+  defaultKindForGap,
+  ensureYouDecideOption,
+  JUST_SHOW_ME_LABEL,
+  questionsHaveConsult,
+} from "./consultation";
 import type {
   FashionClarificationOption,
   FashionClarificationQuestion,
@@ -132,6 +138,23 @@ export const fashionSearchBriefSchema = z.object({
   color_direction: colorDirectionSchema.optional(),
   brand_direction: brandDirectionSchema.optional(),
   stated_facts: statedFactsSchema,
+  depth: z
+    .object({
+      looks_wanted: z.number().int().min(1).max(8).optional(),
+      options_per_item: z.number().int().min(1).max(8).optional(),
+      source: z.enum(["stated", "you_decide", "assumed"]),
+    })
+    .optional(),
+  preference_anchor: z
+    .enum(["keep", "push", "explore", "unspecified"])
+    .optional(),
+  consultation: z
+    .object({
+      confirmed: z.array(z.string().min(1).max(120)).max(8).default([]),
+      rounds_used: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+    })
+    .optional(),
+  assumptions: z.array(z.string().min(1).max(200)).max(8).optional(),
 });
 
 export const respondOffTopicInputSchema = z.object({
@@ -146,6 +169,15 @@ export const clarificationGapSchema = z.enum([
   "size",
   "occasion",
   "budget",
+  "depth",
+  "preference_anchor",
+  "style_lane",
+  "color",
+  "brand",
+  "fit",
+  "formality",
+  "direction",
+  "slots",
 ]);
 
 const clarificationOptionInputSchema = z.union([
@@ -155,6 +187,7 @@ const clarificationOptionInputSchema = z.union([
     label: z.string().min(1).max(120),
     preview_query: z.string().min(1).max(300).optional(),
     previewQuery: z.string().min(1).max(300).optional(),
+    preselected: z.boolean().optional(),
   }),
 ]);
 
@@ -163,9 +196,14 @@ export const clarificationQuestionSchema = z.object({
   gap: clarificationGapSchema,
   garment_type: z.string().min(1).max(80).optional(),
   // Preferred; if omitted the server fills defaults + Other.
-  quick_options: z.array(clarificationOptionInputSchema).min(2).max(6).optional(),
+  quick_options: z.array(clarificationOptionInputSchema).min(2).max(8).optional(),
   allow_multiple: z.boolean().optional(),
   allow_other: z.boolean().optional(),
+  kind: z.enum(["blocking", "consult"]).optional(),
+  why: z.string().min(1).max(80).optional(),
+  display: z
+    .enum(["chips", "checklist", "stepper", "range", "visual", "text"])
+    .optional(),
 });
 
 export const askClarificationInputSchema = z.object({
@@ -182,10 +220,13 @@ export const askClarificationInputSchema = z.object({
   stated_facts: statedFactsSchema,
   /** Shopping intent held while clarifying — required when WHAT is known. */
   brief: fashionSearchBriefSchema.optional(),
+  known_summary: z.string().min(1).max(240).optional(),
+  escape_chip: z.string().min(1).max(40).optional(),
 });
 
 export const readyToSearchInputSchema = z.object({
   brief: fashionSearchBriefSchema,
+  known_summary: z.string().min(1).max(240).optional(),
 });
 
 export type FashionSearchBriefParsed = z.infer<typeof fashionSearchBriefSchema>;
@@ -205,7 +246,7 @@ export const RESPOND_OFF_TOPIC_TOOL = {
 export const ASK_CLARIFICATION_TOOL = {
   name: ASK_CLARIFICATION_TOOL_NAME,
   description:
-    "Ask 1–4 blocking clarifications in one turn. Bundle all currently-blocking gaps. Every question MUST include 2–5 short quick_options; the UI always adds Other for free-form. Set allow_multiple true for additive chips (occasions, colors, vibes, materials). For style/vibe/color directions use option objects with preview_query. Optional ride_along for one nice-to-have with an opt-out. Copy any conversation-stated essentials into stated_facts even when still clarifying. When shopping direction is known (you are only blocked on size/department/who), ALWAYS include brief with request_type/garments/occasion/style — park the shopping intent so the next turn does not forget it.",
+    "Ask 1–4 questions in one turn — blocking gaps and, when they would change the rack, consultative ones. Bundle them. Every question MUST include 2–5 short quick_options; the UI always adds Other. Consult questions must include a You decide chip and the turn must set escape_chip (Just show me). Tag each question with kind blocking|consult. Copy conversation-stated essentials into stated_facts. When shopping direction is known, ALWAYS include brief.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -232,9 +273,32 @@ export const ASK_CLARIFICATION_TOOL = {
                 "size",
                 "occasion",
                 "budget",
+                "depth",
+                "preference_anchor",
+                "style_lane",
+                "color",
+                "brand",
+                "fit",
+                "formality",
+                "direction",
+                "slots",
               ],
             },
             garment_type: { type: "string" },
+            kind: {
+              type: "string",
+              enum: ["blocking", "consult"],
+            },
+            why: {
+              type: "string",
+              description: "≤ 8 words under the question — why it changes the pull.",
+            },
+            display: {
+              type: "string",
+              enum: ["chips", "checklist", "stepper", "range", "visual", "text"],
+              description:
+                "How the pull sheet renders this question. Omit to use the per-gap default.",
+            },
             allow_multiple: {
               type: "boolean",
               description:
@@ -261,6 +325,11 @@ export const ASK_CLARIFICATION_TOOL = {
                         type: "string",
                         description:
                           "Concrete product-noun catalog phrase for visual previews (styles/vibes/colors only).",
+                      },
+                      preselected: {
+                        type: "boolean",
+                        description:
+                          "Tick by default on checklist questions (allow_multiple). Omit otherwise.",
                       },
                     },
                     required: ["label"],
@@ -299,6 +368,16 @@ export const ASK_CLARIFICATION_TOOL = {
         required: ["text", "quick_options"],
       },
       stated_facts: statedFactsJsonSchema,
+      known_summary: {
+        type: "string",
+        description:
+          "One warm line of what you already know. Required when PROFILES or conversation give anything.",
+      },
+      escape_chip: {
+        type: "string",
+        description:
+          "Full-width skip for consult turns, e.g. Just show me. Omit on blocking-only turns.",
+      },
       brief: {
         type: "object",
         description:
@@ -356,6 +435,30 @@ export const ASK_CLARIFICATION_TOOL = {
             required: ["source"],
           },
           stated_facts: statedFactsJsonSchema,
+          depth: {
+            type: "object",
+            properties: {
+              looks_wanted: { type: "number" },
+              options_per_item: { type: "number" },
+              source: {
+                type: "string",
+                enum: ["stated", "you_decide", "assumed"],
+              },
+            },
+            required: ["source"],
+          },
+          preference_anchor: {
+            type: "string",
+            enum: ["keep", "push", "explore", "unspecified"],
+          },
+          consultation: {
+            type: "object",
+            properties: {
+              confirmed: { type: "array", items: { type: "string" } },
+              rounds_used: { type: "number", enum: [0, 1, 2] },
+            },
+          },
+          assumptions: { type: "array", items: { type: "string" } },
         },
         required: [
           "recipient_person_id",
@@ -438,6 +541,30 @@ export const READY_TO_SEARCH_TOOL = {
             required: ["source"],
           },
           stated_facts: statedFactsJsonSchema,
+          depth: {
+            type: "object",
+            properties: {
+              looks_wanted: { type: "number" },
+              options_per_item: { type: "number" },
+              source: {
+                type: "string",
+                enum: ["stated", "you_decide", "assumed"],
+              },
+            },
+            required: ["source"],
+          },
+          preference_anchor: {
+            type: "string",
+            enum: ["keep", "push", "explore", "unspecified"],
+          },
+          consultation: {
+            type: "object",
+            properties: {
+              confirmed: { type: "array", items: { type: "string" } },
+              rounds_used: { type: "number", enum: [0, 1, 2] },
+            },
+          },
+          assumptions: { type: "array", items: { type: "string" } },
         },
         required: [
           "recipient_person_id",
@@ -512,6 +639,7 @@ function normalizeParsedOption(
     id: raw.id?.trim() || "",
     label: raw.label,
     ...(preview ? { previewQuery: preview } : {}),
+    ...(raw.preselected ? { preselected: true } : {}),
   });
 }
 
@@ -524,6 +652,9 @@ function normalizeParsedQuestion(
     ...(q.garment_type ? { garment_type: q.garment_type } : {}),
     ...(q.allow_multiple != null ? { allow_multiple: q.allow_multiple } : {}),
     ...(q.allow_other != null ? { allow_other: q.allow_other } : {}),
+    kind: q.kind ?? defaultKindForGap(q.gap),
+    ...(q.why ? { why: q.why.trim() } : {}),
+    ...(q.display ? { display: q.display } : {}),
     ...(q.quick_options
       ? { quick_options: q.quick_options.map(normalizeParsedOption) }
       : {}),
@@ -585,6 +716,7 @@ function coerceRouterToolRaw(toolName: string, raw: unknown): unknown {
         const question = { ...(q as Record<string, unknown>) };
         question.text = clampStr(question.text, 500);
         question.garment_type = clampStr(question.garment_type, 80);
+        question.why = clampStr(question.why, 80);
         if (Array.isArray(question.quick_options)) {
           question.quick_options = question.quick_options.map(coerceQuickOption);
         }
@@ -599,6 +731,8 @@ function coerceRouterToolRaw(toolName: string, raw: unknown): unknown {
       }
       obj.ride_along = ride;
     }
+    obj.known_summary = clampStr(obj.known_summary, 240);
+    obj.escape_chip = clampStr(obj.escape_chip, 40);
     if (obj.brief && typeof obj.brief === "object") {
       obj.brief = coerceBriefFields(obj.brief);
     }
@@ -652,12 +786,14 @@ export function parseFashionRouterToolInput(
       }
     }
     if (!parsed.success) return null;
+    const questions = ensureQuestionsHaveQuickOptions(
+      parsed.data.questions.map(normalizeParsedQuestion),
+    ).map(ensureYouDecideOption);
+    const hasConsult = questionsHaveConsult(questions);
     return {
       move: "ask_clarification",
       reply: parsed.data.reply,
-      questions: ensureQuestionsHaveQuickOptions(
-        parsed.data.questions.map(normalizeParsedQuestion),
-      ),
+      questions,
       ride_along: ensureRideAlongDefaults(
         parsed.data.ride_along
           ? normalizeParsedRideAlong(parsed.data.ride_along)
@@ -667,6 +803,17 @@ export function parseFashionRouterToolInput(
       ...(parsed.data.brief
         ? { brief: parsed.data.brief as FashionSearchBrief }
         : {}),
+      ...(parsed.data.known_summary
+        ? { known_summary: parsed.data.known_summary.trim() }
+        : {}),
+      ...(hasConsult
+        ? {
+            escape_chip:
+              parsed.data.escape_chip?.trim() || JUST_SHOW_ME_LABEL,
+          }
+        : parsed.data.escape_chip
+          ? { escape_chip: parsed.data.escape_chip.trim() }
+          : {}),
     };
   }
   if (toolName === READY_TO_SEARCH_TOOL_NAME) {
@@ -687,6 +834,9 @@ export function parseFashionRouterToolInput(
     return {
       move: "ready_to_search",
       brief: parsed.data.brief as FashionSearchBrief,
+      ...(parsed.data.known_summary
+        ? { known_summary: parsed.data.known_summary.trim() }
+        : {}),
     };
   }
   return null;

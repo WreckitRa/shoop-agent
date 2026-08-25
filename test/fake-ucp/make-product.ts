@@ -58,7 +58,18 @@ export function makeProduct(
       : { value: 4.2, scaleMax: 5, count: 120 };
 
   const attrs = [];
-  if (overrides.gender) attrs.push({ name: "Target gender", value: overrides.gender });
+  if (overrides.gender) {
+    const g = overrides.gender.toLowerCase();
+    const targetGender =
+      g === "mens" || g === "male"
+        ? "Male"
+        : g === "womens" || g === "female"
+          ? "Female"
+          : g === "unisex"
+            ? "Unisex"
+            : overrides.gender;
+    attrs.push({ name: "Target gender", value: targetGender });
+  }
   if (overrides.color) attrs.push({ name: "Color", value: overrides.color });
   if (overrides.size) attrs.push({ name: "Size", value: overrides.size });
 

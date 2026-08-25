@@ -122,11 +122,17 @@ export type RenderDegradation = {
 };
 
 /** Stylist-voice narration blocks. */
+export type RenderNextStepOffer = {
+  text: string;
+  chips: string[];
+};
+
 export type RenderNarration = {
   opening: string;
   brand_note?: string;
   budget_note?: string;
   thin_note?: string;
+  next_step_offer?: RenderNextStepOffer;
   degradation: RenderDegradation;
 };
 

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Heart, Loader2 } from "lucide-react";
 import { openAuthModal, useGuestMode } from "@/hooks/useGuestMode";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { useClientIdentityScopeKey } from "@/lib/client/identity-sync";
 import { NEW_CHAT_PATH } from "@/lib/shared/chatRoutes";
 import { cn } from "@/lib/ai-chat/cn";
 import { requestMirror } from "@/components/tryon/request-mirror";
@@ -188,6 +189,7 @@ export function MoodboardView({
 } = {}) {
   const router = useRouter();
   const { isGuest } = useGuestMode();
+  const identityScope = useClientIdentityScopeKey();
   const showToast = useToastStore((s) => s.show);
   const addCartItem = useCartStore((s) => s.addItem);
   const setCartOpen = useCartStore((s) => s.setDrawerOpen);
@@ -235,7 +237,7 @@ export function MoodboardView({
       return;
     }
     void load();
-  }, [isGuest, load, onCountChange]);
+  }, [isGuest, load, onCountChange, identityScope]);
 
   const remove = async (generationId: string) => {
     setRemovingId(generationId);

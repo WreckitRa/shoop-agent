@@ -19,7 +19,10 @@ import {
 } from "@/lib/client/guest-storage";
 import { leaveConversationRoute } from "@/lib/client/chat-navigation";
 import { useAppSessionStore } from "@/lib/client/app-session";
-import { queueClientIdentityResync } from "@/lib/client/identity-sync";
+import {
+  queueClientIdentityResync,
+  useClientIdentityScopeKey,
+} from "@/lib/client/identity-sync";
 import { useGuestHasPersistedData } from "@/hooks/useGuestMode";
 
 type AuthUser = { id: string; email: string | null };
@@ -95,6 +98,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     showAuthModal && guestActive,
   );
   const askGuestBootRef = useRef(false);
+  const previousUserIdRef = useRef<string | null>(null);
+  const identityScope = useClientIdentityScopeKey();
 
   const refreshGuest = useCallback(() => {
     setGuestActive(isGuestSessionActive());
@@ -205,6 +210,19 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       window.removeEventListener("shoop-open-auth", onOpenAuth);
     };
   }, [refresh, refreshGuest]);
+
+  useEffect(() => {
+    const prev = previousUserIdRef.current;
+    previousUserIdRef.current = user?.id ?? null;
+    if (user) {
+      askGuestBootRef.current = false;
+      return;
+    }
+    if (prev) {
+      askGuestBootRef.current = false;
+      guestMigrateOnceRef.current = false;
+    }
+  }, [user]);
 
   // Logged-out visitors land in guest mode — auth modal only via Sign in.
   useEffect(() => {
@@ -352,8 +370,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         {children}
-        {!skipFittingChrome ? <BiometricReconsentGate enabled /> : null}
-        {!skipFittingChrome ? <OnboardingGate /> : null}
+        {!skipFittingChrome ? (
+          <BiometricReconsentGate key={`biometric:${identityScope}`} enabled />
+        ) : null}
+        {!skipFittingChrome ? (
+          <OnboardingGate key={`onboarding:${identityScope}`} />
+        ) : null}
       </>
     );
   }
@@ -397,7 +419,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         {children}
-        {!skipFittingChrome ? <OnboardingGate /> : null}
+        {!skipFittingChrome ? (
+          <OnboardingGate key={`onboarding:${identityScope}`} />
+        ) : null}
         {!skipFittingChrome ? <GuestLeavePrompt /> : null}
         {authForm ? (
           <AuthOverlay

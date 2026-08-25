@@ -9,6 +9,7 @@ import { FormingSilhouette } from "@/components/tryon/avatar-silhouettes";
 import { useUserIdentity } from "@/hooks/useUserIdentity";
 import { extractFirstName } from "@/lib/shared/timeGreeting";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { useClientIdentityScopeKey } from "@/lib/client/identity-sync";
 import { cn } from "@/lib/ai-chat/cn";
 
 type Props = {
@@ -31,6 +32,7 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const rackCount = useTryOnDrawerStore((s) => s.rackIds.length);
   const activeCount = useTryOnDrawerStore((s) => s.activeIds.length);
   const { preferredName, firstName } = useUserIdentity();
+  const identityScope = useClientIdentityScopeKey();
   const [moodCount, setMoodCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    setMoodCount(null);
     void guestFetch("/api/tryon/moodboard", { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return;
@@ -51,7 +54,7 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [identityScope]);
 
   const displayName =
     extractFirstName(preferredName) ??

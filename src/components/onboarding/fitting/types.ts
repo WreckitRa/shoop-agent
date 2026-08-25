@@ -76,7 +76,7 @@ export const STEP_META: Record<
     stage: "Getting to know you",
     flashCover: "While that develops...<br><em>who are you?</em>",
     flashNext: "next up... your name",
-    loadingDetail: "Checking the photo…",
+    loadingDetail: "Photo's developing in the background…",
   },
   name: {
     n: 2,
@@ -138,8 +138,8 @@ export const STEP_META: Record<
     n: 10,
     stage: "Getting to know you",
     flashCover: "Say hello<br>to <em>you.</em>",
-    flashNext: "next up... you",
-    loadingDetail: "Saving your trusted circle… building your verdict…",
+    flashNext: "next up... your scan",
+    loadingDetail: "Saving your trusted circle… checking your scan…",
   },
 };
 
@@ -217,9 +217,9 @@ export type MirrorState = {
   twinAvatarUrl: string | null;
   heightCm: number | null;
   build: BuildKey | null;
-  /** Soft / toned / defined — drives mock twin musculature. */
+  /** Soft / toned / defined — drives silhouette musculature. */
   muscularity: "low" | "moderate" | "high" | null;
-  /** Proportion distribution for mock twin path. */
+  /** Proportion distribution for the silhouette path. */
   bodyShape:
     | "rectangle"
     | "triangle"
@@ -227,7 +227,7 @@ export type MirrorState = {
     | "hourglass"
     | "oval"
     | null;
-  /** Feminine bust band for mock twin (null when not applicable). */
+  /** Feminine bust band for the silhouette (null when not applicable). */
   bustFullness: "subtle" | "average" | "full" | "very_full" | null;
   form: SilhouetteForm;
   developPct: number;
@@ -316,7 +316,7 @@ export function circleMirrorLabel(names: string[]): string {
   return `${cleaned[0]}, ${cleaned[1]} +${cleaned.length - 2}`;
 }
 
-export function stubSerialFromId(id: string): string {
+export function printSerialFromId(id: string): string {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   const n = (h % 900000) + 1;

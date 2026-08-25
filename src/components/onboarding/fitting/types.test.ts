@@ -7,7 +7,7 @@ import {
   circleMirrorLabel,
   knotNowIndex,
   sewnThroughIndex,
-  stubSerialFromId,
+  printSerialFromId,
 } from "@/components/onboarding/fitting/types";
 import { backfillFittingTellFromText } from "@/lib/onboarding/fitting-tell";
 
@@ -52,9 +52,9 @@ describe("fitting circle step model", () => {
   });
 
   it("derives a stable 6-digit print serial from person id", () => {
-    assert.equal(stubSerialFromId("abc"), stubSerialFromId("abc"));
-    assert.equal(stubSerialFromId("abc").length, 6);
-    assert.notEqual(stubSerialFromId("abc"), stubSerialFromId("abd"));
+    assert.equal(printSerialFromId("abc"), printSerialFromId("abc"));
+    assert.equal(printSerialFromId("abc").length, 6);
+    assert.notEqual(printSerialFromId("abc"), printSerialFromId("abd"));
   });
 });
 

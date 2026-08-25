@@ -3,11 +3,14 @@
  * single_item < outfit < capsule for image spend.
  */
 
-/** Hero picks shown in UI for single/multi item. */
-export const CURATION_HERO_PICKS = 3;
+import { agreedDepth, DEPTH_CEILING } from "../agreed-depth";
+import type { FashionSearchBrief } from "../router/types";
+import type { SearchPlanMode } from "../search-planner/types";
 
-/** Named looks / capsule rotations the curator must form. */
-export const CURATION_LOOKS_TARGET = 3;
+/** Absolute pick ceiling — not a target. */
+export const CURATION_PICKS_CEILING = DEPTH_CEILING;
+/** Absolute looks ceiling — not a target. */
+export const CURATION_LOOKS_CEILING = DEPTH_CEILING;
 
 /** Verified bench under the heroes (per garment). */
 export const CURATION_VERIFIED_BENCH = 10;
@@ -50,13 +53,18 @@ export function imageBudgetForSlot(params: {
 
 /** Cap of picks the curator should deliver for a slot (UI heroes). */
 export function curationPickCap(params: {
-  mode: "single_item" | "outfit" | "capsule" | "multi_item";
-  optionsWanted: number;
+  mode: SearchPlanMode;
+  brief: FashionSearchBrief;
+  optionsWanted?: number;
 }): number {
-  if (params.mode === "single_item" || params.mode === "multi_item") {
-    return CURATION_HERO_PICKS;
-  }
-  // Outfit / capsule: still surface slot picks for the look grid, but
-  // the primary deliverable is 3 looks / capsule outfits.
-  return Math.min(8, Math.max(1, params.optionsWanted));
+  const { picks } = agreedDepth(params.brief);
+  const want =
+    params.mode === "single_item" || params.mode === "multi_item"
+      ? picks
+      : (params.optionsWanted ?? picks);
+  return Math.min(Math.max(1, want), CURATION_PICKS_CEILING);
+}
+
+export function curationLooksTarget(brief: FashionSearchBrief): number {
+  return Math.min(agreedDepth(brief).looks, CURATION_LOOKS_CEILING);
 }

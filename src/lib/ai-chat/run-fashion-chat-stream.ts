@@ -129,6 +129,8 @@ function routerMetadata(
         ride_along: result.ride_along,
       }),
       trace_id: extras?.traceId,
+      ...(result.known_summary ? { known_summary: result.known_summary } : {}),
+      ...(result.escape_chip ? { escape_chip: result.escape_chip } : {}),
     };
   }
   return {
@@ -138,16 +140,18 @@ function routerMetadata(
     stated_facts: result.brief.stated_facts,
     declined_gaps: extras?.declinedGaps,
     trace_id: extras?.traceId,
+    ...(result.known_summary ? { known_summary: result.known_summary } : {}),
   };
 }
 
 function assistantContent(result: FashionRouterResult): string {
   if (result.move === "ready_to_search") {
-    return (
+    const going = result.known_summary?.trim();
+    const rest =
       safeTrim(result.brief.style_direction) ||
       safeTrim(result.brief.garments[0]) ||
-      "Searching the catalog for you."
-    );
+      "Searching the catalog for you.";
+    return going ? `${going} — pulling now.` : rest;
   }
   if (result.move === "ask_clarification") {
     // Questions render in FashionRouterControls — keep content to reply only

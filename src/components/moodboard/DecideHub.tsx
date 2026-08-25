@@ -7,6 +7,7 @@ import { MoodboardView } from "@/components/moodboard/MoodboardView";
 import { HoldView } from "@/components/moodboard/HoldView";
 import { CartPageView } from "@/components/moodboard/CartPageView";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { useClientIdentityScopeKey } from "@/lib/client/identity-sync";
 import { useGuestMode } from "@/hooks/useGuestMode";
 import { cn } from "@/lib/ai-chat/cn";
 
@@ -42,6 +43,7 @@ export function DecideHub() {
   const searchParams = useSearchParams();
   const tab = parseTab(searchParams.get("tab"));
   const { isGuest } = useGuestMode();
+  const identityScope = useClientIdentityScopeKey();
 
   const cart = useCartStore((s) => s.cart);
   const refreshCart = useCartStore((s) => s.refresh);
@@ -74,7 +76,7 @@ export function DecideHub() {
     return () => {
       cancelled = true;
     };
-  }, [isGuest, tab]);
+  }, [isGuest, tab, identityScope]);
 
   const setTab = useCallback(
     (next: DecideTab) => {

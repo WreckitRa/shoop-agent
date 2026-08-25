@@ -7,6 +7,12 @@ import {
 } from "@/lib/auth/guest-session";
 
 export async function getAuthUser(): Promise<User | null> {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()
+  ) {
+    return null;
+  }
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
@@ -18,8 +24,16 @@ export type AuthContext =
   | { ok: false; response: Response };
 
 async function getGuestSessionIdFromRequestHeaders(): Promise<string | null> {
-  const h = await headers();
-  return parseGuestSessionId(h.get("x-guest-session-id"));
+  try {
+    const h = await headers();
+    return parseGuestSessionId(h.get("x-guest-session-id"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/outside (a )?request|request scope|headers/i.test(message)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function getAuthContext(): Promise<AuthContext> {

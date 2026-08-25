@@ -198,6 +198,11 @@ function formatFactLine(fact: FashionFactRow): string | null {
     case "measurement":
       // Body data — never echo numeric values into LLM snapshots/debug.
       return null;
+    case "depth_default": {
+      const depth = fact.value as { count?: number; unit?: string };
+      if (!depth.count || !depth.unit) return null;
+      return `depth_default: ${depth.count} ${depth.unit} (stated)`;
+    }
     default:
       return null;
   }
@@ -206,7 +211,11 @@ function formatFactLine(fact: FashionFactRow): string | null {
 function formatSignalToken(signal: StyleSignalRow): string {
   const sign = signal.polarity === -1 ? "-" : "+";
   const conf = signal.confidence.toFixed(1).replace(/\.0$/, "");
-  return `${sign}${signal.value} [${signal.context}, ${signal.source}, ${conf}]`;
+  const value =
+    signal.signal_type === "shopping_style"
+      ? `shopping_style:${signal.value}`
+      : signal.value;
+  return `${sign}${value} [${signal.context}, ${signal.source}, ${conf}]`;
 }
 
 export function formatPersonSnapshot(params: {

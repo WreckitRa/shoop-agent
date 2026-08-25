@@ -18,7 +18,16 @@ import { verifyOrderWebhook } from "@/lib/shopify/orders";
  */
 export async function POST(request: Request) {
   const raw = Buffer.from(await request.arrayBuffer());
-  const secret = getShopifyClientSecret();
+  let secret: string;
+  try {
+    secret = getShopifyClientSecret();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("SHOPIFY_CATALOG_CLIENT_SECRET")) {
+      return new NextResponse("Webhook is not configured", { status: 503 });
+    }
+    throw error;
+  }
   if (!verifyOrderWebhook(raw, request.headers, secret)) {
     return new NextResponse("Invalid signature", { status: 401 });
   }

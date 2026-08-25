@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { useClientIdentityScopeKey } from "@/lib/client/identity-sync";
 import { useChatStore } from "@/components/chat/chat-store";
 import { cn } from "@/lib/ai-chat/cn";
 
@@ -28,10 +29,12 @@ export function HomeTodayOnYou({ onPreview, className }: Props) {
   const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
   const setInput = useChatStore((s) => s.setInput);
   const requestComposerFocus = useChatStore((s) => s.requestComposerFocus);
+  const identityScope = useClientIdentityScopeKey();
   const [loved, setLoved] = useState<TodayTile[]>([]);
 
   useEffect(() => {
     let cancelled = false;
+    setLoved([]);
     void guestFetch("/api/tryon/moodboard", { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return;
@@ -66,7 +69,7 @@ export function HomeTodayOnYou({ onPreview, className }: Props) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [identityScope]);
 
   const nowOnYou: TodayTile | null =
     resultUrl != null

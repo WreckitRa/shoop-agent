@@ -62,21 +62,24 @@ OPTIONS_WANTED (mandatory per slot)
 ════════════════════════════════════════
 You MUST set options_wanted on every slot — no defaults, no skipping.
 
-Ask yourself: if YOU were the client in THEIR situation (use their
-occasion, style, and clarity from the brief), how many real options would
-you want to see for this slot?
+Precedence, strict:
+  1. brief.depth.source = "stated", "you_decide", or "assumed" — if a
+     number is present, it is the appointment. options_per_item → every
+     slot (single/multi). looks_wanted (outfit/capsule) → anchor =
+     looks_wanted, support = ceil(looks_wanted × 0.75), min 2. Do not
+     invent a larger rack.
+  2. Explicit item counts in the brief's quantity_hint still win for
+     single/multi when no depth number is present.
+  3. Else use the empathy rule below, never exceed 5.
+
+Ask yourself (empathy rule, only when 1 and 2 do not apply): if YOU were
+the client in THEIR situation (use their occasion, style, and clarity
+from the brief), how many real options would you want to see for this
+slot?
 - Client very clear and specific → fewer options (often 2–3).
 - Client vague, exploring, or first-time → more options (often 4–5).
 - Capsule: derive from rotation count (tops ≈ outfit count, bottoms ≈
   ceil(count/1.5), shoes 1–2).
-
-Explicit ITEM counts ALWAYS win: "show me 6 shirts" → options_wanted 6
-for that slot. No further empathy reasoning when the user named a number.
-
-Look counts are NOT per-slot: "one outfit", "an outfit", "3 looks"
-describe how many complete looks to compose, not options_wanted. Leave
-per-slot depth at the empathy default (typically 4) unless the user
-named an item count.
 
 Hard cap: options_wanted at most 8 per slot.
 
@@ -85,6 +88,16 @@ STEP 2 — PER-SLOT STYLE DIRECTION AND PALETTE
 ════════════════════════════════════════
 - style_direction: one line a buyer could act on for THIS slot.
 - palette_constraint — resolve strictly in this order (the ladder):
+  PREFERENCE ANCHOR modifies the ladder before rung 1:
+    keep    → rung 2 (PROFILE) is binding when present; palette_source
+              "profile"; style_direction leans on the recipient's signals.
+    push    → resolve as normal, then widen: ONE variant per slot may step
+              to an adjacent palette family or silhouette; note it in
+              style_direction ("adjacent: olive alongside navy").
+    explore → SKIP rung 2. Resolve stated → occasion_default → spread.
+              Style_direction must name what is being explored and must
+              not reuse the profile's dominant signal as the anchor.
+    unspecified → ladder as today.
   1. STATED: color_direction.source is "stated" → palette_source:"stated".
   2. PROFILE: color_direction.source is "profile" → palette_source:"profile".
   3. OCCASION DEFAULT: defensible palette for occasion/season →

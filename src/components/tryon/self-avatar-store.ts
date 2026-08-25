@@ -18,6 +18,8 @@ type SelfAvatarState = {
 
   refresh: () => Promise<void>;
   markReady: (avatarUrl?: string | null) => void;
+  /** Drop the previous identity's twin before the next hydrate. */
+  resetForIdentityChange: () => void;
   /** Open The Fitting so the shopper can create their twin. */
   openCreateFlow: () => void;
 };
@@ -75,6 +77,15 @@ export const useSelfAvatarStore = create<SelfAvatarState>((set, get) => ({
     set((s) => ({
       status: "ready",
       avatarUrl: avatarUrl ?? s.avatarUrl,
+    }));
+  },
+
+  resetForIdentityChange: () => {
+    set((s) => ({
+      status: "unknown",
+      personId: null,
+      avatarUrl: null,
+      refreshGen: s.refreshGen + 1,
     }));
   },
 

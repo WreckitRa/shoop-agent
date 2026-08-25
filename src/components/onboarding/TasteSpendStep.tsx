@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { BUDGET_OPTIONS } from "@/lib/onboarding/form-options";
 import {
   FittingAddIn,
@@ -27,8 +26,6 @@ export function TasteSpendStep({
   onContinue,
   busy,
 }: Props) {
-  const [draft, setDraft] = useState("");
-
   function toggle(value: string) {
     const set = new Set(values);
     if (set.has(value)) set.delete(value);
@@ -44,7 +41,6 @@ export function TasteSpendStep({
     if (onCustomLabelsChange && !customLabels.includes(v)) {
       onCustomLabelsChange([...customLabels, v]);
     }
-    setDraft("");
   }
 
   return (
@@ -87,8 +83,6 @@ export function TasteSpendStep({
           onSubmit={addCustom}
         />
       </div>
-      {/* keep draft wiring quiet if future controlled input needed */}
-      <span className="sr-only">{draft}</span>
 
       {onContinue ? (
         <FittingNavRow onNext={onContinue} busy={busy} />

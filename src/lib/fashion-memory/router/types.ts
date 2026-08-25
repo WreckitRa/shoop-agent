@@ -88,6 +88,18 @@ export type FashionSearchBrief = {
     honesty?: "gentle" | "balanced" | "blunt";
     value_philosophy?: string;
   };
+  depth?: {
+    looks_wanted?: number;
+    options_per_item?: number;
+    source: "stated" | "you_decide" | "assumed";
+  };
+  preference_anchor?: "keep" | "push" | "explore" | "unspecified";
+  consultation?: {
+    confirmed: string[];
+    rounds_used: 0 | 1 | 2;
+  };
+  /** Calls made without asking — voiced on results. Empty only when asked. */
+  assumptions?: string[];
 };
 
 export type FashionRouterContext = {
@@ -105,6 +117,8 @@ export type FashionRouterContext = {
   factsByPersonId?: Map<string, import("../types").FashionFactRow[]>;
   signalsByPersonId?: Map<string, import("../types").StyleSignalRow[]>;
   profileHints?: import("../intake/account-profile-bridge").IntakeProfileHints | null;
+  /** When true, the uncached context tells the LLM to search and list assumptions. */
+  consultation_budget_spent?: boolean;
 };
 
 export type FashionClarificationGap =
@@ -114,7 +128,25 @@ export type FashionClarificationGap =
   | "department"
   | "size"
   | "occasion"
-  | "budget";
+  | "budget"
+  | "depth"
+  | "preference_anchor"
+  | "style_lane"
+  | "color"
+  | "brand"
+  | "fit"
+  | "formality"
+  | "direction"
+  | "slots";
+
+/** LLM hint for how the pull sheet should render a question. */
+export type FashionClarificationDisplay =
+  | "chips"
+  | "checklist"
+  | "stepper"
+  | "range"
+  | "visual"
+  | "text";
 
 /** Optional apply-path field for deterministic size/department templates. */
 export type FashionClarificationApplyField =
@@ -136,6 +168,8 @@ export type FashionClarificationOption = {
   previewImages?: import("@/lib/ai-chat/types").ClarificationOptionPreviewImage[];
   /** LLM-resolved hex swatches for color/palette chips (exactly 3–4). */
   paletteColors?: string[];
+  /** Meaningful when allow_multiple: ticked by default on the pull sheet. */
+  preselected?: boolean;
 };
 
 /** Structured quiz answer — selected are option ids (and Other) + optional Other text. */
@@ -156,6 +190,11 @@ export type FashionClarificationQuestion = {
   allow_multiple?: boolean;
   /** When false, no Other free-form path (person_name is Skip-only). Default true. */
   allow_other?: boolean;
+  kind?: "blocking" | "consult";
+  /** ≤ 8 words under the question — why this earns its place. */
+  why?: string;
+  /** How the pull sheet renders this question. UI falls back per gap when absent. */
+  display?: FashionClarificationDisplay;
 };
 
 export type FashionClarificationRideAlong = {
@@ -186,8 +225,14 @@ export type FashionRouterResult =
        * fashionPendingBrief so size answers do not invent a new request.
        */
       brief?: FashionSearchBrief;
+      known_summary?: string;
+      escape_chip?: string;
     }
-  | { move: "ready_to_search"; brief: FashionSearchBrief };
+  | {
+      move: "ready_to_search";
+      brief: FashionSearchBrief;
+      known_summary?: string;
+    };
 
 /** Persisted on assistant message metadata after a router turn. */
 export type MessageFashionRouterMetaV1 = {
@@ -212,6 +257,8 @@ export type MessageFashionRouterMetaV1 = {
   /** True when at least one option has previewQuery awaiting hydration. */
   expectsOptionPreviews?: boolean;
   trace_id?: string;
+  known_summary?: string;
+  escape_chip?: string;
 };
 
 export type FashionPendingBriefMetaV1 = {
@@ -219,4 +266,5 @@ export type FashionPendingBriefMetaV1 = {
   brief: FashionSearchBrief;
   recipientPersonId: string;
   savedAt: string;
+  consult_rounds_used?: 0 | 1 | 2;
 };

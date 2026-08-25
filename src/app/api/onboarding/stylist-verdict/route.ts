@@ -1,5 +1,12 @@
+import { after } from "next/server";
 import { getAuthContext } from "@/lib/auth/session";
+import {
+  PHOTO_MODEL_COST_ESTIMATES,
+  PhotoSpendCapError,
+  assertPhotoModelSpend,
+} from "@/lib/ops/spend-guard";
 import { assembleVerdictInput } from "@/lib/photo-analysis/verdict-input";
+import { parseConfirmedBody } from "@/lib/photo-analysis/review";
 import {
   generateStylistVerdict,
   hashedSafetyIdentifier,
@@ -21,7 +28,10 @@ export async function POST(req: Request) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
 
-  const body = (await req.json().catch(() => null)) as { hash?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as {
+    hash?: unknown;
+    declared_body?: unknown;
+  } | null;
   const hash = typeof body?.hash === "string" ? body.hash.trim() : "";
   if (!hash) {
     return Response.json({ error: "photo hash required." }, { status: 400 });
@@ -47,31 +57,70 @@ export async function POST(req: Request) {
     );
   }
 
-  await saveVerdictRunning(assembled.row.id);
-  const started = Date.now();
-  const model = stylistVerdictModel();
-  try {
-    const verdict = await generateStylistVerdict({
-      photoAnalysis: assembled.analysis as unknown as Record<string, unknown>,
-      userReview: assembled.review,
-      questionnaireAnswers: assembled.questionnaireAnswers,
-      measurements: assembled.measurements,
-      wardrobeInventory: assembled.wardrobeInventory,
-      applicationContext: assembled.applicationContext,
-      safetyIdentifier: hashedSafetyIdentifier(auth.userId),
-    });
-    await saveVerdict(assembled.row.id, verdict, Date.now() - started, model);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Stylist verdict failed";
-    await saveVerdictError(
-      assembled.row.id,
-      message,
-      Date.now() - started,
-      model,
-    );
+  const extraBody = parseConfirmedBody(body?.declared_body);
+  const measurements = extraBody
+    ? {
+        ...assembled.measurements,
+        body: {
+          ...((assembled.measurements.body as Record<string, unknown> | undefined) ??
+            {}),
+          height_cm: extraBody.height_cm ?? undefined,
+          weight_kg: extraBody.weight_kg ?? undefined,
+          body_type: extraBody.body_type ?? undefined,
+          muscularity: extraBody.muscularity ?? undefined,
+          body_shape: extraBody.body_shape ?? undefined,
+          bust_fullness: extraBody.bust_fullness ?? undefined,
+          leg_line: extraBody.leg_line ?? undefined,
+        },
+      }
+    : assembled.measurements;
+
+  if (
+    assembled.row.verdictStatus === "running" ||
+    (assembled.row.verdictStatus === "done" && assembled.row.verdict)
+  ) {
+    return Response.json({ analysis: toPublic(assembled.row) });
   }
 
-  const done = await findByHash(auth.userId, hash);
-  return Response.json({ analysis: toPublic(done ?? assembled.row) });
+  try {
+    await assertPhotoModelSpend(PHOTO_MODEL_COST_ESTIMATES.verdict);
+  } catch (error) {
+    if (error instanceof PhotoSpendCapError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+
+  await saveVerdictRunning(assembled.row.id);
+  const rowId = assembled.row.id;
+  const model = stylistVerdictModel();
+  const safetyIdentifier = hashedSafetyIdentifier(auth.userId);
+  const photoAnalysis = assembled.analysis as unknown as Record<string, unknown>;
+  const userReview = assembled.review;
+  const questionnaireAnswers = assembled.questionnaireAnswers;
+  const wardrobeInventory = assembled.wardrobeInventory;
+  const applicationContext = assembled.applicationContext;
+
+  after(async () => {
+    const started = Date.now();
+    try {
+      const verdict = await generateStylistVerdict({
+        photoAnalysis,
+        userReview,
+        questionnaireAnswers,
+        measurements,
+        wardrobeInventory,
+        applicationContext,
+        safetyIdentifier,
+      });
+      await saveVerdict(rowId, verdict, Date.now() - started, model);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Stylist verdict failed";
+      await saveVerdictError(rowId, message, Date.now() - started, model);
+    }
+  });
+
+  const running = await findByHash(auth.userId, hash);
+  return Response.json({ analysis: toPublic(running ?? assembled.row) });
 }

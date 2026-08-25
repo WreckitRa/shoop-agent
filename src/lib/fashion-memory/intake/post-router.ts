@@ -71,12 +71,20 @@ import {
   runFashionRouter,
   type RunFashionRouterDeps,
 } from "../router/llm-router";
+import { buildFashionRouterPrompt } from "../router/prompt";
 import {
   ensureQuestionsHaveQuickOptions,
   ensureRideAlongDefaults,
   personalizeClarificationOptions,
 } from "../router/clarification-defaults";
-import { buildFashionRouterPrompt } from "../router/prompt";
+import {
+  ensureYouDecideOption,
+  isConsultQuestion,
+  isEscapeOrYouDecideMessage,
+  JUST_SHOW_ME_LABEL,
+  nextConsultRoundsUsed,
+  questionsHaveConsult,
+} from "../router/consultation";
 import type {
   FashionClarificationQuestion,
   FashionRouterContext,
@@ -129,8 +137,11 @@ function withClarificationDefaults(
           stripPersonNameQuestions: opts?.stripPersonNameQuestions,
         }),
       ),
-    ),
+    ).map(ensureYouDecideOption),
     ride_along: ensureRideAlongDefaults(personalized.ride_along),
+    ...(questionsHaveConsult(personalized.questions) && !result.escape_chip
+      ? { escape_chip: JUST_SHOW_ME_LABEL }
+      : {}),
   };
 }
 
@@ -290,6 +301,7 @@ function answeredLedgerFromClarificationApply(params: {
   clarificationApply: {
     facts: FashionFactRow[];
     resolvedGarments?: string[];
+    answeredGaps?: FashionClarificationQuestion["gap"][];
   } | null;
   stated?: FashionStatedFacts | null;
   facts: FashionFactRow[];
@@ -311,6 +323,9 @@ function answeredLedgerFromClarificationApply(params: {
   }
   if (params.clarificationApply?.resolvedGarments?.length) {
     fromApply.push({ gap: "garment", source: "clarification_apply" });
+  }
+  for (const gap of params.clarificationApply?.answeredGaps ?? []) {
+    fromApply.push({ gap, source: "clarification_apply" });
   }
   return mergeAnsweredLedgers(
     answeredGapsFromFacts(params.facts, params.profileHints),
@@ -655,10 +670,38 @@ function logResolvedRouterTurn(
     traceId?: string | null;
     conversationId: string;
     llmMove?: FashionRouterMove;
+    lastUserMessage?: string;
   },
   outcome: ResolvedFashionRouterOutcome,
 ): ResolvedFashionRouterOutcome {
   const result = outcome.routerResult;
+  const questions =
+    result.move === "ask_clarification" ? result.questions : [];
+  const brief =
+    result.move === "ready_to_search"
+      ? result.brief
+      : result.move === "ask_clarification"
+        ? result.brief
+        : undefined;
+  const escapeChip =
+    result.move === "ask_clarification" ? result.escape_chip : undefined;
+  recordPipelineEvent({
+    traceId: params.traceId,
+    stage: "router",
+    payload: {
+      consult_rounds_used: outcome.pendingBrief?.consult_rounds_used ?? 0,
+      consult_gaps_asked: questions
+        .filter(isConsultQuestion)
+        .map((q) => q.gap),
+      resolution_tap: isEscapeOrYouDecideMessage(
+        params.lastUserMessage ?? "",
+        escapeChip,
+      ),
+      assumptions_count: brief?.assumptions?.length ?? 0,
+      depth_source: brief?.depth?.source ?? null,
+      preference_anchor: brief?.preference_anchor ?? null,
+    },
+  });
   logAiChat("info", "fashion_resolve_router_turn", {
     traceId: params.traceId,
     conversationId: params.conversationId,
@@ -693,6 +736,7 @@ export async function resolveFashionRouterTurn(params: {
       traceId: params.traceId,
       conversationId: params.conversationId,
       llmMove,
+      lastUserMessage: params.lastUserMessage,
     },
     outcome,
   );
@@ -767,7 +811,15 @@ async function resolveFashionRouterTurnInner(
       });
 
   let routerResult = await runFashionRouter(
-    { context: params.routerContext, signal: params.signal, traceId: params.traceId },
+    {
+      context: {
+        ...params.routerContext,
+        consultation_budget_spent:
+          (pendingBrief?.consult_rounds_used ?? 0) >= 2,
+      },
+      signal: params.signal,
+      traceId: params.traceId,
+    },
     params.deps,
   );
   onLlmMove(routerResult.move);
@@ -777,6 +829,7 @@ async function resolveFashionRouterTurnInner(
   if (
     pendingBrief &&
     routerResult.move === "ask_clarification" &&
+    !questionsHaveConsult(routerResult.questions) &&
     !routerResult.questions.some((q) =>
       q.gap === "department" || q.gap === "size" || q.gap === "person_name",
     )
@@ -940,7 +993,8 @@ async function resolveFashionRouterTurnInner(
                 )
               : null;
 
-      if (!questions.length && pendingWithGarments) {
+      const hadConsult = questionsHaveConsult(single.questions);
+      if (!questions.length && pendingWithGarments && !hadConsult) {
         routerResult = {
           move: "ready_to_search",
           brief: {
@@ -948,7 +1002,7 @@ async function resolveFashionRouterTurnInner(
             stated_facts: stated ?? pendingWithGarments.brief.stated_facts,
           },
         };
-      } else if (!questions.length) {
+      } else if (!questions.length && !hadConsult) {
         // Questions satisfied by in-conversation facts — keep shopping intent.
         try {
           const { buildFallbackBriefFromContext } = await import(
@@ -1074,7 +1128,19 @@ async function resolveFashionRouterTurnInner(
             params.traceId,
             sanitizeOpts,
           ),
-          pendingBrief: pendingWithGarments ?? pendingBrief,
+          pendingBrief: (pendingWithGarments ?? pendingBrief)
+            ? pendingBriefMeta(
+                (pendingWithGarments ?? pendingBrief)!.brief,
+                (pendingWithGarments ?? pendingBrief)!.recipientPersonId,
+                {
+                  consult_rounds_used: nextConsultRoundsUsed({
+                    pending: pendingBrief,
+                    brief: (pendingWithGarments ?? pendingBrief)!.brief,
+                    questions,
+                  }),
+                },
+              )
+            : pendingBrief,
           clearPendingBrief: false,
           recipientPersonId: targetId,
           recipientFacts: facts,

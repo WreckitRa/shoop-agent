@@ -50,7 +50,7 @@ describe("buildSearchPlannerPrompt", () => {
     assert.match(prompt, /BANNED from every query string/);
     assert.match(prompt, /department word MUST be[\s\S]*FIRST token/i);
     assert.match(prompt, /OPTIONS_WANTED \(mandatory per slot\)/);
-    assert.match(prompt, /Look counts are NOT per-slot/);
+    assert.match(prompt, /brief\.depth\.source = "stated"/);
     assert.match(prompt, /4–5 variants ordered BEST/);
   });
 });
@@ -341,6 +341,76 @@ describe("plan clamps", () => {
     assert.ok(!clamped.slots.some((s) => s.garment === "shoes"));
     assert.ok(clamped.slots.every((s) => s.options_wanted === 4));
   });
+
+  it("you_decide looks_wanted 1 binds the rack; does not lift to 4", () => {
+    const raw: FashionSearchPlan = {
+      version: 1,
+      mode: "outfit",
+      reasoning: "test",
+      brief: {
+        ...sampleBrief,
+        request_type: "outfit",
+        garments: ["top", "bottom", "shoes"],
+        quantity_hint: "one outfit",
+        occasion_context: "beach sunset",
+        depth: { looks_wanted: 1, source: "you_decide" },
+      },
+      currentDate: "2026-08-17",
+      slots: [
+        {
+          slot_id: "top",
+          garment: "top",
+          role: "anchor",
+          style_direction: "relaxed top",
+          palette_constraint: null,
+          palette_source: "spread",
+          options_wanted: 1,
+          query_variants: [
+            "mens relaxed linen top",
+            "mens cotton camp shirt",
+            "mens open collar shirt",
+            "mens breathable summer top",
+          ],
+        },
+        {
+          slot_id: "bottom",
+          garment: "bottom",
+          role: "support",
+          style_direction: "easy pant",
+          palette_constraint: null,
+          palette_source: "spread",
+          options_wanted: 4,
+          query_variants: [
+            "mens relaxed linen pant",
+            "mens cotton easy pant",
+            "mens drawstring trouser",
+            "mens summer chino",
+          ],
+        },
+        {
+          slot_id: "shoes",
+          garment: "shoes",
+          role: "support",
+          style_direction: "trail sandal",
+          palette_constraint: null,
+          palette_source: "spread",
+          options_wanted: 1,
+          query_variants: [
+            "mens trail sandal",
+            "mens leather sandal",
+            "mens summer sandal",
+            "mens casual slide",
+          ],
+        },
+      ],
+    };
+    const clamped = clampFashionSearchPlan(raw).plan;
+    const anchor = clamped.slots.find((s) => s.role === "anchor");
+    assert.equal(anchor?.options_wanted, 1);
+    for (const slot of clamped.slots) {
+      assert.ok(slot.options_wanted <= 2);
+    }
+  });
 });
 
 describe("plan_search tool schema", () => {
@@ -442,7 +512,7 @@ describe("fallback_decomposes_all_garments", () => {
       },
       currentDate: "2026-08-17",
     });
-    assert.ok(outfit.slots.every((s) => s.options_wanted === 4));
+    assert.ok(outfit.slots.every((s) => s.options_wanted === 3));
 
     const sixShirts = buildFallbackPlan({
       brief: {

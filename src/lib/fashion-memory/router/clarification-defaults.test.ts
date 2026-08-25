@@ -338,4 +338,16 @@ describe("clarification quick_options defaults", () => {
     assert.deepEqual(dark.paletteColors?.[0], "#0f0f12");
     assert.notEqual(neutral.paletteColors?.[0], dark.paletteColors?.[0]);
   });
+
+  it("does not invent a slots taxonomy when options are omitted", () => {
+    const filled = ensureClarificationQuickOptions({
+      text: "What should I pull?",
+      gap: "slots",
+      kind: "consult",
+    });
+    assert.equal(filled.allow_multiple, true);
+    assert.equal(filled.allow_other, false);
+    assert.deepEqual(filled.quick_options, []);
+  });
+
 });

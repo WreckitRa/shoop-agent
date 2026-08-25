@@ -16,6 +16,9 @@ export function expectedPaletteSourceFromBrief(
   brief: FashionSearchBrief,
 ): Exclude<PaletteSource, "occasion_default"> | "spread" {
   const source = brief.color_direction?.source ?? "none";
+  if (brief.preference_anchor === "explore") {
+    return source === "stated" ? "stated" : "spread";
+  }
   if (source === "stated") return "stated";
   if (source === "profile") return "profile";
   return "spread";
@@ -57,6 +60,11 @@ export function reconcileSlotPalette(
   const briefSource = brief.color_direction?.source ?? "none";
   if (briefSource === "stated" && palette_source !== "stated") {
     palette_source = "stated";
+  } else if (brief.preference_anchor === "keep" && briefSource === "profile") {
+    palette_source = "profile";
+  } else if (brief.preference_anchor === "explore" && palette_source === "profile") {
+    palette_source = "spread";
+    palette_constraint = null;
   } else if (briefSource === "profile" && palette_source === "stated") {
     palette_source = "profile";
   } else if (briefSource === "none" && palette_source === "stated") {

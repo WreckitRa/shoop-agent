@@ -1,6 +1,16 @@
 import { after } from "next/server";
 import { getAuthContext } from "@/lib/auth/session";
-import { PHOTO_MAX_BYTES, hashPhoto } from "@/lib/photo-analysis/decode";
+import { hashPhoto } from "@/lib/photo-analysis/decode";
+import { inspectPhotoBytes } from "@/lib/photo-analysis/inspect-photo";
+import {
+  PhotoUploadCapError,
+  assertPhotoUploadCaps,
+} from "@/lib/photo-analysis/upload-caps";
+import {
+  PHOTO_MODEL_COST_ESTIMATES,
+  PhotoSpendCapError,
+  assertPhotoModelSpend,
+} from "@/lib/ops/spend-guard";
 import { runPhotoAnalysis } from "@/lib/photo-analysis/run";
 import { assertPhotoProcessingAllowed } from "@/lib/legal/photo-gate";
 import {
@@ -65,7 +75,6 @@ export async function POST(req: Request) {
   if (!gate.ok) {
     return Response.json({ error: gate.error }, { status: gate.status });
   }
-
   const contentType = req.headers.get("content-type") ?? "";
   if (!contentType.includes("multipart/form-data")) {
     return Response.json({ error: "photo file required." }, { status: 400 });
@@ -76,14 +85,21 @@ export async function POST(req: Request) {
   if (!(file instanceof Blob)) {
     return Response.json({ error: "photo file required." }, { status: 400 });
   }
-  if (file.size > PHOTO_MAX_BYTES) {
-    return Response.json({ error: "Photo is too large." }, { status: 413 });
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const inspected = inspectPhotoBytes(bytes);
+  if (!inspected.ok) {
+    return Response.json({ error: inspected.error }, { status: inspected.status });
   }
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  if (!bytes.length) {
-    return Response.json({ error: "Empty photo." }, { status: 400 });
+  try {
+    await assertPhotoUploadCaps({ userId: auth.userId, req });
+  } catch (error) {
+    if (error instanceof PhotoUploadCapError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
+
   const photoHash = hashPhoto(bytes);
   const force = wantsForce(req, form);
   const targetPerson = formText(form, "target_person") || DEFAULT_TARGET_PERSON;
@@ -103,6 +119,17 @@ export async function POST(req: Request) {
     if (existing && prevCoverage === requestedCoverage) {
       return Response.json({ analysis: toPublic(existing) });
     }
+  }
+
+  try {
+    await assertPhotoModelSpend(
+      PHOTO_MODEL_COST_ESTIMATES.preflight + PHOTO_MODEL_COST_ESTIMATES.analysis,
+    );
+  } catch (error) {
+    if (error instanceof PhotoSpendCapError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
 
   const row = await upsertRunning(auth.userId, photoHash);

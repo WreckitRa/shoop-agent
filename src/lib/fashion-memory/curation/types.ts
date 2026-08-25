@@ -27,11 +27,17 @@ export type CuratorVetoReason =
   | "duplicate_of_pick"
   | "exclusion_violation";
 
+export type NextStepOffer = {
+  text: string;
+  chips: string[];
+};
+
 export type CurationNarration = {
   opening: string;
   brand_note?: string;
   budget_note?: string;
   thin_note?: string;
+  next_step_offer?: NextStepOffer;
 };
 
 export type CurationLook = {

@@ -9,6 +9,7 @@ import {
   formatClarificationAnswerDisplay,
   optionLabels,
 } from "../router/clarification-defaults";
+import { consultGapsFromAnsweredQuestions } from "../router/consultation";
 import type {
   FashionClarificationAnswer,
   FashionClarificationOption,
@@ -27,6 +28,7 @@ type ApplyQuestion = {
   garment_type?: string;
   quick_options?: Array<string | FashionClarificationOption>;
   allow_multiple?: boolean;
+  kind?: FashionClarificationQuestion["kind"];
 };
 
 function asApplyQuestions(
@@ -39,6 +41,7 @@ function asApplyQuestions(
     garment_type: q.garment_type,
     quick_options: q.quick_options,
     allow_multiple: q.allow_multiple,
+    kind: q.kind,
   }));
 }
 
@@ -258,6 +261,7 @@ export async function loadPriorClarificationTurn(conversationId: string): Promis
   targetPersonId: string | null;
   questions: ApplyQuestion[];
   answers?: Record<string, FashionClarificationAnswer>;
+  escapeChip?: string;
 } | null> {
   const rows = await prisma.message.findMany({
     where: { conversationId, role: "assistant" },
@@ -275,6 +279,7 @@ export async function loadPriorClarificationTurn(conversationId: string): Promis
         targetPersonId: router.target_person_id ?? null,
         questions: asApplyQuestions(router.questions),
         answers: router.answers,
+        escapeChip: router.escape_chip,
       };
     }
   }
@@ -295,6 +300,8 @@ export async function applyClarificationReplyFromMessage(params: {
   raisedBudgetMax?: number;
   /** Concrete garments resolved from a prior gap:"garment" clarification. */
   resolvedGarments?: string[];
+  /** Consult gaps the user answered (incl. You decide / Just show me). */
+  answeredGaps?: FashionClarificationQuestion["gap"][];
 }> {
   const prior = await loadPriorClarificationTurn(params.conversationId);
   if (!prior) return { facts: [], personId: null };
@@ -305,6 +312,21 @@ export async function applyClarificationReplyFromMessage(params: {
     prior.questions,
   );
   const answers = Object.keys(structured).length ? structured : echoed;
+
+  const answeredGaps = consultGapsFromAnsweredQuestions({
+    questions: prior.questions as FashionClarificationQuestion[],
+    answeredTexts: new Set(
+      prior.questions
+        .filter(
+          (q) =>
+            Boolean(answers[q.text]) ||
+            Boolean(q.gap && answers[q.gap]),
+        )
+        .map((q) => q.text),
+    ),
+    userMessage: params.userMessage,
+    escapeChip: prior.escapeChip,
+  });
 
   const garmentQuestion = prior.questions.find((q) => q.gap === "garment");
   const garmentRaw =
@@ -324,7 +346,11 @@ export async function applyClarificationReplyFromMessage(params: {
         : [];
 
   if (!Object.keys(answers).length && !resolvedGarments.length) {
-    return { facts: [], personId: prior.targetPersonId };
+    return {
+      facts: [],
+      personId: prior.targetPersonId,
+      ...(answeredGaps.length ? { answeredGaps } : {}),
+    };
   }
 
   // Garment-only reply (chip / free text) — still return resolved garments even
@@ -605,5 +631,6 @@ export async function applyClarificationReplyFromMessage(params: {
     ...(declineBudgetRaise ? { declineBudgetRaise: true } : {}),
     ...(raisedBudgetMax != null ? { raisedBudgetMax } : {}),
     ...(resolvedGarments.length ? { resolvedGarments } : {}),
+    ...(answeredGaps.length ? { answeredGaps } : {}),
   };
 }

@@ -57,12 +57,13 @@ export const CURATION_IMAGE_MAX_PX = Number(
 
 export {
   CURATION_IMAGE_BUDGET,
-  CURATION_HERO_PICKS,
-  CURATION_LOOKS_TARGET,
+  CURATION_PICKS_CEILING,
+  CURATION_LOOKS_CEILING,
   CURATION_VERIFIED_BENCH,
   CURATION_UNVERIFIED_OVERFLOW,
   imageBudgetForSlot,
   curationPickCap,
+  curationLooksTarget,
 } from "./deliverables";
 
 export const CURATION_VETO_TRIPWIRE_RATIO = 0.2;

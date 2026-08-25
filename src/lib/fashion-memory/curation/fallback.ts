@@ -13,7 +13,7 @@ import { refsForSlot } from "./refs";
 import { sanitizeCurationNarration } from "./narration-sanitize";
 import type { BudgetAssembly } from "../budget/budgetAllocation";
 import type { FashionSlotBrandStatus } from "../router/types";
-import { CURATION_LOOKS_TARGET, curationPickCap } from "./deliverables";
+import { curationLooksTarget, curationPickCap } from "./deliverables";
 import { departmentUnknownRank } from "./department-rank";
 import {
   isGenderedDepartment,
@@ -107,6 +107,7 @@ export function buildDeterministicFallback(params: {
     const count = Math.min(
       curationPickCap({
         mode: params.plan.mode,
+        brief: params.plan.brief,
         optionsWanted: planSlot.options_wanted,
       }),
       entries.length,
@@ -165,6 +166,7 @@ export function buildDeterministicFallback(params: {
     budget_note: params.budgetNote,
     plainOpening,
     plainThin,
+    assumptions: params.plan.brief.assumptions,
     traceId: params.traceId,
   });
 
@@ -205,7 +207,7 @@ export function buildDeterministicFallback(params: {
       ? synthesizeOutfitLooks({
           slots,
           registry: params.registry,
-          target: CURATION_LOOKS_TARGET,
+          target: curationLooksTarget(params.plan.brief),
         })
       : undefined;
 
@@ -227,7 +229,7 @@ export function synthesizeOutfitLooks(params: {
   registry: CurationRefRegistry;
   target?: number;
 }): NonNullable<DeliverCurationInput["looks"]> {
-  const target = params.target ?? CURATION_LOOKS_TARGET;
+  const target = params.target ?? 3;
   const withPicks = params.slots.filter((s) => s.picks.length > 0);
   if (withPicks.length < 2) return [];
 
@@ -270,6 +272,7 @@ function repairFallbackNarration(params: {
   budgetNote?: string;
   thinNote?: string;
   issues: Array<{ code: string }>;
+  assumptions?: string[];
   traceId?: string | null;
 }): DeliverCurationInput {
   let narration = { ...params.output.narration };
@@ -294,6 +297,7 @@ function repairFallbackNarration(params: {
     ...narration,
     plainOpening: narration.opening,
     plainThin: narration.thin_note,
+    assumptions: params.assumptions,
     traceId: params.traceId,
   });
   return { ...params.output, narration };
@@ -304,6 +308,7 @@ function minimalHonestFallback(params: {
   brandNote?: string;
   budgetNote?: string;
   thinNote?: string;
+  assumptions?: string[];
   traceId?: string | null;
 }): DeliverCurationInput {
   const narration = sanitizeCurationNarration({
@@ -319,6 +324,7 @@ function minimalHonestFallback(params: {
     plainOpening: "Here are the strongest verified picks I could lock.",
     plainThin:
       "Presentation is thinner than a full stylist pass — these are the verified survivors.",
+    assumptions: params.assumptions,
     traceId: params.traceId,
   });
   return {
@@ -382,6 +388,7 @@ export function validateAndRepairFallback(params: {
       budgetNote: params.budgetNote,
       thinNote: params.thinNote ?? validated.output.narration.thin_note,
       issues: validated.issues,
+      assumptions: params.plan.brief.assumptions,
       traceId: params.traceId,
     });
     validated = validateCurationOutput({
@@ -412,6 +419,7 @@ export function validateAndRepairFallback(params: {
     thinNote:
       params.thinNote ??
       "Couldn't complete a full stylist pass — these are the verified survivors.",
+    assumptions: params.plan.brief.assumptions,
     traceId: params.traceId,
   });
   recordPipelineEvent({

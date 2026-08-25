@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 12 * 1024 * 1024;
 
-function isAllowedImageHost(hostname: string): boolean {
+export function isAllowedImageHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return (
     host.endsWith(".supabase.co") ||

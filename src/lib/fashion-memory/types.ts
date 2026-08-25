@@ -99,7 +99,14 @@ export type FashionFactType =
   | "body_note"
   | "gender_presentation"
   /** Reserved for future size-chart fit — do not consume in scoring/search yet. */
-  | "measurement";
+  | "measurement"
+  /** Stable depth they want shown (looks or options per item). */
+  | "depth_default";
+
+export type FashionFactDepthDefaultValue = {
+  count: number;
+  unit: "looks" | "options";
+};
 
 export type FashionFactValueByType = {
   size: FashionFactSizeValue;
@@ -109,6 +116,7 @@ export type FashionFactValueByType = {
   body_note: FashionFactBodyNoteValue;
   gender_presentation: FashionFactGenderPresentationValue;
   measurement: FashionFactMeasurementValue;
+  depth_default: FashionFactDepthDefaultValue;
 };
 
 export type FashionFactValue<T extends FashionFactType = FashionFactType> =
@@ -140,7 +148,9 @@ export type StyleSignalType =
   | "aesthetic"
   | "material"
   | "pattern"
-  | "garment";
+  | "garment"
+  /** How they like to be served: `quick` | `guided`. */
+  | "shopping_style";
 
 export type StyleSignalSource = "stated" | "inferred" | "request" | "rejection";
 

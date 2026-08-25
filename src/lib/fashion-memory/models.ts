@@ -9,11 +9,9 @@ function envModel(key: string): string | undefined {
   return value || undefined;
 }
 
-/** Haiku-class fashion router (intent + clarification). */
+/** Sonnet-class fashion router — owns the consultation. */
 export const FASHION_ROUTER_MODEL =
-  envModel("FASHION_ROUTER_MODEL") ??
-  envModel("FASHION_MEMORY_EXTRACTOR_MODEL") ??
-  AI_CHAT_LIGHTWEIGHT_MODEL;
+  envModel("FASHION_ROUTER_MODEL") ?? "claude-sonnet-5";
 
 /**
  * Opus-class router escalation — paid only when brief invariants trip
@@ -30,7 +28,6 @@ export const FASHION_ROUTER_ESCALATION_MODEL =
 /** Haiku-class search planner (slot fan-out + budget fractions). */
 export const FASHION_SEARCH_PLANNER_MODEL =
   envModel("FASHION_SEARCH_PLANNER_MODEL") ??
-  envModel("FASHION_ROUTER_MODEL") ??
   envModel("FASHION_MEMORY_EXTRACTOR_MODEL") ??
   AI_CHAT_LIGHTWEIGHT_MODEL;
 
@@ -44,9 +41,7 @@ export const FASHION_NORMALIZE_MODEL =
 
 /** Haiku-class unavailable-brand style translation. */
 export const FASHION_BRAND_TRANSLATE_MODEL =
-  envModel("FASHION_BRAND_TRANSLATE_MODEL") ??
-  envModel("FASHION_ROUTER_MODEL") ??
-  AI_CHAT_LIGHTWEIGHT_MODEL;
+  envModel("FASHION_BRAND_TRANSLATE_MODEL") ?? AI_CHAT_LIGHTWEIGHT_MODEL;
 
 /** Sonnet-class visual curation (pick-and-justify). Was Opus — too slow/expensive. */
 export const FASHION_CURATION_MODEL =
@@ -54,6 +49,4 @@ export const FASHION_CURATION_MODEL =
 
 /** Voice / opening prose after picks — Haiku default (never Opus). */
 export const FASHION_CURATION_VOICE_MODEL =
-  envModel("FASHION_CURATION_VOICE_MODEL") ??
-  envModel("FASHION_ROUTER_MODEL") ??
-  AI_CHAT_LIGHTWEIGHT_MODEL;
+  envModel("FASHION_CURATION_VOICE_MODEL") ?? AI_CHAT_LIGHTWEIGHT_MODEL;

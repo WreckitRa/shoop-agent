@@ -2,6 +2,11 @@ import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
 import { applyStatedMeasurements } from "@/lib/fashion-memory/intake/apply-stated-measurements";
 import { assertPhotoProcessingAllowed } from "@/lib/legal/photo-gate";
+import { inspectPhotoBytes } from "@/lib/photo-analysis/inspect-photo";
+import {
+  PhotoUploadCapError,
+  assertPhotoUploadCaps,
+} from "@/lib/photo-analysis/upload-caps";
 import {
   checkAvatarAttributes,
   submitAvatarAttributes,
@@ -40,12 +45,24 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
-      const bytes = new Uint8Array(await file.arrayBuffer());
+      const bytes = Buffer.from(await file.arrayBuffer());
+      const inspected = inspectPhotoBytes(bytes);
+      if (!inspected.ok) {
+        return Response.json({ error: inspected.error }, { status: inspected.status });
+      }
+      try {
+        await assertPhotoUploadCaps({ userId: auth.userId, req });
+      } catch (error) {
+        if (error instanceof PhotoUploadCapError) {
+          return Response.json({ error: error.message }, { status: error.status });
+        }
+        throw error;
+      }
       const draft = await uploadAvatarPhoto({
         userId: auth.userId,
         personId,
-        bytes,
-        contentType: file.type || "image/jpeg",
+        bytes: new Uint8Array(bytes),
+        contentType: inspected.contentType,
       });
       return Response.json({ ok: true, draft });
     }

@@ -205,6 +205,24 @@ export function defaultQuickOptionsForGap(
       return ["Work", "Weekend", "Event / night out", OTHER];
     case "budget":
       return ["$150", "$250", "$400", OTHER];
+    case "depth":
+      return ["2 looks", "3 looks", "5 looks", "You decide"];
+    case "preference_anchor":
+      return ["Keep it me", "Push me a little", "Something new", "You decide"];
+    case "style_lane":
+      return ["Classic", "Relaxed", "Sharp", "You decide"];
+    case "color":
+      return ["Navy", "Black", "White", "Surprise me", "You decide"];
+    case "brand":
+      return ["Keep my usual brands", "Mix it", "You decide"];
+    case "fit":
+      return ["Slim", "Regular", "Relaxed", "You decide"];
+    case "formality":
+      return ["Casual", "Smart casual", "Formal", "You decide"];
+    case "direction":
+      return ["That's it", "Not quite", "You decide"];
+    case "slots":
+      return [];
     default:
       return [OTHER];
   }
@@ -259,6 +277,7 @@ export function normalizeClarificationOption(
     ...(previewQuery ? { previewQuery } : {}),
     ...(raw.previewImages?.length ? { previewImages: raw.previewImages } : {}),
     ...(paletteColors.length ? { paletteColors } : {}),
+    ...(raw.preselected ? { preselected: true } : {}),
   };
 }
 
@@ -307,11 +326,12 @@ export function optionLabels(
 
 /** Gaps that default to multi-select when the LLM omits allow_multiple. */
 export function defaultAllowMultipleForGap(gap: FashionClarificationGap): boolean {
-  return gap === "occasion";
+  return gap === "occasion" || gap === "slots";
 }
 
 function gapAllowsOther(question: FashionClarificationQuestion): boolean {
   if (question.gap === "person_name") return false;
+  if (question.gap === "slots") return question.allow_other === true;
   if (question.allow_other === false) return false;
   return true;
 }
@@ -333,6 +353,22 @@ export function ensureClarificationQuickOptions(
       allow_multiple: false,
       allow_other: false,
       quick_options: [{ id: "skip", label: PERSON_NAME_SKIP_OPTION }],
+    };
+  }
+
+  if (question.gap === "slots") {
+    const existing = asNormalizedOptions(question.quick_options).filter(
+      (o) => !isOtherOption(o),
+    );
+    const capped = existing.slice(0, 8);
+    const withOther = gapAllowsOther(question)
+      ? [...capped, { id: OTHER_ID, label: OTHER }]
+      : capped;
+    return {
+      ...question,
+      allow_multiple: allowMultiple,
+      allow_other: gapAllowsOther(question),
+      quick_options: withOther,
     };
   }
 

@@ -175,6 +175,18 @@ export function filterQuestionsSatisfiedByConversation(params: {
     if (q.gap === "recipient" || q.gap === "person_name" || q.gap === "budget") {
       return !isGapAnswered(ledger, q.gap);
     }
+    if (
+      q.gap === "depth" ||
+      q.gap === "preference_anchor" ||
+      q.gap === "style_lane" ||
+      q.gap === "color" ||
+      q.gap === "brand" ||
+      q.gap === "fit" ||
+      q.gap === "formality" ||
+      q.gap === "direction"
+    ) {
+      return !isGapAnswered(ledger, q.gap);
+    }
     return true;
   });
 }

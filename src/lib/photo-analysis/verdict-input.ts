@@ -1,6 +1,20 @@
 import { prisma } from "@/lib/ai-chat/db";
+import {
+  BUDGET_OPTIONS,
+  CLIMATE_OPTIONS,
+  DRESSING_FOR_OPTIONS,
+  HONESTY_OPTIONS,
+  KIDS_OPTIONS,
+  WEEK_IS_OPTIONS,
+  ageYearsFromBirthDate,
+  styleEraLabel,
+} from "@/lib/onboarding/form-options";
 import { parseStylePhotoAnalysis } from "./result";
-import { parseStyleUserReview } from "./review";
+import {
+  parseStyleUserReview,
+  type ConfirmedBody,
+  type StyleUserReview,
+} from "./review";
 import { findByHash } from "./store";
 
 export type VerdictMissing = { field: string; reason: string };
@@ -46,15 +60,236 @@ export function verdictReadiness(opts: {
   return missing;
 }
 
-function compact<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+
+function compact(obj: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
     if (v == null) continue;
     if (typeof v === "string" && !v.trim()) continue;
     if (Array.isArray(v) && v.length === 0) continue;
+    if (isRecord(v) && Object.keys(v).length === 0) continue;
     out[k] = v;
   }
   return out;
+}
+
+function pickStr(obj: unknown, ...keys: string[]): string | null {
+  if (!isRecord(obj)) return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function pickNum(obj: unknown, ...keys: string[]): number | null {
+  if (!isRecord(obj)) return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+function pickStrs(obj: unknown, ...keys: string[]): string[] {
+  if (!isRecord(obj)) return [];
+  for (const k of keys) {
+    const v = obj[k];
+    if (Array.isArray(v)) {
+      return v.filter((x): x is string => typeof x === "string" && Boolean(x.trim()));
+    }
+  }
+  return [];
+}
+
+function labelOf(
+  options: readonly { value: string; label: string }[],
+  raw: string | null,
+): string | null {
+  if (!raw) return null;
+  return options.find((o) => o.value === raw)?.label ?? raw;
+}
+
+function ageYears(profile: unknown): number | null {
+  const birth =
+    pickStr(profile, "birthDate", "birthDate") ??
+    (isRecord(profile) && profile.birthDate instanceof Date
+      ? profile.birthDate.toISOString()
+      : isRecord(profile) && profile.birthDate instanceof Date
+        ? profile.birthDate.toISOString()
+        : null);
+  if (!birth) return null;
+  return ageYearsFromBirthDate(birth);
+}
+
+export function buildVerdictPayload(input: {
+  profile: unknown;
+  sizing: unknown;
+  brands: unknown[];
+  hardNegatives: unknown[];
+  tasteTags: unknown[];
+  confirmedBody?: ConfirmedBody | null;
+}): {
+  questionnaireAnswers: Record<string, unknown>;
+  measurements: Record<string, unknown>;
+  wardrobeInventory: Record<string, unknown>;
+  applicationContext: Record<string, unknown>;
+} {
+  const { profile, sizing, confirmedBody } = input;
+  const weekIs = pickStr(profile, "weekIs", "weekIs");
+  const dressingFor = pickStr(profile, "dressingFor", "dressingFor");
+  const styleEra = pickStr(profile, "styleEra", "styleEra");
+  const climate = pickStr(profile, "climate");
+  const budget = pickStr(profile, "valuePhilosophy", "valuePhilosophy");
+  const honesty = pickStr(profile, "honestyPreference", "honestyPreference");
+  const heightCm =
+    confirmedBody?.height_cm ?? pickNum(sizing, "heightCm", "heightCm");
+  const weightKg =
+    confirmedBody?.weight_kg ?? pickNum(sizing, "weightKg", "weightKg");
+  const bodyType =
+    confirmedBody?.body_type ?? pickStr(sizing, "bodyType", "bodyType");
+
+  const likes: string[] = [];
+  const brandAvoids: string[] = [];
+  for (const b of input.brands) {
+    const brand = pickStr(b, "brand");
+    if (!brand) continue;
+    const sentiment = pickStr(b, "sentiment", "sentiment")?.toLowerCase();
+    if (sentiment === "like" || sentiment === "love") likes.push(brand);
+    if (sentiment === "avoid" || sentiment === "hate") brandAvoids.push(brand);
+  }
+
+  const styleVetoes: string[] = [];
+  const comfort: string[] = [];
+  for (const h of input.hardNegatives) {
+    const value = pickStr(h, "value");
+    if (!value) continue;
+    const note = pickStr(h, "note", "note")?.toLowerCase();
+    const scope = pickStr(h, "scope", "scope")?.toLowerCase();
+    if (note === "comfort" || scope === "fit") comfort.push(value);
+    else styleVetoes.push(value);
+  }
+
+  const worn: string[] = [];
+  const wanted: string[] = [];
+  const complimentTags: string[] = [];
+  const comfortTags: string[] = [];
+  for (const t of input.tasteTags) {
+    const tag = pickStr(t, "tag");
+    if (!tag) continue;
+    const category = pickStr(t, "category")?.toLowerCase();
+    if (category === "worn") worn.push(tag);
+    else if (category === "aspirational") wanted.push(tag);
+    else if (category === "compliment") complimentTags.push(tag);
+    else if (category === "comfort") comfortTags.push(tag);
+  }
+
+  const styleMix =
+    isRecord(profile) && (profile.styleMix != null || profile.styleMix != null)
+      ? (profile.styleMix ?? profile.styleMix)
+      : null;
+
+  const questionnaireAnswers = compact({
+    identity: compact({
+      gender_presentation: pickStr(profile, "genderPresentation", "genderPresentation"),
+      age_years: ageYears(profile),
+      age_range: pickStr(profile, "ageRange", "ageRange"),
+      style_era: styleEra,
+      style_era_label: styleEra ? styleEraLabel(styleEra) : null,
+    }),
+    goal: dressingFor,
+    goal_label: labelOf(DRESSING_FOR_OPTIONS, dressingFor),
+    lifestyle: compact({
+      week_is: weekIs,
+      week_is_label: labelOf(WEEK_IS_OPTIONS, weekIs),
+      kids: pickStr(profile, "kids"),
+      kids_label: labelOf(KIDS_OPTIONS, pickStr(profile, "kids")),
+      occupation: pickStr(profile, "occupation", "occupation"),
+      work_environment: pickStr(profile, "workEnvironment", "workEnvironment"),
+      lifestyle_tags: pickStrs(profile, "lifestyleTags", "lifestyleTags"),
+    }),
+    climate,
+    climate_label: labelOf(CLIMATE_OPTIONS, climate),
+    location: compact({
+      city: pickStr(profile, "city"),
+      country: pickStr(profile, "shippingCountry", "country"),
+    }),
+    budget: compact({
+      currency: pickStr(profile, "currency"),
+      philosophy: budget,
+      philosophy_label: labelOf(BUDGET_OPTIONS, budget),
+    }),
+    taste: compact({
+      style_era: styleEra,
+      style_era_label: styleEra ? styleEraLabel(styleEra) : null,
+      honesty,
+      honesty_label: labelOf(HONESTY_OPTIONS, honesty),
+      compliments: [
+        ...pickStrs(profile, "complimentPreferences", "complimentPreferences"),
+        ...complimentTags,
+      ],
+      style_mix: styleMix,
+    }),
+  });
+
+  const measurements = compact({
+    body: compact({
+      height_cm: heightCm,
+      weight_kg: weightKg,
+      body_type: bodyType,
+      muscularity: confirmedBody?.muscularity ?? null,
+      body_shape: confirmedBody?.body_shape ?? null,
+      bust_fullness: confirmedBody?.bust_fullness ?? null,
+      leg_line: confirmedBody?.leg_line ?? null,
+      shoulder_width: pickStr(sizing, "shoulderWidth", "shoulderWidth"),
+      neck: pickStr(sizing, "neckSize", "neckSize"),
+      sleeve: pickStr(sizing, "sleeveLength", "sleeveLength"),
+      top_usual_size: pickStr(sizing, "topUsualSize", "topUsualSize"),
+      bottom_waist: pickStr(sizing, "bottomWaist", "bottomWaist"),
+      bottom_inseam: pickStr(sizing, "bottomInseam", "bottomInseam"),
+      bottom_rise: pickStr(sizing, "bottomRise", "bottomRise"),
+      shoe_eu: pickNum(sizing, "shoeEU", "shoeEU"),
+      shoe_width: pickStr(sizing, "shoeWidth", "shoeWidth"),
+    }),
+    preferred_fit: compact({
+      top: pickStr(sizing, "topPreferredFit", "topPreferredFit"),
+      bottom: pickStr(sizing, "bottomPreferredFit", "bottomPreferredFit"),
+    }),
+    sensitivities: pickStrs(sizing, "sensitivities"),
+    known_good_garments: [],
+    confirmation_source: confirmedBody ? "user_scan_review" : "sizing_profile",
+  });
+
+  const wardrobeInventory = compact({
+    worn,
+    wanted,
+    brands_like: likes,
+    brands_avoid: [...brandAvoids, ...styleVetoes],
+    style_vetoes: styleVetoes,
+    comfort: [...comfort, ...comfortTags],
+    style_mix: styleMix,
+  });
+
+  const lengthUnit = pickStr(profile, "unitsLength", "unitsLength");
+  const shoeUnit = pickStr(profile, "unitsShoe", "unitsShoe");
+  const systems = [lengthUnit, shoeUnit].filter((v): v is string => Boolean(v));
+
+  const applicationContext = compact({
+    market: pickStr(profile, "shippingCountry", "country"),
+    city: pickStr(profile, "city"),
+    preferred_size_systems: systems.length ? systems : ["EU", "international"],
+    honesty,
+  });
+
+  return {
+    questionnaireAnswers,
+    measurements,
+    wardrobeInventory,
+    applicationContext,
+  };
 }
 
 export async function assembleVerdictInput(userId: string, photoHash: string) {
@@ -71,90 +306,28 @@ export async function assembleVerdictInput(userId: string, photoHash: string) {
   const analysis = parseStylePhotoAnalysis(row?.result);
   const review = parseStyleUserReview(row?.userReview);
   const lifestyle =
-    profile?.weekIs?.trim() ||
-    profile?.dressingFor?.trim() ||
-    profile?.lifestyleTags?.join(", ") ||
+    pickStr(profile, "weekIs", "weekIs") ||
+    pickStr(profile, "dressingFor", "dressingFor") ||
+    pickStrs(profile, "lifestyleTags", "lifestyleTags").join(", ") ||
     null;
 
   const missing = verdictReadiness({
     analysisUsable: analysis?.analysis_status.usable === true,
     reviewSubmitted: review != null,
-    genderPresentation: profile?.genderPresentation,
+    genderPresentation: pickStr(profile, "genderPresentation", "genderPresentation"),
     lifestyle,
-    heightCm: sizing?.heightCm,
+    heightCm:
+      review?.confirmed_body?.height_cm ??
+      pickNum(sizing, "heightCm", "heightCm"),
   });
 
-  const likes = brands
-    .filter((b) => b.sentiment === "like" || b.sentiment === "love")
-    .map((b) => b.brand);
-  const avoids = [
-    ...brands
-    .filter((b) => b.sentiment === "avoid" || b.sentiment === "hate")
-      .map((b) => b.brand),
-    ...hardNegatives.map((h) => h.value),
-  ];
-
-  const questionnaireAnswers = compact({
-    gender_presentation: profile?.genderPresentation ?? null,
-    goal: profile?.dressingFor ?? null,
-    lifestyle: compact({
-      week_is: profile?.weekIs ?? null,
-      kids: profile?.kids ?? null,
-      occupation: profile?.occupation ?? null,
-      work_environment: profile?.workEnvironment ?? null,
-      lifestyle_tags: profile?.lifestyleTags ?? [],
-    }),
-    climate: profile?.climate ?? null,
-    location: profile?.shippingCountry || profile?.country || null,
-    budget: compact({
-      currency: profile?.currency ?? null,
-      philosophy: profile?.valuePhilosophy ?? null,
-    }),
-    taste: compact({
-      style_era: profile?.styleEra ?? null,
-      honesty: profile?.honestyPreference ?? null,
-      compliments: profile?.complimentPreferences ?? [],
-    }),
-  });
-
-  const measurements = compact({
-    body: compact({
-      height_cm: sizing?.heightCm ?? null,
-      body_type: sizing?.bodyType ?? null,
-      shoulder_width: sizing?.shoulderWidth ?? null,
-      neck: sizing?.neckSize ?? null,
-      sleeve: sizing?.sleeveLength ?? null,
-      top_usual_size: sizing?.topUsualSize ?? null,
-      bottom_waist: sizing?.bottomWaist ?? null,
-      bottom_inseam: sizing?.bottomInseam ?? null,
-      bottom_rise: sizing?.bottomRise ?? null,
-      shoe_eu: sizing?.shoeEU ?? null,
-      shoe_width: sizing?.shoeWidth ?? null,
-    }),
-    preferred_fit: compact({
-      top: sizing?.topPreferredFit ?? null,
-      bottom: sizing?.bottomPreferredFit ?? null,
-    }),
-    sensitivities: sizing?.sensitivities ?? [],
-    known_good_garments: [],
-  });
-
-  const wardrobeInventory = compact({
-    worn: tasteTags.filter((t) => t.category === "worn").map((t) => t.tag),
-    wanted: tasteTags
-      .filter((t) => t.category === "aspirational")
-      .map((t) => t.tag),
-    brands_like: likes,
-    brands_avoid: avoids,
-    comfort: tasteTags.filter((t) => t.category === "comfort").map((t) => t.tag),
-  });
-
-  const systems = [sizing ? profile?.unitsLength : null, profile?.unitsShoe]
-    .filter((v): v is string => Boolean(v?.trim()));
-
-  const applicationContext = compact({
-    market: profile?.shippingCountry || profile?.country || null,
-    preferred_size_systems: systems.length ? systems : ["EU", "international"],
+  const payload = buildVerdictPayload({
+    profile,
+    sizing,
+    brands,
+    hardNegatives,
+    tasteTags,
+    confirmedBody: review?.confirmed_body,
   });
 
   return {
@@ -162,9 +335,15 @@ export async function assembleVerdictInput(userId: string, photoHash: string) {
     analysis,
     review,
     missing,
-    questionnaireAnswers,
-    measurements,
-    wardrobeInventory,
-    applicationContext,
+    ...payload,
   };
+}
+
+export function mergeConfirmedBody(
+  review: StyleUserReview | null,
+  extra: ConfirmedBody | null | undefined,
+): StyleUserReview | null {
+  if (!review) return review;
+  if (!extra) return review;
+  return { ...review, confirmed_body: extra };
 }

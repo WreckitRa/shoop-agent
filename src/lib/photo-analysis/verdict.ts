@@ -97,6 +97,62 @@ export function parseStylistVerdict(raw: unknown): StylistVerdict | null {
   return raw as StylistVerdict;
 }
 
+function isFilledRecord(v: unknown): v is Record<string, unknown> {
+  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+
+function listPresentDomains(input: {
+  questionnaireAnswers: Record<string, unknown>;
+  measurements: Record<string, unknown>;
+  wardrobeInventory: Record<string, unknown>;
+  userReview: Record<string, unknown>;
+  photoAnalysis: Record<string, unknown>;
+}): string[] {
+  const domains: string[] = [];
+  const q = input.questionnaireAnswers;
+  const identity = isFilledRecord(q.identity) ? q.identity : q;
+  if (identity.gender_presentation || identity.age_years || identity.style_era) {
+    domains.push("identity");
+  }
+  const lifestyle = isFilledRecord(q.lifestyle) ? q.lifestyle : null;
+  if (lifestyle?.week_is || q.goal) domains.push("lifestyle");
+  if (q.climate || q.climate_label) domains.push("climate");
+  const budget = isFilledRecord(q.budget) ? q.budget : null;
+  if (budget?.philosophy) domains.push("budget");
+  const taste = isFilledRecord(q.taste) ? q.taste : null;
+  if (taste?.style_mix || taste?.honesty || Array.isArray(taste?.compliments)) {
+    domains.push("taste");
+  }
+  const body = isFilledRecord(input.measurements.body)
+    ? input.measurements.body
+    : input.measurements;
+  if (body.height_cm || body.weight_kg || body.body_type) domains.push("body");
+  const w = input.wardrobeInventory;
+  if (
+    (Array.isArray(w.worn) && w.worn.length) ||
+    (Array.isArray(w.wanted) && w.wanted.length)
+  ) {
+    domains.push("wardrobe");
+  }
+  if (Array.isArray(w.comfort) && w.comfort.length) domains.push("comfort");
+  if (
+    (Array.isArray(w.brands_avoid) && w.brands_avoid.length) ||
+    (Array.isArray(w.style_vetoes) && w.style_vetoes.length)
+  ) {
+    domains.push("vetoes");
+  }
+  const review = input.userReview;
+  if (
+    Array.isArray(review.confirmed_paths) ||
+    Array.isArray(review.corrections)
+  ) {
+    domains.push("face_scan");
+  } else if (input.photoAnalysis.analysis_status) {
+    domains.push("face_scan");
+  }
+  return domains;
+}
+
 export type GenerateStylistVerdictInput = {
   photoAnalysis: Record<string, unknown>;
   userReview: Record<string, unknown>;
@@ -116,8 +172,21 @@ export async function generateStylistVerdict({
   applicationContext = {},
   safetyIdentifier,
 }: GenerateStylistVerdictInput): Promise<StylistVerdict> {
+  const present_domains = listPresentDomains({
+    questionnaireAnswers,
+    measurements,
+    wardrobeInventory,
+    userReview,
+    photoAnalysis,
+  });
+
   const profilePayload = {
     task: "Generate the canonical personal-stylist verdict from this reviewed profile.",
+    data_manifest: {
+      present_domains,
+      instruction:
+        "Every domain in present_domains must change the verdict. Cite each in based_on.",
+    },
     photo_analysis: photoAnalysis,
     user_review: userReview,
     questionnaire_answers: questionnaireAnswers,

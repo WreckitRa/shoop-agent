@@ -11,9 +11,11 @@
     "ucp_coverage",
     "normalize",
     "hard_drops",
-    "invariant_warning",
     "scoring",
     "hydration",
+    "turn_budget",
+    "invariant_warning",
+    "curation",
     "curation"
   ],
   "eventCounts": {
@@ -22,9 +24,10 @@
     "ucp_coverage": 1,
     "normalize": 1,
     "hard_drops": 1,
-    "invariant_warning": 1,
     "scoring": 1,
     "hydration": 1,
-    "curation": 1
+    "turn_budget": 1,
+    "invariant_warning": 1,
+    "curation": 2
   }
 }

@@ -9,6 +9,7 @@ import {
 } from "./fallback";
 import { buildPresentationContract } from "./presentation";
 import { buildCurationSystemPrompt } from "./prompt";
+import { curationPickCap } from "./deliverables";
 import { promotePick, rejectPick } from "./picks-actions";
 import type { DeliverCurationInput } from "./types";
 import type { HydratedCandidate } from "../hydration/types";
@@ -519,7 +520,7 @@ describe("curation prompt", () => {
       department: "mens",
       occasion_context: "office",
       style_direction: "minimal",
-      options_wanted: 4,
+      depth: { picks: 4, looks: 1 },
     });
     assert.match(prompt, /You are Shoop's head stylist/);
     assert.match(prompt, /Call deliver_curation exactly once/);
@@ -532,9 +533,36 @@ describe("curation prompt", () => {
       department: "mens",
       occasion_context: "beach sunset",
       style_direction: "relaxed",
+      depth: { picks: 3, looks: 3 },
     });
     assert.match(prompt, /never\s+repeat a combo/i);
     assert.doesNotMatch(prompt, /exactly 3 named looks/);
+  });
+
+  it("binds agreed depth into the mode section", () => {
+    const prompt = buildCurationSystemPrompt({
+      mode: "single_item",
+      department: "mens",
+      occasion_context: "office",
+      style_direction: "minimal",
+      depth: { picks: 5, looks: 1 },
+    });
+    assert.match(prompt, /exactly 5/);
+    assert.equal(curationPickCap({
+      mode: "single_item",
+      brief: {
+        recipient_person_id: "x",
+        request_type: "single_item",
+        garments: ["shirt"],
+        occasion_context: "office",
+        quantity_hint: "",
+        must_haves: [],
+        nice_to_haves: [],
+        budget_context: { stated: false },
+        style_direction: "minimal",
+        depth: { options_per_item: 5, source: "stated" },
+      },
+    }), 5);
   });
 });
 

@@ -10,12 +10,26 @@ export function isGlobalTryonCapTripped(): boolean {
   return false;
 }
 
+export function resetGlobalTryonCapForTests(): void {
+  globalCapTripped = false;
+  delete process.env.TRYON_GLOBAL_CAP_TRIPPED;
+}
+
 export function tripGlobalTryonCap(): void {
+  const firstTrip = !globalCapTripped && process.env.TRYON_GLOBAL_CAP_TRIPPED !== "1";
   globalCapTripped = true;
   process.env.TRYON_GLOBAL_CAP_TRIPPED = "1";
   console.error(
     `[tryon] Global daily spend cap exceeded — ${GLOBAL_FLAG_OFF_KEY}`,
   );
+  if (firstTrip) {
+    void import("@/lib/ops/alert-danny").then(({ alertDanny }) =>
+      alertDanny({
+        subject: "FASHN daily spend cap hit",
+        body: `Try-on/FASHN estimated spend hit the daily ceiling (TRYON_GLOBAL_DAILY_SPEND_CAP). New generations are blocked until UTC midnight.`,
+      }),
+    );
+  }
 }
 
 function isEnvFlagOff(value: string | undefined): boolean {

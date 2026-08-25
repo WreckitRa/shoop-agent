@@ -1,19 +1,31 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import {
   invalidateConversationListFetch,
   useChatStore,
 } from "@/components/chat/chat-store";
 import { useCartStore } from "@/components/cart/cart-store";
+import { useInlineProductStore } from "@/components/chat/inline-product-store";
+import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
+import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
+import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import {
   canFetchUserScopedData,
   resolveAppAccessMode,
   useAppSessionStore,
 } from "@/lib/client/app-session";
 import { leaveConversationRoute } from "@/lib/client/chat-navigation";
-import { getGuestSessionId } from "@/lib/client/guest-storage";
+import { clearGuestSession, getGuestSessionId } from "@/lib/client/guest-storage";
+import { clearPendingCheckout } from "@/lib/client/pending-checkout";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
+import { clearChatFocusReturn } from "@/lib/shared/chatFocus";
 
 /** Ensures the next sign-in always re-syncs even after `prepareClientForSignedOut`. */
 const SIGNED_OUT_SCOPE_KEY = "__signed_out__";
+
+const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v4";
+const LIKENESS_CONSENT_KEY = "shoop.share-likeness-consent";
 
 type AuthSessionPayload = {
   configured: boolean;
@@ -40,6 +52,7 @@ export function resetClientUserPresentation() {
 
 /** Drop chat lists/messages from the previous identity. */
 export function resetChatForNewIdentity() {
+  useChatStore.getState().activeStream?.abortController.abort();
   invalidateConversationListFetch();
   useChatStore.setState({
     conversations: [],
@@ -49,11 +62,57 @@ export function resetChatForNewIdentity() {
     activeConversationId: null,
     conversationMeta: null,
     input: "",
+    composerReplyContext: null,
     queuedSendText: null,
+    isStreaming: false,
+    streamingAssistantMessageId: null,
+    streamingDraft: "",
+    streamingNarration: [],
+    streamingFashionPipeline: false,
+    streamingFashionPreviewImages: [],
+    streamingFashionDroppedImages: [],
+    activeStream: null,
     error: null,
     loadingList: false,
     loadingMessages: false,
+    pendingFashionClarification: null,
   });
+}
+
+export function clearIdentityScopedBrowserStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(ONBOARDING_UI_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.removeItem(LIKENESS_CONSENT_KEY);
+  } catch {
+    /* ignore */
+  }
+  clearPendingCheckout();
+  clearChatFocusReturn();
+}
+
+/**
+ * Zero every client store that belongs to a person — chats, twin, looks, cart,
+ * onboarding chrome — before hydrating the next identity.
+ */
+export function resetUserScopedClientState() {
+  resetClientUserPresentation();
+  resetChatForNewIdentity();
+  useCartStore.getState().resetForIdentityChange();
+  useSelfAvatarStore.getState().resetForIdentityChange();
+  useTryOnDrawerStore.getState().resetForIdentityChange();
+  useInlineFittingStore.setState({
+    columnOpen: false,
+    onboardingActive: false,
+    columnDismissed: false,
+    replayFitting: false,
+  });
+  useInlineProductStore.getState().collapse();
+  clearIdentityScopedBrowserStorage();
 }
 
 function scopeKeyForSession(session: AuthSessionPayload): string {
@@ -75,6 +134,28 @@ export function getClientIdentityScopeKey(): string {
   const { mode, authUserId } = useAppSessionStore.getState();
   if (mode === "authenticated" && authUserId) return `user:${authUserId}`;
   const guestId = getGuestSessionId();
+  if (mode === "guest" && guestId) return `guest:${guestId}`;
+  return `mode:${mode}`;
+}
+
+/** Reactive scope key — remount/refetch UI when the signed-in user or guest bag changes. */
+export function useClientIdentityScopeKey(): string {
+  const mode = useAppSessionStore((s) => s.mode);
+  const authUserId = useAppSessionStore((s) => s.authUserId);
+  const [guestId, setGuestId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sync = () => setGuestId(getGuestSessionId());
+    sync();
+    window.addEventListener("shoop-guest-changed", sync);
+    window.addEventListener("shoop-auth-changed", sync);
+    return () => {
+      window.removeEventListener("shoop-guest-changed", sync);
+      window.removeEventListener("shoop-auth-changed", sync);
+    };
+  }, [mode, authUserId]);
+
+  if (mode === "authenticated" && authUserId) return `user:${authUserId}`;
   if (mode === "guest" && guestId) return `guest:${guestId}`;
   return `mode:${mode}`;
 }
@@ -103,12 +184,9 @@ async function resyncClientAfterIdentityChange(force = false): Promise<void> {
   const scopeKey = scopeKeyForSession(session);
   const scopeChanged =
     previousScopeKey !== null && scopeKey !== previousScopeKey;
-  // First time we resolve an identity this session: nothing is hydrated yet, so
-  // we must do an initial fetch even though the scope hasn't "changed".
   const isFirstHydration = previousScopeKey === null;
 
   if (!force && !scopeChanged && previousScopeKey === scopeKey) {
-    // First attempt may have raced auth (401) and left an empty sidebar — retry.
     const chat = useChatStore.getState();
     const mode = useAppSessionStore.getState().mode;
     if (
@@ -123,8 +201,7 @@ async function resyncClientAfterIdentityChange(force = false): Promise<void> {
   }
 
   if (scopeChanged || force) {
-    resetClientUserPresentation();
-    resetChatForNewIdentity();
+    resetUserScopedClientState();
   }
   if (scopeChanged) {
     leaveConversationRoute();
@@ -150,14 +227,18 @@ async function resyncClientAfterIdentityChange(force = false): Promise<void> {
   });
   if (scopeChanged || force || isFirstHydration) {
     void useCartStore.getState().refresh();
+    void useSelfAvatarStore.getState().refresh();
   }
 }
 
-/** Call right after logout before broadcasting auth change. */
+/**
+ * Call right after logout before broadcasting auth change.
+ * Drops the previous person from memory and does not resume their guest bag.
+ */
 export async function prepareClientForSignedOut() {
+  clearGuestSession();
   lastSyncedScopeKey = SIGNED_OUT_SCOPE_KEY;
   applyAuthSession({ configured: true, user: null });
-  resetClientUserPresentation();
-  resetChatForNewIdentity();
+  resetUserScopedClientState();
   leaveConversationRoute();
 }

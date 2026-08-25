@@ -71,6 +71,7 @@ type TryOnDrawerState = {
   /** Studying Scan for the current job — reuse instead of re-running the LLM. */
   lookScanVerdict: LookScanVerdict | null;
 
+  resetForIdentityChange: () => void;
   openFittingRoom: () => void;
   addToFittingRoom: (item: FittingRoomItem) => AddToFittingRoomResult;
   addManyToFittingRoom: (items: FittingRoomItem[]) => {
@@ -548,6 +549,31 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   askShareToken: null,
   ownerVerdict: null,
   lookScanVerdict: null,
+
+  resetForIdentityChange: () => {
+    clearPollTimer();
+    set((s) => ({
+      open: false,
+      itemsById: {},
+      rackIds: [],
+      activeIds: [],
+      avatarUrl: null,
+      status: "idle",
+      jobId: null,
+      resultUrl: null,
+      error: null,
+      compare: false,
+      variants: [],
+      lookSteps: [],
+      partialNote: null,
+      renderGeneration: s.renderGeneration + 1,
+      previewLookId: null,
+      previewLookTitle: null,
+      askShareToken: null,
+      ownerVerdict: null,
+      lookScanVerdict: null,
+    }));
+  },
 
   openFittingRoom: () => {
     if (denyGuestDrawer()) return;

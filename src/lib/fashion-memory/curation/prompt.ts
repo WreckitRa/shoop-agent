@@ -1,8 +1,4 @@
 import type { SearchPlanMode } from "../search-planner/types";
-import {
-  CURATION_HERO_PICKS,
-  CURATION_LOOKS_TARGET,
-} from "./deliverables";
 
 /** Shared skeleton — USE VERBATIM. Mode section appended by caller. */
 export const CURATION_PROMPT_SKELETON = `You are Shoop's head stylist. The shopping legwork is done: every
@@ -89,24 +85,35 @@ HOUSE RULES (absolute):
 11. HONOR THE BRIEF: every must_have, stated color, brand, quantity
    hint, and exclusion in the BRIEF block is binding. If inventory
    cannot meet one, say so in narration — never silently drop it.
+12. THE APPOINTMENT: the BRIEF carries consultation.confirmed and
+    assumptions. Your narration MUST:
+    a. Deliver exactly the agreed depth (looks_wanted / options_per_item)
+       when the bench allows; if it does not, say so plainly (rule 9).
+    b. Honor preference_anchor: "keep" → picks visibly echo their
+       signals and you say so; "explore" → picks visibly step outside
+       them and you say what you tried; "push" → one pick per look leans
+       out, named.
+    c. Voice every line in assumptions in ONE natural clause each
+       ("I assumed office — say if it's for something else").
+       Never bury them; never skip them.
 Call deliver_curation exactly once with your full decision.`;
 
 export const MODE_SECTION_SINGLE_ITEM = `MODE: SINGLE ITEM
-Scan images until you have ${CURATION_HERO_PICKS} picks you are genuinely
+Scan images until you have \${DEPTH} picks you are genuinely
 confident about ("wow, show these"). Then STOP — do not fill the rack for
-its own sake. Deliver exactly ${CURATION_HERO_PICKS} as a SPREAD: 1 clear
+its own sake. Deliver exactly \${DEPTH} as a SPREAD: 1 clear
 safe center-of-brief, 1 premium stretch, 1 smart-value (or style reach if
 the brief is vague). Max 2 per brand. If palette_source is "spread", span
-2–3 palette families across the ${CURATION_HERO_PICKS}.`;
+2–3 palette families across the \${DEPTH}.`;
 
 export const MODE_SECTION_OUTFIT = `MODE: OUTFIT
 Use every imaged candidate you need across slots. Form up to
-${CURATION_LOOKS_TARGET} named looks you are confident the client would
+\${LOOKS} named looks you are confident the client would
 wear — short evocative names, each with per-item refs and the look's
 total price. Looks must differ in character AND in item_refs — never
 repeat a combo or emit a look that is a subset of another. If the bench
 only supports one honest combo, deliver that one and set thin_note. Do
-not pad to ${CURATION_LOOKS_TARGET} with clones. Every item swappable —
+not pad to \${LOOKS} with clones. Every item swappable —
 choose supports that tolerate substitution. Also fill each slot with the
 picks those looks use (anchor picks first).`;
 
@@ -114,9 +121,9 @@ export const MODE_SECTION_CAPSULE = `MODE: CAPSULE (wardrobe — largest image s
 This is a wardrobe refresh: use the full image set. Select a MIXABLE SET
 ({per_slot_counts}) where EVERY top works with EVERY bottom (shoes with
 all). Prefer interop over star pieces that kill combinations. Then
-enumerate at least ${CURATION_LOOKS_TARGET} wearable outfit combinations
+enumerate at least \${LOOKS} wearable outfit combinations
 (capsule_outfits) with refs — the grid plus the outfit list is the
-deliverable. Keep reviewing images until you have ${CURATION_LOOKS_TARGET}
+deliverable. Keep reviewing images until you have \${LOOKS}
 confident rotations or the bench is honest-thin. Shared palette discipline
 is what makes the math work; verify it on the images.`;
 
@@ -125,8 +132,8 @@ export function buildCurationSystemPrompt(params: {
   department: string;
   occasion_context: string;
   style_direction: string;
-  options_wanted?: number;
-  anchor_options?: number;
+  /** From agreedDepth(brief). Required — the builder must not guess. */
+  depth: { picks: number; looks: number };
   per_slot_counts?: string;
   palette_source?: string;
 }): string {
@@ -152,6 +159,10 @@ export function buildCurationSystemPrompt(params: {
       params.per_slot_counts ?? "per-slot counts as listed",
     );
   }
+
+  modeSection = modeSection
+    .replaceAll("${DEPTH}", String(params.depth.picks))
+    .replaceAll("${LOOKS}", String(params.depth.looks));
 
   return `${skeleton}\n\n${modeSection}`;
 }

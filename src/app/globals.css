@@ -1654,6 +1654,114 @@
   margin-top: 18px;
 }
 
+.shoop-pullsheet__known {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.shoop-pullsheet__grid {
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 640px) {
+  .shoop-pullsheet__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .shoop-pullsheet__hairline {
+    grid-column: 1 / -1;
+  }
+  .shoop-pullsheet__done,
+  .shoop-pullsheet__escape,
+  .shoop-pullsheet__known {
+    grid-column: 1 / -1;
+  }
+}
+.shoop-pullsheet__hairline {
+  height: 1px;
+  background: var(--hairline);
+}
+.shoop-pullsheet__why {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.shoop-pullsheet__check {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.shoop-pullsheet__check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.shoop-pullsheet__check-row--on {
+  border-color: var(--ink);
+  background: #f4f4f6;
+}
+.shoop-pullsheet__stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.shoop-pullsheet__stepper button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+}
+.shoop-pullsheet__stepper button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.shoop-pullsheet__range .shoop-quiz-chips,
+.shoop-pullsheet__range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.shoop-pullsheet__size-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+  max-width: 280px;
+}
+.shoop-pullsheet__segment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  overflow: hidden;
+  width: fit-content;
+}
+.shoop-pullsheet__visual,
+.shoop-pullsheet__garment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (min-width: 640px) {
+  .shoop-pullsheet__visual {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.shoop-pullsheet__done {
+  width: 100%;
+}
+
 .shoop-quiz-type-chip {
   align-self: flex-start;
   border: 1px dashed #b7b7bf;

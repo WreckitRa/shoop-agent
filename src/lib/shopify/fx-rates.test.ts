@@ -18,8 +18,8 @@ describe("convertPriceCents", () => {
   });
 
   it("converts foreign presentment to buyer currency", () => {
-    // 13,300 NPR ≈ 100 USD ≈ 80 GBP
-    assert.equal(convertPriceCents(13300, "NPR", "GBP", TABLE), 8000);
+    // 13,300 NPR-paisa = 133 NPR ≈ 1 USD ≈ 80 GBP-pence (same minor-unit axis).
+    assert.equal(convertPriceCents(13300, "NPR", "GBP", TABLE), 80);
   });
 
   it("returns null when a currency is unknown", () => {

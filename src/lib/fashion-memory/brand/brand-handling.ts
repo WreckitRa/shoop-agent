@@ -260,13 +260,14 @@ export async function translateBrandStyle(params: {
   createMessage?: typeof tracedLLMCall;
 }): Promise<BrandTranslation> {
   const family = garmentFamilyKey(params.garment);
-  const cached = await loadBrandTranslation({
-    brand: params.brand,
-    garmentFamily: family,
-  });
-  if (cached?.style_descriptors.length) return cached;
-
   const createMessage = params.createMessage ?? tracedLLMCall;
+  if (!params.createMessage) {
+    const cached = await loadBrandTranslation({
+      brand: params.brand,
+      garmentFamily: family,
+    });
+    if (cached?.style_descriptors.length) return cached;
+  }
   const system = buildBrandTranslatePrompt({
     brand: params.brand,
     garment: params.garment,

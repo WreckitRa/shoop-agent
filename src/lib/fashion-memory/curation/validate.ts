@@ -11,7 +11,7 @@ import type {
 import { refsForSlot } from "./refs";
 import { CURATION_VETO_TRIPWIRE_RATIO } from "./config";
 import {
-  CURATION_LOOKS_TARGET,
+  curationLooksTarget,
   curationPickCap,
 } from "./deliverables";
 
@@ -297,6 +297,7 @@ export function fillEmptySlotPicks(params: {
 
     const maxPicks = curationPickCap({
       mode: params.plan.mode,
+      brief: params.plan.brief,
       optionsWanted: planSlot.options_wanted,
     });
     if (slotOutput.picks.length >= maxPicks) return slotOutput;
@@ -566,6 +567,7 @@ export function validateCurationOutput(params: {
 
     const maxPicks = curationPickCap({
       mode: params.plan.mode,
+      brief: params.plan.brief,
       optionsWanted: planSlot.options_wanted,
     });
     if (slotOutput.picks.length > maxPicks) {
@@ -713,6 +715,7 @@ export function validateCurationOutput(params: {
       slotOut.picks.length >=
       curationPickCap({
         mode: params.plan.mode,
+        brief: params.plan.brief,
         optionsWanted: planSlot.options_wanted,
       })
     ) {
@@ -724,6 +727,7 @@ export function validateCurationOutput(params: {
       // Partial recovery: keep live curation as soft warning.
       const cap = curationPickCap({
         mode: params.plan.mode,
+        brief: params.plan.brief,
         optionsWanted: planSlot.options_wanted,
       });
       issues[i] = {
@@ -856,6 +860,8 @@ export function validateCurationOutput(params: {
     };
   }
 
+  const looksTarget = curationLooksTarget(params.plan.brief);
+
   if (params.plan.mode === "outfit" && output.looks?.length) {
     const beforeDedup = output.looks.length;
     let looks = dropRedundantLooks(output.looks);
@@ -865,16 +871,16 @@ export function validateCurationOutput(params: {
         message: `Dropped ${beforeDedup - looks.length} duplicate or subset look(s)`,
       });
     }
-    if (looks.length > CURATION_LOOKS_TARGET) {
-      looks = looks.slice(0, CURATION_LOOKS_TARGET);
+    if (looks.length > looksTarget) {
+      looks = looks.slice(0, looksTarget);
       issues.push({
         code: "looks_trimmed",
-        message: `Trimmed looks to ${CURATION_LOOKS_TARGET}`,
+        message: `Trimmed looks to ${looksTarget}`,
       });
-    } else if (looks.length < CURATION_LOOKS_TARGET) {
+    } else if (looks.length < looksTarget) {
       issues.push({
         code: "looks_short",
-        message: `Only ${looks.length}/${CURATION_LOOKS_TARGET} looks`,
+        message: `Only ${looks.length}/${looksTarget} looks`,
       });
     }
     output = { ...output, looks };
@@ -882,15 +888,15 @@ export function validateCurationOutput(params: {
 
   if (params.plan.mode === "capsule") {
     const outfits = output.capsule_outfits ?? [];
-    if (outfits.length > CURATION_LOOKS_TARGET) {
+    if (outfits.length > looksTarget) {
       output = {
         ...output,
-        capsule_outfits: outfits.slice(0, CURATION_LOOKS_TARGET),
+        capsule_outfits: outfits.slice(0, looksTarget),
       };
-    } else if (outfits.length > 0 && outfits.length < CURATION_LOOKS_TARGET) {
+    } else if (outfits.length > 0 && outfits.length < looksTarget) {
       issues.push({
         code: "capsule_outfits_short",
-        message: `Only ${outfits.length}/${CURATION_LOOKS_TARGET} capsule outfits`,
+        message: `Only ${outfits.length}/${looksTarget} capsule outfits`,
       });
     }
   }

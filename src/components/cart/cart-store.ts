@@ -43,6 +43,7 @@ type CartStore = {
   checkoutResults: Record<string, CartGroupCheckoutResponse>;
   setDrawerOpen: (open: boolean) => void;
   clearError: () => void;
+  resetForIdentityChange: () => void;
   refresh: () => Promise<void>;
   addItem: (input: AddItemInput) => Promise<boolean>;
   updateQuantity: (variantId: string, quantity: number) => Promise<boolean>;
@@ -276,6 +277,19 @@ export const useCartStore = create<CartStore>((set, get) => ({
     set({ drawerOpen });
   },
   clearError: () => set({ error: null }),
+  resetForIdentityChange: () => {
+    refreshGeneration += 1;
+    mutationSeq += 1;
+    pendingMutations = 0;
+    set({
+      cart: emptyCart,
+      loading: false,
+      mutating: false,
+      drawerOpen: false,
+      error: null,
+      checkoutResults: {},
+    });
+  },
 
   refresh: async () => {
     const gen = ++refreshGeneration;

@@ -1,4 +1,5 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
+import { recordPipelineEvent } from "../observability/trace";
 
 /**
  * Machinery vocabulary must never reach the customer. When a narration
@@ -29,14 +30,17 @@ export function sanitizeCurationNarration(params: {
   brand_note?: string;
   budget_note?: string;
   thin_note?: string;
+  next_step_offer?: { text: string; chips: string[] };
   plainOpening: string;
   plainThin?: string;
+  assumptions?: string[];
   traceId?: string | null;
 }): {
   opening: string;
   brand_note?: string;
   budget_note?: string;
   thin_note?: string;
+  next_step_offer?: { text: string; chips: string[] };
 } {
   const opening = sanitizeNarrationField({
     field: "opening",
@@ -68,5 +72,65 @@ export function sanitizeCurationNarration(params: {
         traceId: params.traceId,
       })
     : undefined;
-  return { opening, brand_note, budget_note, thin_note };
+  const next_step_offer = params.next_step_offer
+    && params.next_step_offer.text.trim()
+    && params.next_step_offer.chips.filter((c) => c.trim()).length >= 2
+      ? {
+          text: params.next_step_offer.text.trim(),
+          chips: params.next_step_offer.chips.map((c) => c.trim()).filter(Boolean).slice(0, 4),
+        }
+      : undefined;
+  return {
+    opening: repairUnspokenAssumptions({
+      opening,
+      assumptions: params.assumptions,
+      traceId: params.traceId,
+    }),
+    brand_note,
+    budget_note,
+    thin_note,
+    next_step_offer,
+  };
+}
+
+/** First ~6 content words, lowercased, for a tolerant "did they say this" check. */
+function assumptionKey(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 6)
+    .join(" ");
+}
+
+function assumptionVoiced(opening: string, assumption: string): boolean {
+  const hay = opening.toLowerCase();
+  const key = assumptionKey(assumption);
+  if (!key) return true;
+  if (hay.includes(key)) return true;
+  const words = key.split(" ");
+  const hits = words.filter((w) => w.length > 2 && hay.includes(w)).length;
+  return hits >= Math.min(3, words.length);
+}
+
+export function repairUnspokenAssumptions(params: {
+  opening: string;
+  assumptions?: string[];
+  traceId?: string | null;
+}): string {
+  const missing = (params.assumptions ?? []).filter(
+    (a) => !assumptionVoiced(params.opening, a),
+  );
+  if (missing.length === 0) return params.opening;
+  recordPipelineEvent({
+    traceId: params.traceId,
+    stage: "curation",
+    payload: {
+      kind: "assumptions_repaired",
+      missing: missing.length,
+      total: params.assumptions?.length ?? 0,
+    },
+  });
+  return `${missing.join(" ")} ${params.opening}`.trim();
 }

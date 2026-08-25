@@ -28,6 +28,7 @@ const signalTypeSchema = z.enum([
   "aesthetic",
   "material",
   "pattern",
+  "shopping_style",
 ]);
 
 const factTypeSchema = z.enum([
@@ -38,6 +39,7 @@ const factTypeSchema = z.enum([
   "body_note",
   "gender_presentation",
   "measurement",
+  "depth_default",
 ]);
 
 const opBaseSchema = z.object({
@@ -335,6 +337,7 @@ export const RECORD_FASHION_OPS_TOOL = {
                 "body_note",
                 "gender_presentation",
                 "measurement",
+                "depth_default",
               ],
             },
             garment_type: { type: ["string", "null"] },
@@ -350,6 +353,7 @@ export const RECORD_FASHION_OPS_TOOL = {
                 "aesthetic",
                 "material",
                 "pattern",
+                "shopping_style",
               ],
             },
             signal_value: { type: "string" },

@@ -97,9 +97,11 @@ describe("son_name_no_roster_options", () => {
 
       const nameQ = sanitized.find((q) => q.gap === "person_name");
       assert.ok(nameQ);
-      assert.deepEqual(nameQ!.quick_options, [PERSON_NAME_SKIP_OPTION]);
+      assert.deepEqual(nameQ!.quick_options, [{ id: "skip", label: PERSON_NAME_SKIP_OPTION }]);
       assert.equal(
-        nameQ!.quick_options?.some((o) => /gabriel/i.test(o)),
+        nameQ!.quick_options?.some((o) =>
+          /gabriel/i.test(typeof o === "string" ? o : o.label),
+        ),
         false,
       );
       assert.ok(
@@ -119,7 +121,7 @@ describe("son_name_no_roster_options", () => {
       gap: "person_name",
       quick_options: ["Gabriel", "Joe"],
     });
-    assert.deepEqual(filled.quick_options, [PERSON_NAME_SKIP_OPTION]);
+    assert.deepEqual(filled.quick_options, [{ id: "skip", label: PERSON_NAME_SKIP_OPTION }]);
   });
 });
 

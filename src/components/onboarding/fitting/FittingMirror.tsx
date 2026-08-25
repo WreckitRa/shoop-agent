@@ -10,7 +10,7 @@ type MuscularityKey = NonNullable<MirrorState["muscularity"]>;
 type BustKey = NonNullable<MirrorState["bustFullness"]>;
 
 /**
- * Parametric mock twin — same control points every time so CSS can ease
+ * Parametric silhouette — same control points every time so CSS can ease
  * width changes when build / definition / shape / bust update.
  */
 function buildMirrorBodyPath(opts: {
@@ -275,6 +275,12 @@ export function FittingMirror({
       { id: "circle", label: "Circle", value: mirror.circleLabel || "—" },
     ];
 
+  const twinReady =
+    Boolean(mirror.twinAvatarUrl) && mirror.twinStatus === "ready";
+  const fillUrl = twinReady
+    ? mirror.twinAvatarUrl
+    : mirror.photoUrl;
+
   return (
     <div
       className={cn(
@@ -311,7 +317,30 @@ export function FittingMirror({
             filter: "saturate(0.8)",
           }}
         />
-        <div className={cn("absolute inset-0 flex flex-col text-[var(--fitting-ink)]", layout === "column" ? "p-3" : "p-4")}>
+        {fillUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={fillUrl}
+              src={fillUrl}
+              alt=""
+              className={cn(
+                "absolute inset-0 size-full object-cover object-top",
+                twinReady
+                  ? "animate-[fitting-twin-in_0.7s_ease-out]"
+                  : "scale-[1.02]",
+                mirror.dressStatus === "dressing" &&
+                  "animate-[fitting-blink_1.8s_infinite] opacity-90",
+                mirror.twinStatus === "developing" &&
+                  !twinReady &&
+                  "animate-[fitting-blink_1.8s_infinite]",
+              )}
+            />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-24 bg-gradient-to-b from-white/90 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[52%] bg-gradient-to-t from-white via-white/88 to-transparent" />
+          </>
+        ) : null}
+        <div className={cn("absolute inset-0 z-[2] flex flex-col text-[var(--fitting-ink)]", layout === "column" ? "p-3" : "p-4")}>
           <div className="flex items-baseline justify-between">
             <span
               className={cn(
@@ -337,26 +366,7 @@ export function FittingMirror({
           </div>
 
           <div className={cn("relative my-2 flex-1", layout === "column" ? "min-h-[120px]" : "min-h-[180px]")} >
-            {mirror.twinAvatarUrl && mirror.twinStatus === "ready" ? (
-              /* Full FASHN twin (or dressed worn look on verdict). */
-              <div
-                className="fitting-motion absolute inset-x-0 bottom-0 top-1 flex items-end justify-center"
-                key={mirror.twinAvatarUrl}
-              >
-                <div className="relative flex h-full max-h-full w-[min(100%,168px)] items-end justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={mirror.twinAvatarUrl}
-                    alt=""
-                    className={cn(
-                      "fitting-motion max-h-full max-w-full object-contain object-bottom drop-shadow-[0_10px_18px_rgba(14,14,17,0.12)] animate-[fitting-twin-in_0.7s_ease-out]",
-                      mirror.dressStatus === "dressing" &&
-                        "animate-[fitting-blink_1.8s_infinite] opacity-90",
-                    )}
-                  />
-                </div>
-              </div>
-            ) : (
+            {fillUrl ? null : (
               <div
                 className="fitting-motion absolute bottom-1.5 left-1/2 flex w-[150px] -translate-x-1/2 flex-col items-center transition-[height] duration-700 ease-out"
                 style={{ height: `${heightPct}%` }}

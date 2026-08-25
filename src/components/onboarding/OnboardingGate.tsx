@@ -9,13 +9,16 @@ import {
   defaultMuscularityForBuild,
   type FittingPhotoValues,
 } from "@/components/onboarding/fitting/FittingPhotoStep";
+import { FittingAccountRequired } from "@/components/onboarding/fitting/FittingBiometricConsent";
 import {
-  FittingAccountRequired,
-  FittingBiometricConsent,
-} from "@/components/onboarding/fitting/FittingBiometricConsent";
+  BIOMETRIC_CONSENT_EVENT,
+  BiometricConsentSheet,
+  notifyBiometricConsent,
+} from "@/components/legal/BiometricConsentSheet";
 import { FittingShell } from "@/components/onboarding/fitting/FittingShell";
 import { FittingVerdictStep } from "@/components/onboarding/fitting/FittingVerdictStep";
 import { FittingAnalysisPanel } from "@/components/onboarding/fitting/FittingAnalysisPanel";
+import type { StylistVerdict } from "@/lib/photo-analysis/verdict";
 import {
   EMPTY_MIRROR,
   FITTING_Q_STEPS,
@@ -26,7 +29,7 @@ import {
   formFromGender,
   shortEraLabel,
   spendShort,
-  stubSerialFromId,
+  printSerialFromId,
   type BuildKey,
   type FittingStep,
   type MirrorState,
@@ -49,9 +52,11 @@ import {
   FittingCount,
 } from "@/components/onboarding/onboarding-ui";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
+import { resolveFittingResumeStep } from "@/components/onboarding/fitting/resume-step";
 import { useInlineFittingSlots } from "@/components/onboarding/useInlineFittingSlot";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { useAppSessionStore } from "@/lib/client/app-session";
+import { useClientIdentityScopeKey } from "@/lib/client/identity-sync";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { fillPhotoAnalysisForm } from "@/lib/photo-analysis/types";
 import type { PhotoCoverage } from "@/lib/photo-analysis/result";
@@ -73,7 +78,6 @@ import {
   normalizeGender,
   normalizeHonestyPreference,
   parseCsvValues,
-  styleEraLabel,
   styleEraToAgeRange,
 } from "@/lib/onboarding/form-options";
 import { MIN_ACCOUNT_AGE } from "@/lib/legal/constants";
@@ -339,20 +343,6 @@ function profileYouSaved(profile: OnboardingStatus["profile"]): boolean {
   );
 }
 
-function profileTasteSaved(status: OnboardingStatus): boolean {
-  const p = status.profile;
-  if (p?.styleMix) return true;
-  if (p?.honestyPreference?.trim()) return true;
-  if (
-    status.tasteTags.some(
-      (t) => t.category === "worn" || t.category === "aspirational",
-    )
-  ) {
-    return true;
-  }
-  return false;
-}
-
 function profileLifeSaved(profile: OnboardingStatus["profile"]): boolean {
   if (!profile) return false;
   return Boolean(
@@ -363,30 +353,18 @@ function profileLifeSaved(profile: OnboardingStatus["profile"]): boolean {
   );
 }
 
-function resumeFloorFromStatus(status: OnboardingStatus): FittingStep {
-  if (!status.onboarding.started) return "photo";
-  if (profileTasteSaved(status)) return "honesty";
-  if (status.sizing?.heightCm || status.sizing?.bodyType) return "worn";
-  if (status.profile?.valuePhilosophy) return "fit";
-  if (profileLifeSaved(status.profile)) return "spend";
-  if (profileYouSaved(status.profile)) return "life";
-  return "name";
-}
-
-function resolveResumeStep(status: OnboardingStatus): FittingStep {
-  if (status.onboarding.completed) {
+function resolveResumeStep(
+  status: OnboardingStatus,
+  restart = false,
+): FittingStep {
+  if (restart || status.onboarding.completed) {
     clearOnboardingUiSession();
-    return "name";
+    return "photo";
   }
-  const floor = resumeFloorFromStatus(status);
-  const session = readOnboardingUiSession();
-  if (!session) return floor;
-  const floorIdx = FITTING_STEPS.indexOf(floor);
-  const sessionIdx = FITTING_STEPS.indexOf(session.step);
-  if (sessionIdx < floorIdx) return floor;
-  // Session may be mid-flow; never jump to verdict on reload
-  if (session.step === "verdict") return "circle";
-  return session.step;
+  return resolveFittingResumeStep(
+    status,
+    readOnboardingUiSession()?.step ?? null,
+  );
 }
 
 async function fetchSelfPerson(
@@ -537,9 +515,14 @@ export function OnboardingGate() {
   const closeColumn = useInlineFittingStore((s) => s.closeColumn);
   const replayFitting = useInlineFittingStore((s) => s.replayFitting);
   const accessMode = useAppSessionStore((s) => s.mode);
+  const identityScope = useClientIdentityScopeKey();
   const accountReady = accessMode === "authenticated" || accessMode === "local";
-  const [biometricAccepted, setBiometricAccepted] = useState(false);
+  const [biometricAccepted, setBiometricAccepted] = useState<boolean | null>(
+    null,
+  );
+  const [needsBiometricReconsent, setNeedsBiometricReconsent] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
+  const [biometricError, setBiometricError] = useState<string | null>(null);
   const setOnboardingActive = useInlineFittingStore(
     (s) => s.setOnboardingActive,
   );
@@ -566,6 +549,10 @@ export function OnboardingGate() {
   const photoReadyRef = useRef(false);
   const pendingPhotoFileRef = useRef<File | null>(null);
   const [analysisPhotoFile, setAnalysisPhotoFile] = useState<File | null>(null);
+  const [finale, setFinale] = useState<"scan" | "card">("scan");
+  const [stylistVerdict, setStylistVerdict] = useState<StylistVerdict | null>(
+    null,
+  );
   /** Prevent double FASHN spend. */
   const mintInFlightRef = useRef(false);
   const mintDoneRef = useRef(false);
@@ -674,18 +661,36 @@ export function OnboardingGate() {
   useEffect(() => {
     if (!accountReady) {
       setBiometricAccepted(false);
+      setNeedsBiometricReconsent(false);
       return;
     }
     let cancelled = false;
+    const apply = (json: {
+      accepted?: boolean;
+      needsReconsent?: boolean;
+    }) => {
+      if (cancelled) return;
+      setBiometricAccepted(Boolean(json.accepted));
+      setNeedsBiometricReconsent(Boolean(json.needsReconsent));
+    };
     void guestFetch("/api/privacy/biometric-consent", { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return;
-        const json = (await res.json()) as { accepted?: boolean };
-        if (!cancelled) setBiometricAccepted(Boolean(json.accepted));
+        apply((await res.json()) as { accepted?: boolean; needsReconsent?: boolean });
       })
       .catch(() => undefined);
+    const onConsent = (event: Event) => {
+      const accepted = (event as CustomEvent<{ accepted?: boolean }>).detail
+        ?.accepted;
+      if (typeof accepted === "boolean") {
+        setBiometricAccepted(accepted);
+        if (accepted) setNeedsBiometricReconsent(false);
+      }
+    };
+    window.addEventListener(BIOMETRIC_CONSENT_EVENT, onConsent);
     return () => {
       cancelled = true;
+      window.removeEventListener(BIOMETRIC_CONSENT_EVENT, onConsent);
     };
   }, [accountReady]);
 
@@ -1045,9 +1050,14 @@ export function OnboardingGate() {
           setCity(detectedArea.cityLabel);
         }
 
-        const resume = resolveResumeStep(next);
+        const restart =
+          useInlineFittingStore.getState().replayFitting &&
+          next.onboarding.completed;
+        const resume = resolveResumeStep(next, restart);
         setStep(resume);
-        writeOnboardingUiSession({ step: resume });
+        if (!next.onboarding.completed) {
+          writeOnboardingUiSession({ step: resume });
+        }
         const self = await fetchSelfPerson(ctrl.signal);
         if (self) {
           setSelfPersonId(self.id);
@@ -1067,7 +1077,7 @@ export function OnboardingGate() {
       }
     })();
     return () => ctrl.abort();
-  }, [hydrateFromStatus, detectedArea]);
+  }, [hydrateFromStatus, detectedArea, identityScope]);
 
   useEffect(() => {
     if (loading || !status || status.onboarding.completed) return;
@@ -1076,10 +1086,19 @@ export function OnboardingGate() {
 
   const replayWasOn = useRef(false);
   useEffect(() => {
-    const started = replayFitting && !replayWasOn.current;
-    replayWasOn.current = replayFitting;
-    if (started && status?.onboarding.completed) setStep("photo");
-  }, [replayFitting, status?.onboarding.completed]);
+    if (!replayFitting) {
+      replayWasOn.current = false;
+      return;
+    }
+    if (loading || !status) return;
+    if (replayWasOn.current) return;
+    replayWasOn.current = true;
+    if (!status.onboarding.completed) return;
+    clearOnboardingUiSession();
+    setStep("photo");
+    setFinale("scan");
+    setStylistVerdict(null);
+  }, [replayFitting, loading, status]);
 
   const lifestyleTags = useMemo(() => {
     const derived = lifestyleTagsFromLife({ weekIs, kids });
@@ -1623,7 +1642,7 @@ export function OnboardingGate() {
         }),
       });
       if (!measRes.ok) {
-        throw new Error("Could not save height to fashion memory.");
+        throw new Error("Could not save your height.");
       }
 
       // Re-check merges photo intake suggestions (e.g. body_shape) under stated attrs.
@@ -1672,7 +1691,7 @@ export function OnboardingGate() {
       });
       const attrBody = await readAvatarJson(attrRes);
       if (!attrRes.ok || attrBody.error) {
-        throw new Error(attrBody.error ?? "Could not save avatar attributes.");
+        throw new Error(attrBody.error ?? "Could not save your measurements.");
       }
 
       const genRes = await guestFetch("/api/avatar/generate", {
@@ -1765,16 +1784,6 @@ export function OnboardingGate() {
     if (weekIs.trim()) ctx.week_is = weekIs.trim();
     if (climate.trim()) ctx.climate = climate.trim();
     return ctx;
-  }
-
-  function stylistQuizGaps(): string[] {
-    const gaps: string[] = [];
-    if (!genderPresentation.trim()) gaps.push("How you dress");
-    if (!weekIs.trim() && !dressingFor.trim()) {
-      gaps.push("How your week looks");
-    }
-    if (!persistedFlags.sizing) gaps.push("Your height");
-    return gaps;
   }
 
   function kickPhotoAnalysis(
@@ -1873,9 +1882,12 @@ export function OnboardingGate() {
     setAnalysisPhotoFile(file);
     kickPhotoAnalysis(file);
 
-    const personId = await ensurePersonId();
-    if (!personId) return;
-    await attachAvatarPhoto(personId, file);
+    void (async () => {
+      const personId = await ensurePersonId();
+      if (!personId) return;
+      await attachAvatarPhoto(personId, file);
+    })();
+    void advanceFrom("photo");
   }
 
   async function saveSpend(): Promise<boolean> {
@@ -1988,6 +2000,29 @@ export function OnboardingGate() {
     } finally {
       submissionLockRef.current = false;
       setBusy(false);
+    }
+  }
+
+  async function persistScanBody(): Promise<boolean> {
+    try {
+      const heightCm = heightCmFromPhoto(photoValues);
+      const weightKg = weightKgFromPhoto(photoValues);
+      const sizing: Record<string, unknown> = {
+        heightCm,
+        bodyType: photoValues.build ?? "average",
+      };
+      if (weightKg != null) sizing.weightKg = weightKg;
+      const res = await fetch("/api/onboarding/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patch: { sizing },
+          requestKey: crypto.randomUUID(),
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
   }
 
@@ -2275,6 +2310,14 @@ export function OnboardingGate() {
 
   function goBack() {
     setError(null);
+    if (
+      step === "verdict" &&
+      finale === "card" &&
+      photoValues.photoPreview
+    ) {
+      setFinale("scan");
+      return;
+    }
     const idx = FITTING_STEPS.indexOf(step);
     if (idx <= 0) return;
     setStep(FITTING_STEPS[idx - 1]!);
@@ -2354,7 +2397,7 @@ export function OnboardingGate() {
         };
       };
       if (!res.ok) {
-        setTellFeedback(json.error ?? "Couldn't parse that — try again.");
+        setTellFeedback(json.error ?? "Couldn't catch that — try again.");
         setTimeout(() => setTellFeedback(null), 4000);
         return;
       }
@@ -2442,6 +2485,16 @@ export function OnboardingGate() {
     verdict: step === "verdict",
     dressed: dressStatus === "ready" && Boolean(dressedAvatarUrl),
   });
+
+  /**
+   * On the verdict step: scan review first (if we have a photo), then the card.
+   */
+  useEffect(() => {
+    if (step !== "verdict") return;
+    setFinale(photoValues.photoPreview && !stylistVerdict ? "scan" : "card");
+    // Only when entering the verdict step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   /**
    * On the verdict step: pick one worn style and FASHN-dress it onto the minted twin.
@@ -2624,7 +2677,7 @@ export function OnboardingGate() {
       dressError,
       dressStyleLabel,
       closetImages,
-      serial: selfPersonId ? stubSerialFromId(selfPersonId) : "——",
+      serial: selfPersonId ? printSerialFromId(selfPersonId) : "——",
       foil:
         step === "verdict" &&
         twinStatus === "ready" &&
@@ -2750,7 +2803,7 @@ export function OnboardingGate() {
         tellFeedback={tellFeedback}
         tellBusy={tellBusy}
       >
-        {step !== "verdict" && step !== "photo" ? (
+        {step !== "photo" && (step !== "verdict" || finale === "scan") ? (
           <FittingBackLink onClick={goBack} />
         ) : null}
         {step !== "verdict" ? (
@@ -2765,42 +2818,13 @@ export function OnboardingGate() {
                 void advanceFrom("photo");
               }}
             />
-          ) : !biometricAccepted ? (
-            <FittingBiometricConsent
-              busy={biometricBusy}
-              onSkip={() => {
-                photoReadyRef.current = false;
-                void advanceFrom("photo");
-              }}
-              onAccept={async () => {
-                setBiometricBusy(true);
-                setError(null);
-                try {
-                  const res = await guestFetch(
-                    "/api/privacy/biometric-consent",
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ action: "accept" }),
-                    },
-                  );
-                  const json = (await res.json()) as { error?: string };
-                  if (!res.ok) {
-                    setError(json.error ?? "Could not save consent.");
-                    return;
-                  }
-                  setBiometricAccepted(true);
-                } finally {
-                  setBiometricBusy(false);
-                }
-              }}
-            />
           ) : (
           <>
             <FittingPhotoStep
               mode="scan"
               values={photoValues}
               onChange={photoOnChange}
+              photoLocked={biometricAccepted !== true}
               onPhotoFile={(f) => {
                 photoOnChange("photoCoverage", "face");
                 void uploadPhoto(f);
@@ -2813,14 +2837,40 @@ export function OnboardingGate() {
               busy={busy}
               showContinue
             />
-            <FittingAnalysisPanel
-              enabled={Boolean(photoValues.photoPreview)}
-              photoFile={analysisPhotoFile}
-              photoPreview={photoValues.photoPreview}
-              declaredContext={buildDeclaredStyleContext()}
-              quizGaps={stylistQuizGaps()}
-              requestedCoverage="face"
-            />
+            {biometricAccepted === false && !needsBiometricReconsent ? (
+              <BiometricConsentSheet
+                busy={biometricBusy}
+                error={biometricError}
+                skipLabel="skip... continue without a photo"
+                onSkip={() => {
+                  photoReadyRef.current = false;
+                  void advanceFrom("photo");
+                }}
+                onAccept={async () => {
+                  setBiometricBusy(true);
+                  setBiometricError(null);
+                  try {
+                    const res = await guestFetch(
+                      "/api/privacy/biometric-consent",
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "accept" }),
+                      },
+                    );
+                    const json = (await res.json()) as { error?: string };
+                    if (!res.ok) {
+                      setBiometricError(json.error ?? "Could not save consent.");
+                      return;
+                    }
+                    setBiometricAccepted(true);
+                    notifyBiometricConsent(true);
+                  } finally {
+                    setBiometricBusy(false);
+                  }
+                }}
+              />
+            ) : null}
           </>
           )
         ) : null}
@@ -2998,43 +3048,55 @@ export function OnboardingGate() {
           />
         ) : null}
 
-        {step === "verdict" ? (
-          <>
-            <FittingVerdictStep
-              preferredName={preferredName}
-              wornLabels={wornPicks.map((p) => p.label)}
-              stealLabels={aspirationalPicks.map((p) => p.label)}
-              leanLabel={mirror.leanLabel}
-              form={mirror.form}
-              build={photoValues.build}
-              vetoCount={hardAvoids.length + brandAvoids.length + comfort.length}
-              developPct={mirror.developPct}
-              circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
-              dressStatus={dressStatus}
-              dressStyleLabel={dressStyleLabel}
-              busy={busy}
-              onMeetTwin={() => void completeOnboarding()}
-              shareCopied={shareCopied}
-              onShare={(selectedCircle) => {
-                const circleBit = selectedCircle.length
-                  ? ` Asking ${selectedCircle.join(", ")}.`
-                  : "";
-                const text = `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} shoop.world`;
-                void navigator.clipboard?.writeText(text).then(() => {
-                  setShareCopied(true);
-                  setTimeout(() => setShareCopied(false), 2000);
-                });
-              }}
-            />
-            <FittingAnalysisPanel
-              enabled={Boolean(photoValues.photoPreview)}
-              photoFile={analysisPhotoFile}
-              photoPreview={photoValues.photoPreview}
-              declaredContext={buildDeclaredStyleContext()}
-              quizGaps={stylistQuizGaps()}
-              requestedCoverage="face"
-            />
-          </>
+        {step === "verdict" && finale === "scan" && photoValues.photoPreview ? (
+          <FittingAnalysisPanel
+            enabled
+            photoFile={analysisPhotoFile}
+            photoPreview={photoValues.photoPreview}
+            requestedCoverage="face"
+            body={photoValues}
+            onBodyChange={photoOnChange}
+            onPersistBody={() => persistScanBody()}
+            onComplete={(row) => {
+              setStylistVerdict(row.verdict);
+              setFinale("card");
+            }}
+            onSkip={() => setFinale("card")}
+          />
+        ) : null}
+
+        {step === "verdict" &&
+        (finale === "card" || !photoValues.photoPreview) ? (
+          <FittingVerdictStep
+            preferredName={preferredName}
+            wornLabels={wornPicks.map((p) => p.label)}
+            stealLabels={aspirationalPicks.map((p) => p.label)}
+            leanLabel={mirror.leanLabel}
+            form={mirror.form}
+            build={photoValues.build}
+            vetoCount={hardAvoids.length + brandAvoids.length + comfort.length}
+            verdict={stylistVerdict}
+            developPct={mirror.developPct}
+            circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
+            dressStatus={dressStatus}
+            dressStyleLabel={dressStyleLabel}
+            busy={busy}
+            onMeetTwin={() => void completeOnboarding()}
+            shareCopied={shareCopied}
+            onShare={(selectedCircle) => {
+              const circleBit = selectedCircle.length
+                ? ` Asking ${selectedCircle.join(", ")}.`
+                : "";
+              const face = stylistVerdict?.user_facing_verdict;
+              const text = face?.opening
+                ? `${face.title ? `${face.title}. ` : ""}${face.opening} shoop.world`
+                : `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} shoop.world`;
+              void navigator.clipboard?.writeText(text).then(() => {
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2000);
+              });
+            }}
+          />
         ) : null}
 
         {error ? (
@@ -3051,13 +3113,9 @@ export function OnboardingGate() {
             className="sr-only"
             onClick={() => void advanceFrom(step)}
           >
-            next
+            Continue
           </button>
         ) : null}
-
-        {/* keep styleMix referenced for future narration */}
-        <span className="sr-only">{styleMix ? JSON.stringify(styleMix) : ""}</span>
-        <span className="sr-only">{styleEraLabel(joinCsvValues(styleEras))}</span>
       </FittingShell>
     </>
   );

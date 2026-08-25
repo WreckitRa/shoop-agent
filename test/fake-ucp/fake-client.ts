@@ -45,7 +45,15 @@ function productMatchesFilters(
       if (!hits?.length) continue;
       const wanted = f.values.map((v) => v.toLowerCase());
       const val = String(hits[0]?.value ?? "").toLowerCase();
-      if (!wanted.some((w) => val.includes(w))) return false;
+      const genderAliases: Record<string, string[]> = {
+        mens: ["male", "mens"],
+        male: ["male", "mens"],
+        womens: ["female", "womens"],
+        female: ["female", "womens"],
+        unisex: ["unisex"],
+      };
+      const expanded = genderAliases[val] ?? [val];
+      if (!wanted.some((w) => expanded.includes(w) || val.includes(w))) return false;
     }
   }
 
@@ -143,7 +151,6 @@ export function createFakeUcpClient(runtime: FakeUcpRuntime) {
   ): Promise<CatalogSearchResult> {
     const limit = options?.limit ?? 50;
     const priceMode = catalog.priceFilterMode ?? "honor";
-
     const relevantFiltered = catalog.relevant.filter((p) =>
       productMatchesFilters(p, filters, priceMode),
     );

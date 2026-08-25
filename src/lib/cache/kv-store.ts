@@ -35,7 +35,8 @@ async function upstashCommand(
     body: JSON.stringify(command),
   });
   if (!res.ok) return null;
-  const data = (await res.json()) as { result?: string | null };
+  const data = (await res.json()) as { result?: unknown };
+  if (typeof data.result === "number") return String(data.result);
   return typeof data.result === "string" ? data.result : null;
 }
 
@@ -80,4 +81,48 @@ export async function kvSetex(
     value,
     expiresAt: Date.now() + ttlSeconds * 1000,
   });
+}
+
+/** Integer increment with TTL. Returns the value after increment. */
+export async function kvIncrBy(
+  key: string,
+  amount: number,
+  ttlSeconds: number,
+): Promise<number> {
+  const delta = Math.trunc(amount);
+  if (delta === 0) {
+    const current = Number((await kvGet(key)) ?? 0);
+    return Number.isFinite(current) ? current : 0;
+  }
+
+  if (upstashConfigured()) {
+    try {
+      const raw = await upstashCommand(["INCRBY", key, delta]);
+      if (raw != null) {
+        const value = Number(raw);
+        if (Number.isFinite(value)) {
+          if (value === delta) {
+            await upstashCommand(["EXPIRE", key, ttlSeconds]);
+          }
+          return value;
+        }
+      }
+    } catch {
+      /* fall through to memory */
+    }
+  }
+
+  pruneMemory();
+  const entry = memory.get(key);
+  const now = Date.now();
+  const prev =
+    entry && entry.expiresAt > now && Number.isFinite(Number(entry.value))
+      ? Number(entry.value)
+      : 0;
+  const next = prev + delta;
+  memory.set(key, {
+    value: String(next),
+    expiresAt: now + Math.max(1, ttlSeconds) * 1000,
+  });
+  return next;
 }

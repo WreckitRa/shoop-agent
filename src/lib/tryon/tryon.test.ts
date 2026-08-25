@@ -35,9 +35,10 @@ import { clearOutfitProgress } from "./run-outfit";
 import {
   isGlobalTryonCapTripped,
   isTryonEnabledForUser,
+  resetGlobalTryonCapForTests,
   tripGlobalTryonCap,
 } from "./feature-flags";
-import { TRYON_USER_DAILY_CAP } from "./config";
+import { TRYON_COST_ESTIMATES, TRYON_GLOBAL_DAILY_SPEND_CAP, TRYON_USER_DAILY_CAP } from "./config";
 import { TRYON_DISCLAIMER } from "./types";
 import { RENDER_CONTRACT_VERSION } from "@/lib/fashion-memory/types/render-contract";
 import type { RenderContract } from "@/lib/fashion-memory/types/render-contract";
@@ -48,8 +49,9 @@ const PERSON = "b2c3d4e5-f6a7-4890-b123-456789abcdef";
 beforeEach(() => {
   process.env.TRYON_USE_MOCKS = "1";
   process.env.TRYON_ENABLED = "1";
-  delete process.env.TRYON_GLOBAL_CAP_TRIPPED;
+  resetGlobalTryonCapForTests();
   delete (globalThis as { __tryonDailySpend?: number }).__tryonDailySpend;
+  delete (globalThis as { __tryonPendingReserve?: number }).__tryonPendingReserve;
   resetTryonProvidersForTests();
   setTryonStorageMode("memory");
   clearTryonMemoryStorage();
@@ -479,6 +481,35 @@ describe("generation caps", () => {
     assert.equal(isGlobalTryonCapTripped(), false);
     tripGlobalTryonCap();
     assert.equal(isGlobalTryonCapTripped(), true);
+  });
+
+  it("blocks a generation when reserved FASHN spend would cross the daily ceiling", async () => {
+    const { createGeneration } = await import("./generations");
+    const reserve =
+      TRYON_COST_ESTIMATES.fashn_face_to_model +
+      TRYON_COST_ESTIMATES.fashn_edit_fast_1k;
+    const pending = Math.ceil(TRYON_GLOBAL_DAILY_SPEND_CAP / reserve);
+    for (let i = 0; i < pending; i++) {
+      await createGeneration({
+        personId: PERSON,
+        userId: USER,
+        kind: "single",
+        provider: "mock",
+        inputRefs: {},
+        skipCapCheck: true,
+      });
+    }
+    await assert.rejects(
+      () =>
+        createGeneration({
+          personId: PERSON,
+          userId: USER,
+          kind: "single",
+          provider: "mock",
+          inputRefs: {},
+        }),
+      TryonCapError,
+    );
   });
 });
 

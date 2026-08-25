@@ -1,18 +1,22 @@
 /** User-facing photo-analysis errors. Never leak org ids, URLs, or TPM dumps. */
 
 export const PHOTO_ERROR = {
-  rate_limited: "OpenAI rate limit — tap re-run in a few seconds.",
-  timeout: "GPT timed out — tap re-run.",
-  missing_key: "OPENAI_API_KEY isn't set.",
-  empty: "GPT returned nothing — tap re-run.",
-  non_json: "GPT returned unreadable output — tap re-run.",
-  incomplete: "GPT ran out of room — tap re-run.",
-  failed: "GPT didn't finish — tap re-run.",
+  rate_limited: "Too many photos just now — try again in a few seconds.",
+  timeout: "That took too long — try again.",
+  missing_key: "Photo analysis isn’t available right now.",
+  empty: "Couldn’t read that photo — try again.",
+  non_json: "Couldn’t read that photo — try again.",
+  incomplete: "Couldn’t finish reading that photo — try again.",
+  failed: "Couldn’t finish — try again.",
   no_face: "Couldn't find a face in this photo.",
   face_off: "Face is too small or cut off — try a clearer shot.",
   unread: "Couldn't open this as a photo.",
   too_small: "This photo is too small to read.",
   not_person: "Need a photo of you — a real human face, just you.",
+  too_large: "That photo is too large — use one under 10 MB.",
+  unsupported_type: "Use a JPEG, PNG, or WebP photo.",
+  daily_limit: "You've hit today's photo limit — try again tomorrow.",
+  spend_cap: "Photo analysis is paused for today.",
 } as const;
 
 export type PhotoErrorCode = keyof typeof PHOTO_ERROR;

@@ -4,6 +4,7 @@ import { ensureBrandProbeVariant, statedBrands } from "../brand/brand-handling";
 import { garmentSlotFamilyKey } from "../router/garment-family";
 import { repairSlotQueryVariants } from "./query-builder";
 import { reconcilePlanPalettes } from "./palette-ladder";
+import { agreedDepth, DEPTH_CEILING, slotDepthForLooks } from "../agreed-depth";
 import {
   FALLBACK_OPTIONS_WANTED,
   isLookCountQuantityHint,
@@ -16,7 +17,7 @@ const MAX_PLAN_SLOTS = 12;
 
 function clampOptionsWanted(n: number): number {
   if (!Number.isFinite(n)) return 3;
-  return Math.min(8, Math.max(1, Math.round(n)));
+  return Math.min(DEPTH_CEILING, Math.max(1, Math.round(n)));
 }
 
 function ensureAnchorRole(
@@ -89,6 +90,31 @@ function liftLookCountOptionsWanted(
   traceId?: string | null,
 ): FashionSearchPlanSlot[] {
   if (plan.mode !== "outfit" && plan.mode !== "capsule") return slots;
+
+  const depth = agreedDepth(plan.brief);
+  if (depth.fromBrief) {
+    let changed = 0;
+    const next = slots.map((s) => {
+      const want = slotDepthForLooks(depth.looks, s.role);
+      if (s.options_wanted === want) return s;
+      changed += 1;
+      return { ...s, options_wanted: want };
+    });
+    if (changed > 0) {
+      recordPipelineEvent({
+        traceId,
+        stage: "clamp",
+        payload: {
+          kind: "options_wanted_bound_to_depth",
+          looks: depth.looks,
+          source: plan.brief.depth?.source,
+          slots_changed: changed,
+        },
+      });
+    }
+    return next;
+  }
+
   if (!isLookCountQuantityHint(plan.brief.quantity_hint)) return slots;
   let lifted = false;
   const next = slots.map((s) => {

@@ -9,6 +9,7 @@ import {
   FittingWhisper,
 } from "@/components/onboarding/onboarding-ui";
 import type { BuildKey, SilhouetteForm } from "./types";
+import type { StylistVerdict } from "@/lib/photo-analysis/verdict";
 
 type Props = {
   preferredName: string;
@@ -18,6 +19,7 @@ type Props = {
   form: SilhouetteForm;
   build: BuildKey | null;
   vetoCount: number;
+  verdict?: StylistVerdict | null;
   developPct: number;
   /** Trusted Circle first names from onboarding. */
   circleNames?: string[];
@@ -53,6 +55,7 @@ export function FittingVerdictStep({
   form,
   build,
   vetoCount,
+  verdict = null,
   developPct,
   circleNames = [],
   dressStatus = "idle",
@@ -95,6 +98,17 @@ export function FittingVerdictStep({
     stealLabels[0] !== wornLabels[0]
       ? `You live in <b>${wornLabels.join(" + ") || "your comfort zone"}</b> but you're drawn to <b>${stealLabels.join(" + ")}</b>... that gap is exactly where I'll push you, one piece at a time.`
       : "Your reality and your wishlist already agree... my job is to sharpen it.";
+
+  const face = verdict?.user_facing_verdict;
+  const exec = verdict?.executive_verdict;
+  const suitsCopy =
+    face?.opening?.trim() ||
+    exec?.profile_summary?.trim() ||
+    `${buildTxt.charAt(0).toUpperCase() + buildTxt.slice(1)}. ${formTip}`;
+  const considerItems =
+    face?.mistakes_to_avoid?.filter((s) => s.trim()).slice(0, 4) ?? [];
+  const rules = face?.golden_rules?.filter((s) => s.trim()).slice(0, 5) ?? [];
+  const actions = face?.first_five_actions?.filter((s) => s.trim()).slice(0, 5) ?? [];
 
   function toggleCircle(name: string) {
     setSelectedCircle((prev) =>
@@ -142,16 +156,44 @@ export function FittingVerdictStep({
           WHAT SUITS YOU
         </div>
         <p className="mt-1.5 text-sm leading-[1.65] text-[#E8E8EE] [&_b]:text-white">
-          {buildTxt.charAt(0).toUpperCase() + buildTxt.slice(1)}. {formTip}
+          {exec?.headline ? <><b>{exec.headline}.</b>{" "}</> : null}
+          {suitsCopy}
         </p>
+        {rules.length ? (
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-[1.65] text-[#E8E8EE]">
+            {rules.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
+        ) : null}
 
         <div className="mt-4 text-[10.5px] font-extrabold tracking-[0.14em] text-[#FF8A90]">
           WORTH CONSIDERING
         </div>
-        <p
-          className="mt-1.5 text-sm leading-[1.65] text-[#E8E8EE] [&_b]:text-white"
-          dangerouslySetInnerHTML={{ __html: gap }}
-        />
+        {considerItems.length ? (
+          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-sm leading-[1.65] text-[#E8E8EE]">
+            {considerItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        ) : (
+          <p
+            className="mt-1.5 text-sm leading-[1.65] text-[#E8E8EE] [&_b]:text-white"
+            dangerouslySetInnerHTML={{ __html: gap }}
+          />
+        )}
+        {actions.length ? (
+          <>
+            <div className="mt-4 text-[10.5px] font-extrabold tracking-[0.14em] text-[#FF8A90]">
+              START HERE
+            </div>
+            <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-sm leading-[1.65] text-[#E8E8EE]">
+              {actions.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ol>
+          </>
+        ) : null}
 
         <div className="mt-4 border-t border-white/12 pt-3.5">
           {cleanedCircle.length ? (
@@ -239,7 +281,7 @@ export function FittingVerdictStep({
           <>
             {developPct}% developed... the Mirror brings the fit, the mint
             brings the foil.{" "}
-            <b>First-edition serials are still three digits.</b>
+            <b>Your print gets a first-edition serial.</b>
           </>
         )}
       </FittingWhisper>

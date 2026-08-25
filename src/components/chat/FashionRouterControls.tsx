@@ -13,35 +13,41 @@ import {
   ensureRideAlongDefaults,
   formatClarificationAnswerDisplay,
 } from "@/lib/fashion-memory/router/clarification-defaults";
+import {
+  ensureYouDecideOption,
+  isConsultQuestion,
+  isYouDecideOption,
+  JUST_SHOW_ME_LABEL,
+  YOU_DECIDE_OPTION_ID,
+} from "@/lib/fashion-memory/router/consultation";
+import {
+  buildDoneAnswers,
+  buildEscapeAnswers,
+  canEscapePullSheet,
+  canSubmitPullSheet,
+  clampStepper,
+  formatPullSheetMessage,
+  preselectedOptionIds,
+  resolveQuestionDisplay,
+  seedStepperValue,
+  stepperUnitLabel,
+} from "@/lib/fashion-memory/router/pull-sheet";
 import type {
   FashionClarificationAnswer,
+  FashionClarificationOption,
   FashionClarificationQuestion,
   MessageFashionRouterMetaV1,
 } from "@/lib/fashion-memory/router/types";
 
-function formatBundledAnswers(
-  questions: FashionClarificationQuestion[],
-  answers: Record<string, FashionClarificationAnswer>,
-  rideAlong?: { text: string; quick_options?: FashionClarificationQuestion["quick_options"] },
-): string {
-  const parts = questions
-    .map((q) => {
-      const display = formatClarificationAnswerDisplay(
-        answers[q.text],
-        q.quick_options,
-      );
-      if (!display) return null;
-      return `${q.text} ${display}`;
-    })
-    .filter(Boolean);
-  if (rideAlong) {
-    const display = formatClarificationAnswerDisplay(
-      answers[rideAlong.text],
-      rideAlong.quick_options,
-    );
-    if (display) parts.push(`${rideAlong.text} ${display}`);
-  }
-  return parts.join(". ");
+function resolveQuestionAnswer(
+  selectedIds: string[],
+  freeText: string,
+): FashionClarificationAnswer | null {
+  const custom = freeText.trim();
+  const chipIds = selectedIds.filter((id) => id !== CLARIFICATION_OTHER_OPTION_ID);
+  if (custom) return { selected: chipIds, customText: custom };
+  if (!chipIds.length) return null;
+  return { selected: chipIds };
 }
 
 function FashionQuizAnsweredBanner({
@@ -81,30 +87,50 @@ function FashionQuizAnsweredBanner({
   );
 }
 
-function resolveQuestionAnswer(
-  selectedIds: string[],
-  freeText: string,
-): FashionClarificationAnswer | null {
-  const custom = freeText.trim();
-  const chipIds = selectedIds.filter((id) => id !== CLARIFICATION_OTHER_OPTION_ID);
-  if (custom) {
-    return {
-      selected: chipIds,
-      customText: custom,
-    };
-  }
-  if (!chipIds.length) return null;
-  return { selected: chipIds };
+function ChipRow({
+  options,
+  selectedIds,
+  disabled,
+  variant,
+  onToggle,
+}: {
+  options: FashionClarificationOption[];
+  selectedIds: string[];
+  disabled: boolean;
+  variant: "chips" | "segment" | "size" | "garment";
+  onToggle: (id: string) => void;
+}) {
+  const className =
+    variant === "segment"
+      ? "shoop-pullsheet__segment"
+      : variant === "size"
+        ? "shoop-pullsheet__size-grid"
+        : variant === "garment"
+          ? "shoop-pullsheet__garment"
+          : "shoop-quiz-chips flex flex-wrap gap-2";
+  return (
+    <div className={className}>
+      {options.map((option) => (
+        <ClarificationOptionCard
+          key={option.id}
+          optionId={option.id}
+          label={option.label}
+          selected={selectedIds.includes(option.id)}
+          disabled={disabled}
+          onToggle={() => onToggle(option.id)}
+        />
+      ))}
+    </div>
+  );
 }
 
-function QuestionOptions({
+function QuestionTreatment({
   question,
   selectedIds,
   freeText,
   disabled,
   onToggle,
   onFreeText,
-  onFreeTextSubmit,
 }: {
   question: FashionClarificationQuestion;
   selectedIds: string[];
@@ -112,86 +138,254 @@ function QuestionOptions({
   disabled: boolean;
   onToggle: (optionId: string) => void;
   onFreeText: (text: string) => void;
-  onFreeTextSubmit?: () => void;
 }) {
   const options = asNormalizedOptions(
-    question.quick_options ?? [{ id: CLARIFICATION_OTHER_OPTION_ID, label: CLARIFICATION_OTHER_OPTION }],
+    question.quick_options ?? [
+      { id: CLARIFICATION_OTHER_OPTION_ID, label: CLARIFICATION_OTHER_OPTION },
+    ],
   );
-  const allowMultiple = Boolean(question.allow_multiple);
+  const youDecide = options.filter(isYouDecideOption);
+  const other = options.filter((o) => o.id === CLARIFICATION_OTHER_OPTION_ID);
+  const main = options.filter(
+    (o) => o.id !== CLARIFICATION_OTHER_OPTION_ID && !isYouDecideOption(o),
+  );
+  const display = resolveQuestionDisplay(question);
   const preferPalette = clarificationLooksLikeColorQuiz(question);
-  const visualOptions = options.filter(
-    (o) =>
-      o.id !== CLARIFICATION_OTHER_OPTION_ID &&
-      (preferPalette ||
-        o.previewQuery?.trim() ||
-        /surprise/i.test(o.label) ||
-        o.id === "surprise_me"),
-  );
-  const chipOptions = options.filter(
-    (o) =>
-      o.id !== CLARIFICATION_OTHER_OPTION_ID &&
-      !preferPalette &&
-      !o.previewQuery?.trim() &&
-      !/surprise/i.test(o.label) &&
-      o.id !== "surprise_me",
-  );
-  const hasVisualRow = visualOptions.length > 0;
-  const canSubmitTyped = Boolean(freeText.trim()) && !disabled;
+  const showOtherInput =
+    question.gap === "person_name" ||
+    selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID) ||
+    Boolean(freeText.trim()) ||
+    display === "text";
+
+  const youDecideChip =
+    youDecide.length && isConsultQuestion(question) ? (
+      <ChipRow
+        options={youDecide}
+        selectedIds={selectedIds}
+        disabled={disabled}
+        variant="chips"
+        onToggle={onToggle}
+      />
+    ) : null;
+
+  if (display === "checklist") {
+    return (
+      <div className="space-y-2">
+        <div className="shoop-pullsheet__check">
+          {main.map((option) => {
+            const on = selectedIds.includes(option.id);
+            return (
+              <label
+                key={option.id}
+                className={`shoop-pullsheet__check-row${on ? " shoop-pullsheet__check-row--on" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={disabled}
+                  onChange={() => onToggle(option.id)}
+                />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
+        {youDecideChip}
+      </div>
+    );
+  }
+
+  if (display === "stepper") {
+    const n = clampStepper(Number(freeText) || seedStepperValue(question));
+    const unit = stepperUnitLabel(question);
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="shoop-pullsheet__stepper">
+          <button
+            type="button"
+            disabled={disabled || n <= 1}
+            onClick={() => onFreeText(String(n - 1))}
+            aria-label="Fewer"
+          >
+            −
+          </button>
+          <span>
+            {n} {unit}
+          </span>
+          <button
+            type="button"
+            disabled={disabled || n >= 8}
+            onClick={() => onFreeText(String(n + 1))}
+            aria-label="More"
+          >
+            +
+          </button>
+        </div>
+        {youDecideChip}
+      </div>
+    );
+  }
+
+  if (display === "text") {
+    return (
+      <div className="space-y-2">
+        <input
+          type="text"
+          value={freeText}
+          disabled={disabled}
+          onChange={(e) => onFreeText(e.target.value)}
+          placeholder="Type a name"
+          aria-label={question.text}
+          className="shoop-quiz-other-input"
+        />
+        <ChipRow
+          options={main.length ? main : other}
+          selectedIds={selectedIds}
+          disabled={disabled}
+          variant="chips"
+          onToggle={onToggle}
+        />
+      </div>
+    );
+  }
+
+  if (display === "visual") {
+    const visual = main.filter(
+      (o) => preferPalette || o.previewQuery?.trim() || /surprise/i.test(o.label),
+    );
+    const leftover = main.filter((o) => !visual.includes(o));
+    return (
+      <div className="space-y-2">
+        {visual.length ? (
+          <div className="shoop-pullsheet__visual">
+            {visual.map((o) => (
+              <ClarificationOptionCard
+                key={o.id}
+                optionId={o.id}
+                label={o.label}
+                selected={selectedIds.includes(o.id)}
+                disabled={disabled}
+                previewQuery={o.previewQuery}
+                previewImages={o.previewImages}
+                paletteColors={o.paletteColors}
+                preferPalette={preferPalette}
+                onToggle={() => onToggle(o.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <OptionPreviewCarousel bare>
+            {main.map((o) => (
+              <ClarificationOptionCard
+                key={o.id}
+                optionId={o.id}
+                label={o.label}
+                selected={selectedIds.includes(o.id)}
+                disabled={disabled}
+                previewQuery={o.previewQuery}
+                previewImages={o.previewImages}
+                paletteColors={o.paletteColors}
+                preferPalette={preferPalette}
+                onToggle={() => onToggle(o.id)}
+              />
+            ))}
+          </OptionPreviewCarousel>
+        )}
+        {leftover.length ? (
+          <ChipRow
+            options={leftover}
+            selectedIds={selectedIds}
+            disabled={disabled}
+            variant="chips"
+            onToggle={onToggle}
+          />
+        ) : null}
+        {youDecideChip}
+        {other.length ? (
+          <ChipRow
+            options={other}
+            selectedIds={selectedIds}
+            disabled={disabled}
+            variant="chips"
+            onToggle={onToggle}
+          />
+        ) : null}
+        {showOtherInput ? (
+          <input
+            type="text"
+            value={freeText}
+            disabled={disabled}
+            onChange={(e) => onFreeText(e.target.value)}
+            placeholder="or type it…"
+            className="shoop-quiz-other-input"
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  const variant =
+    question.gap === "department" || question.gap === "preference_anchor"
+      ? "segment"
+      : question.gap === "size"
+        ? "size"
+        : question.gap === "garment"
+          ? "garment"
+          : "chips";
+  const rangeClass = display === "range" ? " shoop-pullsheet__range" : "";
 
   return (
-    <div className="space-y-2">
-      {hasVisualRow ? (
-        <OptionPreviewCarousel bare>
-          {visualOptions.map((o) => (
-            <ClarificationOptionCard
-              key={o.id}
-              optionId={o.id}
-              label={o.label}
-              selected={selectedIds.includes(o.id)}
-              disabled={disabled}
-              previewQuery={o.previewQuery}
-              previewImages={o.previewImages}
-              paletteColors={o.paletteColors}
-              preferPalette={preferPalette}
-              onToggle={() => onToggle(o.id)}
-            />
-          ))}
-        </OptionPreviewCarousel>
+    <div className={`space-y-2${rangeClass}`}>
+      {question.gap === "size" && question.garment_type ? (
+        <p className="text-[11px] font-medium text-ink-soft">
+          {question.garment_type}
+        </p>
       ) : null}
-      {chipOptions.length ? (
-        <div className="shoop-quiz-chips flex flex-wrap gap-2">
-          {chipOptions.map((option) => (
-            <ClarificationOptionCard
-              key={option.id}
-              optionId={option.id}
-              label={option.label}
-              selected={selectedIds.includes(option.id)}
-              disabled={disabled}
-              onToggle={() => onToggle(option.id)}
-            />
-          ))}
-        </div>
-      ) : null}
-      {allowMultiple ? (
-        <p className="text-[11px] text-ink-muted">Choose any that apply</p>
-      ) : null}
-      <input
-        type="text"
-        value={freeText}
-        onChange={(e) => onFreeText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter") return;
-          e.preventDefault();
-          if (!canSubmitTyped) return;
-          onFreeTextSubmit?.();
-        }}
+      <ChipRow
+        options={main}
+        selectedIds={selectedIds}
         disabled={disabled}
-        placeholder="or type it…"
-        aria-label="Type your own answer"
-        className="shoop-quiz-other-input"
+        variant={variant}
+        onToggle={onToggle}
       />
+      {youDecideChip}
+      {other.length ? (
+        <ChipRow
+          options={other}
+          selectedIds={selectedIds}
+          disabled={disabled}
+          variant="chips"
+          onToggle={onToggle}
+        />
+      ) : null}
+      {showOtherInput ? (
+        <input
+          type="text"
+          value={freeText}
+          disabled={disabled}
+          onChange={(e) => onFreeText(e.target.value)}
+          placeholder={
+            display === "range" ? "$" : "or type it…"
+          }
+          inputMode={display === "range" ? "numeric" : "text"}
+          className="shoop-quiz-other-input"
+        />
+      ) : null}
     </div>
   );
+}
+
+function rideAlongAsQuestion(
+  rideAlong: NonNullable<MessageFashionRouterMetaV1["ride_along"]>,
+): FashionClarificationQuestion {
+  return {
+    text: rideAlong.text,
+    gap: "occasion",
+    kind: "consult",
+    quick_options: rideAlong.quick_options,
+    allow_multiple: rideAlong.allow_multiple,
+    allow_other: rideAlong.allow_other,
+  };
 }
 
 export const FashionRouterControls = memo(function FashionRouterControls({
@@ -208,21 +402,44 @@ export const FashionRouterControls = memo(function FashionRouterControls({
   );
   const isStreaming = useChatStore((s) => s.isStreaming);
   const messages = useChatStore((s) => s.messages);
-  const [selections, setSelections] = useState<Record<string, string[]>>({});
-  const [freeTexts, setFreeTexts] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
 
   const questions = useMemo(
-    () => ensureQuestionsHaveQuickOptions(fashionRouter.questions ?? []),
+    () =>
+      ensureQuestionsHaveQuickOptions(fashionRouter.questions ?? []).map(
+        ensureYouDecideOption,
+      ),
     [fashionRouter.questions],
   );
   const rideAlong = useMemo(
     () => ensureRideAlongDefaults(fashionRouter.ride_along),
     [fashionRouter.ride_along],
   );
+  const rideQuestion = rideAlong ? rideAlongAsQuestion(rideAlong) : null;
+  const allQuestions = useMemo(
+    () => (rideQuestion ? [...questions, rideQuestion] : questions),
+    [questions, rideQuestion],
+  );
+
+  const [selections, setSelections] = useState<Record<string, string[]>>(() => {
+    const out: Record<string, string[]> = {};
+    for (const q of questions) {
+      if (q.gap === "slots") out[q.text] = preselectedOptionIds(q);
+    }
+    return out;
+  });
+  const [freeTexts, setFreeTexts] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const q of questions) {
+      if (resolveQuestionDisplay(q) === "stepper") {
+        out[q.text] = String(seedStepperValue(q));
+      }
+    }
+    return out;
+  });
+  const [submitted, setSubmitted] = useState(false);
+
   const isClarification =
     fashionRouter.move === "ask_clarification" && questions.length > 0;
-
   const answeredByMeta = fashionRouter.status === "answered";
   const answeredByFollowUp = useMemo(() => {
     if (answeredByMeta || !isClarification) return false;
@@ -230,94 +447,90 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     if (idx < 0) return false;
     return messages.slice(idx + 1).some((m) => m.role === "user");
   }, [answeredByMeta, isClarification, messageId, messages]);
-
   const isAnswered = answeredByMeta || answeredByFollowUp || submitted;
 
-  const hasVisualCards = useMemo(
-    () =>
-      questions.some((q) =>
-        asNormalizedOptions(q.quick_options).some((o) => o.previewQuery?.trim()),
-      ) ||
-      Boolean(
-        rideAlong &&
-          asNormalizedOptions(rideAlong.quick_options).some((o) =>
-            o.previewQuery?.trim(),
-          ),
-      ),
-    [questions, rideAlong],
-  );
-
-  const hasMulti = useMemo(
-    () =>
-      questions.some((q) => q.allow_multiple) ||
-      Boolean(rideAlong?.allow_multiple),
-    [questions, rideAlong],
-  );
-
-  const needsContinue =
-    questions.length > 1 || Boolean(rideAlong) || hasMulti || hasVisualCards;
-
-  const resolvedAnswers = useMemo(() => {
+  const derivedAnswers = useMemo(() => {
     const out: Record<string, FashionClarificationAnswer> = {};
-    for (const q of questions) {
-      const answer = resolveQuestionAnswer(
-        selections[q.text] ?? [],
-        freeTexts[q.text] ?? "",
-      );
+    for (const q of allQuestions) {
+      const selected = selections[q.text] ?? [];
+      const free = freeTexts[q.text] ?? "";
+      if (resolveQuestionDisplay(q) === "stepper") {
+        if (selected.includes(YOU_DECIDE_OPTION_ID)) {
+          out[q.text] = { selected: [YOU_DECIDE_OPTION_ID] };
+        } else if (free.trim()) {
+          out[q.text] = { selected: [], customText: free.trim() };
+        }
+        continue;
+      }
+      const answer = resolveQuestionAnswer(selected, free);
       if (answer) out[q.text] = answer;
     }
-    if (rideAlong) {
-      const answer = resolveQuestionAnswer(
-        selections[rideAlong.text] ?? [],
-        freeTexts[rideAlong.text] ?? "",
-      );
-      if (answer) out[rideAlong.text] = answer;
-    }
     return out;
-  }, [selections, freeTexts, questions, rideAlong]);
+  }, [allQuestions, selections, freeTexts]);
 
-  const canSubmit = useMemo(() => {
-    if (!isClarification) return false;
-    return questions.every((q) => Boolean(resolvedAnswers[q.text]));
-  }, [isClarification, questions, resolvedAnswers]);
+  const blocking = questions.filter((q) => !isConsultQuestion(q));
+  const consult = questions.filter((q) => isConsultQuestion(q));
+  const disabled = isStreaming || submitted;
+  const canDone = canSubmitPullSheet(allQuestions, derivedAnswers);
+  const canEscape = canEscapePullSheet(questions, derivedAnswers);
 
   const toggleOption = (
-    questionKey: string,
+    question: FashionClarificationQuestion,
     optionId: string,
-    allowMultiple: boolean,
   ) => {
+    const display = resolveQuestionDisplay(question);
+    const allowMultiple =
+      Boolean(question.allow_multiple) ||
+      display === "checklist" ||
+      (display !== "stepper" &&
+        display !== "text" &&
+        question.gap !== "department" &&
+        question.gap !== "person_name" &&
+        question.gap !== "size" &&
+        question.gap !== "garment" &&
+        question.allow_multiple === true);
+    const multi =
+      display === "checklist" ||
+      Boolean(question.allow_multiple) ||
+      (question.gap === "occasion" && question.allow_multiple !== false);
+    void allowMultiple;
     setSelections((prev) => {
-      const current = prev[questionKey] ?? [];
-      if (allowMultiple) {
-        const on = current.includes(optionId);
-        const next = on
-          ? current.filter((id) => id !== optionId)
-          : [...current, optionId];
-        return { ...prev, [questionKey]: next };
+      const current = prev[question.text] ?? [];
+      if (optionId === YOU_DECIDE_OPTION_ID && display === "stepper") {
+        const on = current.includes(YOU_DECIDE_OPTION_ID);
+        return {
+          ...prev,
+          [question.text]: on ? [] : [YOU_DECIDE_OPTION_ID],
+        };
       }
-      // Single-select: replace (keep Other free text if switching away from Other)
-      if (optionId !== CLARIFICATION_OTHER_OPTION_ID) {
+      if (multi && optionId !== YOU_DECIDE_OPTION_ID) {
+        const withoutDecide = current.filter((id) => id !== YOU_DECIDE_OPTION_ID);
+        const on = withoutDecide.includes(optionId);
+        const next = on
+          ? withoutDecide.filter((id) => id !== optionId)
+          : [...withoutDecide, optionId];
+        return { ...prev, [question.text]: next };
+      }
+      if (optionId !== CLARIFICATION_OTHER_OPTION_ID && display !== "text") {
         setFreeTexts((ft) => {
+          if (display === "stepper") return ft;
           const next = { ...ft };
-          delete next[questionKey];
+          delete next[question.text];
           return next;
         });
       }
-      return { ...prev, [questionKey]: [optionId] };
+      return { ...prev, [question.text]: [optionId] };
     });
   };
 
-  const submitAnswers = (
-    finalAnswers: Record<string, FashionClarificationAnswer>,
-  ) => {
-    answerFashionClarification(messageId, finalAnswers);
+  const submit = (answers: Record<string, FashionClarificationAnswer>) => {
+    answerFashionClarification(messageId, answers);
     setSubmitted(true);
-    setInput(formatBundledAnswers(questions, finalAnswers, rideAlong));
+    setInput(formatPullSheetMessage(questions, answers, rideQuestion));
     void sendMessage();
   };
 
   if (!isClarification) return null;
-
   if (isAnswered) {
     return (
       <FashionQuizAnsweredBanner
@@ -327,130 +540,87 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     );
   }
 
-  // Single exclusive chip question with no visual cards: one-tap submit.
-  if (!needsContinue) {
-    const q = questions[0]!;
-    const selected = selections[q.text] ?? [];
-    const typed = freeTexts[q.text]?.trim() ?? "";
-    const submitTyped = () => {
-      if (!typed) return;
-      submitAnswers({
-        [q.text]: { selected: [], customText: typed },
-      });
-    };
-    return (
-      <div className="shoop-qcardz">
-        <div className="shoop-qcardz__block">
-          <p className="shoop-qcardz__q">{q.text}</p>
-          <QuestionOptions
-            question={q}
-            selectedIds={selected}
-            freeText={freeTexts[q.text] ?? ""}
-            disabled={isStreaming || submitted}
-            onToggle={(optionId) => {
-              submitAnswers({
-                [q.text]: { selected: [optionId] },
-              });
-            }}
-            onFreeText={(text) => {
-              setFreeTexts({ [q.text]: text });
-            }}
-            onFreeTextSubmit={submitTyped}
-          />
-        </div>
-        {typed ? (
-          <button
-            type="button"
-            disabled={isStreaming || submitted}
-            onClick={submitTyped}
-            className="shoop-quiz-apply mt-3"
-          >
-            Show me the rack
-            <span aria-hidden>→</span>
-          </button>
-        ) : null}
-      </div>
-    );
-  }
+  const renderBlock = (q: FashionClarificationQuestion) => (
+    <div key={q.text} className="shoop-qcardz__block">
+      <p className="shoop-qcardz__q">{q.text}</p>
+      <QuestionTreatment
+        question={q}
+        selectedIds={selections[q.text] ?? []}
+        freeText={freeTexts[q.text] ?? ""}
+        disabled={disabled}
+        onToggle={(id) => toggleOption(q, id)}
+        onFreeText={(text) => {
+          if (resolveQuestionDisplay(q) === "stepper") {
+            setSelections((prev) => ({
+              ...prev,
+              [q.text]: [],
+            }));
+            setFreeTexts((prev) => ({
+              ...prev,
+              [q.text]: String(clampStepper(Number(text) || 1)),
+            }));
+            return;
+          }
+          // Keep Other selected so the free-text field stays mounted while typing.
+          setSelections((prev) => {
+            const current = prev[q.text] ?? [];
+            if (q.allow_multiple) {
+              if (current.includes(CLARIFICATION_OTHER_OPTION_ID)) return prev;
+              return {
+                ...prev,
+                [q.text]: [...current, CLARIFICATION_OTHER_OPTION_ID],
+              };
+            }
+            return { ...prev, [q.text]: [CLARIFICATION_OTHER_OPTION_ID] };
+          });
+          setFreeTexts((prev) => ({ ...prev, [q.text]: text }));
+        }}
+      />
+      {q.why && isConsultQuestion(q) ? (
+        <p className="shoop-pullsheet__why">{q.why}</p>
+      ) : null}
+    </div>
+  );
 
   return (
-    <div className="shoop-qcardz">
-      {questions.map((q) => (
-        <div key={q.text} className="shoop-qcardz__block">
-          <p className="shoop-qcardz__q">{q.text}</p>
-          <QuestionOptions
-            question={q}
-            selectedIds={selections[q.text] ?? []}
-            freeText={freeTexts[q.text] ?? ""}
-            disabled={isStreaming || submitted}
-            onToggle={(optionId) =>
-              toggleOption(q.text, optionId, Boolean(q.allow_multiple))
-            }
-            onFreeText={(text) => {
-              if (!q.allow_multiple) {
-                setSelections((prev) => ({ ...prev, [q.text]: [] }));
-              }
-              setFreeTexts((prev) => ({ ...prev, [q.text]: text }));
-            }}
-            onFreeTextSubmit={() => {
-              if (!canSubmit || isStreaming || submitted) return;
-              submitAnswers(resolvedAnswers);
-            }}
-          />
-        </div>
-      ))}
-      {rideAlong ? (
-        <div className="shoop-qcardz__block">
-          <p className="shoop-qcardz__q">{rideAlong.text}</p>
-          <QuestionOptions
-            question={{
-              text: rideAlong.text,
-              gap: "occasion",
-              quick_options: rideAlong.quick_options,
-              allow_multiple: rideAlong.allow_multiple,
-              allow_other: rideAlong.allow_other,
-            }}
-            selectedIds={selections[rideAlong.text] ?? []}
-            freeText={freeTexts[rideAlong.text] ?? ""}
-            disabled={isStreaming || submitted}
-            onToggle={(optionId) =>
-              toggleOption(
-                rideAlong.text,
-                optionId,
-                Boolean(rideAlong.allow_multiple),
-              )
-            }
-            onFreeText={(text) => {
-              if (!rideAlong.allow_multiple) {
-                setSelections((prev) => ({
-                  ...prev,
-                  [rideAlong.text]: [],
-                }));
-              }
-              setFreeTexts((prev) => ({
-                ...prev,
-                [rideAlong.text]: text,
-              }));
-            }}
-            onFreeTextSubmit={() => {
-              if (!canSubmit || isStreaming || submitted) return;
-              submitAnswers(resolvedAnswers);
-            }}
-          />
-        </div>
+    <div className="shoop-qcardz shoop-pullsheet">
+      {fashionRouter.known_summary ? (
+        <p className="shoop-pullsheet__known">{fashionRouter.known_summary}</p>
       ) : null}
+      <div className="shoop-pullsheet__grid">
+        {blocking.map(renderBlock)}
+        {blocking.length && (consult.length || rideQuestion) ? (
+          <div className="shoop-pullsheet__hairline" />
+        ) : null}
+        {consult.map(renderBlock)}
+        {rideQuestion ? renderBlock(rideQuestion) : null}
+      </div>
       <button
         type="button"
-        disabled={!canSubmit || isStreaming || submitted}
+        disabled={!canDone || disabled}
         onClick={() => {
-          if (!Object.keys(resolvedAnswers).length) return;
-          submitAnswers(resolvedAnswers);
+          if (!canDone) return;
+          submit(buildDoneAnswers(allQuestions, derivedAnswers));
         }}
-        className="shoop-quiz-apply mt-4"
+        className="shoop-quiz-apply shoop-pullsheet__done mt-4"
       >
-        Show me the rack
+        Done
         <span aria-hidden>→</span>
       </button>
+      {fashionRouter.escape_chip ? (
+        <button
+          type="button"
+          disabled={!canEscape || disabled}
+          onClick={() => {
+            const answers = buildEscapeAnswers(questions, derivedAnswers);
+            if (!answers) return;
+            submit(answers);
+          }}
+          className="shoop-pullsheet__escape mt-3 w-full text-center text-sm text-ink-soft underline-offset-2 hover:underline disabled:opacity-40"
+        >
+          {fashionRouter.escape_chip ?? JUST_SHOW_ME_LABEL}
+        </button>
+      ) : null}
     </div>
   );
 });

@@ -5,7 +5,9 @@ import { consumeQaFault, hasQaFault } from "@/lib/qa/faults";
 import { recordPipelineEvent } from "../observability/trace";
 import { withTracedLlmCall } from "../observability/traced-llm-call";
 import { buildCurationInput } from "./build-input";
+import { agreedDepth } from "../agreed-depth";
 import { buildCurationSystemPrompt } from "./prompt";
+import { curationLooksTarget, imageBudgetForSlot } from "./deliverables";
 import {
   DELIVER_CURATION_TOOL,
   extractDeliverCurationBlockDetailed,
@@ -46,13 +48,6 @@ import type {
   FashionCurationResult,
   RunFashionCurationParams,
 } from "./types";
-
-function anchorOptionsForPlan(
-  plan: RunFashionCurationParams["plan"],
-): number {
-  const anchor = plan.slots.find((s) => s.role === "anchor");
-  return anchor?.options_wanted ?? 2;
-}
 
 function perSlotCountsLabel(plan: RunFashionCurationParams["plan"]): string {
   return plan.slots
@@ -475,13 +470,25 @@ export async function runFashionCuration(
     params.plan.brief.department_scope ??
     "mixed";
 
+  const depth = agreedDepth(params.plan.brief);
+  const depthExceedsImageBudget = params.plan.slots.some((s) => {
+    const allotment = imageBudgetForSlot({ mode: params.plan.mode, role: s.role });
+    return s.options_wanted > allotment;
+  });
+  if (depthExceedsImageBudget) {
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "curation",
+      payload: { depth_exceeds_image_budget: true },
+    });
+  }
+
   const systemPromptBase = buildCurationSystemPrompt({
     mode: params.plan.mode,
     department,
     occasion_context: params.plan.brief.occasion_context,
     style_direction: params.plan.brief.style_direction,
-    options_wanted: params.plan.slots[0]?.options_wanted,
-    anchor_options: anchorOptionsForPlan(params.plan),
+    depth,
     per_slot_counts: perSlotCountsLabel(params.plan),
     palette_source: params.plan.slots[0]?.palette_source,
   });
@@ -970,6 +977,7 @@ outfit mode.`
         ...finalOutput.narration,
         plainOpening,
         plainThin: finalOutput.narration.thin_note,
+        assumptions: params.plan.brief.assumptions,
         traceId: params.traceId,
       }),
       vetoes: (() => {
@@ -991,6 +999,7 @@ outfit mode.`
     const synthesized = synthesizeOutfitLooks({
       slots: finalOutput.slots,
       registry: inputBundle.registry,
+      target: curationLooksTarget(params.plan.brief),
     });
     if (synthesized.length > 0) {
       finalOutput = { ...finalOutput, looks: synthesized };
@@ -1025,6 +1034,17 @@ outfit mode.`
     });
     finalOutput = voiceResult.output;
     voiceFallback = voiceResult.voiceFallback;
+    const voicedOpening = finalOutput.narration.opening.trim() || "Here are the strongest verified picks for this look.";
+    finalOutput = {
+      ...finalOutput,
+      narration: sanitizeCurationNarration({
+        ...finalOutput.narration,
+        plainOpening: voicedOpening,
+        plainThin: finalOutput.narration.thin_note,
+        assumptions: params.plan.brief.assumptions,
+        traceId: params.traceId,
+      }),
+    };
   }
 
   validationIssues = validated.issues.map((i) => i.code);

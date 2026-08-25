@@ -3,10 +3,14 @@ import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
 import { fashionMemoryDb } from "@/lib/fashion-memory/db";
 import type { TryonGenerationKind, TryonGenerationStatus } from "@prisma/client";
 import {
+  TRYON_COST_ESTIMATES,
   TRYON_GLOBAL_DAILY_SPEND_CAP,
   TRYON_USER_DAILY_CAP,
 } from "./config";
-import { tripGlobalTryonCap } from "./feature-flags";
+import {
+  isGlobalTryonCapTripped,
+  tripGlobalTryonCap,
+} from "./feature-flags";
 import { moodboardDisplayTitle } from "./moodboard-title";
 
 export type GenerationRow = {
@@ -67,6 +71,65 @@ export async function assertUserGenerationCap(userId: string): Promise<void> {
   }
 }
 
+const FASHN_RESERVE_USD =
+  TRYON_COST_ESTIMATES.fashn_face_to_model + TRYON_COST_ESTIMATES.fashn_edit_fast_1k;
+
+async function fashnSpendUsdToday(): Promise<number> {
+  if (testGenStore) {
+    let spent = 0;
+    let pending = 0;
+    for (const row of testGenStore.values()) {
+      if (row.status === "completed") spent += row.costEstimate ?? 0;
+      else if (row.status === "pending" || row.status === "processing") pending += 1;
+    }
+    return spent + pending * FASHN_RESERVE_USD;
+  }
+  if (process.env.NODE_ENV === "test") {
+    const g = globalThis as {
+      __tryonDailySpend?: number;
+      __tryonPendingReserve?: number;
+    };
+    return (g.__tryonDailySpend ?? 0) + (g.__tryonPendingReserve ?? 0);
+  }
+  const since = startOfUtcDay();
+  const [done, pending] = await Promise.all([
+    prisma.tryonGeneration.aggregate({
+      where: { createdAt: { gte: since }, status: "completed" },
+      _sum: { costEstimate: true },
+    }),
+    prisma.tryonGeneration.count({
+      where: {
+        createdAt: { gte: since },
+        status: { in: ["pending", "processing"] },
+      },
+    }),
+  ]);
+  return (done._sum.costEstimate ?? 0) + pending * FASHN_RESERVE_USD;
+}
+
+export async function assertFashnSpendHeadroom(
+  nextCost = FASHN_RESERVE_USD,
+): Promise<void> {
+  if (isGlobalTryonCapTripped()) {
+    throw new TryonCapError(
+      "Try-on is paused for today — we've hit the daily spend limit.",
+    );
+  }
+  const spent = await fashnSpendUsdToday();
+  if (spent + nextCost >= TRYON_GLOBAL_DAILY_SPEND_CAP) {
+    tripGlobalTryonCap();
+    throw new TryonCapError(
+      "Try-on is paused for today — we've hit the daily spend limit.",
+    );
+  }
+}
+
+function reserveFashnSpendForTest(): void {
+  if (!(testGenStore || process.env.NODE_ENV === "test")) return;
+  const g = globalThis as { __tryonPendingReserve?: number };
+  g.__tryonPendingReserve = (g.__tryonPendingReserve ?? 0) + FASHN_RESERVE_USD;
+}
+
 export async function recordGenerationCost(cost: number): Promise<void> {
   if (testGenStore || process.env.NODE_ENV === "test") {
     const key = "__tryonDailySpend";
@@ -125,7 +188,9 @@ export async function createGeneration(params: {
 }): Promise<GenerationRow> {
   if (!params.skipCapCheck) {
     await assertUserGenerationCap(params.userId);
+    await assertFashnSpendHeadroom();
     bumpTestCount(params.userId);
+    if (!testGenStore) reserveFashnSpendForTest();
   }
 
   if (testGenStore) {

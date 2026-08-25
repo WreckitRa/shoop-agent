@@ -44,3 +44,8 @@ export const fashionFactMeasurementValueSchema = z.object({
   value: z.number().positive(),
   unit: z.enum(["cm", "in"]),
 });
+
+export const fashionFactDepthDefaultValueSchema = z.object({
+  count: z.number().int().min(1).max(8),
+  unit: z.enum(["looks", "options"]),
+});

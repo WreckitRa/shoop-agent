@@ -60,6 +60,8 @@ type Props = {
   showBust?: boolean;
   /** scan = photo + analysis first; body = height/build after identity. */
   mode?: "scan" | "body";
+  /** Hide the file picker until biometric consent is ticked. */
+  photoLocked?: boolean;
 };
 
 /** Smart default when user skips definition — still satisfies FASHN required attrs. */
@@ -268,6 +270,7 @@ export function FittingPhotoStep({
   showContinue = true,
   showBust = false,
   mode = "scan",
+  photoLocked = false,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -346,23 +349,32 @@ export function FittingPhotoStep({
           <>
             <ScanStage size="drop">
               <div className="z-[4] px-6 text-center">
-                <label className="cursor-pointer">
-                  <span className="group inline-flex h-12 max-w-full items-center gap-2 rounded-[14px] bg-[var(--fitting-ink)] px-4 font-display text-[13px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-12px_rgba(14,14,17,.5)]">
+                <label className={photoLocked ? "pointer-events-none" : "cursor-pointer"}>
+                  <span
+                    className={cn(
+                      "group inline-flex h-12 max-w-full items-center gap-2 rounded-[14px] bg-[var(--fitting-ink)] px-4 font-display text-[13px] font-extrabold text-white transition-all",
+                      photoLocked
+                        ? "opacity-40"
+                        : "hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-12px_rgba(14,14,17,.5)]",
+                    )}
+                  >
                     {addLabel}{" "}
                     <span className="transition-transform group-hover:translate-x-1">
                       →
                     </span>
                   </span>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) onPhotoFile?.(f);
-                    }}
-                  />
+                  {photoLocked ? null : (
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) onPhotoFile?.(f);
+                      }}
+                    />
+                  )}
                 </label>
                 <p className="mt-3 font-whisper text-[13px] italic leading-[1.5] text-[var(--fitting-quiet)]">
                   {dropHint}

@@ -31,11 +31,11 @@ export const PROMPT_CACHE_STAGE_EXPECTATIONS: Record<
   PromptCacheStageExpectation
 > = {
   router: {
-    model: "claude-haiku-4-5 (FASHION_ROUTER_MODEL)",
-    min_cacheable_tokens: 4096,
+    model: "claude-sonnet-5 (FASHION_ROUTER_MODEL)",
+    min_cacheable_tokens: 1024,
     static_prefix_tokens_approx: 4866,
     expected_cacheable: true,
-    why: "ROUTER_PROMPT_STATIC alone clears Haiku 4.5's 4096-token floor; turn-1 writes, turn-2+ should read.",
+    why: "ROUTER_PROMPT_STATIC clears Sonnet 5's 1024-token floor; turn-1 writes, turn-2+ should read.",
   },
   planner: {
     model: "claude-haiku-4-5 (FASHION_SEARCH_PLANNER_MODEL)",

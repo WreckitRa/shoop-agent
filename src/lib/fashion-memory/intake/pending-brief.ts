@@ -31,12 +31,16 @@ export async function loadPendingBrief(
 export function pendingBriefMeta(
   brief: FashionSearchBrief,
   recipientPersonId: string,
+  extras?: { consult_rounds_used?: 0 | 1 | 2 },
 ): FashionPendingBriefMetaV1 {
   return {
     version: 1,
     brief,
     recipientPersonId,
     savedAt: new Date().toISOString(),
+    ...(extras?.consult_rounds_used != null
+      ? { consult_rounds_used: extras.consult_rounds_used }
+      : {}),
   };
 }
 

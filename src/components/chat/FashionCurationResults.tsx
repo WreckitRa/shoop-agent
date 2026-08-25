@@ -19,6 +19,7 @@ import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
 import { InlineChatProductPanel } from "@/components/chat/InlineChatProductPanel";
 import { useChatMessageProductLink } from "@/components/chat/ChatMessageProductLinkContext";
 import { useChatStore } from "@/components/chat/chat-store";
+import { formatPullSheetRecap } from "@/lib/fashion-memory/router/pull-sheet";
 import {
   isInlineProductExpanded,
   useInlineProductStore,
@@ -340,6 +341,18 @@ export const FashionCurationResults = memo(function FashionCurationResults({
   const expanded = useInlineProductStore((s) => s.expanded);
   const collapse = useInlineProductStore((s) => s.collapse);
   const openProduct = useOpenFashionProduct();
+  const sendMessage = useChatStore((s) => s.sendMessage);
+  const setInput = useChatStore((s) => s.setInput);
+  const isStreaming = useChatStore((s) => s.isStreaming);
+  const recap = useChatStore((s) => {
+    for (let i = s.messages.length - 1; i >= 0; i--) {
+      const brief = s.messages[i]?.metadata?.fashionRouter?.brief;
+      if (!brief) continue;
+      const line = formatPullSheetRecap(brief);
+      if (line) return line;
+    }
+    return null;
+  });
 
   if (!render?.tiers.picks.length) return null;
 
@@ -600,6 +613,32 @@ export const FashionCurationResults = memo(function FashionCurationResults({
           !render.tiers.picks.some((p) => p.id === selectedProductId) ? (
             <InlineChatProductPanel onClose={collapse} />
           ) : null}
+        </div>
+      ) : null}
+      {recap ? (
+        <p className="mt-4 text-sm text-ink-soft">{recap}</p>
+      ) : null}
+      {render.narration.next_step_offer?.chips.length ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm text-ink-soft">
+            {render.narration.next_step_offer.text}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {render.narration.next_step_offer.chips.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                disabled={isStreaming}
+                onClick={() => {
+                  setInput(chip);
+                  void sendMessage();
+                }}
+                className="rounded-full border border-hairline px-3 py-1.5 text-sm text-ink-soft hover:border-ink disabled:opacity-50"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>

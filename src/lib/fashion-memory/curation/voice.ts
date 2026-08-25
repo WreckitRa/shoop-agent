@@ -25,8 +25,9 @@ import { recordVoiceOutcome } from "../observability/voice-metrics";
 const VOICE_SYSTEM = `You write stylist voice for Shoop fashion picks that are ALREADY chosen.
 You receive the picks (refs, titles, roles, prices, colors) and client context.
 Return ONLY JSON via the ${CURATION_VOICE_TOOL_NAME} tool:
-{"opening":"...","budget_note":optional,"thin_note":optional,"brand_note":optional,"lines":[{"ref":"...","stylist_line":"one specific sentence"}]}
+{"opening":"...","budget_note":optional,"thin_note":optional,"brand_note":optional,"lines":[{"ref":"...","stylist_line":"one specific sentence"}],"next_step_offer":{"text":"one closing sentence","chips":["2-4 grounded refinements"]}}
 Rules: one sentence per pick, specific to THIS item and THIS client, user's language, no generic praise. Cap opening at 2 short sentences. No images — describe from attributes.
+next_step_offer is required: one salesman close plus 2–4 chips grounded in THESE results ("Swap the shoes", "Bolder on the shirt", "Same, under $120", "2 more looks"). Never generic. A chip tap is a refinement of what was shown — not a new consult.
 Keep every field short — the token budget is tight. Do not write preamble outside the tool.`;
 
 export function voiceToneAppendix(voice?: {
@@ -86,8 +87,16 @@ const VOICE_TOOL = {
           required: ["ref", "stylist_line"],
         },
       },
+      next_step_offer: {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+          chips: { type: "array", items: { type: "string" } },
+        },
+        required: ["text", "chips"],
+      },
     },
-    required: ["opening", "lines"],
+    required: ["opening", "lines", "next_step_offer"],
   },
 };
 
@@ -97,7 +106,38 @@ export type VoiceJson = {
   thin_note?: string;
   brand_note?: string;
   lines?: Array<{ ref: string; stylist_line: string }>;
+  next_step_offer?: { text: string; chips: string[] };
 };
+
+function normalizeNextStepOffer(
+  offer: VoiceJson["next_step_offer"] | undefined,
+): { text: string; chips: string[] } | undefined {
+  const text = offer?.text?.trim() ?? "";
+  const chips = (offer?.chips ?? [])
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+  if (!text || chips.length < 2) return undefined;
+  return { text, chips };
+}
+
+export function fallbackNextStepOffer(
+  output: DeliverCurationInput,
+): { text: string; chips: string[] } {
+  const slotNames = output.slots
+    .map((s) => s.slot_id.replace(/_/g, " ").trim())
+    .filter(Boolean);
+  const first = slotNames[0] ?? "a piece";
+  return {
+    text: "Want me to tweak a piece, or pull another round from here?",
+    chips: [
+      `Swap the ${first}`,
+      "Bolder on top",
+      "Same, lower budget",
+      "2 more looks",
+    ],
+  };
+}
 
 export function extractVoiceJson(content: Message["content"]): VoiceJson | null {
   for (const block of content) {
@@ -186,7 +226,7 @@ export function buildDeterministicVoiceFallback(params: {
     }
   }
 
-  return { opening, lines };
+  return { opening, lines, next_step_offer: fallbackNextStepOffer(params.output) };
 }
 
 function applyVoiceToOutput(
@@ -219,6 +259,9 @@ function applyVoiceToOutput(
       budget_note: voice.budget_note?.trim() || output.narration.budget_note,
       thin_note: voice.thin_note?.trim() || output.narration.thin_note,
       brand_note: voice.brand_note?.trim() || output.narration.brand_note,
+      next_step_offer: normalizeNextStepOffer(voice.next_step_offer) ??
+        output.narration.next_step_offer ??
+        fallbackNextStepOffer(output),
     },
   };
 }

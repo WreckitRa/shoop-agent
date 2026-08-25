@@ -84,15 +84,33 @@ OPERATIONS (via the record_fashion_ops tool)
                    { "presentation": "mens" | "womens" | "boys" | "girls"
                    | "baby" | "mixed" }), or a precise measurement
                    ("my waist is 84cm") as fact_type "measurement" with
-                   value { "metric": "neck"|"chest"|"waist"|"hips"|"inseam",
+                   value { "metric": "height"|"neck"|"chest"|"waist"|"hips"|"inseam",
                    "value": number, "unit": "cm"|"in" } and garment_type set
                    to the metric (so waist supersedes prior waist only).
                    Measurements are body data for future size-chart fit —
                    never invent them; only when the user stated a number.
+                   Also fact_type "depth_default" when they state a stable
+                   depth ("always show me 5", "I never want more than 2")
+                   with value { "count": number, "unit": "looks"|"options" }.
+SHOPPING STYLE (person-level, general): how this person likes to be
+served is a fact about the PERSON.
+  · Repeatedly choosing "You decide" / "Just show me", or saying "you
+    know me", "just pick" → signal_add category "shopping_style",
+    value "quick", source stated when said in words, inferred when
+    only tapped.
+  · Engaging with consult questions, asking to see more, choosing
+    specific counts → "guided" (same sourcing rules).
+  · A stable depth statement ("always show me 5", "I never want more
+    than 2") → fact_add fact_type "depth_default" with the number and
+    unit (looks | options).
+  · preference_anchor answers are THIS-PURCHASE-ONLY ("something new
+    this time") — record nothing, UNLESS phrased as general ("I'm done
+    with navy") → signal_reverse / signal_add as usual.
 2. fact_reverse  — a [NEW] message directly contradicts a snapshot fact
                    ("actually I'm an L now"). Include the old value.
 3. signal_add    — a new TASTE signal: like or dislike about color, style,
-                   brand, silhouette, aesthetic, material, or pattern.
+                   brand, silhouette, aesthetic, material, pattern, or
+                   shopping_style (how they like to be served).
 4. signal_reverse — a [NEW] message contradicts a snapshot signal.
 5. context_split — a contradiction that is actually context-dependent
                    (slim for work, loose for gym). Propose the new context

@@ -1,4 +1,5 @@
 import type { FashionSearchBrief } from "../router/types";
+import { agreedDepth, DEPTH_CEILING, slotDepthForLooks } from "../agreed-depth";
 import {
   allowedColorWordsFromBrief,
   buildDeterministicQueryVariants,
@@ -96,8 +97,22 @@ function parseExplicitOptionsWanted(brief: FashionSearchBrief): number | null {
   return null;
 }
 
-function optionsWantedForFallback(brief: FashionSearchBrief): number {
-  return parseExplicitOptionsWanted(brief) ?? FALLBACK_OPTIONS_WANTED;
+function clampOptionsWanted(n: number): number {
+  return Math.min(DEPTH_CEILING, Math.max(1, Math.round(n)));
+}
+
+function optionsWantedForFallback(
+  brief: FashionSearchBrief,
+  role: SearchPlanSlotRole,
+): number {
+  const explicit = parseExplicitOptionsWanted(brief);
+  if (explicit != null) return clampOptionsWanted(explicit);
+
+  const depth = agreedDepth(brief);
+  if (brief.request_type === "outfit" || brief.request_type === "capsule") {
+    return slotDepthForLooks(depth.looks, role);
+  }
+  return depth.picks;
 }
 
 function pickAnchorIndex(garments: string[]): number {
@@ -119,7 +134,6 @@ export function buildSlotsFromGarments(params: {
     ? params.garments
     : [params.brief.garments[0] ?? "item"];
   const anchorIdx = pickAnchorIndex(garments);
-  const optionsWanted = optionsWantedForFallback(params.brief);
   const budgetStated = Boolean(params.brief.budget_context?.stated);
   const fraction = equalFraction(garments.length);
   const department =
@@ -142,7 +156,7 @@ export function buildSlotsFromGarments(params: {
       style_direction: params.brief.style_direction,
       palette_constraint: "broad neutral palette",
       palette_source: "spread" as const,
-      options_wanted: optionsWanted,
+      options_wanted: optionsWantedForFallback(params.brief, role),
       query_variants: variants,
       ...(budgetStated &&
       (params.mode === "outfit" || params.mode === "capsule")
