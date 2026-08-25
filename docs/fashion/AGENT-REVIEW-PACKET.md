@@ -1,6 +1,6 @@
 # Shoop fashion chat agent — review packet
 
-**Audience:** another AI (or engineer) asked to *understand, critique, and improve* the shopping agent.  
+**Audience:** another AI (or engineer) asked to _understand, critique, and improve_ the shopping agent.  
 **Product:** Shoop — personal fashion shopper. Chat is **not** a free-text assistant. One pipeline owns every turn.  
 **Repo:** `shoop-agent-v2`. **Date of this packet:** 2026-08-24.  
 **Source of truth:** code under `src/lib/ai-chat/run-fashion-chat-stream.ts` and `src/lib/fashion-memory/**`. This packet is a map. If packet and code disagree, **code wins**.
@@ -11,13 +11,13 @@
 
 Share **this file plus** the six CI-hashed verbatim prompt files (do not paraphrase prompts when reviewing them):
 
-| File | Live source | Stage |
-|------|-------------|-------|
-| `docs/fashion/router.md` | `src/lib/fashion-memory/router/prompt.ts` | Router (turn owner) |
-| `docs/fashion/planner.md` | `src/lib/fashion-memory/search-planner/prompt.ts` | Search planner |
-| `docs/fashion/extraction.md` | `src/lib/fashion-memory/extraction/prompt.ts` | Async memory clerk |
-| `docs/fashion/curation.md` | `src/lib/fashion-memory/curation/prompt.ts` | Curation Stage A (vision) |
-| `docs/fashion/brand_translate.md` | `src/lib/fashion-memory/brand/prompt.ts` | Unavailable-brand DNA |
+| File                                 | Live source                                        | Stage                      |
+| ------------------------------------ | -------------------------------------------------- | -------------------------- |
+| `docs/fashion/router.md`             | `src/lib/fashion-memory/router/prompt.ts`          | Router (turn owner)        |
+| `docs/fashion/planner.md`            | `src/lib/fashion-memory/search-planner/prompt.ts`  | Search planner             |
+| `docs/fashion/extraction.md`         | `src/lib/fashion-memory/extraction/prompt.ts`      | Async memory clerk         |
+| `docs/fashion/curation.md`           | `src/lib/fashion-memory/curation/prompt.ts`        | Curation Stage A (vision)  |
+| `docs/fashion/brand_translate.md`    | `src/lib/fashion-memory/brand/prompt.ts`           | Unavailable-brand DNA      |
 | `docs/fashion/normalize_classify.md` | `src/lib/fashion-memory/normalize/llm-classify.ts` | Merchant color/size labels |
 
 Deeper operational I/O (fetch/store per call): `docs/fashion/llm-calls.md`.  
@@ -54,14 +54,14 @@ CI: `npm run check:fashion-prompts` — live prompt constants must hash-match th
 
 A bad find is attributable to **exactly one** layer.
 
-| Layer | Job | Owner | Failure mode | Illegal “fixes” |
-|-------|-----|-------|--------------|-----------------|
-| **L2 Interpretation** | Utterance → brief (hard vs soft) | `router/*`, `intake/post-router.ts`, swim refine | Misread her | Prompt bans for catalog leakage |
-| **L3 Eligibility** | Boolean hard predicates only | `hard-drops/*` + `catalog-search/garment-taxonomy.ts` | Wrong item in bench | Haiku “is this a shirt?” gates |
-| **L4 Availability** | Sized + purchasable | Hydration `verified_pool` | Showing unbuyable | Putting overflow on the live rail |
-| **L5 Judgment** | Rank among eligible | `scoring/*`, curator Stage A | Bad taste on a clean bench | Eligibility rules in curator prompt |
-| **L6 Composition** | Count, headers, empty/short prose | `curation/presentation.ts`, `composition-invariants.ts` | Overclaiming / junk-fill | Fake extra picks to fill the rack |
-| **L0 Observability** | Boundary sizes + rejection reasons | `recordPipelineEvent`; hard_drops `rejection_samples` | Untargetable bugs | Logging without samples |
+| Layer                 | Job                                | Owner                                                   | Failure mode               | Illegal “fixes”                     |
+| --------------------- | ---------------------------------- | ------------------------------------------------------- | -------------------------- | ----------------------------------- |
+| **L2 Interpretation** | Utterance → brief (hard vs soft)   | `router/*`, `intake/post-router.ts`, swim refine        | Misread her                | Prompt bans for catalog leakage     |
+| **L3 Eligibility**    | Boolean hard predicates only       | `hard-drops/*` + `catalog-search/garment-taxonomy.ts`   | Wrong item in bench        | Haiku “is this a shirt?” gates      |
+| **L4 Availability**   | Sized + purchasable                | Hydration `verified_pool`                               | Showing unbuyable          | Putting overflow on the live rail   |
+| **L5 Judgment**       | Rank among eligible                | `scoring/*`, curator Stage A                            | Bad taste on a clean bench | Eligibility rules in curator prompt |
+| **L6 Composition**    | Count, headers, empty/short prose  | `curation/presentation.ts`, `composition-invariants.ts` | Overclaiming / junk-fill   | Fake extra picks to fill the rack   |
+| **L0 Observability**  | Boundary sizes + rejection reasons | `recordPipelineEvent`; hard_drops `rejection_samples`   | Untargetable bugs          | Logging without samples             |
 
 ---
 
@@ -121,17 +121,17 @@ Preferences are **assembled**, not read from one “preferences API.”
 
 `assembleRouterContext` (`src/lib/fashion-memory/router/assemble-router-context.ts`):
 
-| Source | What | Used for |
-|--------|------|----------|
-| Prisma `Message` last **12** turns | Conversation | Who, what already asked/answered |
-| Fashion DB `people` (or guest snapshot) | **ROSTER** `#shortId relation (Name)` | Recipient resolution |
-| `fashion_facts` + `style_signals` | **PROFILES** | Sizes, department, no-gos, budgets, taste polarity |
-| Prisma `userProfile` / sizing | Self only | Fill thin fashion facts |
-| Recent `metadata.fashionRouter.brief.recipient_person_id` | Sticky recipient | Continuity |
-| `request_events` last 14 days | `last_search` line | Continuity |
-| Onboarding seed (auth, ≤1.5s) | First-turn memory | Avoid re-asking Fitting |
-| Mention scan | Create gift people **before** LLM | LLM cannot invent person ids |
-| Clock | `CURRENT DATE` `YYYY-MM-DD` | Season / occasion |
+| Source                                                    | What                                  | Used for                                           |
+| --------------------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
+| Prisma `Message` last **12** turns                        | Conversation                          | Who, what already asked/answered                   |
+| Fashion DB `people` (or guest snapshot)                   | **ROSTER** `#shortId relation (Name)` | Recipient resolution                               |
+| `fashion_facts` + `style_signals`                         | **PROFILES**                          | Sizes, department, no-gos, budgets, taste polarity |
+| Prisma `userProfile` / sizing                             | Self only                             | Fill thin fashion facts                            |
+| Recent `metadata.fashionRouter.brief.recipient_person_id` | Sticky recipient                      | Continuity                                         |
+| `request_events` last 14 days                             | `last_search` line                    | Continuity                                         |
+| Onboarding seed (auth, ≤1.5s)                             | First-turn memory                     | Avoid re-asking Fitting                            |
+| Mention scan                                              | Create gift people **before** LLM     | LLM cannot invent person ids                       |
+| Clock                                                     | `CURRENT DATE` `YYYY-MM-DD`           | Season / occasion                                  |
 
 **Account sizing/department apply only to `relation === "self"`.** Gift recipients never inherit the shopper’s size.
 
@@ -150,7 +150,7 @@ last_search: …
 
 Empty person: `(no recorded facts or signals yet)`.
 
-### 4.3 Knowledge that counts *immediately* (doctrine)
+### 4.3 Knowledge that counts _immediately_ (doctrine)
 
 Anything stated **this conversation** (sizes, department, who, budget) is knowledge the moment it is said — same as PROFILES. The router must copy it into `stated_facts`. Asking again is a **hard failure**.
 
@@ -162,8 +162,8 @@ The router’s default is **be sure what the client wants, then search once, wel
 
 Two kinds of questions:
 
-- **Blocking** — search would be *wrong* without the answer (what / who / department / size / occasion). Unchanged.
-- **Consultative** — search would be *different* depending on the answer (depth, preference_anchor, budget, style_lane, color, brand, fit, formality, direction). **Allowed and expected** when the answer would change what a stylist pulls and conversation + PROFILES do not already answer it.
+- **Blocking** — search would be _wrong_ without the answer (what / who / department / size / occasion). Unchanged.
+- **Consultative** — search would be _different_ depending on the answer (depth, preference_anchor, budget, style_lane, color, brand, fit, formality, direction). **Allowed and expected** when the answer would change what a stylist pulls and conversation + PROFILES do not already answer it.
 
 Consultation budget: one round by default, a second only if the first answer opened a real fork. Hard cap in code: 2 consultative rounds per brief, then search. Blocking rounds do not count. Every consultative question carries a “You decide” chip; every consult turn carries a “Just show me” escape. Speed signals (“just go”, “yalla”, “vas-y”) are LLM intent, not regex — stop consulting and list `brief.assumptions`.
 
@@ -189,7 +189,7 @@ Bundle **all** currently-blocking gaps into **one** turn, max **4** questions, e
 
 After `ready_to_search`, code **re-checks** department + sizes. If still missing: `gate_retry` system note + second router call, or deterministic templates (`buildBlockingClarification`).
 
-### 4.7 Async memory (does not help *this* search)
+### 4.7 Async memory (does not help _this_ search)
 
 After SSE ends, `extraction/spawn.ts` runs a detached clerk LLM. It records **person** facts/signals for **future** PROFILES. Item-only request attributes (`"a black shirt"`) are **not** extracted. Guests skip.
 
@@ -199,18 +199,18 @@ Onboarding Fitting free-text and background profile extractor seed the same stor
 
 ## 5. Router (L2) — the turn owner
 
-| | |
-|---|---|
-| Code | `src/lib/fashion-memory/router/llm-router.ts` |
-| Prompt | `ROUTER_PROMPT_STATIC` in `router/prompt.ts` — **verbatim in `docs/fashion/router.md`** |
-| Tools | `respond_off_topic` \| `ask_clarification` \| `ready_to_search` |
-| Model | Sonnet (`FASHION_ROUTER_MODEL`); Opus (`FASHION_ROUTER_ESCALATION_MODEL`) when `assessRouterEscalation` trips |
-| Params | `max_tokens=2048`, `tool_choice=any`. **Omit `temperature`** (Sonnet 5 / Opus 4.7+ → API 400) |
-| Cache | Static prefix cached; roster/PII **only** in uncached suffix |
+|        |                                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------- |
+| Code   | `src/lib/fashion-memory/router/llm-router.ts`                                                                 |
+| Prompt | `ROUTER_PROMPT_STATIC` in `router/prompt.ts` — **verbatim in `docs/fashion/router.md`**                       |
+| Tools  | `respond_off_topic` \| `ask_clarification` \| `ready_to_search`                                               |
+| Model  | Sonnet (`FASHION_ROUTER_MODEL`); Opus (`FASHION_ROUTER_ESCALATION_MODEL`) when `assessRouterEscalation` trips |
+| Params | `max_tokens=2048`, `tool_choice=any`. **Omit `temperature`** (Sonnet 5 / Opus 4.7+ → API 400)                 |
+| Cache  | Static prefix cached; roster/PII **only** in uncached suffix                                                  |
 
 **System as sent:**
 
-1. Cached: entire `ROUTER_PROMPT_STATIC`  
+1. Cached: entire `ROUTER_PROMPT_STATIC`
 2. Uncached suffix (`buildFashionRouterContextBlock`):
 
 ```
@@ -258,13 +258,13 @@ Parse failure → `FALLBACK_CLARIFICATION`: “What are you looking for — a si
 
 ## 6. Search planner — how it “plans”
 
-| | |
-|---|---|
-| Code | `plan-from-brief.ts`, `llm-planner.ts`, `fallback-plan.ts` |
-| Prompt | **verbatim `docs/fashion/planner.md`** |
-| Tool | `plan_search` exactly once |
-| Model | Haiku `FASHION_SEARCH_PLANNER_MODEL` |
-| Fail | Deterministic plan — **no second LLM call** |
+|        |                                                            |
+| ------ | ---------------------------------------------------------- |
+| Code   | `plan-from-brief.ts`, `llm-planner.ts`, `fallback-plan.ts` |
+| Prompt | **verbatim `docs/fashion/planner.md`**                     |
+| Tool   | `plan_search` exactly once                                 |
+| Model  | Haiku `FASHION_SEARCH_PLANNER_MODEL`                       |
+| Fail   | Deterministic plan — **no second LLM call**                |
 
 **User message:**
 
@@ -280,12 +280,12 @@ RECIPIENT PROFILE:
 
 **Job:** decompose the brief into **slots** (garment categories) the way a stylist pulls a showroom:
 
-| `request_type` | Slots |
-|----------------|--------|
-| `single_item` | Exactly 1 |
-| `outfit` | One slot per garment a stylist would pull; exactly one `anchor`; others `support` |
-| `capsule` | Mixable set, **shared palette**; options from rotation count |
-| `multi_item` | Independent anchors, no coherence coupling |
+| `request_type` | Slots                                                                             |
+| -------------- | --------------------------------------------------------------------------------- |
+| `single_item`  | Exactly 1                                                                         |
+| `outfit`       | One slot per garment a stylist would pull; exactly one `anchor`; others `support` |
+| `capsule`      | Mixable set, **shared palette**; options from rotation count                      |
+| `multi_item`   | Independent anchors, no coherence coupling                                        |
 
 Per slot: `garment`, `role`, `style_direction`, `palette_constraint` / `palette_source`, `options_wanted` (1–8), `query_variants` (4–5 strings, best→worst), optional `budget_fraction` (outfit/capsule with stated budget, sum=1).
 
@@ -293,10 +293,10 @@ Per slot: `garment`, `role`, `style_direction`, `palette_constraint` / `palette_
 
 **Code after planner (`finalizeResolvedPlan`):**
 
-1. Clamp (`MAX_PLAN_SLOTS = 12`)  
-2. Outfit/capsule underflow → **deterministic expand** (still no second LLM)  
-3. Drop style-phrase “garments” (`isStylePhraseGarment`)  
-4. Reconcile missing brief garments as support slots  
+1. Clamp (`MAX_PLAN_SLOTS = 12`)
+2. Outfit/capsule underflow → **deterministic expand** (still no second LLM)
+3. Drop style-phrase “garments” (`isStylePhraseGarment`)
+4. Reconcile missing brief garments as support slots
 5. Invariants + `budget_allocation` (`padded_max`, `guardMaxMajor`)
 
 FX: `prefetchFxRates` before hard drops filter on price.
@@ -307,11 +307,11 @@ FX: `prefetchFxRates` before hard drops filter on price.
 
 `searchFashionCatalogPlan` → per-slot `searchCatalogForSlot`:
 
-1. Buyer context: country, currency, language  
-2. `composeSlotIntentString` — ranking **hint** for MCP, not a filter  
-3. Primary query variants, then spare, then reformulation if thin  
-4. Shopify / UCP `search_catalog` via MCP  
-5. Timeouts: hedge **3s**, hard **10s**; target ~100 hits per path  
+1. Buyer context: country, currency, language
+2. `composeSlotIntentString` — ranking **hint** for MCP, not a filter
+3. Primary query variants, then spare, then reformulation if thin
+4. Shopify / UCP `search_catalog` via MCP
+5. Timeouts: hedge **3s**, hard **10s**; target ~100 hits per path
 6. Dedupe → cards with `image_urls`
 
 **Server filters (always):** `available: true`, `ships_to` country.  
@@ -342,16 +342,16 @@ Events must include `rejection_samples` (product_id + rule + evidence). Tripwire
 
 `scoreProduct` → `final`; `stableSortProducts` (ties by original index).
 
-| Component | Weight |
-|-----------|--------|
-| `shopify_rank` | 0.32 |
-| `brand_match` | 0.20 |
-| `corroboration` | 0.11 |
-| `palette` | 0.11 |
-| `size_confirmed` | 0.09 |
-| `rating` | 0.09 |
-| `department_confirmed` | 0.08 |
-| suspicion | 0.03 / flag, cap 0.08 |
+| Component              | Weight                |
+| ---------------------- | --------------------- |
+| `shopify_rank`         | 0.32                  |
+| `brand_match`          | 0.20                  |
+| `corroboration`        | 0.11                  |
+| `palette`              | 0.11                  |
+| `size_confirmed`       | 0.09                  |
+| `rating`               | 0.09                  |
+| `department_confirmed` | 0.08                  |
+| suspicion              | 0.03 / flag, cap 0.08 |
 
 `SCORING_WEIGHTS_VERSION = "20260709-v3-brand"`. Also: attire-conflict penalties, price-outlier suspicion.
 
@@ -371,12 +371,12 @@ Then **provisional rack** SSE (`provisional: true`) so she sees options while St
 
 ### 9.1 Stage A (vision) — never skipped
 
-| | |
-|---|---|
-| Code | `curation/run-curation.ts` |
-| Prompt | **verbatim `docs/fashion/curation.md`** (`CURATION_PROMPT_SKELETON` + mode sections) |
-| Tool | `deliver_curation` |
-| Model | Sonnet `FASHION_CURATION_MODEL` (default `claude-sonnet-5`) |
+|             |                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Code        | `curation/run-curation.ts`                                                                                               |
+| Prompt      | **verbatim `docs/fashion/curation.md`** (`CURATION_PROMPT_SKELETON` + mode sections)                                     |
+| Tool        | `deliver_curation`                                                                                                       |
+| Model       | Sonnet `FASHION_CURATION_MODEL` (default `claude-sonnet-5`)                                                              |
 | Hang-safety | `CURATION_SAFETY_MS` / `CURATION_STAGE_A_HARD_MS` default **180s** outer abort — **not** a quality budget to skip vision |
 
 **House rules (prompt):** exclusions from images; verify attire / department / color (**trust photo over label**) / fit-to-brief; veto clearly wrong; no near-twins; honesty on converted/unknown sizes; state brand outcome; budget sums; one stylist sentence per pick (refined in B); thin/degraded → honest `thin_note`.
@@ -401,12 +401,12 @@ UI renders `render` only (`RENDER_CONTRACT_VERSION = 1`). Client metadata: `fash
 
 ## 10. Extraction (memory clerk)
 
-| | |
-|---|---|
-| Prompt | **verbatim `docs/fashion/extraction.md`** |
-| Tool | `record_fashion_ops` |
-| Gate | `extraction/gate.ts` — short acks only extract when the previous assistant turn was soliciting |
-| Spawn | Detached; never blocks SSE |
+|        |                                                                                                |
+| ------ | ---------------------------------------------------------------------------------------------- |
+| Prompt | **verbatim `docs/fashion/extraction.md`**                                                      |
+| Tool   | `record_fashion_ops`                                                                           |
+| Gate   | `extraction/gate.ts` — short acks only extract when the previous assistant turn was soliciting |
+| Spawn  | Detached; never blocks SSE                                                                     |
 
 Procedure: PERSON vs ITEM → which person (aliases, `new:1`) → KNOWN / GENERAL / THIS-PURCHASE-ONLY. Dislikes while shopping generalize more than likes. Ambiguous subject → record nothing. Application layer owns precedence (`applyFashionOps`). Evidence quote must appear in `[NEW]` text.
 
@@ -424,12 +424,12 @@ These must not become a second chat path.
 
 From `src/lib/fashion-memory/models.ts` + `src/lib/ai-chat/constants.ts`:
 
-| Knob | Default | Stage |
-|------|---------|-------|
-| `AI_CHAT_LIGHTWEIGHT_MODEL` | `claude-haiku-4-5-20251001` | Router, planner, extract, titles, palettes |
-| `AI_CHAT_DEFAULT_MODEL` | `claude-opus-4-8` | Router escalation only |
-| `FASHION_CURATION_MODEL` | `claude-sonnet-5` | Stage A vision |
-| `FASHION_CURATION_VOICE_MODEL` | Haiku | Stage B |
+| Knob                           | Default                     | Stage                                      |
+| ------------------------------ | --------------------------- | ------------------------------------------ |
+| `AI_CHAT_LIGHTWEIGHT_MODEL`    | `claude-haiku-4-5-20251001` | Router, planner, extract, titles, palettes |
+| `AI_CHAT_DEFAULT_MODEL`        | `claude-opus-4-8`           | Router escalation only                     |
+| `FASHION_CURATION_MODEL`       | `claude-sonnet-5`           | Stage A vision                             |
+| `FASHION_CURATION_VOICE_MODEL` | Haiku                       | Stage B                                    |
 
 Opus 4.7+ / Sonnet 5: **omit custom `temperature`** (API 400).
 
@@ -451,15 +451,15 @@ Keep: never-skip Stage A, provisional rack, lean image budgets, style-phrase san
 
 Open surfaces:
 
-1. Latency stack: planner + 10s catalog + 10s normalize fail-open + hydration waves + Sonnet A + Haiku B.  
-2. Color/size not server-filtered — quality depends on normalize + hard drops.  
-3. Listing photos ≠ styled outfits until curator/synthesizer composes looks.  
-4. Thin slots / `unknown_family` taxonomy gaps.  
-5. Budget lift vs interrupt-to-raise-ask.  
-6. Dual UI: missing `render` falls back to raw catalog cards.  
-7. Guest vs auth memory (snapshot vs server facts).  
-8. Measurements stored but **not yet consumed** by search/try-on (`enums.md`).  
-9. Router over-clarifying vs under-clarifying (identity gate vs prompt).  
+1. Latency stack: planner + 10s catalog + 10s normalize fail-open + hydration waves + Sonnet A + Haiku B.
+2. Color/size not server-filtered — quality depends on normalize + hard drops.
+3. Listing photos ≠ styled outfits until curator/synthesizer composes looks.
+4. Thin slots / `unknown_family` taxonomy gaps.
+5. Budget lift vs interrupt-to-raise-ask.
+6. Dual UI: missing `render` falls back to raw catalog cards.
+7. Guest vs auth memory (snapshot vs server facts).
+8. Measurements stored but **not yet consumed** by search/try-on (`enums.md`).
+9. Router over-clarifying vs under-clarifying (identity gate vs prompt).
 10. Planner query vocabulary vs catalog recall.
 
 **Evals to propose against, not instead of:** fixture tests, kill-rate + rejection_samples, curator veto rate, Stage A rung distribution, golden e2e traces, `/flagged` invariant warnings.
@@ -468,22 +468,22 @@ Open surfaces:
 
 ## 15. File map (critical path)
 
-| Path | Role |
-|------|------|
-| `src/app/api/chat/route.ts` | HTTP → SSE |
-| `src/lib/ai-chat/run-fashion-chat-stream.ts` | Orchestrator |
-| `src/lib/fashion-memory/router/*` | L2 brief |
-| `src/lib/fashion-memory/intake/*` | Identity, stated_facts, dedup, dodge |
-| `src/lib/fashion-memory/search-planner/*` | Slots + queries |
-| `src/lib/fashion-memory/catalog-search/*` | MCP fan-out |
-| `src/lib/fashion-memory/hard-drops/*` | L3 |
-| `src/lib/fashion-memory/scoring/*` | L5 rank |
-| `src/lib/fashion-memory/budget/*` | Caps, lift, raise-ask |
-| `src/lib/fashion-memory/hydration/*` | L4 |
-| `src/lib/fashion-memory/curation/*` | Stage A/B, presentation, render |
-| `src/lib/fashion-memory/extraction/*` | Memory clerk |
-| `src/lib/tryon/attach-render.ts` | Try-on on contract |
-| `src/lib/fashion-memory/fixtures/*.test.ts` | Production-trace regressions |
+| Path                                         | Role                                 |
+| -------------------------------------------- | ------------------------------------ |
+| `src/app/api/chat/route.ts`                  | HTTP → SSE                           |
+| `src/lib/ai-chat/run-fashion-chat-stream.ts` | Orchestrator                         |
+| `src/lib/fashion-memory/router/*`            | L2 brief                             |
+| `src/lib/fashion-memory/intake/*`            | Identity, stated_facts, dedup, dodge |
+| `src/lib/fashion-memory/search-planner/*`    | Slots + queries                      |
+| `src/lib/fashion-memory/catalog-search/*`    | MCP fan-out                          |
+| `src/lib/fashion-memory/hard-drops/*`        | L3                                   |
+| `src/lib/fashion-memory/scoring/*`           | L5 rank                              |
+| `src/lib/fashion-memory/budget/*`            | Caps, lift, raise-ask                |
+| `src/lib/fashion-memory/hydration/*`         | L4                                   |
+| `src/lib/fashion-memory/curation/*`          | Stage A/B, presentation, render      |
+| `src/lib/fashion-memory/extraction/*`        | Memory clerk                         |
+| `src/lib/tryon/attach-render.ts`             | Try-on on contract                   |
+| `src/lib/fashion-memory/fixtures/*.test.ts`  | Production-trace regressions         |
 
 ---
 
@@ -493,17 +493,17 @@ You are reviewing Shoop’s **only** chat path: forced-tool router → planner �
 
 **Do:**
 
-- Read this packet and the six verbatim prompt files listed in §0.  
-- Propose a short list of improvements, each tagged with **layer L2–L6** (or L0).  
-- For each: problem, evidence (prompt clause / code file), smallest change, risk, how to test (name a fixture or e2e scenario if possible).  
-- Call out prompt vs code ownership. If the router prompt and identity-gate disagree, say which should win and why (doctrine: stated_facts + conversation).  
+- Read this packet and the six verbatim prompt files listed in §0.
+- Propose a short list of improvements, each tagged with **layer L2–L6** (or L0).
+- For each: problem, evidence (prompt clause / code file), smallest change, risk, how to test (name a fixture or e2e scenario if possible).
+- Call out prompt vs code ownership. If the router prompt and identity-gate disagree, say which should win and why (doctrine: stated_facts + conversation).
 - Preserve: consultation doctrine (search when sure — not search-first), no junk-fill, no unverified live rail, no LLM-invented person ids, no silent brand swap.
 
 **Do not:**
 
-- Invent a second chat model that “just talks.”  
-- Add category bans to the curator to paper over taxonomy leaks.  
-- Skip or half-run Stage A “to save time.”  
+- Invent a second chat model that “just talks.”
+- Add category bans to the curator to paper over taxonomy leaks.
+- Skip or half-run Stage A “to save time.”
 - Coerce `request_type` with keyword lists in code.
 
 Return: (1) architecture understanding in ≤15 bullets, (2) ranked improvement list, (3) explicit non-goals.
