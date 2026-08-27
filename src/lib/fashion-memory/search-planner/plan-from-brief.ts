@@ -10,7 +10,7 @@ import {
   buildFallbackPlan,
   expandOutfitSlots,
   buildSlotsFromGarments,
-  selectGarmentsForPlan,
+  garmentsForPlanFromBrief,
 } from "./fallback-plan";
 import { runSearchPlanner } from "./llm-planner";
 import { buildRecipientProfileBlockForPlanner } from "./recipient-profile";
@@ -38,7 +38,7 @@ function expectedOutfitSlotCount(brief: FashionSearchBrief): number {
     return 1;
   }
   // Never invent a 2-slot minimum when the brief under-specified garments.
-  return Math.max(selectGarmentsForPlan(brief.garments).length, 1);
+  return Math.max(garmentsForPlanFromBrief(brief).length, 1);
 }
 
 function needsOutfitSlotExpansion(plan: FashionSearchPlan): boolean {
@@ -51,7 +51,7 @@ function reconcileOutfitCoverage(plan: FashionSearchPlan): FashionSearchPlan {
   if (needsOutfitSlotExpansion(plan)) {
     return expandOutfitSlots({ plan });
   }
-  const expected = selectGarmentsForPlan(plan.brief.garments);
+  const expected = garmentsForPlanFromBrief(plan.brief);
   const existing = new Set(
     plan.slots.map((s) => garmentSlotFamilyKey(s.garment)),
   );
@@ -94,47 +94,53 @@ async function finalizeResolvedPlan(params: {
   const clamped = clampFashionSearchPlan(working, { traceId: params.traceId });
   working = { ...clamped.plan, plan_source: planSource };
 
-  if (needsOutfitSlotExpansion(working)) {
-    recordPipelineEvent({
-      traceId: params.traceId,
-      stage: "clamp",
-      payload: {
-        kind: "outfit_slot_underflow",
-        mode: working.mode,
-        slot_count: working.slots.length,
-        retried: Boolean(params.retriedPlanner),
-      },
-    });
-
-    if (!params.retriedPlanner && planSource !== "fallback") {
-      // v1.1: ONE live planner call. Slot underflow → deterministic expand, not a second LLM.
-      logAiChat("warn", "fashion_search_planner_outfit_slot_deterministic_expand", {
-        mode: working.mode,
-        slotCount: working.slots.length,
-      });
+  // Always reconcile missing brief/style garments — not only when count underflows.
+  if (working.mode === "outfit" || working.mode === "capsule") {
+    if (needsOutfitSlotExpansion(working)) {
       recordPipelineEvent({
         traceId: params.traceId,
         stage: "clamp",
         payload: {
-          kind: "outfit_slot_deterministic_expand",
+          kind: "outfit_slot_underflow",
           mode: working.mode,
           slot_count: working.slots.length,
+          retried: Boolean(params.retriedPlanner),
         },
       });
+
+      if (!params.retriedPlanner && planSource !== "fallback") {
+        // v1.1: ONE live planner call. Slot underflow → deterministic expand, not a second LLM.
+        logAiChat("warn", "fashion_search_planner_outfit_slot_deterministic_expand", {
+          mode: working.mode,
+          slotCount: working.slots.length,
+        });
+        recordPipelineEvent({
+          traceId: params.traceId,
+          stage: "clamp",
+          payload: {
+            kind: "outfit_slot_deterministic_expand",
+            mode: working.mode,
+            slot_count: working.slots.length,
+          },
+        });
+      }
     }
 
+    const slotCountBefore = working.slots.length;
     working = reconcileOutfitCoverage(working);
-    planSource =
-      working.plan_source === "clamped" ? "clamped" : "fallback";
-    const reclamp = clampFashionSearchPlan(working, {
-      traceId: params.traceId,
-    });
-    working = { ...reclamp.plan, plan_source: planSource };
-    clamped.validatorFallbackSlots.push(
-      ...reclamp.validatorFallbackSlots.filter(
-        (id) => !clamped.validatorFallbackSlots.includes(id),
-      ),
-    );
+    if (working.slots.length !== slotCountBefore) {
+      planSource =
+        working.plan_source === "clamped" ? "clamped" : "fallback";
+      const reclamp = clampFashionSearchPlan(working, {
+        traceId: params.traceId,
+      });
+      working = { ...reclamp.plan, plan_source: planSource };
+      clamped.validatorFallbackSlots.push(
+        ...reclamp.validatorFallbackSlots.filter(
+          (id) => !clamped.validatorFallbackSlots.includes(id),
+        ),
+      );
+    }
   }
 
   if (
@@ -148,6 +154,7 @@ async function finalizeResolvedPlan(params: {
 
   // Drop any style-phrase slots the planner still emitted.
   const beforeSlots = working.slots.length;
+  const beforeGarments = working.slots.map((s) => s.garment);
   working = {
     ...working,
     slots: working.slots.filter((s) => !isStylePhraseGarment(s.garment)),
@@ -162,8 +169,30 @@ async function finalizeResolvedPlan(params: {
         after: working.slots.length,
       },
     });
-    if (working.slots.length < 2 && (working.mode === "outfit" || working.mode === "capsule")) {
+    if (working.mode === "outfit" || working.mode === "capsule") {
       working = reconcileOutfitCoverage(working);
+    }
+  }
+
+  // Log brief garments still absent after finalize (truncate / style-phrase drop).
+  if (working.mode === "outfit" || working.mode === "capsule") {
+    const expected = garmentsForPlanFromBrief(working.brief);
+    const have = new Set(
+      working.slots.map((s) => garmentSlotFamilyKey(s.garment)),
+    );
+    const slots_dropped_from_brief = expected.filter(
+      (g) => !have.has(garmentSlotFamilyKey(g)),
+    );
+    if (slots_dropped_from_brief.length) {
+      recordPipelineEvent({
+        traceId: params.traceId,
+        stage: "clamp",
+        payload: {
+          kind: "slots_dropped_from_brief",
+          slots_dropped_from_brief,
+          before_garments: beforeGarments,
+        },
+      });
     }
   }
 
@@ -214,6 +243,7 @@ export type PlanFromBriefResult = {
   plan: FashionSearchPlan;
   /** Reuse for curation — avoid a second recipient-profile DB build. */
   recipientProfile: string;
+  planner_ms: number;
 };
 
 /** Full pipeline: LLM plan → Phase 3 validation → clamps → persisted shape. */
@@ -227,6 +257,7 @@ export async function planSearchFromBrief(params: {
   traceId?: string | null;
   plannerDeps?: import("./llm-planner").RunSearchPlannerDeps;
 }): Promise<PlanFromBriefResult> {
+  const plannerStarted = Date.now();
   const sanitized = sanitizeBriefGarments({
     ...params.brief,
     recipient_person_id: params.recipientPersonId,
@@ -296,7 +327,11 @@ export async function planSearchFromBrief(params: {
     signal: params.signal,
     traceId: params.traceId,
   });
-  return { plan: resolved, recipientProfile };
+  return {
+    plan: resolved,
+    recipientProfile,
+    planner_ms: Date.now() - plannerStarted,
+  };
 }
 
 /**

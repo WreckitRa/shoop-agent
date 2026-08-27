@@ -1,4 +1,5 @@
 import type { FashionSearchBrief } from "../router/types";
+import { garmentSlotFamilyKey } from "../router/garment-family";
 import { agreedDepth, DEPTH_CEILING, slotDepthForLooks } from "../agreed-depth";
 import {
   allowedColorWordsFromBrief,
@@ -15,6 +16,10 @@ const MAX_SLOTS = 12;
 
 const TOP_GARMENT_RE =
   /\b(shirt|blazer|jacket|coat|dress|top|blouse|sweater|hoodie|suit)\b/i;
+
+/** Garment nouns a style_direction line may name that the plan must still slot. */
+const STYLE_NAMED_GARMENT_RE =
+  /\b(shirts?|blazers?|jackets?|coats?|trousers?|pants?|jeans?|shoes?|boots?|sneakers?|ties?|belts?|dresses?|skirts?|sweaters?|hoodies?|tops?|blouses?|oxfords?|loafers?|chinos?|shorts?|suits?)\b/gi;
 
 /** Lower = more occasion-central (shirt/trousers/shoes before tie). */
 export function garmentOccasionRank(garment: string): number {
@@ -48,10 +53,35 @@ export function selectGarmentsForPlan(
 
 /**
  * Prefer brief garments for outfit/capsule plans. Never invent a
- * shirt/trousers/shoes wardrobe from occasion keywords.
+ * shirt/trousers/shoes wardrobe from occasion keywords. Also pull any
+ * garment noun named in style_direction (e.g. "with a blazer") into slots.
  */
+export function garmentsNamedInStyleDirection(style: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const match of style.matchAll(STYLE_NAMED_GARMENT_RE)) {
+    const raw = match[0]!.toLowerCase();
+    const key = garmentSlotFamilyKey(raw);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(raw);
+  }
+  return out;
+}
+
 export function garmentsForPlanFromBrief(brief: FashionSearchBrief): string[] {
-  return selectGarmentsForPlan(brief.garments);
+  const fromBrief = brief.garments ?? [];
+  const fromStyle = garmentsNamedInStyleDirection(brief.style_direction ?? "");
+  if (!fromStyle.length) return selectGarmentsForPlan(fromBrief);
+  const merged = [...fromBrief];
+  const seen = new Set(fromBrief.map((g) => garmentSlotFamilyKey(g)));
+  for (const g of fromStyle) {
+    const key = garmentSlotFamilyKey(g);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(g);
+  }
+  return selectGarmentsForPlan(merged);
 }
 
 export const FALLBACK_OPTIONS_WANTED = 4;
