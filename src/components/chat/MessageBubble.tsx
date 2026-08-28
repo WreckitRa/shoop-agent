@@ -12,18 +12,12 @@ import { FashionCurationResults } from "@/components/chat/FashionCurationResults
 import { FashionRouterControls } from "@/components/chat/FashionRouterControls";
 import { cn } from "@/lib/ai-chat/cn";
 import { hydratedCandidateToProductCard } from "@/lib/fashion-memory/catalog-search/product-card";
+import {
+  fashionCatalogHasResults,
+  fashionCatalogReadyToDisplay,
+} from "@/lib/fashion-memory/catalog-search/display-ready";
 import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
 import type { ChatMessage } from "@/lib/ai-chat/types";
-
-function fashionCatalogHasResults(
-  catalogSearch: MessageFashionCatalogSearchMetaV1 | undefined,
-): boolean {
-  return Boolean(
-    catalogSearch?.curation ||
-      catalogSearch?.render ||
-      catalogSearch?.slots?.some((slot) => (slot.verified_pool?.length ?? 0) > 0),
-  );
-}
 
 /** Real product thumbnails streamed in mid-search, to seed the loader rack. */
 function collectStreamedImages(
@@ -88,7 +82,7 @@ export const MessageBubble = memo(function MessageBubble({
   const showFashionLoader =
     message.status === "streaming" &&
     streamingFashionPipeline &&
-    !fashionCatalogHasResults(fashionCatalogSearch);
+    !fashionCatalogReadyToDisplay(fashionCatalogSearch);
 
   const loaderImages = collectStreamedImages(
     fashionCatalogSearch,
@@ -199,7 +193,10 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
       ) : null}
 
-      {!isUser && fashionCatalogSearch?.curation && fashionCatalogSearch.render ? (
+      {!isUser &&
+      !fashionCatalogSearch?.provisional &&
+      fashionCatalogSearch?.curation &&
+      fashionCatalogSearch.render ? (
         <ChatMessageProductLinkProvider messageId={message.id}>
           <div className="mt-4 w-full">
             <FashionCurationResults
@@ -211,6 +208,7 @@ export const MessageBubble = memo(function MessageBubble({
       ) : null}
 
       {!isUser &&
+      !fashionCatalogSearch?.provisional &&
       fashionCatalogSearch?.slots.length &&
       (!fashionCatalogSearch.curation || !fashionCatalogSearch.render) ? (
         <ChatMessageProductLinkProvider messageId={message.id}>

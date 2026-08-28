@@ -9,6 +9,7 @@ import {
 } from "./garment-taxonomy";
 import { dedupeSlotCatalogHits } from "./dedupe";
 import { buildReformulationQueryVariants } from "./reformulation";
+import { fashionCatalogReadyToDisplay } from "./display-ready";
 import type { FashionSearchPlanSlot } from "../search-planner/types";
 import type { FashionSearchBrief } from "../router/types";
 import type { CatalogProductSummary } from "@/lib/shopify/catalog";
@@ -319,5 +320,32 @@ describe("buildReformulationQueryVariants", () => {
         false,
       );
     }
+  });
+});
+
+describe("fashionCatalogReadyToDisplay", () => {
+  it("keeps the loader up while the hydration rack is still provisional", () => {
+    assert.equal(
+      fashionCatalogReadyToDisplay({
+        version: 1,
+        slots: [],
+        timing_ms: 1,
+        provisional: true,
+        curation: { version: 1 } as never,
+        render: { looks: [{ name: "Look 1", item_refs: ["a"] }] } as never,
+      }),
+      false,
+    );
+  });
+
+  it("is ready once final curation arrives", () => {
+    assert.equal(
+      fashionCatalogReadyToDisplay({
+        version: 1,
+        slots: [{ verified_pool: [{ id: "p1" }] } as never],
+        timing_ms: 1,
+      }),
+      true,
+    );
   });
 });

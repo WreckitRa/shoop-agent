@@ -26,6 +26,7 @@ import {
 import { useToastStore } from "@/lib/client/toast-store";
 import { consumeChatSseStream } from "@/lib/ai-chat/sse-client";
 import type { MessageFashionCatalogSearchMetaV1 } from "@/lib/fashion-memory/catalog-search/types";
+import { fashionCatalogReadyToDisplay } from "@/lib/fashion-memory/catalog-search/display-ready";
 import { scheduleIdleWork } from "@/lib/fashion-memory/schedule-detached";
 import {
   loadGuestFashionStore,
@@ -415,16 +416,6 @@ function isMessageFashionCatalogSearchV1(
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
   return o.version === 1 && Array.isArray(o.slots);
-}
-
-function fashionCatalogHasResults(
-  catalogSearch: MessageFashionCatalogSearchMetaV1 | undefined,
-): boolean {
-  return Boolean(
-    catalogSearch?.curation ||
-      catalogSearch?.render ||
-      catalogSearch?.slots?.some((slot) => (slot.verified_pool?.length ?? 0) > 0),
-  );
 }
 
 type StreamMode = "send" | "edit" | "regenerate";
@@ -849,7 +840,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           setMessagesIfStillViewing(streamId, resolvedConversationId, (s) => ({
             messages: applyFashionCatalogSearch(s.messages, mid, catalogSearch),
           }));
-          if (fashionCatalogHasResults(catalogSearch)) {
+          if (fashionCatalogReadyToDisplay(catalogSearch)) {
             setIfActive(streamId, () => ({
               streamingFashionPipeline: false,
               streamingFashionPreviewImages: [],

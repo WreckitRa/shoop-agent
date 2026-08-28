@@ -368,6 +368,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
   });
 
   if (!render?.tiers.picks.length) return null;
+  if (data.provisional) return null;
 
   const selectedProductId =
     expanded?.messageId === messageId ? expanded.productId : null;

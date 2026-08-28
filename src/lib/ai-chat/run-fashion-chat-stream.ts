@@ -650,10 +650,10 @@ export function createFashionChatSseStream(params: {
                 ),
               onProvisional: async ({ curation }) => {
                 try {
-                  const render = await buildRenderContractWithTryon({
+                  // Hydration preview only — do not try-on or show looks until Stage A.
+                  const render = buildRenderContract({
                     presentation: curation,
                     plan: searchPlan,
-                    userId,
                   });
                   const provisionalMeta: MessageFashionCatalogSearchMetaV1 = {
                     version: 1,
