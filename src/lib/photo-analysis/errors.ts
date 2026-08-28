@@ -7,6 +7,7 @@ export const PHOTO_ERROR = {
   empty: "Couldn’t read that photo — try again.",
   non_json: "Couldn’t read that photo — try again.",
   incomplete: "Couldn’t finish reading that photo — try again.",
+  verdict_incomplete: "Couldn’t finish writing your verdict — try again.",
   failed: "Couldn’t finish — try again.",
   no_face: "Couldn't find a face in this photo.",
   face_off: "Face is too small or cut off — try a clearer shot.",

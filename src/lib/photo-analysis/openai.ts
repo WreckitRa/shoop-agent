@@ -97,6 +97,8 @@ export type PhotoJsonSchemaCall = {
   maxOutputTokens: number;
   timeoutMs: number;
   safetyIdentifier?: string;
+  /** Override the truncated/incomplete public line (verdict vs photo). */
+  incompleteError?: string;
 };
 
 export async function callPhotoJsonSchema(
@@ -163,7 +165,7 @@ export async function callPhotoJsonSchema(
     typeof payload === "object" &&
     (payload as { status?: string }).status === "incomplete"
   ) {
-    throw new Error(PHOTO_ERROR.incomplete);
+    throw new Error(opts.incompleteError ?? PHOTO_ERROR.incomplete);
   }
 
   const text = photoGptOutputText(payload);

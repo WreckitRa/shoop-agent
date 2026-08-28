@@ -36,8 +36,8 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const [moodCount, setMoodCount] = useState<number | null>(null);
 
   useEffect(() => {
-    if (status === "unknown") void refresh();
-  }, [status, refresh]);
+    void refresh();
+  }, [identityScope, refresh]);
 
   useEffect(() => {
     let cancelled = false;

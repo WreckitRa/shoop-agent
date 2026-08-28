@@ -18,6 +18,7 @@ import {
   saveVerdictError,
   saveVerdictRunning,
   toPublic,
+  expireStaleRunningVerdict,
 } from "@/lib/photo-analysis/store";
 
 export const runtime = "nodejs";
@@ -75,11 +76,12 @@ export async function POST(req: Request) {
       }
     : assembled.measurements;
 
+  const row = await expireStaleRunningVerdict(assembled.row);
   if (
-    assembled.row.verdictStatus === "running" ||
-    (assembled.row.verdictStatus === "done" && assembled.row.verdict)
+    row.verdictStatus === "running" ||
+    (row.verdictStatus === "done" && row.verdict)
   ) {
-    return Response.json({ analysis: toPublic(assembled.row) });
+    return Response.json({ analysis: toPublic(row) });
   }
 
   try {

@@ -153,6 +153,8 @@ QUALITY STANDARD
 - Do not expose hidden chain-of-thought. Provide brief rationales only.
 - Do not mention being an AI, prompts, schemas, tokens, or internal policy.
 - Return only the structured result required by the JSON Schema.
+- Keep arrays short: at most 6 items, garment_playbook at most 8 categories,
+  outfit_formulas at most 5. Short strings. Do not pad fields to fill the schema.
 `;
 
 export const STYLIST_VERDICT_SCHEMA_NAME = "canonical_personal_stylist_verdict";

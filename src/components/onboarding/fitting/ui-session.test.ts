@@ -3,6 +3,7 @@ import { beforeEach, describe, it } from "node:test";
 import {
   ONBOARDING_UI_SESSION_KEY,
   clearOnboardingUiSession,
+  isFinishingFitting,
   markOnboardingUiDismissed,
   markOnboardingUiResumed,
   readOnboardingUiSession,
@@ -62,5 +63,15 @@ describe("onboarding ui session", () => {
     assert.equal(readOnboardingUiSession()?.step, "circle");
     clearOnboardingUiSession();
     assert.equal(readOnboardingUiSession(), null);
+  });
+
+  it("treats an open verdict session as the save-and-close point", () => {
+    writeOnboardingUiSession({ step: "verdict", finale: "card" });
+    assert.equal(isFinishingFitting(readOnboardingUiSession()), true);
+    writeOnboardingUiSession({ step: "circle" });
+    assert.equal(isFinishingFitting(readOnboardingUiSession()), false);
+    writeOnboardingUiSession({ step: "verdict" });
+    markOnboardingUiDismissed();
+    assert.equal(isFinishingFitting(readOnboardingUiSession()), false);
   });
 });

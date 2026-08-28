@@ -9,8 +9,10 @@ import {
 } from "./verdict-prompt";
 
 export const DEFAULT_STYLIST_VERDICT_MODEL = "gpt-5.6-sol";
-const VERDICT_TIMEOUT_MS = 250_000;
-const VERDICT_MAX_OUTPUT_TOKENS = 16_000;
+/** Client + after() budget. Reasoning tokens count against max_output_tokens. */
+export const VERDICT_TIMEOUT_MS = 180_000;
+export const VERDICT_STALE_MS = VERDICT_TIMEOUT_MS + 20_000;
+const VERDICT_MAX_OUTPUT_TOKENS = 32_000;
 
 export function stylistVerdictModel(): string {
   const override = process.env.OPENAI_STYLIST_VERDICT_MODEL?.trim();
@@ -195,12 +197,15 @@ export async function generateStylistVerdict({
     application_context: applicationContext,
   };
 
+  const started = Date.now();
   return withPhotoGptLock(async () => {
+    const remaining = VERDICT_TIMEOUT_MS - (Date.now() - started);
+    if (remaining < 8_000) throw new Error(PHOTO_ERROR.timeout);
     const raw = await callPhotoJsonSchema({
       model: stylistVerdictModel(),
-      // medium: high was routinely 90–180s for this schema; medium keeps
-      // structured quality without the dead-air wait on the Fitting screen.
-      reasoning: { effort: "medium" },
+      // low: medium + this schema routinely burned the 16k cap (incomplete)
+      // and sat on the Fitting screen past five minutes.
+      reasoning: { effort: "low" },
       instructions: STYLIST_VERDICT_INSTRUCTIONS,
       userContent: [
         { type: "input_text", text: JSON.stringify(profilePayload) },
@@ -211,8 +216,9 @@ export async function generateStylistVerdict({
         schema: STYLIST_VERDICT_SCHEMA,
       },
       maxOutputTokens: VERDICT_MAX_OUTPUT_TOKENS,
-      timeoutMs: VERDICT_TIMEOUT_MS,
+      timeoutMs: remaining,
       safetyIdentifier,
+      incompleteError: PHOTO_ERROR.verdict_incomplete,
     });
     const verdict = parseStylistVerdict(raw);
     if (!verdict) throw new Error(PHOTO_ERROR.non_json);

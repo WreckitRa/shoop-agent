@@ -72,4 +72,17 @@ describe("photoScanPhase", () => {
     assert.equal(photoScanPhase(null), "reading");
     assert.equal(photoScanPhase(row({ status: "running" })), "reading");
   });
+
+  it("surfaces a verdict failure as error, not writing", () => {
+    assert.equal(
+      photoScanPhase(
+        row({
+          userReview: review(),
+          verdictStatus: "done",
+          verdictError: "Couldn’t finish writing your verdict — try again.",
+        }),
+      ),
+      "error",
+    );
+  });
 });

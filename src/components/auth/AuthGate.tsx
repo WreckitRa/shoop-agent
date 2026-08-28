@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { BiometricReconsentGate } from "@/components/legal/BiometricReconsentGate";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
+import { isFinishingFitting, readOnboardingUiSession } from "@/components/onboarding/fitting/ui-session";
+import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { GuestLeavePrompt } from "@/components/auth/GuestLeavePrompt";
 import { OnboardingLeaveFomo } from "@/components/onboarding/fitting/OnboardingLeaveFomo";
 import { ShoopLogo } from "@/components/brand/ShoopBrand";
@@ -136,9 +138,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         });
         if (!useInlineFittingStore.getState().columnOpen) {
           leaveConversationRoute();
-        } else {
+        } else if (!isFinishingFitting(readOnboardingUiSession())) {
           useInlineFittingStore.getState().setOnboardingActive(true);
         }
+        void useSelfAvatarStore.getState().refresh();
         setShowAuthModal(false);
         setPendingEmail(null);
         setVerifyCode("");

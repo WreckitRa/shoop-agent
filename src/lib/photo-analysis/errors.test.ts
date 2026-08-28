@@ -53,4 +53,12 @@ describe("photo-analysis errors", () => {
       PHOTO_ERROR.missing_key,
     );
   });
+
+  it("does not map a verdict truncation to the photo-scan line", () => {
+    assert.equal(
+      publicPhotoError(PHOTO_ERROR.verdict_incomplete),
+      PHOTO_ERROR.verdict_incomplete,
+    );
+    assert.equal(classifyPhotoError("max_output_tokens"), "incomplete");
+  });
 });

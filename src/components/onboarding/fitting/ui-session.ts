@@ -119,3 +119,12 @@ export function markOnboardingUiResumed() {
   if (!prev) return;
   writeOnboardingUiSession({ ...prev, dismissed: false });
 }
+
+/** Last step — after save/login, close Fitting onto the You mirror. */
+export function isFinishingFitting(
+  session: OnboardingUiSession | null,
+): boolean {
+  return Boolean(
+    session && session.step === "verdict" && session.dismissed !== true,
+  );
+}

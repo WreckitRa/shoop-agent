@@ -545,6 +545,7 @@ export function OnboardingGate() {
   const setOnboardingActive = useInlineFittingStore(
     (s) => s.setOnboardingActive,
   );
+  const wasGuestRef = useRef(accessMode === "guest");
   const [flash, setFlash] = useState<{
     status: string;
     detail: string;
@@ -611,6 +612,7 @@ export function OnboardingGate() {
   const [kids, setKids] = useState("");
   const [climate, setClimate] = useState("");
   const detectedArea = useUserProfileStore((s) => s.detectedArea);
+  const profileCompleted = useUserProfileStore((s) => s.onboardingCompleted);
   const [city, setCity] = useState(DEFAULT_CITY);
   const [shippingCountry, setShippingCountry] = useState(
     DEFAULT_SHIPPING_COUNTRY,
@@ -2483,10 +2485,13 @@ export function OnboardingGate() {
       }
       useUserProfileStore.getState().setOnboardingCompleted(true);
       void useUserProfileStore.getState().hydrate({ force: true });
+      if (twinAvatarUrl) useSelfAvatarStore.getState().markReady(twinAvatarUrl);
       void useSelfAvatarStore.getState().refresh();
-      writeOnboardingUiSession({ step: "verdict", finale: "card" });
+      clearOnboardingUiSession();
       clearGuestPhotoLive();
-      setHoldOpen(true);
+      setHoldOpen(false);
+      useInlineFittingStore.getState().dismissColumn();
+      useInlineFittingStore.getState().setOnboardingActive(false);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not finish onboarding.",
@@ -3046,14 +3051,23 @@ export function OnboardingGate() {
   ]);
 
   const incomplete =
-    holdOpen ||
     replayFitting ||
-    Boolean(status?.onboarding && !status.onboarding.completed);
+    (profileCompleted !== true &&
+      (holdOpen ||
+        Boolean(status?.onboarding && !status.onboarding.completed)));
 
   useLayoutEffect(() => {
     if (loading) return;
     setOnboardingActive(incomplete);
   }, [incomplete, loading, setOnboardingActive]);
+
+  useEffect(() => {
+    const wasGuest = wasGuestRef.current;
+    wasGuestRef.current = accessMode === "guest";
+    if (!wasGuest || accessMode !== "authenticated") return;
+    if (step !== "verdict") return;
+    void completeOnboarding();
+  }, [accessMode, step]);
 
   const progressPct =
     step === "verdict"

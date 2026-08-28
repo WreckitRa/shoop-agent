@@ -21,6 +21,7 @@ import {
   saveReview,
   toPublic,
   upsertRunning,
+  expireStaleRunningVerdict,
 } from "@/lib/photo-analysis/store";
 import { DEFAULT_TARGET_PERSON } from "@/lib/photo-analysis/types";
 import { parseStyleUserReview } from "@/lib/photo-analysis/review";
@@ -67,7 +68,8 @@ export async function GET(req: Request) {
     ? await findByHash(auth.userId, hash)
     : await findLatestAnalysis(auth.userId);
   if (!row) return Response.json({ analysis: null });
-  return Response.json({ analysis: toPublic(row) });
+  const next = await expireStaleRunningVerdict(row);
+  return Response.json({ analysis: toPublic(next) });
 }
 
 export async function POST(req: Request) {

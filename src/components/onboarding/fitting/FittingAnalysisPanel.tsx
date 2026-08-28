@@ -280,14 +280,17 @@ export function FittingAnalysisPanel({
             { text: "what %%suits you.%%", red: true },
           ]}
         />
-        <FittingWhisper>
-          Your approved scan, body, era, week, and taste — turned into rules
-          you can shop with. Usually under two minutes.           Watch your twin — that&apos;s the only picture.
-        </FittingWhisper>
+        {genError || analysis?.verdictError ? null : (
+          <FittingWhisper>
+            Your approved scan, body, era, week, and taste — turned into rules
+            you can shop with. Usually under two minutes. Watch your twin —
+            that&apos;s the only picture.
+          </FittingWhisper>
+        )}
         {!genError && !analysis?.verdictError ? (
           <FittingWaitProgress
             steps={VERDICT_WAIT_STEPS}
-            expectedMs={100_000}
+            expectedMs={90_000}
           />
         ) : null}
         {genError ? (
@@ -298,7 +301,31 @@ export function FittingAnalysisPanel({
         {analysis?.verdictError ? (
           <div className="mt-8">
             <FittingWhisper>{analysis.verdictError}</FittingWhisper>
-            <FittingCta onClick={onSkip}>Continue without it</FittingCta>
+            <div className="mt-6 flex flex-col gap-2">
+              <FittingCta
+                onClick={() => {
+                  kickOnceRef.current = false;
+                  completedRef.current = false;
+                  setGenError(null);
+                  void kickVerdict(analysis);
+                }}
+              >
+                Try again
+              </FittingCta>
+              <FittingCta onClick={onSkip}>Continue without it</FittingCta>
+            </div>
+          </div>
+        ) : genError ? (
+          <div className="mt-6">
+            <FittingCta
+              onClick={() => {
+                kickOnceRef.current = false;
+                setGenError(null);
+                if (analysis) void kickVerdict(analysis);
+              }}
+            >
+              Try again
+            </FittingCta>
           </div>
         ) : null}
       </section>

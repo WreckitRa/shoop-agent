@@ -13,7 +13,7 @@ import {
   PHOTO_ANALYSIS_ENGINE_VERSION,
   type PhotoAnalysisPublic,
 } from "./types";
-import { parseStylistVerdict, type StylistVerdict } from "./verdict";
+import { parseStylistVerdict, VERDICT_STALE_MS, type StylistVerdict } from "./verdict";
 
 /**
  * PhotoAnalysis is queried via SQL, not the Prisma delegate.
@@ -37,6 +37,7 @@ export type PhotoAnalysisRow = {
   model: string | null;
   engineVersion: string;
   createdAt: Date;
+  updatedAt: Date;
 };
 
 function jsonSql(value: unknown): Prisma.Sql {
@@ -73,6 +74,7 @@ function mapRow(raw: Record<string, unknown>): PhotoAnalysisRow {
     model: raw.model == null ? null : String(raw.model),
     engineVersion: String(raw.engineVersion),
     createdAt: asDate(raw.createdAt),
+    updatedAt: asDate(raw.updatedAt ?? raw.createdAt),
   };
 }
 
@@ -107,7 +109,7 @@ export async function findLatestAnalysis(userId: string) {
     SELECT
       id, "photoHash", status, gate, result, "userReview",
       verdict, "verdictStatus", "verdictError", "verdictMs", "verdictModel",
-      error, ms, model, "engineVersion", "createdAt"
+      error, ms, model, "engineVersion", "createdAt", "updatedAt"
     FROM "PhotoAnalysis"
     WHERE "userId" = ${userId}
     ORDER BY "createdAt" DESC
@@ -121,7 +123,7 @@ export async function findByHash(userId: string, photoHash: string) {
     SELECT
       id, "photoHash", status, gate, result, "userReview",
       verdict, "verdictStatus", "verdictError", "verdictMs", "verdictModel",
-      error, ms, model, "engineVersion", "createdAt"
+      error, ms, model, "engineVersion", "createdAt", "updatedAt"
     FROM "PhotoAnalysis"
     WHERE "userId" = ${userId} AND "photoHash" = ${photoHash}
     LIMIT 1
@@ -155,11 +157,28 @@ export async function upsertRunning(userId: string, photoHash: string) {
     RETURNING
       id, "photoHash", status, gate, result, "userReview",
       verdict, "verdictStatus", "verdictError", "verdictMs", "verdictModel",
-      error, ms, model, "engineVersion", "createdAt"
+      error, ms, model, "engineVersion", "createdAt", "updatedAt"
   `);
   const row = rows[0];
   if (!row) throw new Error("PhotoAnalysis upsert returned no row.");
   return row;
+}
+
+/** If after() died mid-verdict, surface a timeout instead of polling forever. */
+export async function expireStaleRunningVerdict(
+  row: PhotoAnalysisRow,
+): Promise<PhotoAnalysisRow> {
+  if (row.verdictStatus !== "running") return row;
+  const age = Date.now() - row.updatedAt.getTime();
+  if (age < VERDICT_STALE_MS) return row;
+  await saveVerdictError(row.id, PHOTO_ERROR.timeout, age, row.verdictModel);
+  return {
+    ...row,
+    verdictStatus: "done",
+    verdictError: PHOTO_ERROR.timeout,
+    verdictMs: age,
+    updatedAt: new Date(),
+  };
 }
 
 export async function saveOutcome(opts: {
