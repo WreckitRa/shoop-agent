@@ -6,7 +6,11 @@ import {
 import type { PersonDepartment } from "@/lib/fashion-memory/department";
 import { listPeopleForUser } from "@/lib/fashion-memory/people";
 import { requireAvatarOwner } from "@/lib/tryon/avatar/request-auth";
-import { getStoredAvatar } from "@/lib/tryon/avatar/service";
+import { resolveDisplayedAvatarUrl } from "@/lib/tryon/avatar/image-src";
+import {
+  getStoredAvatar,
+  personHasStoredAvatar,
+} from "@/lib/tryon/avatar/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +45,8 @@ export async function GET(req: Request) {
     const rows = await Promise.all(
       people.map(async (person) => {
         const avatar = await getStoredAvatar(owner.userId, person.id);
+        const has_avatar =
+          personHasStoredAvatar(person.avatar) || personHasStoredAvatar(avatar);
         const department = await personDepartment(owner.userId, person.id);
         const measurements_on_file = await countActiveMeasurementFacts({
           userId: owner.userId,
@@ -51,8 +57,12 @@ export async function GET(req: Request) {
           relation: person.relation,
           name: person.name,
           label: personLabel(person.relation, person.name),
-          has_avatar: Boolean(avatar?.url || avatar?.storage_path),
-          avatar_url: avatar?.url ?? null,
+          has_avatar,
+          avatar_url: resolveDisplayedAvatarUrl({
+            personId: person.id,
+            hasAvatar: has_avatar,
+            signedUrl: avatar?.url,
+          }),
           department,
           measurements_on_file,
         };

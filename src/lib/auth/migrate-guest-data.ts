@@ -7,6 +7,8 @@ import { migrateGuestFashionMemoryToUser } from "@/lib/fashion-memory/migrate-gu
 import { ensureSelfPerson } from "@/lib/fashion-memory/people";
 import type { PersonRow } from "@/lib/fashion-memory/types";
 import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
+import { personHasStoredAvatar } from "@/lib/tryon/avatar/service";
+import type { StoredAvatar } from "@/lib/tryon/types";
 
 async function reassignGuestUserId(guestUserId: string, realUserId: string) {
   await prisma.$transaction([
@@ -138,7 +140,7 @@ async function importLocalGuestData(realUserId: string, data: GuestLocalData) {
 }
 
 /** Move guest-session twin rows onto the signed-in user. */
-async function claimGuestAvatar(guestUserId: string, realUserId: string) {
+export async function claimGuestAvatar(guestUserId: string, realUserId: string) {
   const sessionUuid = fashionOwnerUserId(guestUserId);
   if (!sessionUuid || sessionUuid === realUserId) return;
 
@@ -167,25 +169,31 @@ async function claimGuestAvatar(guestUserId: string, realUserId: string) {
   }
 
   const g = guestRow as PersonRow & {
-    avatar?: unknown;
+    avatar?: StoredAvatar | null;
     avatar_source_photo_path?: string | null;
   };
-  if (g.avatar || g.avatar_source_photo_path) {
+  const draft = await db
+    .from("avatar_drafts")
+    .select("*")
+    .eq("person_id", guestRow.id)
+    .maybeSingle();
+  const fromDraft = twinFromDraftPreview(draft.data);
+  const guestTwin = personHasStoredAvatar(g.avatar) ? g.avatar : fromDraft;
+  const realHasTwin = personHasStoredAvatar(
+    (realSelf as PersonRow & { avatar?: StoredAvatar | null }).avatar,
+  );
+
+  if (guestTwin && !realHasTwin) {
     await db
       .from("people")
       .update({
-        avatar: g.avatar ?? null,
+        avatar: guestTwin,
         avatar_source_photo_path: g.avatar_source_photo_path ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", realSelf.id);
   }
 
-  const draft = await db
-    .from("avatar_drafts")
-    .select("*")
-    .eq("person_id", guestRow.id)
-    .maybeSingle();
   if (draft.data) {
     await db.from("avatar_drafts").delete().eq("person_id", realSelf.id);
     await db.from("avatar_drafts").upsert({
@@ -209,14 +217,39 @@ async function claimGuestAvatar(guestUserId: string, realUserId: string) {
   await db.from("people").delete().eq("id", guestRow.id);
 }
 
+function twinFromDraftPreview(draft: unknown): StoredAvatar | null {
+  if (!draft || typeof draft !== "object") return null;
+  const row = draft as {
+    preview_path?: unknown;
+    preview_url?: unknown;
+    attributes?: unknown;
+  };
+  const path =
+    typeof row.preview_path === "string" ? row.preview_path.trim() : "";
+  if (!path) return null;
+  return {
+    url: typeof row.preview_url === "string" ? row.preview_url : "",
+    storage_path: path,
+    attributes:
+      row.attributes && typeof row.attributes === "object"
+        ? (row.attributes as StoredAvatar["attributes"])
+        : {},
+    created_at: new Date().toISOString(),
+    version: `av_${Date.now()}`,
+  };
+}
+
 export async function migrateGuestDataToUser(params: {
   guestId: string;
   realUserId: string;
   localData?: GuestLocalData;
+  /** Login: attach the guest twin without importing chats onto the account. */
+  avatarOnly?: boolean;
 }) {
   const guestUserId = guestUserIdFromSessionId(params.guestId);
-  await reassignGuestUserId(guestUserId, params.realUserId);
   await claimGuestAvatar(guestUserId, params.realUserId);
+  if (params.avatarOnly) return { guestUserId };
+  await reassignGuestUserId(guestUserId, params.realUserId);
   if (params.localData) {
     await importLocalGuestData(params.realUserId, params.localData);
     if (params.localData.fashionMemory) {

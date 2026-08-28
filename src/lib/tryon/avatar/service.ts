@@ -752,19 +752,20 @@ export async function getStoredAvatar(
   if (!person) return null;
   const avatar = (person as PersonRow & { avatar?: StoredAvatar }).avatar;
   if (!avatar) return null;
+  if (!personHasStoredAvatar(avatar)) return null;
+  const content_type = resolveAvatarContentType(
+    avatar.content_type,
+    avatar.storage_path,
+  );
   if (!avatar.storage_path) {
-    return avatar.url ? avatar : null;
+    return { ...avatar, content_type };
   }
   try {
     const signed = await createSignedUrl(avatar.storage_path);
-    const content_type = resolveAvatarContentType(
-      avatar.content_type,
-      avatar.storage_path,
-    );
     return { ...avatar, url: signed, content_type };
   } catch {
-    // Fall back to any previously stored URL rather than failing the whole room.
-    return avatar.url ? avatar : null;
+    // Bytes are on file — callers can still serve /api/avatar/:id/image.
+    return { ...avatar, content_type };
   }
 }
 
