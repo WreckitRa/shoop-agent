@@ -5,11 +5,13 @@ import Link from "next/link";
 import { requestMirror } from "@/components/tryon/request-mirror";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
-import { FormingSilhouette } from "@/components/tryon/avatar-silhouettes";
+import { BodyTwinSilhouette } from "@/components/onboarding/fitting/BodyTwinSilhouette";
+import { formFromGender, type BuildKey } from "@/components/onboarding/fitting/types";
 import { useUserIdentity } from "@/hooks/useUserIdentity";
 import { extractFirstName } from "@/lib/shared/timeGreeting";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { useClientIdentityScopeKey } from "@/lib/client/identity-sync";
+import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import { cn } from "@/lib/ai-chat/cn";
 
 type Props = {
@@ -19,6 +21,19 @@ type Props = {
   /** Tighter vertical rhythm for the persistent chat rail. */
   compact?: boolean;
 };
+
+const BUILDS = new Set<BuildKey>([
+  "slim",
+  "average",
+  "athletic",
+  "broad",
+  "plus",
+]);
+
+function asBuild(v: string | null | undefined): BuildKey | null {
+  if (!v) return null;
+  return BUILDS.has(v as BuildKey) ? (v as BuildKey) : null;
+}
 
 /**
  * “THE MIRROR” — live avatar, hover preview, moodboard entry.
@@ -33,6 +48,7 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const activeCount = useTryOnDrawerStore((s) => s.activeIds.length);
   const { preferredName, firstName } = useUserIdentity();
   const identityScope = useClientIdentityScopeKey();
+  const body = useUserProfileStore((s) => s.body);
   const [moodCount, setMoodCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -62,6 +78,11 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const nameLabel = displayName ? displayName.toUpperCase() : "YOU";
   const ready = status === "ready" && Boolean(avatarUrl);
   const loading = status === "loading";
+  const form = formFromGender(body?.genderPresentation ?? "");
+  const build = asBuild(body?.bodyType);
+  const hasBody = Boolean(
+    body?.genderPresentation || body?.bodyType || body?.heightCm,
+  );
 
   const openMirror = () => requestMirror();
 
@@ -122,21 +143,36 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
             className="absolute inset-0 size-full object-cover object-top transition-opacity duration-300"
           />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-[#FAFAFB] to-[#EFEFF2] px-6 text-center">
-            <span className="relative opacity-80" aria-hidden>
-              <FormingSilhouette />
-              {!loading ? (
-                <span className="absolute -right-3 -top-2 grid size-9 place-items-center rounded-full bg-[var(--fitting-red,#E42831)] font-display text-[22px] font-black leading-none text-white shadow-[0_8px_16px_-6px_rgba(228,40,49,0.75)]">
+          <div className="absolute inset-0 flex flex-col items-center justify-end bg-gradient-to-b from-[#FAFAFB] to-[#EFEFF2] px-6 pb-12 pt-6 text-center">
+            <span
+              className="relative h-[78%] w-[46%] max-h-[260px] text-[#7A7A86]"
+              aria-hidden
+            >
+              <BodyTwinSilhouette
+                className="h-full w-full"
+                form={form}
+                build={build}
+                muscularity={null}
+                bodyShape={null}
+                bustFullness={null}
+                legLine={null}
+                heightCm={body?.heightCm ?? null}
+                decorative
+              />
+              {!loading && !hasBody ? (
+                <span className="absolute -right-3 top-[8%] grid size-9 place-items-center rounded-full bg-[var(--fitting-red,#E42831)] font-display text-[22px] font-black leading-none text-white shadow-[0_8px_16px_-6px_rgba(228,40,49,0.75)]">
                   +
                 </span>
               ) : null}
             </span>
-            <span className="font-display text-[13px] font-extrabold tracking-tight text-ink">
+            <span className="mt-3 font-display text-[13px] font-extrabold tracking-tight text-ink">
               {loading
                 ? "Loading your twin…"
-                : "Start your fitting"}
+                : hasBody
+                  ? "Your silhouette"
+                  : "Start your fitting"}
             </span>
-            {!loading ? (
+            {!loading && !hasBody ? (
               <span className="text-[11px] font-medium text-ink-muted">
                 Tap + to create your avatar
               </span>

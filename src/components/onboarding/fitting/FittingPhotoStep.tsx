@@ -28,9 +28,9 @@ export type FittingPhotoValues = {
   photoPreview: string | null;
   photoCoverage: PhotoCoverage;
   heightUnit: "ft" | "cm";
-  heightFt: number;
-  heightIn: number;
-  heightCm: number;
+  heightFt: number | null;
+  heightIn: number | null;
+  heightCm: number | null;
   weightValue: number | null;
   weightUnit: "lb" | "kg";
   weightSkipped: boolean;
@@ -44,6 +44,17 @@ export type FittingPhotoValues = {
   /** Typed in when the photo stops at the hips. */
   legLine: LegLineBand | null;
 };
+
+/** Convert the fit-step fields. Blank until they type a height — never a default. */
+export function heightCmFromPhotoValues(
+  v: FittingPhotoValues,
+): number | null {
+  if (v.heightUnit === "cm") {
+    return v.heightCm != null && v.heightCm > 0 ? v.heightCm : null;
+  }
+  if (v.heightFt == null) return null;
+  return Math.round((v.heightFt * 12 + (v.heightIn ?? 0)) * 2.54);
+}
 
 type Props = {
   values: FittingPhotoValues;
@@ -275,14 +286,17 @@ export function FittingPhotoStep({
   function setHeightUnit(next: "ft" | "cm") {
     if (next === values.heightUnit) return;
     if (next === "cm") {
-      const cm = Math.round((values.heightFt * 12 + values.heightIn) * 2.54);
-      onChange("heightCm", Math.min(210, Math.max(140, cm)));
-    } else {
+      const cm = heightCmFromPhotoValues({ ...values, heightUnit: "ft" });
+      onChange("heightCm", cm == null ? null : Math.min(210, Math.max(140, cm)));
+    } else if (values.heightCm != null) {
       const totalIn = values.heightCm / 2.54;
       const ft = Math.floor(totalIn / 12);
       const inch = Math.round(totalIn % 12);
       onChange("heightFt", Math.min(7, Math.max(4, ft)));
       onChange("heightIn", Math.min(11, Math.max(0, inch === 12 ? 0 : inch)));
+    } else {
+      onChange("heightFt", null);
+      onChange("heightIn", null);
     }
     onChange("heightUnit", next);
   }
@@ -393,7 +407,7 @@ export function FittingPhotoStep({
               min={4}
               max={7}
               minDigits={1}
-              onChange={(n) => onChange("heightFt", n ?? 5)}
+              onChange={(n) => onChange("heightFt", n)}
             />
             <NumBox
               unit="in"
@@ -401,7 +415,7 @@ export function FittingPhotoStep({
               min={0}
               max={11}
               minDigits={1}
-              onChange={(n) => onChange("heightIn", n ?? 0)}
+              onChange={(n) => onChange("heightIn", n)}
             />
           </div>
         ) : (
@@ -411,7 +425,7 @@ export function FittingPhotoStep({
             min={140}
             max={210}
             minDigits={3}
-            onChange={(n) => onChange("heightCm", n ?? 175)}
+            onChange={(n) => onChange("heightCm", n)}
           />
         )}
         <UnitSeg

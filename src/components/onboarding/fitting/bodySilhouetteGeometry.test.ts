@@ -16,6 +16,8 @@ import {
   resolveVisualDefinition,
   silhouetteLabel,
   silhouetteMorphStyle,
+  SILHOUETTE_HEAD,
+  SILHOUETTE_TORSO_TOP_Y,
   type BodySilhouetteInput,
   type LegLineVisual,
 } from "./bodySilhouetteGeometry";
@@ -189,6 +191,12 @@ describe("body silhouette geometry", () => {
   it("reduced-motion disables morph interpolation", () => {
     assert.equal(silhouetteMorphStyle(true).transition, "none");
     assert.match(silhouetteMorphStyle(false).transition, /280ms/);
+  });
+
+  it("tucks the torso under the head so the neck does not gap", () => {
+    const headBottom = SILHOUETTE_HEAD.cy + SILHOUETTE_HEAD.r;
+    assert.ok(SILHOUETTE_TORSO_TOP_Y <= headBottom);
+    assert.ok(headBottom - SILHOUETTE_TORSO_TOP_Y <= 4);
   });
 
   it("label uses explicit selections only", () => {

@@ -47,12 +47,19 @@ function buildIdentity(
   };
 }
 
+export type ProfileBodyFacts = {
+  genderPresentation: string | null;
+  heightCm: number | null;
+  bodyType: string | null;
+};
+
 type UserProfileState = {
   identity: UserIdentity | null;
   catalogLocalization: CatalogLocalization | null;
   catalogLocalizationSource: "profile" | "ip";
   detectedArea: DetectedRequestArea | null;
   onboardingCompleted: boolean | null;
+  body: ProfileBodyFacts | null;
   loadedAt: number;
   hydrating: boolean;
   savingShippingCountry: boolean;
@@ -82,6 +89,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
   catalogLocalizationSource: "profile",
   detectedArea: null,
   onboardingCompleted: null,
+  body: null,
   loadedAt: 0,
   hydrating: false,
   savingShippingCountry: false,
@@ -126,6 +134,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
       catalogLocalizationSource: "profile",
       detectedArea: null,
       onboardingCompleted: null,
+      body: null,
       loadedAt: 0,
       hydrating: false,
       savingShippingCountry: false,
@@ -251,6 +260,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
         let catalogLocalization: CatalogLocalization | null = null;
         let catalogLocalizationSource: "profile" | "ip" = "profile";
         let detectedArea: DetectedRequestArea | null = null;
+        let body: ProfileBodyFacts | null = null;
         if (profileRes?.ok) {
           const profileJson = (await profileRes.json()) as {
             profile?: {
@@ -259,7 +269,12 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
               shippingCountry?: string | null;
               country?: string | null;
               currency?: string | null;
+              genderPresentation?: string | null;
             };
+            sizing?: {
+              heightCm?: number | null;
+              bodyType?: string | null;
+            } | null;
             catalogLocalization?: CatalogLocalization | null;
             catalogLocalizationSource?: "profile" | "ip";
             detectedArea?: DetectedRequestArea | null;
@@ -275,6 +290,12 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
           catalogLocalizationSource =
             profileJson.catalogLocalizationSource ?? "profile";
           detectedArea = profileJson.detectedArea ?? null;
+          body = {
+            genderPresentation:
+              profileJson.profile?.genderPresentation?.trim() || null,
+            heightCm: profileJson.sizing?.heightCm ?? null,
+            bodyType: profileJson.sizing?.bodyType?.trim() || null,
+          };
         }
 
         const guestSessionId = getGuestSessionId();
@@ -293,6 +314,7 @@ export const useUserProfileStore = create<UserProfileState>((set, get) => ({
           catalogLocalizationSource,
           detectedArea,
           onboardingCompleted,
+          body,
           loadedAt: Date.now(),
         });
       } finally {

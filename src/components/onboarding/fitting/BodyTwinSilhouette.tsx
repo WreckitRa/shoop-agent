@@ -17,6 +17,7 @@ import {
   silhouetteLabel,
   silhouetteMorphStyle,
   SILHOUETTE_HEAD,
+  SILHOUETTE_VIEWBOX,
   type LegLineVisual,
 } from "./bodySilhouetteGeometry";
 
@@ -92,17 +93,15 @@ export function BodyTwinSilhouette({
   const leftLeg = buildLegPath(-1, g);
   const rightLeg = buildLegPath(1, g);
   const scale = heightScale(heightCm);
-  const unset = build == null;
 
   return (
     <svg
-      viewBox={showHead ? "0 0 180 340" : "0 62 180 278"}
+      viewBox={`0 0 ${SILHOUETTE_VIEWBOX.w} ${SILHOUETTE_VIEWBOX.h}`}
       preserveAspectRatio="xMidYMax meet"
       className={cn("fitting-motion overflow-visible", className)}
       style={{
         transformOrigin: "50% 100%",
         transform: `scale(${scale})`,
-        opacity: unset ? 0.42 : 1,
         ...morph,
       }}
       fill="currentColor"

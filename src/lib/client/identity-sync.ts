@@ -9,6 +9,10 @@ import { useCartStore } from "@/components/cart/cart-store";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
 import { clearPendingFittingPhoto } from "@/components/onboarding/fitting/pending-photo";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
+import {
+  clearOnboardingUiSession,
+  readOnboardingUiSession,
+} from "@/components/onboarding/fitting/ui-session";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import {
@@ -21,7 +25,6 @@ import { clearGuestSession, getGuestSessionId } from "@/lib/client/guest-storage
 import { clearPendingCheckout } from "@/lib/client/pending-checkout";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import { clearChatFocusReturn } from "@/lib/shared/chatFocus";
-import { clearOnboardingUiSession } from "@/components/onboarding/fitting/ui-session";
 
 /** Ensures the next sign-in always re-syncs even after `prepareClientForSignedOut`. */
 const SIGNED_OUT_SCOPE_KEY = "__signed_out__";
@@ -258,10 +261,13 @@ async function resyncClientAfterIdentityChange(
     leaveConversationRoute();
   }
   if (preserveOnboarding) {
-    const fitting = useInlineFittingStore.getState();
-    if (fitting.columnOpen || fitting.onboardingActive) {
-      useInlineFittingStore.getState().openColumn();
-      useInlineFittingStore.getState().setOnboardingActive(true);
+    const session = readOnboardingUiSession();
+    if (session?.dismissed !== true) {
+      const fitting = useInlineFittingStore.getState();
+      if (fitting.columnOpen || fitting.onboardingActive) {
+        useInlineFittingStore.getState().openColumn();
+        useInlineFittingStore.getState().setOnboardingActive(true);
+      }
     }
   }
 
@@ -270,7 +276,7 @@ async function resyncClientAfterIdentityChange(
   const mode = useAppSessionStore.getState().mode;
   if (!canFetchUserScopedData(mode)) return;
 
-  if (mode === "authenticated") {
+  if (canFetchUserScopedData(mode)) {
     await useUserProfileStore.getState().hydrate({
       force: scopeChanged || force,
     });

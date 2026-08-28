@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   firstIncompleteFittingStep,
   resolveFittingResumeStep,
+  shouldAutoResumeFitting,
   type ResumeStatus,
 } from "./resume-step";
 
@@ -133,6 +134,62 @@ describe("resolveFittingResumeStep", () => {
         "photo",
       ),
       "spend",
+    );
+  });
+});
+
+describe("shouldAutoResumeFitting", () => {
+  it("resumes only an undismissed in-progress session", () => {
+    assert.equal(
+      shouldAutoResumeFitting({
+        completed: false,
+        replay: false,
+        sessionDismissed: false,
+        hasSession: true,
+      }),
+      true,
+    );
+  });
+
+  it("stays closed for first visit, completed, and dismissed", () => {
+    assert.equal(
+      shouldAutoResumeFitting({
+        completed: false,
+        replay: false,
+        sessionDismissed: false,
+        hasSession: false,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldAutoResumeFitting({
+        completed: true,
+        replay: false,
+        sessionDismissed: false,
+        hasSession: true,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldAutoResumeFitting({
+        completed: false,
+        replay: false,
+        sessionDismissed: true,
+        hasSession: true,
+      }),
+      false,
+    );
+  });
+
+  it("reopens when the shopper asks to replay Fitting", () => {
+    assert.equal(
+      shouldAutoResumeFitting({
+        completed: true,
+        replay: true,
+        sessionDismissed: true,
+        hasSession: false,
+      }),
+      true,
     );
   });
 });

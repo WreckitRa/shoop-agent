@@ -4,6 +4,10 @@ import { useCallback, useRef } from "react";
 import { ShoopIcon } from "@/components/brand/ShoopBrand";
 import { cn } from "@/lib/ai-chat/cn";
 import { BodyTwinSilhouette } from "./BodyTwinSilhouette";
+import {
+  silhouetteHeadOverlayStyle,
+  SILHOUETTE_VIEWBOX,
+} from "./bodySilhouetteGeometry";
 import type { MirrorState } from "./types";
 
 function formatTwinClock(sec: number): string {
@@ -40,10 +44,10 @@ export function FittingMirror({
 
   const bodyColor =
     mirror.developPct >= 34
-      ? "#CFCFD8"
+      ? "#6A6A76"
       : mirror.developPct >= 14
-        ? "#D4D4DC"
-        : "#DEDEE4";
+        ? "#7C7C88"
+        : "#8E8E9A";
 
   const heightPct =
     mirror.heightCm != null
@@ -181,80 +185,17 @@ export function FittingMirror({
             )}
           >
             {fillUrl ? null : (
-              <div
-                className="fitting-motion absolute bottom-1.5 left-1/2 flex w-[min(88%,17.5rem)] -translate-x-1/2 flex-col items-center overflow-visible transition-[height] duration-700 ease-out"
-                style={{ height: `${heightPct}%` }}
-              >
-                <HeadWrap
-                  className={cn(
-                    "fitting-motion relative z-[2] flex w-[32%] flex-col items-center",
-                    onPickPhoto && !photoPickLocked && "cursor-pointer",
-                    onPickPhoto &&
-                      photoPickLocked &&
-                      "pointer-events-none opacity-40",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "mb-[-42%] block aspect-square w-full shrink-0 rounded-full bg-[#DEDEE4] transition-all duration-700",
-                      onPickPhoto &&
-                        !mirror.photoUrl &&
-                        "outline outline-2 outline-dashed outline-[var(--fitting-ink)]",
-                      mirror.photoUrl &&
-                        "outline outline-2 outline-[var(--fitting-line)] [filter:blur(2.5px)_saturate(0.9)]",
-                      mirror.twinStatus === "developing" &&
-                        mirror.photoUrl &&
-                        "animate-[fitting-blink_1.8s_infinite] outline-[var(--fitting-red)]/30",
-                      mirror.developPct >= 14 &&
-                        !mirror.photoUrl &&
-                        "bg-[#D4D4DC]",
-                      mirror.developPct >= 26 &&
-                        !mirror.photoUrl &&
-                        "bg-gradient-to-br from-[#E8DDD0] to-[#C4B4A2]",
-                    )}
-                    style={
-                      mirror.photoUrl
-                        ? {
-                            backgroundImage: `url(${mirror.photoUrl})`,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center",
-                          }
-                        : undefined
-                    }
-                  />
-                  {onPickPhoto ? (
-                    <>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        disabled={photoPickLocked}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) onPickPhoto(f);
-                          e.target.value = "";
-                        }}
-                      />
-                      <span className="sr-only">
-                        {mirror.photoUrl
-                          ? "Change face photo"
-                          : "Add a face photo"}
-                      </span>
-                      {!mirror.photoUrl ? (
-                        <span className="relative z-10 mt-1.5 whitespace-nowrap rounded-[10px] bg-[var(--fitting-ink)] px-2.5 py-1.5 font-display text-[10px] font-extrabold text-white shadow-[0_10px_18px_-10px_rgba(14,14,17,.5)]">
-                          Add a face photo{" "}
-                          <span aria-hidden>→</span>
-                        </span>
-                      ) : null}
-                    </>
-                  ) : null}
-                </HeadWrap>
+              <div className="absolute inset-0 flex items-end justify-center">
                 <div
-                  className="min-h-0 w-full flex-1"
-                  style={{ color: bodyColor }}
+                  className="fitting-motion relative max-h-full max-w-full overflow-visible transition-[height] duration-700 ease-out"
+                  style={{
+                    height: `${heightPct}%`,
+                    aspectRatio: `${SILHOUETTE_VIEWBOX.w} / ${SILHOUETTE_VIEWBOX.h}`,
+                    color: bodyColor,
+                  }}
                 >
                   <BodyTwinSilhouette
-                    className="h-full w-full min-h-0"
+                    className="h-full w-full"
                     form={mirror.form}
                     build={mirror.build}
                     muscularity={mirror.muscularity}
@@ -267,6 +208,70 @@ export function FittingMirror({
                     showHead={false}
                     decorative
                   />
+                  <HeadWrap
+                    className={cn(
+                      "absolute z-[2] flex flex-col items-center",
+                      onPickPhoto && !photoPickLocked && "cursor-pointer",
+                      onPickPhoto &&
+                        photoPickLocked &&
+                        "pointer-events-none opacity-40",
+                    )}
+                    style={silhouetteHeadOverlayStyle()}
+                  >
+                    <span
+                      className={cn(
+                        "block aspect-square w-full shrink-0 rounded-full transition-all duration-700",
+                        onPickPhoto &&
+                          !mirror.photoUrl &&
+                          "outline outline-2 outline-dashed outline-[var(--fitting-ink)]",
+                        mirror.photoUrl &&
+                          "outline outline-2 outline-[var(--fitting-line)] [filter:blur(2.5px)_saturate(0.9)]",
+                        mirror.twinStatus === "developing" &&
+                          mirror.photoUrl &&
+                          "animate-[fitting-blink_1.8s_infinite] outline-[var(--fitting-red)]/30",
+                        mirror.developPct >= 26 &&
+                          !mirror.photoUrl &&
+                          "bg-gradient-to-br from-[#E8DDD0] to-[#C4B4A2]",
+                      )}
+                      style={
+                        mirror.photoUrl
+                          ? {
+                              backgroundImage: `url(${mirror.photoUrl})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                            }
+                          : mirror.developPct >= 26
+                            ? undefined
+                            : { backgroundColor: bodyColor }
+                      }
+                    />
+                    {onPickPhoto ? (
+                      <>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          disabled={photoPickLocked}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) onPickPhoto(f);
+                            e.target.value = "";
+                          }}
+                        />
+                        <span className="sr-only">
+                          {mirror.photoUrl
+                            ? "Change face photo"
+                            : "Add a face photo"}
+                        </span>
+                        {!mirror.photoUrl ? (
+                          <span className="relative z-10 mt-1.5 whitespace-nowrap rounded-[10px] bg-[var(--fitting-ink)] px-2.5 py-1.5 font-display text-[10px] font-extrabold text-white shadow-[0_10px_18px_-10px_rgba(14,14,17,.5)]">
+                            Add a face photo{" "}
+                            <span aria-hidden>→</span>
+                          </span>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </HeadWrap>
                 </div>
               </div>
             )}

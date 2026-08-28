@@ -33,6 +33,9 @@ type WidthKey = Exclude<keyof BodyGeometry, "torsoBottomY">;
 const CX = 90;
 const HEAD_CY = 34;
 const HEAD_R = 29;
+/** Torso peak — tucked under the head so the neck never gaps. */
+export const SILHOUETTE_TORSO_TOP_Y = 62;
+export const SILHOUETTE_VIEWBOX = { w: 180, h: 340 } as const;
 const FOOT_Y = 312;
 const ARM_Y0 = 91;
 const ARM_Y1 = 184;
@@ -235,7 +238,7 @@ function L(w: number) {
 
 /** Identical command structure for every variant so `d` can ease. */
 export function buildTorsoPath(g: BodyGeometry): string {
-  const top = 70;
+  const top = SILHOUETTE_TORSO_TOP_Y;
   const shY = 88;
   const chY = 118;
   const waY = 148;
@@ -330,3 +333,17 @@ export function silhouetteLabel(input: BodySilhouetteInput): string {
 }
 
 export const SILHOUETTE_HEAD = { cx: CX, cy: HEAD_CY, r: HEAD_R } as const;
+
+/** CSS box for the HTML face overlay — same viewBox as the body SVG. */
+export function silhouetteHeadOverlayStyle(): {
+  left: string;
+  top: string;
+  width: string;
+} {
+  const { cx, cy, r } = SILHOUETTE_HEAD;
+  return {
+    left: `${((cx - r) / SILHOUETTE_VIEWBOX.w) * 100}%`,
+    top: `${((cy - r) / SILHOUETTE_VIEWBOX.h) * 100}%`,
+    width: `${((r * 2) / SILHOUETTE_VIEWBOX.w) * 100}%`,
+  };
+}

@@ -89,3 +89,19 @@ export function resolveFittingResumeStep(
   if (sessionIdx < floorIdx) return floor;
   return sessionStep;
 }
+
+/**
+ * Auto-open Fitting only to resume an in-progress session the shopper
+ * hasn't closed. Completed / first visit / dismissed stay on the home mirror.
+ */
+export function shouldAutoResumeFitting(args: {
+  completed: boolean;
+  replay: boolean;
+  sessionDismissed: boolean;
+  hasSession: boolean;
+}): boolean {
+  if (args.replay) return true;
+  if (args.completed) return false;
+  if (args.sessionDismissed) return false;
+  return args.hasSession;
+}

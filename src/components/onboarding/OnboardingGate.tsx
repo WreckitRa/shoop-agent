@@ -7,6 +7,7 @@ import { FittingMirror } from "@/components/onboarding/fitting/FittingMirror";
 import {
   FittingPhotoStep,
   defaultMuscularityForBuild,
+  heightCmFromPhotoValues,
   type FittingPhotoValues,
 } from "@/components/onboarding/fitting/FittingPhotoStep";
 import { FittingConsentStep } from "@/components/onboarding/fitting/FittingConsentStep";
@@ -69,7 +70,10 @@ import {
   FittingCount,
 } from "@/components/onboarding/onboarding-ui";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
-import { resolveFittingResumeStep } from "@/components/onboarding/fitting/resume-step";
+import {
+  resolveFittingResumeStep,
+  shouldAutoResumeFitting,
+} from "@/components/onboarding/fitting/resume-step";
 import { useInlineFittingSlots } from "@/components/onboarding/useInlineFittingSlot";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { useAppSessionStore } from "@/lib/client/app-session";
@@ -437,9 +441,8 @@ function togglePick(
   return [...selected, card];
 }
 
-function heightCmFromPhoto(v: FittingPhotoValues): number {
-  if (v.heightUnit === "cm") return v.heightCm;
-  return Math.round((v.heightFt * 12 + v.heightIn) * 2.54);
+function heightCmFromPhoto(v: FittingPhotoValues): number | null {
+  return heightCmFromPhotoValues(v);
 }
 
 function weightKgFromPhoto(v: FittingPhotoValues): number | null {
@@ -651,9 +654,9 @@ export function OnboardingGate() {
     photoPreview: null,
     photoCoverage: "face",
     heightUnit: "ft",
-    heightFt: 5,
-    heightIn: 9,
-    heightCm: 175,
+    heightFt: null,
+    heightIn: null,
+    heightCm: null,
     weightValue: null,
     weightUnit: "lb",
     weightSkipped: false,
@@ -1116,7 +1119,6 @@ export function OnboardingGate() {
   useLayoutEffect(() => {
     const session = readOnboardingUiSession();
     if (!session || session.dismissed) return;
-    useInlineFittingStore.getState().resumeColumn();
     setStep(session.step);
     if (session.step === "verdict") setHoldOpen(true);
     if (session.finale === "scan") setFinale("scan");
@@ -1156,7 +1158,14 @@ export function OnboardingGate() {
         if (resume === "verdict" && session?.finale === "scan") {
           setFinale("scan");
         }
-        if (!session?.dismissed && (session || !next.onboarding.completed)) {
+        if (
+          shouldAutoResumeFitting({
+            completed: next.onboarding.completed,
+            replay: restart,
+            sessionDismissed: session?.dismissed === true,
+            hasSession: Boolean(session),
+          })
+        ) {
           writeOnboardingUiSession({
             step: resume,
             finale: resume === "verdict" ? session?.finale : undefined,
@@ -1165,6 +1174,8 @@ export function OnboardingGate() {
           if (next.onboarding.completed || resume === "verdict") {
             setHoldOpen(true);
           }
+        } else if (next.onboarding.completed && !restart) {
+          useInlineFittingStore.getState().dismissColumn();
         }
         if (session?.circleNames?.some((n) => n.trim())) {
           setCircleNames(session.circleNames);
@@ -2010,7 +2021,8 @@ export function OnboardingGate() {
       ctx.location = shippingCountry.trim();
     }
     if (persistedFlags.sizing) {
-      ctx.height_cm = heightCmFromPhoto(photoValues);
+      const heightCm = heightCmFromPhoto(photoValues);
+      if (heightCm != null) ctx.height_cm = heightCm;
     }
     const weightKg = weightKgFromPhoto(photoValues);
     if (weightKg != null) ctx.weight_kg = weightKg;
@@ -2188,9 +2200,9 @@ export function OnboardingGate() {
       const weightKg = weightKgFromPhoto(photoValues);
       const build = (photoValues.build ?? "average") as BuildBand;
       const sizing: Record<string, unknown> = {
-        heightCm,
         bodyType: build,
       };
+      if (heightCm != null) sizing.heightCm = heightCm;
       if (weightKg != null) sizing.weightKg = weightKg;
 
       const patch = await guestFetch("/api/onboarding/review", {
@@ -2231,29 +2243,30 @@ export function OnboardingGate() {
       // Start twin mint as soon as fit numbers land — never block the quiz on
       // photo attach or FASHN. Mirror shows developing immediately.
       const pending = pendingPhotoFileRef.current;
-      const mintOpts = {
-        personId,
-        heightCm,
-        build,
-        muscularity: photoValues.muscularity,
-        bodyShape: photoValues.bodyShape,
-        bustFullness: photoValues.bustFullness,
-        includeBust: normalizeGender(genderPresentation) === "feminine",
-      };
-      const prevMint = lastMintOptsRef.current;
-      const silhouetteChanged =
-        prevMint != null &&
-        silhouetteMintKey(prevMint) !== silhouetteMintKey(mintOpts);
-      if (silhouetteChanged) {
-        mintDoneRef.current = false;
-        setTwinAvatarUrl(null);
-      }
       const canMint =
+        heightCm != null &&
         canProcessPhotoRef.current &&
         Boolean(personId) &&
         (photoReadyRef.current || Boolean(pending)) &&
         !mintDoneRef.current;
-      if (canMint && personId) {
+      if (canMint && personId && heightCm != null) {
+        const mintOpts = {
+          personId,
+          heightCm,
+          build,
+          muscularity: photoValues.muscularity,
+          bodyShape: photoValues.bodyShape,
+          bustFullness: photoValues.bustFullness,
+          includeBust: normalizeGender(genderPresentation) === "feminine",
+        };
+        const prevMint = lastMintOptsRef.current;
+        const silhouetteChanged =
+          prevMint != null &&
+          silhouetteMintKey(prevMint) !== silhouetteMintKey(mintOpts);
+        if (silhouetteChanged) {
+          mintDoneRef.current = false;
+          setTwinAvatarUrl(null);
+        }
         setTwinStatus("developing");
         setTwinError(null);
         ensureTwinClock();
@@ -2290,11 +2303,11 @@ export function OnboardingGate() {
     try {
       const heightCm = heightCmFromPhoto(photoValues);
       const weightKg = weightKgFromPhoto(photoValues);
-      const sizing: Record<string, unknown> = {
-        heightCm,
-        bodyType: photoValues.build ?? "average",
-      };
+      const sizing: Record<string, unknown> = {};
+      if (heightCm != null) sizing.heightCm = heightCm;
+      if (photoValues.build) sizing.bodyType = photoValues.build;
       if (weightKg != null) sizing.weightKg = weightKg;
+      if (Object.keys(sizing).length === 0) return true;
       const res = await guestFetch("/api/onboarding/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2641,7 +2654,7 @@ export function OnboardingGate() {
             climate: climate || undefined,
             honestyPreference: honestyPreference || undefined,
             circleNames: circleNames.map((n) => n.trim()).filter(Boolean),
-            heightCm: photoValues.heightCm || null,
+            heightCm: heightCmFromPhoto(photoValues),
             weightKg:
               photoValues.weightValue != null && photoValues.weightUnit === "kg"
                 ? photoValues.weightValue

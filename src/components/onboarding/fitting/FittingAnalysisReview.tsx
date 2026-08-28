@@ -17,7 +17,10 @@ import {
 } from "@/lib/photo-analysis/review";
 import type { StylePhotoAnalysis } from "@/lib/photo-analysis/result";
 import type { PhotoAnalysisPublic } from "@/lib/photo-analysis/types";
-import type { FittingPhotoValues } from "./FittingPhotoStep";
+import {
+  heightCmFromPhotoValues,
+  type FittingPhotoValues,
+} from "./FittingPhotoStep";
 import { resolveScanCheckBody } from "./scan-check-body";
 
 const BUILDS: { label: string; value: NonNullable<FittingPhotoValues["build"]> }[] = [
@@ -51,10 +54,7 @@ const SHAPES: {
 export function confirmedBodyFromPhoto(
   values: FittingPhotoValues,
 ): ConfirmedBody {
-  const heightCm =
-    values.heightUnit === "cm"
-      ? values.heightCm
-      : Math.round((values.heightFt * 12 + values.heightIn) * 2.54);
+  const heightCm = heightCmFromPhotoValues(values);
   const weightKg =
     values.weightSkipped || values.weightValue == null
       ? null
@@ -62,7 +62,7 @@ export function confirmedBodyFromPhoto(
         ? Math.round(values.weightValue)
         : Math.round(values.weightValue * 0.453592);
   return {
-    height_cm: Number.isFinite(heightCm) ? heightCm : null,
+    height_cm: heightCm,
     weight_kg: weightKg,
     body_type: values.build,
     muscularity: values.muscularity,
@@ -215,12 +215,10 @@ export function AnalysisReviewForm({
             type="text"
             inputMode="numeric"
             value={body.heightCm || ""}
-            onChange={(e) =>
-              onBodyChange(
-                "heightCm",
-                Number(e.target.value.replace(/[^\d]/g, "")) || 0,
-              )
-            }
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^\d]/g, "");
+              onBodyChange("heightCm", raw ? Number(raw) : null);
+            }}
             className="w-[120px] border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[22px] font-bold outline-none focus:border-[var(--fitting-red)]"
           />
         ) : (
@@ -229,12 +227,10 @@ export function AnalysisReviewForm({
               type="text"
               inputMode="numeric"
               value={body.heightFt || ""}
-              onChange={(e) =>
-                onBodyChange(
-                  "heightFt",
-                  Number(e.target.value.replace(/[^\d]/g, "")) || 0,
-                )
-              }
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^\d]/g, "");
+                onBodyChange("heightFt", raw ? Number(raw) : null);
+              }}
               className="w-[72px] border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[22px] font-bold outline-none focus:border-[var(--fitting-red)]"
             />
             <span className="pb-2 text-[12px] font-bold text-[var(--fitting-quiet)]">
@@ -244,12 +240,10 @@ export function AnalysisReviewForm({
               type="text"
               inputMode="numeric"
               value={body.heightIn || ""}
-              onChange={(e) =>
-                onBodyChange(
-                  "heightIn",
-                  Number(e.target.value.replace(/[^\d]/g, "")) || 0,
-                )
-              }
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^\d]/g, "");
+                onBodyChange("heightIn", raw ? Number(raw) : null);
+              }}
               className="w-[72px] border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[22px] font-bold outline-none focus:border-[var(--fitting-red)]"
             />
           </>
