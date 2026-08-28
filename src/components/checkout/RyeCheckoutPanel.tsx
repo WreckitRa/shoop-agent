@@ -10,6 +10,8 @@ import {
   useStripe,
 } from "@stripe/react-stripe-js";
 import { guestFetch } from "@/lib/client/guest-fetch";
+import { persistGuestFashionPurchase } from "@/lib/fashion-memory/client/guest-bridge";
+import type { ProductCard } from "@/lib/ai-chat/types";
 import type { RyeCheckoutIntentSnapshot } from "@/lib/rye/types";
 
 type RyeConfig = {
@@ -19,11 +21,28 @@ type RyeConfig = {
 
 type RyeCheckoutPanelProps = {
   intent: RyeCheckoutIntentSnapshot;
+  searchId?: string | null;
+  productRef?: string | null;
+  productId?: string | null;
+  title?: string | null;
+  brand?: string | null;
+  color?: string | null;
   onComplete: (orderId: string | null) => void;
   onError: (message: string, options?: { fallback?: boolean }) => void;
   onIntentUpdate: (intent: RyeCheckoutIntentSnapshot) => void;
   onUseStoreCheckout?: () => void;
 };
+
+type FashionPurchasePayload = {
+  searchId: string;
+  ref: string;
+  product: ProductCard;
+};
+
+function applyGuestPurchase(payload: FashionPurchasePayload | null | undefined) {
+  if (!payload?.searchId || !payload.ref) return;
+  persistGuestFashionPurchase(payload);
+}
 
 const CARD_ELEMENT_OPTIONS = {
   style: {
@@ -70,6 +89,12 @@ function RyePaymentForm({
   intentId,
   confirming,
   setConfirming,
+  searchId,
+  productRef,
+  productId,
+  title,
+  brand,
+  color,
   onComplete,
   onError,
   onIntentUpdate,
@@ -77,6 +102,12 @@ function RyePaymentForm({
   intentId: string;
   confirming: boolean;
   setConfirming: (value: boolean) => void;
+  searchId?: string | null;
+  productRef?: string | null;
+  productId?: string | null;
+  title?: string | null;
+  brand?: string | null;
+  color?: string | null;
   onComplete: (orderId: string | null) => void;
   onError: (message: string, options?: { fallback?: boolean }) => void;
   onIntentUpdate: (intent: RyeCheckoutIntentSnapshot) => void;
@@ -104,13 +135,22 @@ function RyePaymentForm({
         error?: string;
         fallback?: string | null;
         fixable?: boolean;
+        fashionPurchase?: FashionPurchasePayload | null;
       }>(
         await guestFetch(
           `/api/rye/checkout-intents/${encodeURIComponent(intentId)}/confirm`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ stripeToken: token.id }),
+            body: JSON.stringify({
+              stripeToken: token.id,
+              searchId: searchId || undefined,
+              ref: productRef || undefined,
+              productId: productId || undefined,
+              title: title || undefined,
+              brand: brand || undefined,
+              color: color || undefined,
+            }),
           },
         ),
         "Payment could not be completed.",
@@ -118,6 +158,7 @@ function RyePaymentForm({
 
       onIntentUpdate(data.intent);
       if (data.intent.state === "completed") {
+        applyGuestPurchase(data.fashionPurchase);
         onComplete(data.intent.orderId);
         return;
       }
@@ -142,6 +183,12 @@ function RyePaymentForm({
     onComplete,
     onError,
     onIntentUpdate,
+    searchId,
+    productRef,
+    productId,
+    title,
+    brand,
+    color,
     setConfirming,
     stripe,
   ]);
@@ -167,6 +214,12 @@ function RyePaymentForm({
 
 export function RyeCheckoutPanel({
   intent,
+  searchId,
+  productRef,
+  productId,
+  title,
+  brand,
+  color,
   onComplete,
   onError,
   onIntentUpdate,
@@ -204,11 +257,13 @@ export function RyeCheckoutPanel({
             intent: RyeCheckoutIntentSnapshot;
             error?: string | null;
             fallback?: string | null;
+            fashionPurchase?: FashionPurchasePayload | null;
           }>(res, "Could not refresh checkout status."),
         )
         .then((data) => {
           onIntentUpdate(data.intent);
           if (data.intent.state === "completed") {
+            applyGuestPurchase(data.fashionPurchase);
             onComplete(data.intent.orderId);
           } else if (data.intent.state === "failed") {
             onError(data.error ?? "Checkout failed.", {
@@ -281,6 +336,12 @@ export function RyeCheckoutPanel({
             intentId={intent.id}
             confirming={confirming}
             setConfirming={setConfirming}
+            searchId={searchId}
+            productRef={productRef}
+            productId={productId}
+            title={title}
+            brand={brand}
+            color={color}
             onComplete={onComplete}
             onError={onError}
             onIntentUpdate={onIntentUpdate}

@@ -18,6 +18,7 @@ import {
   composeAspiresLine,
   composeContextLine,
   formatLastSearchLine,
+  formatRecentPicksLine,
   honestyToneLine,
   inferOccasionFamilyHint,
   parseOnboardingMetaFromFacts,
@@ -64,7 +65,8 @@ function formatBudgetHint(fact: FashionFactRow): string | null {
 
 function formatRouterSignalToken(signal: StyleSignalRow): string {
   const sign = signal.polarity === -1 ? "-" : "+";
-  return `${sign}${signal.value} [${signal.context}, ${signal.source}]`;
+  const canonical = (signal.value_canonical ?? signal.value).trim();
+  return `${sign}${canonical} [${signal.context}, ${signal.source}]`;
 }
 
 function formatGenderPresentation(fact: FashionFactRow): string | null {
@@ -97,6 +99,8 @@ export function formatRouterPersonProfile(params: {
   occasionHintText?: string | null;
   /** Latest request_event for continuity line (self / sticky). */
   lastRequestEvent?: RequestEventRow | null;
+  /** Recent request events for recent_picks (most recent first). */
+  recentRequestEvents?: RequestEventRow[] | null;
 }): string {
   const displayPerson =
     params.person.relation === "self" &&
@@ -189,6 +193,12 @@ export function formatRouterPersonProfile(params: {
   });
   if (continuity) lines.push(continuity);
 
+  const recentPicks = formatRecentPicksLine(
+    params.recentRequestEvents ??
+      (params.lastRequestEvent ? [params.lastRequestEvent] : null),
+  );
+  if (recentPicks) lines.push(recentPicks);
+
   if (lines.length === 1) {
     lines.push("(no recorded facts or signals yet)");
   }
@@ -205,6 +215,8 @@ export function buildRouterContextFromData(params: {
   accountHints?: RouterAccountHints | null;
   /** Latest request event per person id (continuity). */
   lastRequestEventByPersonId?: Map<string, RequestEventRow>;
+  /** Recent request events per person (recent_picks). */
+  recentRequestEventsByPersonId?: Map<string, RequestEventRow[]>;
   pendingOccasionContext?: string | null;
 }): import("./types").FashionRouterContext {
   const peopleForDisplay = params.people.map((person) => {
@@ -250,6 +262,8 @@ export function buildRouterContextFromData(params: {
         occasionHintText,
         lastRequestEvent:
           params.lastRequestEventByPersonId?.get(personId) ?? null,
+        recentRequestEvents:
+          params.recentRequestEventsByPersonId?.get(personId) ?? null,
       });
     })
     .filter(Boolean)
@@ -262,6 +276,7 @@ export function buildRouterContextFromData(params: {
     currentDate: now.toISOString().slice(0, 10),
     personShortIds,
     conversationMessages: params.conversationMessages,
+    recentRequestEventsByPersonId: params.recentRequestEventsByPersonId,
   };
 }
 

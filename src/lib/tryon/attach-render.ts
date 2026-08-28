@@ -6,17 +6,17 @@ import type {
 } from "@/lib/fashion-memory/types/render-contract";
 import { buildRenderContract } from "@/lib/fashion-memory/curation/build-render-contract";
 import type { FashionSearchPlan } from "@/lib/fashion-memory/search-planner/types";
+import { isSupabaseAuthUserId } from "@/lib/fashion-memory/auth";
 import { getPersonById, resolvePersonIdRef } from "@/lib/fashion-memory/people";
 import {
   isTryonOutfitsEnabledForUser,
   isTryonEnabledForUser,
 } from "./feature-flags";
 import { isGarmentTypeSupported } from "./garment-type";
-import { buildPickTryonAvailability } from "./run-single";
-import { getStoredAvatar } from "./avatar/service";
+import { hasStoredAvatar } from "./avatar/service";
 import { TRYON_DISCLAIMER } from "./types";
 import { capsuleLookId } from "./outfit-ids";
-import { resolveTryonPersonId } from "./resolve-person";
+import { tryResolveTryonPersonId } from "./resolve-person";
 
 async function isShoppingForSelf(
   userId: string,
@@ -48,14 +48,12 @@ type LookTryonState = {
 
 async function buildLookTryonState(params: {
   userId: string;
-  personId: string;
   shoppingForSelf: boolean;
   itemRefs: string[];
   picksByRef: Map<string, { garment: string }>;
   hasAvatar: boolean;
 }): Promise<LookTryonState> {
   if (!params.shoppingForSelf) return { available: false };
-  // Accessories / bags kill dress APIs — still show try-on if shirt/pants/etc. exist.
   if (!lookHasDressablePiece(params.itemRefs, params.picksByRef)) {
     return { available: false };
   }
@@ -73,92 +71,69 @@ type PickTryonState = {
   cta?: "create_avatar";
 };
 
-async function buildPickTryonState(params: {
-  userId: string;
-  personId: string;
+function buildPickTryonState(params: {
   shoppingForSelf: boolean;
   tryonEnabled: boolean;
   hasAvatar: boolean;
   garment: string;
   isHero: boolean;
-}): Promise<PickTryonState> {
+}): PickTryonState {
   if (!params.shoppingForSelf || !params.isHero) return { available: false };
   if (!isGarmentTypeSupported(params.garment)) return { available: false };
 
   if (params.hasAvatar) {
-    if (!params.tryonEnabled) return { available: false };
-    const available = await buildPickTryonAvailability({
-      userId: params.userId,
-      personId: params.personId,
-      garment: params.garment,
-    });
-    return { available };
+    return { available: params.tryonEnabled };
   }
 
-  // No avatar yet — invite creation on hero picks so try-on is discoverable.
   return { available: false, cta: "create_avatar" };
 }
 
-/** Attach per-pick and outfit/capsule try-on availability to a render contract. */
-export async function attachTryonToRenderContract(params: {
-  render: RenderContract;
-  presentation: FashionCurationPresentation;
-  plan: FashionSearchPlan;
+type TryonFlags = {
   userId: string;
-}): Promise<RenderContract> {
-  const personId = await resolveTryonPersonId(
-    params.userId,
-    params.plan.brief.recipient_person_id,
-  );
-  const shoppingForSelf = await isShoppingForSelf(params.userId, personId);
-  const tryonEnabled =
-    shoppingForSelf && (await isTryonEnabledForUser(params.userId));
-  const hasAvatar = shoppingForSelf
-    ? Boolean(await getStoredAvatar(params.userId, personId))
-    : false;
+  shoppingForSelf: boolean;
+  tryonEnabled: boolean;
+  hasAvatar: boolean;
+};
 
-  const mode = params.plan.mode;
-  const isSingleMode = mode === "single_item" || mode === "multi_item";
+async function applyTryonFlags(
+  render: RenderContract,
+  plan: FashionSearchPlan,
+  flags: TryonFlags,
+): Promise<RenderContract> {
+  const isSingleMode = plan.mode === "single_item" || plan.mode === "multi_item";
 
   const picksByRef = new Map(
-    params.render.tiers.picks.map((p) => [p.ref, { garment: p.garment }]),
+    render.tiers.picks.map((p) => [p.ref, { garment: p.garment }]),
   );
 
-  // Single / multi: try-on on every top pick (tiers.picks).
-  // Outfit / capsule: try-on lives on the look — not on each piece card.
-  const picks = await Promise.all(
-    params.render.tiers.picks.map(async (pick) => {
-      const state = await buildPickTryonState({
-        userId: params.userId,
-        personId,
-        shoppingForSelf,
-        tryonEnabled,
-        hasAvatar,
-        garment: pick.garment,
-        isHero: isSingleMode,
-      });
-      return {
-        ...pick,
-        tryon: {
-          available: state.available,
-          ...(state.cta ? { cta: state.cta } : {}),
-          disclaimer: TRYON_DISCLAIMER,
-        },
-      };
-    }),
-  );
+  const picks = render.tiers.picks.map((pick) => {
+    const state = buildPickTryonState({
+      shoppingForSelf: flags.shoppingForSelf,
+      tryonEnabled: flags.tryonEnabled,
+      hasAvatar: flags.hasAvatar,
+      garment: pick.garment,
+      isHero: isSingleMode,
+    });
+    return {
+      ...pick,
+      tryon: {
+        available: state.available,
+        ...(state.cta ? { cta: state.cta } : {}),
+        disclaimer: TRYON_DISCLAIMER,
+      },
+    };
+  });
 
   let looks: RenderLook[] | undefined;
-  if (params.render.looks?.length) {
+  if (render.looks?.length) {
     looks = await Promise.all(
-      params.render.looks.map(async (look) => {
+      render.looks.map(async (look) => {
         const state = await buildLookTryonState({
-          userId: params.userId,
-          personId,
-          shoppingForSelf,
+          userId: flags.userId,
+          shoppingForSelf: flags.shoppingForSelf,
           itemRefs: look.item_refs,
           picksByRef,
-          hasAvatar,
+          hasAvatar: flags.hasAvatar,
         });
         return {
           ...look,
@@ -173,16 +148,15 @@ export async function attachTryonToRenderContract(params: {
   }
 
   let capsule_outfits: RenderCapsuleOutfit[] | undefined;
-  if (params.render.capsule_outfits?.length) {
+  if (render.capsule_outfits?.length) {
     capsule_outfits = await Promise.all(
-      params.render.capsule_outfits.map(async (outfit, index) => {
+      render.capsule_outfits.map(async (outfit, index) => {
         const state = await buildLookTryonState({
-          userId: params.userId,
-          personId,
-          shoppingForSelf,
+          userId: flags.userId,
+          shoppingForSelf: flags.shoppingForSelf,
           itemRefs: outfit.item_refs,
           picksByRef,
-          hasAvatar,
+          hasAvatar: flags.hasAvatar,
         });
         return {
           ...outfit,
@@ -198,11 +172,66 @@ export async function attachTryonToRenderContract(params: {
   }
 
   return {
-    ...params.render,
-    tiers: { ...params.render.tiers, picks },
+    ...render,
+    tiers: { ...render.tiers, picks },
     looks,
     capsule_outfits,
   };
+}
+
+const NO_AVATAR_FLAGS = {
+  shoppingForSelf: true,
+  tryonEnabled: false,
+  hasAvatar: false,
+} as const;
+
+/** Attach per-pick and outfit/capsule try-on availability to a render contract. */
+export async function attachTryonToRenderContract(params: {
+  render: RenderContract;
+  presentation: FashionCurationPresentation;
+  plan: FashionSearchPlan;
+  userId: string;
+}): Promise<RenderContract> {
+  try {
+    const isAuth = isSupabaseAuthUserId(params.userId);
+    if (!isAuth) {
+      return applyTryonFlags(params.render, params.plan, {
+        userId: params.userId,
+        ...NO_AVATAR_FLAGS,
+      });
+    }
+
+    const personId = await tryResolveTryonPersonId(
+      params.userId,
+      params.plan.brief.recipient_person_id,
+    );
+    if (!personId) {
+      return applyTryonFlags(params.render, params.plan, {
+        userId: params.userId,
+        ...NO_AVATAR_FLAGS,
+      });
+    }
+
+    const shoppingForSelf = await isShoppingForSelf(params.userId, personId);
+    const tryonEnabled =
+      shoppingForSelf && (await isTryonEnabledForUser(params.userId));
+    const hasAvatar = shoppingForSelf
+      ? await hasStoredAvatar(params.userId, personId)
+      : false;
+
+    return applyTryonFlags(params.render, params.plan, {
+      userId: params.userId,
+      shoppingForSelf,
+      tryonEnabled,
+      hasAvatar,
+    });
+  } catch {
+    // Search results must still render — never 500 the turn over a missing twin.
+    return applyTryonFlags(params.render, params.plan, {
+      userId: params.userId,
+      ...NO_AVATAR_FLAGS,
+    });
+  }
 }
 
 export async function buildRenderContractWithTryon(params: {

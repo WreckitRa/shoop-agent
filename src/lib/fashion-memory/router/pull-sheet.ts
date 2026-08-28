@@ -20,6 +20,15 @@ export const STEPPER_MIN = 1;
 export const STEPPER_MAX = 8;
 export const PULL_SHEET_JOIN = " | ";
 
+/** UI Done line: "slots: Tee, Shorts | depth: 3 | preference_anchor: Keep it me" */
+export function formatPullSheetPart(
+  gap: FashionClarificationGap | string | undefined,
+  display: string,
+): string {
+  const g = (gap ?? "answer").trim() || "answer";
+  return `${g}: ${display}`;
+}
+
 export function defaultDisplayForGap(
   gap: FashionClarificationGap,
 ): FashionClarificationDisplay {
@@ -103,6 +112,17 @@ export function youDecideAnswer(): FashionClarificationAnswer {
   return { selected: [YOU_DECIDE_OPTION_ID] };
 }
 
+export function clarificationAnswersAreTaps(
+  answers?: Record<string, { selected?: string[]; customText?: string }> | null,
+): boolean {
+  if (!answers) return false;
+  const values = Object.values(answers);
+  if (!values.length) return false;
+  return values.every(
+    (a) => (a.selected?.length ?? 0) > 0 && !a.customText?.trim(),
+  );
+}
+
 export function formatPullSheetMessage(
   questions: FashionClarificationQuestion[],
   answers: Record<string, FashionClarificationAnswer>,
@@ -114,14 +134,18 @@ export function formatPullSheetMessage(
       answers[question.text],
       question.quick_options,
     );
-    if (display) parts.push(display);
+    if (display) {
+      parts.push(formatPullSheetPart(question.gap, display));
+    }
   }
   if (rideAlong) {
     const display = formatClarificationAnswerDisplay(
       answers[rideAlong.text],
       rideAlong.quick_options,
     );
-    if (display) parts.push(display);
+    if (display) {
+      parts.push(formatPullSheetPart(rideAlong.gap, display));
+    }
   }
   return parts.join(PULL_SHEET_JOIN);
 }
@@ -191,6 +215,14 @@ export function buildEscapeAnswers(
   return next;
 }
 
+export function formatCountLabel(
+  n: number,
+  singular: string,
+  plural: string,
+): string {
+  return n === 1 ? `1 ${singular}` : `${n} ${plural}`;
+}
+
 export function formatPullSheetRecap(
   brief: Pick<
     FashionSearchBrief,
@@ -214,9 +246,11 @@ export function formatPullSheetRecap(
     const depth =
       brief.depth?.looks_wanted ?? brief.depth?.options_per_item;
     if (depth) {
-      const unit =
+      const singular =
+        brief.request_type === "single_item" ? "option" : "look";
+      const plural =
         brief.request_type === "single_item" ? "options" : "looks";
-      bits.push(`${depth} ${unit}`);
+      bits.push(formatCountLabel(depth, singular, plural));
     }
     if (brief.preference_anchor === "keep") bits.push("kept it you");
     else if (brief.preference_anchor === "push") bits.push("pushed it");

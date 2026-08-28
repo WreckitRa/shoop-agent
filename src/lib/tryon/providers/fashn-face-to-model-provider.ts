@@ -1,7 +1,7 @@
 import { logAiChat } from "@/lib/ai-chat/observability";
 import {
-  AVATAR_BASE_NORMALIZE_PROMPT,
   buildFashnAvatarPrompt,
+  buildFashnNormalizePrompt,
   TRYON_AVATAR_PROMPT_VERSION,
 } from "../avatar/fashn-prompt";
 import { TRYON_COST_ESTIMATES } from "../config";
@@ -33,6 +33,7 @@ async function toFashnImageRef(
  */
 async function normalizeAvatarBaseWardrobe(
   imageUrl: string,
+  attributes: AvatarProviderInput["attributes"],
 ): Promise<{ imageUrl: string; normalized: boolean }> {
   try {
     const image = await toFashnImageRef(imageUrl, undefined, "image/png");
@@ -40,7 +41,7 @@ async function normalizeAvatarBaseWardrobe(
       modelName: EDIT,
       inputs: {
         image,
-        prompt: AVATAR_BASE_NORMALIZE_PROMPT,
+        prompt: buildFashnNormalizePrompt(attributes),
         resolution: "1k",
         // Fast is enough for wardrobe strip; saves cost/latency vs quality.
         generation_mode: "fast",
@@ -90,12 +91,16 @@ export class FashnFaceToModelAvatarProvider implements AvatarProvider {
       },
     });
 
-    const { imageUrl, normalized } = await normalizeAvatarBaseWardrobe(rawUrl);
+    const { imageUrl, normalized } = await normalizeAvatarBaseWardrobe(
+      rawUrl,
+      input.attributes,
+    );
 
     logAiChat("info", "avatar_fashn_face_to_model_complete", {
       latency_ms: Date.now() - started,
       has_prompt: Boolean(prompt),
       prompt_version: TRYON_AVATAR_PROMPT_VERSION,
+      build: input.attributes.build ?? null,
       seed,
       base_normalized: normalized,
     });

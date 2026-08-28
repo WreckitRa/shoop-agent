@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ProductCard } from "@/lib/ai-chat/types";
+import { trackProductEvent } from "@/lib/analytics/track";
 import {
   writeFashionPickAcceptance,
   writeFashionPickRejection,
@@ -45,11 +46,28 @@ export async function POST(req: Request) {
         product: parsed.data.product,
         conversationId: parsed.data.conversationId,
       });
+      trackProductEvent({
+        name: "item_reacted",
+        userId: auth.userId,
+        props: {
+          item_id: parsed.data.product.id,
+          reaction: "accept",
+        },
+      });
     } else {
       await writeFashionPickRejection({
         userId: auth.userId,
         product: parsed.data.product,
         reason: parsed.data.reason,
+      });
+      trackProductEvent({
+        name: "item_reacted",
+        userId: auth.userId,
+        props: {
+          item_id: parsed.data.product.id,
+          reaction: "reject",
+          reason: parsed.data.reason ?? null,
+        },
       });
     }
 

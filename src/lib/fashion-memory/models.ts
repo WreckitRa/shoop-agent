@@ -43,6 +43,10 @@ export const FASHION_NORMALIZE_MODEL =
 export const FASHION_BRAND_TRANSLATE_MODEL =
   envModel("FASHION_BRAND_TRANSLATE_MODEL") ?? AI_CHAT_LIGHTWEIGHT_MODEL;
 
+/** Haiku-class taste rerank on top-40 survivors (attributes only). */
+export const FASHION_TASTE_RERANK_MODEL =
+  envModel("FASHION_TASTE_RERANK_MODEL") ?? AI_CHAT_LIGHTWEIGHT_MODEL;
+
 /** Sonnet-class visual curation (pick-and-justify). Was Opus — too slow/expensive. */
 export const FASHION_CURATION_MODEL =
   envModel("FASHION_CURATION_MODEL") ?? "claude-sonnet-5";

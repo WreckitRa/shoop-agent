@@ -143,6 +143,8 @@ export async function resolveFittingRoomItems(params: {
 export async function startFittingRoomRender(params: {
   userId: string;
   descriptors: FittingRoomItemDescriptor[];
+  /** Fashion-memory owner (`guest-{uuid}` or auth uuid) for search-backed picks. */
+  searchUserId?: string;
 }): Promise<{
   jobId: string;
   disclaimer: string;
@@ -162,7 +164,10 @@ export async function startFittingRoomRender(params: {
   const avatar = await getStoredAvatar(params.userId, self.id);
   if (!avatar) throw new Error("Avatar required");
 
-  const items = await resolveFittingRoomItems(params);
+  const items = await resolveFittingRoomItems({
+    userId: params.searchUserId ?? params.userId,
+    descriptors: params.descriptors,
+  });
   const supported = items.filter((item) => item.tryonSupported && item.imageUrl);
   if (!supported.length) {
     throw new Error("No supported garments to try on.");

@@ -120,4 +120,6 @@ export type SlotPool = {
     stage: string,
   ): Promise<void>;
   getOverflow(n?: number): OverflowItem[];
+  /** Hydrate top-N scored ids that are not already verified (refinement reuse). */
+  ensureShortlist(): Promise<void>;
 };

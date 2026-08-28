@@ -1,0 +1,312 @@
+[
+  {
+    "id": "golden-baptism-01",
+    "name": "Daniel",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "little",
+    "specificity": "partial",
+    "profile": {
+      "state": "new",
+      "department": "mens"
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "shirt",
+        "trousers",
+        "blazer",
+        "shoes"
+      ],
+      "owns": [],
+      "occasion": "baptism with family tomorrow",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 1
+      },
+      "anchor": "n/a",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      }
+    },
+    "opening_message": "going out tomorrow with family"
+  },
+  {
+    "id": "golden-repeat-navy-02",
+    "name": "Maya",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "some",
+    "specificity": "partial",
+    "profile": {
+      "state": "known_relevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white silk blouse"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "blazer",
+        "trousers",
+        "blouse"
+      ],
+      "owns": [
+        "shoes"
+      ],
+      "occasion": "client meeting Thursday",
+      "formality": "smart",
+      "color": "navy",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "keep"
+    },
+    "opening_message": "need something for a client meeting thursday"
+  },
+  {
+    "id": "golden-quick-tee-03",
+    "name": "Omar",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "specificity": "complete",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "11"
+      },
+      "shopping_style": "quick",
+      "signals": [
+        "+black [casual, stated]"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "t-shirt"
+      ],
+      "owns": [],
+      "occasion": "weekend casual",
+      "color": "black",
+      "budget": {
+        "max": 40,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "options": 3
+      },
+      "anchor": "keep"
+    },
+    "opening_message": "just need a plain black tee under $40, size L, 3 options is fine"
+  },
+  {
+    "id": "golden-fr-capsule-04",
+    "name": "Camille",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "specificity": "vague",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "womens",
+      "sizes": {
+        "tops": "M",
+        "bottoms": "38",
+        "shoes": "39"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      },
+      "signals": [
+        "+linen [summer, stated]"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [],
+      "occasion": "week in Nice",
+      "formality": "resort",
+      "color": "surprise",
+      "depth": "you_decide",
+      "anchor": "explore"
+    },
+    "opening_message": "need looks for a week in Nice"
+  },
+  {
+    "id": "golden-ar-shoes-05",
+    "name": "Layla",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "little",
+    "specificity": "partial",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "shoes"
+      ],
+      "owns": [],
+      "occasion": "wedding guest",
+      "formality": "dressy",
+      "color": "metallic",
+      "depth": {
+        "options": 4
+      },
+      "anchor": "n/a",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38"
+      }
+    },
+    "opening_message": "need shoes for a wedding"
+  },
+  {
+    "id": "golden-irrelevant-06",
+    "name": "Chris",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "little",
+    "specificity": "partial",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "M",
+        "bottoms": "32",
+        "shoes": "10"
+      },
+      "signals": [
+        "+boardshorts [beach, stated]",
+        "+neon [festival, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "suit jacket",
+        "trousers",
+        "dress shirt",
+        "shoes"
+      ],
+      "owns": [],
+      "occasion": "job interview bank",
+      "formality": "formal",
+      "color": "charcoal",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "interview at a bank next week \u2014 need to look sharp"
+  },
+  {
+    "id": "golden-pick-history-07",
+    "name": "Sofia",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "specificity": "partial",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "womens",
+      "sizes": {
+        "tops": "M",
+        "bottoms": "29",
+        "dresses": "6",
+        "shoes": "8"
+      },
+      "signals": [
+        "+camel [work, stated]",
+        "+wool [winter, stated]"
+      ],
+      "recent_picks": [
+        "camel coat",
+        "cream turtleneck"
+      ],
+      "shopping_style": "guided"
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "coat",
+        "boots"
+      ],
+      "owns": [],
+      "occasion": "winter commute",
+      "formality": "smart casual",
+      "color": "camel",
+      "depth": {
+        "options": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "winter coat and boots for the commute",
+    "edge": "refines_after_results"
+  },
+  {
+    "id": "golden-typos-gift-08",
+    "name": "Ben",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "specificity": "vague",
+    "profile": {
+      "state": "new"
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "sweater"
+      ],
+      "owns": [],
+      "occasion": "gift for dad birthday",
+      "formality": "casual",
+      "color": "grey",
+      "depth": {
+        "options": 5
+      },
+      "anchor": "n/a",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      }
+    },
+    "opening_message": "need a gift for my dad bday somthing nice",
+    "edge": "mentions_new_person"
+  }
+]

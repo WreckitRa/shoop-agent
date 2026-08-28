@@ -38,9 +38,18 @@ export const fashionFactBudgetBandValueSchema = z.object({
   currency: z.string().min(3).max(3),
 });
 
+export const FASHION_MEASUREMENT_METRICS = [
+  "height",
+  "neck",
+  "chest",
+  "waist",
+  "hips",
+  "inseam",
+] as const;
+
 /** Reserved for future size-chart fit — store only; no consumer yet. */
 export const fashionFactMeasurementValueSchema = z.object({
-  metric: z.enum(["height", "neck", "chest", "waist", "hips", "inseam"]),
+  metric: z.enum(FASHION_MEASUREMENT_METRICS),
   value: z.number().positive(),
   unit: z.enum(["cm", "in"]),
 });

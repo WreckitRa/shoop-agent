@@ -14,6 +14,7 @@ import {
   isCheckoutStorefrontHandoff,
 } from "@/lib/shopify/checkout-errors";
 import { buildCreateCheckoutResponse } from "@/lib/shopify/checkout-api";
+import { trackProductEvent } from "@/lib/analytics/track";
 import { getAuthContext } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +66,17 @@ export async function POST(req: Request, ctx: Ctx) {
       );
     }
     checkoutMode = parsed.data.mode;
+
+    trackProductEvent({
+      name: "checkout_start",
+      userId,
+      props: {
+        shop_domain: shopDomain,
+        mode: parsed.data.mode,
+        source: "cart_item",
+        variant_id: variantId,
+      },
+    });
 
     const [{ session, group, cart }, buyerIp, tokenInfo] = await Promise.all([
       getCartGroupForCheckout(userId, shopDomain),

@@ -50,6 +50,35 @@ describe("parseClarificationAnswersFromMessage", () => {
     ]);
     assert.equal(answers.size_tops, "M");
   });
+
+  it("bare L across tops+bottoms+shoes → tops only", () => {
+    const answers = parseClarificationAnswersFromMessage("L", [
+      {
+        text: "Tops?",
+        gap: "size",
+        field: "size_tops",
+        garment_type: "tops",
+        quick_options: ["XS", "S", "M", "L", "XL"],
+      },
+      {
+        text: "Bottoms?",
+        gap: "size",
+        field: "size_bottoms",
+        garment_type: "bottoms",
+        quick_options: ["28", "30", "32", "34"],
+      },
+      {
+        text: "Shoes?",
+        gap: "size",
+        field: "size_shoes",
+        garment_type: "shoes",
+        quick_options: ["9", "10", "11"],
+      },
+    ]);
+    assert.equal(answers.size_tops, "L");
+    assert.equal(answers.size_bottoms, undefined);
+    assert.equal(answers.size_shoes, undefined);
+  });
 });
 
 describe("garment clarification chip → concrete garments", () => {

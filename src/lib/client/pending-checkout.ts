@@ -79,6 +79,10 @@ export function pendingCheckoutSelection(
     sellerName: payload.product.sellerName ?? null,
     sellerDomain: payload.product.sellerDomain ?? shopDomain,
     productId: payload.product.productId ?? payload.productId,
+    searchId: payload.product.searchId ?? null,
+    ref: payload.product.ref ?? payload.product.productId ?? payload.productId,
+    brand: payload.product.brand ?? null,
+    color: payload.product.color ?? null,
     productUrl: payload.product.productUrl ?? null,
   };
   const group: ActiveCartGroup = {

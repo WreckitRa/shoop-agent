@@ -120,3 +120,96 @@ export function previewScanNotes(pieces: LookScanPiece[]): {
 
   return { likes: likes.slice(0, 3), gripes: gripes.slice(0, 2) };
 }
+
+export type LookScanCheckKey = keyof LookScanVerdict["checks"];
+export type LookScanCheckTone = LookScanVerdict["checks"][LookScanCheckKey];
+
+const CHECK_SCORE: Record<LookScanCheckTone, number> = {
+  pass: 9.2,
+  caution: 6.4,
+  fail: 3.8,
+};
+
+const CHECK_WEIGHT: Record<LookScanCheckKey, number> = {
+  fit: 0.4,
+  palette: 0.35,
+  nolist: 0.25,
+};
+
+const CHECK_LABEL: Record<LookScanCheckKey, string> = {
+  fit: "FIT",
+  palette: "COLOUR",
+  nolist: "NO-LIST",
+};
+
+const CHECK_RANK: Record<LookScanCheckTone, number> = {
+  fail: 0,
+  caution: 1,
+  pass: 2,
+};
+
+/** Weighted /10 from the three existing look-scan checks. */
+export function scoreFromLookScanChecks(
+  checks: LookScanVerdict["checks"],
+): number {
+  const raw =
+    CHECK_SCORE[checks.fit] * CHECK_WEIGHT.fit +
+    CHECK_SCORE[checks.palette] * CHECK_WEIGHT.palette +
+    CHECK_SCORE[checks.nolist] * CHECK_WEIGHT.nolist;
+  return Math.round(raw * 10) / 10;
+}
+
+export function weakestLookScanCheck(
+  checks: LookScanVerdict["checks"],
+): LookScanCheckKey {
+  const keys: LookScanCheckKey[] = ["palette", "fit", "nolist"];
+  return keys.reduce((worst, key) =>
+    CHECK_RANK[checks[key]] < CHECK_RANK[checks[worst]] ? key : worst,
+  );
+}
+
+/** Chip copy when one check is clearly the problem. */
+export function lookScanWeaknessChip(
+  checks: LookScanVerdict["checks"],
+): string | null {
+  const weak = weakestLookScanCheck(checks);
+  if (checks[weak] === "pass") return null;
+  const others: LookScanCheckKey[] = (["fit", "palette", "nolist"] as const).filter(
+    (k) => k !== weak,
+  );
+  const only = others.every((k) => checks[k] === "pass");
+  if (only) {
+    if (weak === "palette") return "COLOUR IS THE ONLY THING WRONG";
+    if (weak === "fit") return "FIT IS THE ONLY THING WRONG";
+    return "NO-LIST IS THE ONLY FLAG";
+  }
+  if (checks[weak] === "fail") return `${CHECK_LABEL[weak]} NEEDS A FIX`;
+  return `${CHECK_LABEL[weak]} IS THE WEAK SPOT`;
+}
+
+export type LookScanDimRow = {
+  key: LookScanCheckKey;
+  label: string;
+  score: number;
+  tone: LookScanCheckTone;
+  why: string;
+};
+
+/** Three dim rows for the readout — score from check tone, why from body sentences. */
+export function lookScanDimRows(verdict: LookScanVerdict): LookScanDimRow[] {
+  const sentences = verdict.verdict_body
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const order: LookScanCheckKey[] = ["fit", "palette", "nolist"];
+  return order.map((key, i) => ({
+    key,
+    label: CHECK_LABEL[key],
+    score: CHECK_SCORE[verdict.checks[key]],
+    tone: verdict.checks[key],
+    why:
+      sentences[i] ||
+      sentences[0] ||
+      verdict.verdict_title,
+  }));
+}

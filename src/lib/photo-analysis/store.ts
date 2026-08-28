@@ -186,11 +186,26 @@ export async function saveReview(id: string, review: StyleUserReview) {
   await prisma.$executeRaw`
     UPDATE "PhotoAnalysis" SET
       "userReview" = ${jsonSql(review)},
-      verdict = NULL,
-      "verdictStatus" = 'idle',
-      "verdictError" = NULL,
-      "verdictMs" = NULL,
-      "verdictModel" = NULL,
+      verdict = CASE
+        WHEN "verdictStatus" = 'running' THEN verdict
+        ELSE NULL
+      END,
+      "verdictStatus" = CASE
+        WHEN "verdictStatus" = 'running' THEN 'running'
+        ELSE 'idle'
+      END,
+      "verdictError" = CASE
+        WHEN "verdictStatus" = 'running' THEN "verdictError"
+        ELSE NULL
+      END,
+      "verdictMs" = CASE
+        WHEN "verdictStatus" = 'running' THEN "verdictMs"
+        ELSE NULL
+      END,
+      "verdictModel" = CASE
+        WHEN "verdictStatus" = 'running' THEN "verdictModel"
+        ELSE NULL
+      END,
       "updatedAt" = NOW()
     WHERE id = ${id}
   `;

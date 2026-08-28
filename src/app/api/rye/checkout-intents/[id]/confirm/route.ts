@@ -8,6 +8,7 @@ import {
 import { isRyeConfigured } from "@/lib/rye/env";
 import { serializeRyeCheckoutIntent } from "@/lib/rye/serialize";
 import { ryeCheckoutConfirmSchema } from "@/lib/rye/validators";
+import { completeCheckoutPurchase } from "@/lib/fashion-memory/purchase-from-checkout";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -61,7 +62,26 @@ export async function POST(req: Request, ctx: Ctx) {
       });
     }
 
-    return Response.json({ intent: serializeRyeCheckoutIntent(intent) });
+    const fashionPurchase =
+      intent.state === "completed"
+        ? await completeCheckoutPurchase({
+            userId: auth.userId,
+            productUrl: intent.productUrl,
+            hint: {
+              searchId: parsed.data.searchId,
+              ref: parsed.data.ref,
+              productId: parsed.data.productId,
+              title: parsed.data.title,
+              brand: parsed.data.brand,
+              color: parsed.data.color,
+            },
+          })
+        : null;
+
+    return Response.json({
+      intent: serializeRyeCheckoutIntent(intent),
+      fashionPurchase,
+    });
   } catch (error) {
     return Response.json({ error: ryeHttpErrorMessage(error) }, { status: 502 });
   }

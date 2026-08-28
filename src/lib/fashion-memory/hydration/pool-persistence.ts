@@ -24,10 +24,13 @@ export type SearchPoolState = {
   /** Refs ever shown to the user (picks + verified + surfaced overflow). */
   shown_refs: string[];
   recurate_count: number;
+  /** Hard-drop survivors at persist time (attributes, scores, taste ratings). */
+  survivors?: FashionSlotCatalogProduct[];
   /** Context needed to rehydrate and run on-demand hydration. */
   context: {
     slot: FashionSearchPlanSlot;
     brief: FashionSearchBrief;
+    plan?: import("../search-planner/types").FashionSearchPlan;
     recipientFacts: FashionFactRow[];
     accessToken: string;
     catalogContext?: CatalogSearchContext;
@@ -82,6 +85,7 @@ export function serializePoolState(pool: {
   options_wanted: number;
   shown_refs: string[];
   recurate_count: number;
+  survivors?: FashionSlotCatalogProduct[];
   context: SearchPoolState["context"];
 }): SearchPoolState {
   return {
@@ -94,6 +98,7 @@ export function serializePoolState(pool: {
     options_wanted: pool.options_wanted,
     shown_refs: pool.shown_refs,
     recurate_count: pool.recurate_count,
+    survivors: pool.survivors?.map(slimProductForPool),
     context: pool.context,
   };
 }
@@ -278,6 +283,7 @@ export async function loadSlotPool(params: {
         options_wanted: pool.options_wanted,
         shown_refs,
         recurate_count,
+        survivors: state.survivors,
         context: state.context,
       },
       ifVersion: version,
@@ -317,6 +323,7 @@ export async function persistAllSlotPools(params: {
     }
   >;
   contexts: Map<string, SearchPoolState["context"]>;
+  survivorsBySlot?: Map<string, FashionSlotCatalogProduct[]>;
 }): Promise<void> {
   for (const [slotId, pool] of params.pools) {
     const context = params.contexts.get(slotId);
@@ -335,10 +342,30 @@ export async function persistAllSlotPools(params: {
         options_wanted: pool.options_wanted,
         shown_refs: pool.shown_refs ?? [],
         recurate_count: pool.recurate_count ?? 0,
+        survivors: params.survivorsBySlot?.get(slotId),
         context,
       },
     });
   }
+}
+
+export async function loadPoolsForSearch(params: {
+  searchId: string;
+  userId: string;
+}): Promise<SearchPoolRow[]> {
+  if (poolStoreMode === "memory") {
+    return [...memoryStore.values()].filter(
+      (row) =>
+        row.search_id === params.searchId && row.user_id === params.userId,
+    );
+  }
+  const { data, error } = await fashionMemoryDb()
+    .from("search_pools")
+    .select("*")
+    .eq("search_id", params.searchId)
+    .eq("user_id", params.userId);
+  if (error || !data) return [];
+  return data as SearchPoolRow[];
 }
 
 /** Strip catalog payloads after working lifecycle — keep refs + decisions. */

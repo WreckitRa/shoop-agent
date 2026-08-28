@@ -4,12 +4,16 @@ import { isSupabaseAuthUserId } from "../auth";
 import { upsertFashionFact } from "../facts";
 import { FashionLocalStore } from "../local/store";
 import type { GuestFashionMemorySnapshot } from "../local/store";
-import { resolvePerson } from "../people";
+import { listPeopleForUser, resolvePerson } from "../people";
+import { AMBIGUOUS_PERSON_ERROR } from "../resolve-person";
 import {
   formatClarificationAnswerDisplay,
   optionLabels,
 } from "../router/clarification-defaults";
-import { consultGapsFromAnsweredQuestions } from "../router/consultation";
+import {
+  consultGapsFromAnsweredQuestions,
+  isEscapeOrYouDecideMessage,
+} from "../router/consultation";
 import type {
   FashionClarificationAnswer,
   FashionClarificationOption,
@@ -20,6 +24,9 @@ import type { FashionFactRow, PersonRelation } from "../types";
 import { normalizeGarmentClarificationAnswer } from "./garment-answer";
 import { bucketForIntakeField } from "./garment-size-fields";
 import { parseDepartmentAnswer } from "./identity-gate";
+import { parseSizeValue } from "./parse-size-value";
+import { applyParkedOpsForRecipient } from "../parked-ops";
+import { personFromRecipientChip } from "../unresolved";
 
 type ApplyQuestion = {
   text: string;
@@ -192,6 +199,29 @@ export function parseClarificationAnswersFromMessage(
   questions: ApplyQuestion[],
 ): Record<string, string> {
   const out: Record<string, string> = {};
+
+  // UI Done format: "gap: label | gap: label …"
+  const gapPrefixed: Record<string, string> = {};
+  for (const part of userMessage.split(/\s*\|\s*/)) {
+    const m = part.trim().match(/^([a-z_][a-z0-9_]*)\s*:\s*(.+)$/i);
+    if (!m) continue;
+    gapPrefixed[m[1]!.toLowerCase()] = m[2]!.trim();
+  }
+  if (Object.keys(gapPrefixed).length) {
+    for (const q of questions) {
+      const gapKey = (q.gap ?? "").toLowerCase();
+      const fieldKey = (q.field ?? "").toLowerCase();
+      const raw =
+        (gapKey && gapPrefixed[gapKey]) ||
+        (fieldKey && gapPrefixed[fieldKey]) ||
+        undefined;
+      if (!raw) continue;
+      const key = q.field ?? q.gap ?? q.text;
+      out[key] = raw;
+    }
+    if (Object.keys(out).length) return out;
+  }
+
   for (const q of questions) {
     const key = q.field ?? q.gap ?? q.text;
     const answer = extractAnswerForQuestion(userMessage, q, questions);
@@ -213,24 +243,53 @@ export function parseClarificationAnswersFromMessage(
     return out;
   }
 
+  // Bare size across multiple size rows: attribute to ONE family only.
+  // Alpha → tops (or dresses); waist nums → bottoms; shoe nums → shoes.
+  const sizeQs = questions.filter((q) => q.gap === "size");
+  if (sizeQs.length >= 2) {
+    const target = pickSizeQuestionForBareToken(trimmed, sizeQs);
+    if (target) {
+      const key = target.field ?? target.gap ?? target.text;
+      out[key] = trimmed;
+      return out;
+    }
+  }
+
   return out;
 }
 
-function parseSizeValue(raw: string): {
-  system: "alpha" | "eu" | "us" | "uk";
-  value: string | number;
-} {
-  const t = raw.trim().toUpperCase();
-  if (/^(XXS|XS|S|M|L|XL|XXL|XXXL)$/.test(t)) {
-    return { system: "alpha", value: t };
+function pickSizeQuestionForBareToken(
+  token: string,
+  sizeQs: ApplyQuestion[],
+): ApplyQuestion | null {
+  const t = token.trim();
+  const alpha = /^(XXS|XS|S|M|L|XL|XXL|XXXL)$/i.test(t);
+  const num = Number(t);
+  const isNum = /^\d{1,2}(\.\d)?$/.test(t) && Number.isFinite(num);
+
+  const byBucket = (bucket: string) =>
+    sizeQs.find(
+      (q) =>
+        q.garment_type?.toLowerCase() === bucket ||
+        q.field === `size_${bucket}`,
+    ) ?? null;
+
+  if (alpha) {
+    return byBucket("tops") ?? byBucket("dresses") ?? sizeQs[0] ?? null;
   }
-  const numeric = Number(raw.trim());
-  if (Number.isFinite(numeric)) {
-    if (numeric >= 35 && numeric <= 50) return { system: "eu", value: numeric };
-    if (numeric >= 5 && numeric <= 15) return { system: "us", value: numeric };
-    return { system: "us", value: numeric };
+  if (isNum) {
+    if ((num >= 35 && num <= 50) || (num >= 5 && num <= 15 && num % 1 !== 0)) {
+      return byBucket("shoes") ?? null;
+    }
+    if (num >= 5 && num <= 15) {
+      // Ambiguous US shoe vs small waist — prefer shoes when a shoes row exists
+      // only if no bottoms row, else bottoms for 28–40, shoes for 5–13.
+      if (num >= 24 && num <= 44) return byBucket("bottoms") ?? byBucket("shoes");
+      return byBucket("shoes") ?? byBucket("bottoms");
+    }
+    if (num >= 24 && num <= 44) return byBucket("bottoms") ?? null;
   }
-  return { system: "alpha", value: raw.trim() };
+  return null;
 }
 
 function parseFitValue(raw: string): "slim" | "regular" | "relaxed" | "oversized" | null {
@@ -300,6 +359,12 @@ export async function applyClarificationReplyFromMessage(params: {
   raisedBudgetMax?: number;
   /** Concrete garments resolved from a prior gap:"garment" clarification. */
   resolvedGarments?: string[];
+  /** Ticked pull-sheet slot labels from a prior gap:"slots" answer. */
+  resolvedSlotsGarments?: string[];
+  /** Prior clarification questions (for chip→brief consistency). */
+  priorQuestions?: FashionClarificationQuestion[];
+  /** Flattened answers keyed by field/gap/text. */
+  flatAnswers?: Record<string, string>;
   /** Consult gaps the user answered (incl. You decide / Just show me). */
   answeredGaps?: FashionClarificationQuestion["gap"][];
 }> {
@@ -345,21 +410,44 @@ export async function applyClarificationReplyFromMessage(params: {
           )
         : [];
 
-  if (!Object.keys(answers).length && !resolvedGarments.length) {
+  const slotsQuestion = prior.questions.find((q) => q.gap === "slots");
+  const slotsRaw =
+    answers.slots ??
+    (slotsQuestion
+      ? answers[slotsQuestion.field ?? ""] ?? answers[slotsQuestion.text]
+      : undefined);
+  const slotsLabels = optionLabels(slotsQuestion?.quick_options);
+  const resolvedSlotsGarments =
+    slotsRaw != null
+      ? parseSlotsClarificationAnswer(slotsRaw, slotsLabels)
+      : slotsQuestion
+        ? parseSlotsClarificationAnswer(params.userMessage, slotsLabels)
+        : [];
+
+  if (
+    !Object.keys(answers).length &&
+    !resolvedGarments.length &&
+    !resolvedSlotsGarments.length
+  ) {
     return {
       facts: [],
       personId: prior.targetPersonId,
+      priorQuestions: prior.questions as FashionClarificationQuestion[],
+      flatAnswers: answers,
       ...(answeredGaps.length ? { answeredGaps } : {}),
     };
   }
 
-  // Garment-only reply (chip / free text) — still return resolved garments even
-  // when no durable size/department facts are written below.
-  if (!Object.keys(answers).length && resolvedGarments.length) {
+  // Garment-only / slots-only reply — still return resolved garments.
+  if (!Object.keys(answers).length && (resolvedGarments.length || resolvedSlotsGarments.length)) {
     return {
       facts: [],
       personId: prior.targetPersonId,
-      resolvedGarments,
+      ...(resolvedGarments.length ? { resolvedGarments } : {}),
+      ...(resolvedSlotsGarments.length ? { resolvedSlotsGarments } : {}),
+      priorQuestions: prior.questions as FashionClarificationQuestion[],
+      flatAnswers: answers,
+      ...(answeredGaps.length ? { answeredGaps } : {}),
     };
   }
 
@@ -402,21 +490,63 @@ export async function applyClarificationReplyFromMessage(params: {
     // Bare name replies ("Gabriel") carry no relation — refuse name-only merge.
     if (relation !== "friend" || /\b(friend|colleague)\b/i.test(params.userMessage)) {
       if (isSupabaseAuthUserId(params.userId)) {
-        const person = await resolvePerson({
-          userId: params.userId,
-          relation,
-          name: nameAnswer,
-        });
-        personId = person.id;
+        try {
+          const person = await resolvePerson({
+            userId: params.userId,
+            relation,
+            name: nameAnswer,
+          });
+          personId = person.id;
+        } catch (error) {
+          if (
+            !(error instanceof Error) ||
+            error.message !== AMBIGUOUS_PERSON_ERROR
+          ) {
+            throw error;
+          }
+        }
       } else if (params.guestSnapshot) {
         const store = new FashionLocalStore(params.guestSnapshot);
-        const person = store.resolvePerson({
-          userId: params.userId,
-          relation,
-          name: nameAnswer,
-        });
-        personId = person.id;
+        try {
+          const person = store.resolvePerson({
+            userId: params.userId,
+            relation,
+            name: nameAnswer,
+          });
+          personId = person.id;
+        } catch (error) {
+          if (
+            !(error instanceof Error) ||
+            error.message !== AMBIGUOUS_PERSON_ERROR
+          ) {
+            throw error;
+          }
+        }
       }
+    }
+  }
+
+  const recipientQuestion = prior.questions.find((q) => q.gap === "recipient");
+  const recipientRaw =
+    answers.recipient ??
+    (recipientQuestion
+      ? answers[recipientQuestion.text]
+      : undefined);
+  if (recipientRaw) {
+    const roster = isSupabaseAuthUserId(params.userId)
+      ? await listPeopleForUser(params.userId)
+      : params.guestSnapshot
+        ? params.guestSnapshot.people.filter((p) => p.user_id === params.userId)
+        : [];
+    const chosen = personFromRecipientChip(recipientRaw, roster);
+    if (chosen) {
+      personId = chosen.id;
+      await applyParkedOpsForRecipient({
+        userId: params.userId,
+        conversationId: params.conversationId,
+        personId: chosen.id,
+        guestSnapshot: params.guestSnapshot,
+      });
     }
   }
 
@@ -631,6 +761,119 @@ export async function applyClarificationReplyFromMessage(params: {
     ...(declineBudgetRaise ? { declineBudgetRaise: true } : {}),
     ...(raisedBudgetMax != null ? { raisedBudgetMax } : {}),
     ...(resolvedGarments.length ? { resolvedGarments } : {}),
+    ...(resolvedSlotsGarments.length ? { resolvedSlotsGarments } : {}),
+    priorQuestions: prior.questions as FashionClarificationQuestion[],
+    flatAnswers: answers,
     ...(answeredGaps.length ? { answeredGaps } : {}),
   };
+}
+
+/** Pull-sheet checklist answer → garment labels (verbatim ticks + free-text). */
+export function parseSlotsClarificationAnswer(
+  raw: string,
+  quickOptions?: string[],
+): string[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  // Escape / speed alone is not a slots answer — keep prior brief garments.
+  // "Top, Shoes. just show me" still counts as ticks (strip the escape tail).
+  if (
+    /^(just show me|you decide|surprise me)(\s|$|[.!])/i.test(trimmed) ||
+    /^(show me what you'?ve got|montre[- ]moi|vas[- ]y)(\s|$|[.!])/i.test(
+      trimmed,
+    ) ||
+    /^(وريني|بس وريني)/.test(trimmed)
+  ) {
+    return [];
+  }
+  const withoutEscape = trimmed
+    .replace(
+      /[.,;]?\s*(just show me.*|vas-y.*|montre[- ]moi.*|يلا.*|surprenez[- ]moi.*)$/iu,
+      "",
+    )
+    .trim();
+  const work = withoutEscape || trimmed;
+  const lower = work.toLowerCase();
+
+  const isAddRow = (l: string) =>
+    /^(other|add a piece)$/i.test(l.trim());
+  const isJunkSlot = (l: string) =>
+    isAddRow(l) ||
+    isEscapeOrYouDecideMessage(l, undefined) ||
+    /^(et )?vous décidez$/i.test(l.trim()) ||
+    /\b(you decide|tu (décides|choisis))\b/i.test(l);
+
+  // Prefer matching chip labels inside free text, then merge free-text
+  // garments so "shirt, trousers, blazer, shoes" keeps pieces absent from chips.
+  if (quickOptions?.length) {
+    const chipOpts = quickOptions.filter((l) => !isAddRow(l));
+    const matched = chipOpts.filter((l) => {
+      const opt = l.trim().toLowerCase();
+      if (!opt) return false;
+      return (
+        lower === opt ||
+        new RegExp(
+          `\\b${opt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+          "i",
+        ).test(work)
+      );
+    });
+    // Comma/and-split free text — avoid normalizeGarment's shoe early-return
+    // which drops sibling apparel tokens on the same line.
+    const freeParts = work
+      .split(/\s*[|,]\s*|\s+and\s+/i)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .flatMap((part) => {
+        // "light jacket. Surprenez-moi" → keep leading garment clause
+        const clause = part.split(/[.!?]/)[0]?.trim() || part;
+        if (!clause || clause.length > 40) return [];
+        if (isJunkSlot(clause)) return [];
+        if (
+          matched.some((m) => m.toLowerCase() === clause.toLowerCase()) ||
+          chipOpts.some((c) => c.toLowerCase() === clause.toLowerCase())
+        ) {
+          return [];
+        }
+        const mined = normalizeGarmentClarificationAnswer(
+          clause,
+          chipOpts,
+        ).filter((g) => g.length <= 40 && !/[.!?]/.test(g) && !isJunkSlot(g));
+        return mined.length ? mined : [clause];
+      });
+    const merged = [
+      ...matched.map((m) => m.trim()),
+      ...freeParts.filter(
+        (g) =>
+          !matched.some(
+            (m) =>
+              m.toLowerCase() === g.toLowerCase() ||
+              m.toLowerCase().includes(g.toLowerCase()) ||
+              g.toLowerCase().includes(m.toLowerCase()),
+          ),
+      ),
+    ];
+    if (merged.length) return [...new Set(merged)];
+  }
+
+  const parts = work
+    .split(/\s*[|,]\s*|\s+and\s+/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts.length ? parts : [work]) {
+    // Reject prose fragments — slots must be short labels.
+    if (part.length > 40 || /\s{2,}|\.|!|\?/.test(part)) continue;
+    if (/^\d+\s*(looks?|options?)$/i.test(part)) continue;
+    if (/^(you decide|just show me|other|add a piece)$/i.test(part)) continue;
+    const key = part.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(part);
+  }
+  if (out.length) return out;
+  return normalizeGarmentClarificationAnswer(work).filter(
+    (g) => g.length <= 40 && !/[.!?]/.test(g) && !isAddRow(g),
+  );
 }

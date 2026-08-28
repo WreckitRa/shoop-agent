@@ -1,0 +1,313 @@
+{
+  "calibration_id": "cal-02",
+  "source_run": "2-2026-08-27T08-11-34-446Z",
+  "persona_id": "8b7134c4c78210f3",
+  "persona_name": "Sam50",
+  "cell": "capsule×partial",
+  "profile_state": "new",
+  "judge_overall": 2.4,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 2,
+      "why": "Re-asked tops and shoe size after clear answers, then asked dress size a third time — felt processed."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Style, occasion, budget, sizes all rack-changing, but garments read as generic outfit vs the wanted capsule."
+    },
+    "not_interrogated": {
+      "score": 1,
+      "why": "Sizing dragged across three turns despite promises to ask once; classic form-fill after client twice deflected."
+    },
+    "no_silent_guess": {
+      "score": 4,
+      "why": "Depth and budget-tier assumptions spoken aloud and correctable; nothing silently decided."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Occasion, sleek vibe, no-cap right, but shrank a 4-garment navy capsule into one womens outfit."
+    },
+    "voice": {
+      "score": 2,
+      "why": "Repetitive 'so everything I pull fits' line, robotic re-asks; reads like a script, not a stylist."
+    },
+    "would_proceed": {
+      "score": 2,
+      "why": "Twice said 'just show me' and was still asked more sizing — nearly closed the tab."
+    }
+  },
+  "human_overall": 2,
+  "human_dimensions": null,
+  "human_notes": "Provisional human reader (Claude calibration grades, not a separate human). Overall only.",
+  "agreement": {
+    "overall_within_0_4": false,
+    "opus_minus_reader": -0.7,
+    "sonnet_minus_reader": -0.8
+  },
+  "truth": {
+    "request_type": "capsule",
+    "garments": [
+      "shirts",
+      "trousers",
+      "sneakers",
+      "overshirt"
+    ],
+    "owns": [
+      "overshirt"
+    ],
+    "occasion": "date night",
+    "formality": "smart casual",
+    "color": "navy",
+    "budget": "no_cap",
+    "depth": {
+      "looks": 2
+    },
+    "anchor": "n/a"
+  },
+  "opening_message": "need help for date night",
+  "brief": {
+    "recipient_person_id": "37237a72-29ba-4ab1-9c7a-5dc479a602e6",
+    "request_type": "outfit",
+    "garments": [
+      "top",
+      "bottom",
+      "shoes"
+    ],
+    "occasion_context": "date_night",
+    "quantity_hint": "one outfit",
+    "must_haves": [],
+    "nice_to_haves": [
+      "chic and sleek"
+    ],
+    "budget_context": {
+      "currency": "USD",
+      "stated": true,
+      "scope": "per_item"
+    },
+    "style_direction": "Chic, sleek date-night look for dinner out — sexy-elegant with clean lines, in women's sizing (tops M, shoes 9).",
+    "department_scope": "womens",
+    "color_direction": {
+      "source": "none"
+    },
+    "brand_direction": {
+      "source": "none"
+    },
+    "stated_facts": {
+      "person_ref": "3723",
+      "department": "womens",
+      "sizes": {
+        "tops": "M",
+        "shoes": "9"
+      },
+      "budget": {
+        "currency": "USD"
+      }
+    },
+    "depth": {
+      "source": "you_decide"
+    },
+    "preference_anchor": "unspecified",
+    "consultation": {
+      "confirmed": [
+        "chic and sleek",
+        "dinner out",
+        "no budget cap",
+        "tops M",
+        "shoes 9"
+      ],
+      "rounds_used": 1
+    },
+    "assumptions": [
+      "I put together one full look with a few options each.",
+      "No budget cap, so I mixed in some pricier pieces too."
+    ],
+    "knowledge_state": {
+      "department": "womens",
+      "sizes_confirmed": [
+        "top",
+        "shoes"
+      ],
+      "sizes_unconfirmed": [
+        "top",
+        "bottom",
+        "shoes"
+      ]
+    }
+  },
+  "question_rounds": 4,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "need help for date night"
+    },
+    {
+      "role": "assistant",
+      "content": "Ooh, date night — happy to pull some options! A couple quick things so I nail the vibe.",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "style_lane",
+          "text": "What's the vibe you're going for?"
+        },
+        {
+          "gap": "occasion",
+          "text": "What kind of date is it?"
+        },
+        {
+          "gap": "budget",
+          "text": "Any budget in mind?"
+        },
+        {
+          "gap": "size",
+          "text": "What size do you usually wear in tops?"
+        },
+        {
+          "gap": "size",
+          "text": "Shoe size?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "Chic & sleek Dinner out No cap M 9"
+    },
+    {
+      "role": "assistant",
+      "content": "20 seconds of essentials so everything I pull actually fits — and I only ask once.",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "size",
+          "text": "What size does Sam50 usually wear in tops?"
+        },
+        {
+          "gap": "size",
+          "text": "Sam50's shoe size?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "M for tops, and 9 for shoes."
+    },
+    {
+      "role": "assistant",
+      "content": "How many looks should I pull?",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "depth",
+          "text": "How many looks?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "just show me what you've got"
+    },
+    {
+      "role": "assistant",
+      "content": "Quick sizing so everything I pull actually fits.",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "size",
+          "text": "What's Sam50's typical dress size?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "just show me what you've got"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ],
+  "sonnet_grade": {
+    "recognized": {
+      "score": 1,
+      "why": "Ignored truth entirely: treated as women's outfit, wrong gender, wrong garments, wrong quantity."
+    },
+    "asked_right": {
+      "score": 1,
+      "why": "Re-asked sizes twice already given, then asked dress size irrelevant to a capsule of shirts/trousers."
+    },
+    "not_interrogated": {
+      "score": 1,
+      "why": "Four separate question rounds, repeated sizing asks despite user answering twice, felt like a form loop."
+    },
+    "no_silent_guess": {
+      "score": 1,
+      "why": "Silently assumed womens department and dress sizing without confirming, contradicting actual capsule request."
+    },
+    "accuracy": {
+      "score": 1,
+      "why": "Truth wanted navy capsule (shirts, trousers, sneakers, overshirt); brief built a womens single outfit instead."
+    },
+    "voice": {
+      "score": 2,
+      "why": "Generic bubbly phrasing, repetitive scripted lines, no personalization or acknowledgment of prior answers."
+    },
+    "would_proceed": {
+      "score": 1,
+      "why": "User would abandon after being asked dress size again despite already answering twice."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 1.2,
+    "worst_moment": {
+      "quote": "Quick sizing so everything I pull actually fits. Q: size:What's Sam50's typical dress size?",
+      "better": "Got it, M tops and 9 shoes — I'll pull your navy shirts, trousers, and sneakers now for two date-night looks."
+    },
+    "judge_model": "claude-sonnet-5"
+  },
+  "opus_grade": {
+    "recognized": {
+      "score": 1,
+      "why": "Re-asked sizes already answered; never grasped this was a navy capsule, not one outfit."
+    },
+    "asked_right": {
+      "score": 1,
+      "why": "Asked dress size (irrelevant — client wants trousers) and re-asked top/shoe sizes already given."
+    },
+    "not_interrogated": {
+      "score": 1,
+      "why": "Pure form: looped identical sizing questions twice after answers, ignoring client's \"just show me.\""
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Assumptions noted in brief, but wrong department (womens) and single-outfit guess never surfaced to client."
+    },
+    "accuracy": {
+      "score": 1,
+      "why": "Wildly off: womens outfit vs. mens navy capsule (shirts, trousers, sneakers, owned overshirt), two looks."
+    },
+    "voice": {
+      "score": 2,
+      "why": "Opening \"Ooh\" charm collapses into robotic repeated sizing loops that ignore what client said."
+    },
+    "would_proceed": {
+      "score": 1,
+      "why": "Client twice said \"just show me\"; stylist stalled with redundant questions. Tab closed."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 1.3,
+    "worst_moment": {
+      "quote": "Quick sizing so everything I pull actually fits. Q: What's Sam50's typical dress size?",
+      "better": "\"Got it — M tops, 9 shoes. Let me pull a sleek navy date-night capsule now.\""
+    },
+    "judge_model": "claude-opus-4-8"
+  },
+  "sonnet_offset_vs_opus": -0.1,
+  "sonnet_offset_vs_human": -0.8,
+  "sonnet_dim_agreement_vs_opus_pct": 85.7,
+  "opus_offset_vs_human": -0.7
+}

@@ -2,7 +2,7 @@ import { logAiChat } from "@/lib/ai-chat/observability";
 import { recordPipelineEvent } from "../observability/trace";
 import type { FashionSearchPlan } from "../search-planner/types";
 import type { HydratedCandidate } from "../hydration/types";
-import { isDegradedOutfitPlan, validateCurationOutput, dropRedundantLooks } from "./validate";
+import { isDegradedOutfitPlan, missingBriefGarments, validateCurationOutput, dropRedundantLooks } from "./validate";
 import type {
   CurationRefRegistry,
   DeliverCurationInput,
@@ -268,6 +268,7 @@ export function synthesizeOutfitLooks(params: {
 
 function repairFallbackNarration(params: {
   output: DeliverCurationInput;
+  plan: FashionSearchPlan;
   brandNote?: string;
   budgetNote?: string;
   thinNote?: string;
@@ -284,10 +285,13 @@ function repairFallbackNarration(params: {
     narration.budget_note = params.budgetNote;
   }
   if (codes.has("missing_thin_note")) {
+    const missing = missingBriefGarments(params.plan);
     narration.thin_note =
       params.thinNote ??
       narration.thin_note ??
-      "Fewer solid options than I'd like — showing what actually works.";
+      (missing[0]
+        ? `no ${missing[0]} earned the cut — say the word and I'll hunt one`
+        : "Fewer solid options than I'd like — showing what actually works.");
   }
   if (codes.has("degraded_success_opening")) {
     narration.opening =
@@ -384,6 +388,7 @@ export function validateAndRepairFallback(params: {
   if (!validated.ok && validated.output) {
     current = repairFallbackNarration({
       output: validated.output,
+      plan: params.plan,
       brandNote: params.brandNote,
       budgetNote: params.budgetNote,
       thinNote: params.thinNote ?? validated.output.narration.thin_note,

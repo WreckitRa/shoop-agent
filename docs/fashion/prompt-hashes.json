@@ -2,8 +2,8 @@
   "router.md": {
     "stage": "router",
     "source": "src/lib/fashion-memory/router/prompt.ts → ROUTER_PROMPT_BODY",
-    "sha256": "b8bba9141bc2eeb5335cf20f962ffca4783317c89551359a36929bb7bb882fbf",
-    "chars": 18923
+    "sha256": "ad5f6e940a0ff8508755c50b5409a870b419363bd28976f3bcd0bc5805c5c1fb",
+    "chars": 32245
   },
   "planner.md": {
     "stage": "planner",
@@ -14,14 +14,14 @@
   "extraction.md": {
     "stage": "extraction",
     "source": "src/lib/fashion-memory/extraction/prompt.ts → buildFashionExtractionPrompt()",
-    "sha256": "11c7212488a713a1b5322d7d6842672ba8af48f520394eefdad53a71fcd9edce",
-    "chars": 6338
+    "sha256": "80c5a399208732ef3f15fa6b9d761194d7e82bc68422ff8dd31c06d141838e0c",
+    "chars": 9548
   },
   "curation.md": {
     "stage": "curation",
     "source": "src/lib/fashion-memory/curation/prompt.ts → CURATION_PROMPT_SKELETON (+ mode sections)",
-    "sha256": "fc293c66264f9b03e00bcdf8fbd8096015dcd6ee965df9ba1696e9f20168dc97",
-    "chars": 13684
+    "sha256": "a588bc54e2b2ae19f580a6fc246e5c3c4784f7c0f63b6e6563bbf3663b60ec94",
+    "chars": 8046
   },
   "brand_translate.md": {
     "stage": "brand_translate",
@@ -34,5 +34,11 @@
     "source": "src/lib/fashion-memory/normalize/llm-classify.ts → CLASSIFY_LABELS_SYSTEM_PROMPT",
     "sha256": "d9ddaf771d0555eb3fdb498d1888b56a3dea79cc3bb3d0f31ea564ca31cb0fb4",
     "chars": 3421
+  },
+  "taste_rerank.md": {
+    "stage": "taste_rerank",
+    "source": "src/lib/fashion-memory/scoring/taste-rerank.ts → TASTE_RERANK_PROMPT",
+    "sha256": "bb14da25070740dd668e30ab0193e9d26ef428e4ea7b072e2a4ce3689703b52d",
+    "chars": 1172
   }
 }

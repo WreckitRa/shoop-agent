@@ -119,6 +119,14 @@ export type FashionRouterContext = {
   profileHints?: import("../intake/account-profile-bridge").IntakeProfileHints | null;
   /** When true, the uncached context tells the LLM to search and list assumptions. */
   consultation_budget_spent?: boolean;
+  /** Mentions that could be more than one roster person — UNRESOLVED in CONTEXT. */
+  unresolvedSubjects?: import("../extraction/tool-schema").AmbiguousSubject[];
+  unresolvedLines?: string[];
+  /** Recent request/purchase events per person — unnamed-garment gate treats these families as named. */
+  recentRequestEventsByPersonId?: Map<
+    string,
+    import("../types").RequestEventRow[]
+  >;
 };
 
 export type FashionClarificationGap =
@@ -231,6 +239,10 @@ export type FashionRouterResult =
   | {
       move: "ready_to_search";
       brief: FashionSearchBrief;
+      /** ≤20 words: client ask + stylist touch — the progress line. */
+      pull_line?: string;
+      /** Client-visible spoken line before search progress. */
+      reply?: string;
       known_summary?: string;
     };
 
@@ -259,6 +271,8 @@ export type MessageFashionRouterMetaV1 = {
   trace_id?: string;
   known_summary?: string;
   escape_chip?: string;
+  /** ready_to_search progress line (client words + stylist touch). */
+  pull_line?: string;
 };
 
 export type FashionPendingBriefMetaV1 = {

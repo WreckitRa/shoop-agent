@@ -1,0 +1,238 @@
+{
+  "calibration_id": "cal-10",
+  "source_run": "1-2026-08-26T09-18-59-339Z",
+  "persona_id": "b255b8ce6c377fbc",
+  "persona_name": "Sam40",
+  "cell": "outfit×complete",
+  "profile_state": "has_pick_history",
+  "judge_overall": 4.5,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 4,
+      "why": "\"Going on what I know\" plus \"the usual\" callback shows history awareness; light but genuine."
+    },
+    "asked_right": {
+      "score": 5,
+      "why": "Single anchor question (usual vs new) is exactly the one call that reshapes the rack."
+    },
+    "not_interrogated": {
+      "score": 5,
+      "why": "One round, one question, then ready. Reads like a salesman, not a form."
+    },
+    "no_silent_guess": {
+      "score": 4,
+      "why": "Anchor spoken aloud; color-from-profile and size families assumed silently but low-risk."
+    },
+    "accuracy": {
+      "score": 5,
+      "why": "Brief nails polo/chinos/loafers, 2 looks, coastal smart-casual, navy anchor — matches truth cleanly."
+    },
+    "voice": {
+      "score": 3,
+      "why": "Efficient and on-tone but thin; no coastal color or sea-week flavor to feel personal."
+    },
+    "would_proceed": {
+      "score": 5,
+      "why": "Quick shopper got one smart question then straight to search; nothing to make me leave."
+    }
+  },
+  "human_overall": 4,
+  "human_dimensions": null,
+  "human_notes": "Provisional human reader (Claude calibration grades, not a separate human). Overall only.",
+  "agreement": {
+    "overall_within_0_4": true,
+    "opus_minus_reader": -0.2,
+    "sonnet_minus_reader": -0.6
+  },
+  "truth": {
+    "request_type": "outfit",
+    "garments": [
+      "polo",
+      "chinos",
+      "loafers"
+    ],
+    "owns": [],
+    "occasion": "week by the sea",
+    "formality": "smart casual",
+    "color": "navy",
+    "budget": {
+      "max": 120,
+      "currency": "USD",
+      "scope": "per_item"
+    },
+    "depth": {
+      "looks": 2
+    },
+    "anchor": "keep"
+  },
+  "opening_message": "looking for polo + chinos + loafers for week by the sea, size L, show me 2",
+  "brief": {
+    "recipient_person_id": "80868656-85d3-4970-a4b8-82d982300d3b",
+    "request_type": "outfit",
+    "garments": [
+      "polo",
+      "chinos",
+      "loafers"
+    ],
+    "occasion_context": "week by the sea / coastal vacation",
+    "quantity_hint": "2 looks",
+    "must_haves": [],
+    "nice_to_haves": [],
+    "budget_context": {
+      "stated": false
+    },
+    "style_direction": "Relaxed coastal vacation looks with a guided, elevated-basics feel — navy and neutral polos, tailored-leaning chinos, and clean loafers, staying close to his usual smart-casual comfort zone.",
+    "department_scope": "mens",
+    "color_direction": {
+      "source": "profile"
+    },
+    "brand_direction": {
+      "source": "none"
+    },
+    "stated_facts": {
+      "person_ref": "8086",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "L",
+        "shoes": "US10"
+      }
+    },
+    "depth": {
+      "looks_wanted": 2,
+      "options_per_item": 1,
+      "source": "stated"
+    },
+    "preference_anchor": "keep",
+    "consultation": {
+      "confirmed": [
+        "2 looks",
+        "the usual"
+      ],
+      "rounds_used": 1
+    },
+    "assumptions": [],
+    "knowledge_state": {
+      "department": "mens",
+      "sizes_confirmed": [
+        "chinos"
+      ],
+      "sizes_unconfirmed": [
+        "polo",
+        "chinos",
+        "loafers"
+      ]
+    }
+  },
+  "question_rounds": 1,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "looking for polo + chinos + loafers for week by the sea, size L, show me 2"
+    },
+    {
+      "role": "assistant",
+      "content": "Going on what I know — the usual, or something new?",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "preference_anchor",
+          "text": "The usual, or something new?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "The usual"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ],
+  "sonnet_grade": {
+    "recognized": {
+      "score": 3,
+      "why": "Referenced 'the usual' pick history, but never confirmed navy or budget from profile."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Anchor question was relevant, but sizes for polo/loafers left unconfirmed despite stated L."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "Single light question, no form-like barrage; felt conversational."
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Silently assumed shoe/polo sizes and budget without flagging these guesses to user."
+    },
+    "accuracy": {
+      "score": 4,
+      "why": "Matches garments, occasion, navy, 2 looks; budget not surfaced but not contradicted."
+    },
+    "voice": {
+      "score": 3,
+      "why": "Brief, on-brand line, but generic phrasing lacks distinct personal stylist voice."
+    },
+    "would_proceed": {
+      "score": 4,
+      "why": "Quick, relevant exchange; would likely wait to see results despite minor size gaps."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 3.4,
+    "worst_moment": {
+      "quote": "assistant [ready_to_search]: Searching the stores",
+      "better": "\"Great, sticking with your usual navy smart-casual look — confirming L across polo and chinos, size 10 shoes, pulling 2 looks now.\""
+    },
+    "judge_model": "claude-sonnet-5"
+  },
+  "opus_grade": {
+    "recognized": {
+      "score": 4,
+      "why": "Used pick history, offered \"the usual\" callback; felt known without re-asking sizes or basics."
+    },
+    "asked_right": {
+      "score": 4,
+      "why": "The one anchor question (usual vs new) genuinely reshapes the rack; nothing wasted."
+    },
+    "not_interrogated": {
+      "score": 5,
+      "why": "Single round, leaned on profile; felt like a salesman, not a form."
+    },
+    "no_silent_guess": {
+      "score": 3,
+      "why": "Color (navy) and budget pulled silently from profile; not spoken or made correctable."
+    },
+    "accuracy": {
+      "score": 4,
+      "why": "Garments, occasion, count, formality all match; navy from profile aligns; budget unconfirmed."
+    },
+    "voice": {
+      "score": 2,
+      "why": "\"Going on what I know — the usual, or something new?\" is decent but thin, near-generic."
+    },
+    "would_proceed": {
+      "score": 4,
+      "why": "Fast, respected \"the usual,\" no friction; I'd wait for these results."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 3.8,
+    "worst_moment": {
+      "quote": "Searching the stores",
+      "better": "\"Sticking with your navy, keeping each piece under $120 — shout if that's off. Pulling two looks now.\""
+    },
+    "judge_model": "claude-opus-4-8"
+  },
+  "sonnet_offset_vs_opus": -0.4,
+  "sonnet_offset_vs_human": -0.6,
+  "sonnet_dim_agreement_vs_opus_pct": 28.6,
+  "opus_offset_vs_human": -0.2
+}

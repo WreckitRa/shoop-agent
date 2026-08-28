@@ -472,7 +472,11 @@ export async function runFashionCuration(
 
   const depth = agreedDepth(params.plan.brief);
   const depthExceedsImageBudget = params.plan.slots.some((s) => {
-    const allotment = imageBudgetForSlot({ mode: params.plan.mode, role: s.role });
+    const allotment = imageBudgetForSlot({
+      mode: params.plan.mode,
+      role: s.role,
+      brief: params.plan.brief,
+    });
     return s.options_wanted > allotment;
   });
   if (depthExceedsImageBudget) {
@@ -1021,6 +1025,8 @@ outfit mode.`
 
   // Phase 1 Stage B: fill voice onto already-chosen picks (text-only, cheap model).
   let voiceFallback = false;
+  const stageAMs = Date.now() - started;
+  const voiceStarted = Date.now();
   if (FASHION_CURATION_SPLIT_ENABLED && finalOutput && !fallback) {
     const voiceResult = await fillCurationVoice({
       output: finalOutput,
@@ -1157,6 +1163,8 @@ outfit mode.`
   return {
     presentation,
     curation_ms: curationMs,
+    stage_a_ms: stageAMs,
+    stage_b_ms: Date.now() - voiceStarted,
     registry: inputBundle.registry,
   };
 }

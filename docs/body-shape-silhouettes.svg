@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1400 840"
+     role="img"
+     aria-labelledby="title description">
+  <title id="title">Male and female body-size silhouettes</title>
+  <desc id="description">
+    Two rows of five neutral adult silhouettes progressing from slim to very large.
+  </desc>
+
+  <style>
+    .silhouette {
+      color: #2b2b2b;
+      fill: currentColor;
+      stroke: currentColor;
+    }
+    .limb {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  </style>
+
+  <defs>
+    <!-- Every symbol uses the same 180 x 340 coordinate system. -->
+
+    <symbol id="male-slim" viewBox="0 0 180 340">
+      <title>Male, slim</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="18" d="M59 91 L29 184 M121 91 L151 184"/>
+      <path d="M60 76 Q90 66 120 76 Q126 80 126 92
+               L121 191 Q121 203 111 207 L69 207
+               Q59 203 59 191 L54 92 Q54 80 60 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="21" d="M77 195 L77 312 M103 195 L103 312"/>
+    </symbol>
+
+    <symbol id="male-average" viewBox="0 0 180 340">
+      <title>Male, average</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="20" d="M56 92 L25 184 M124 92 L155 184"/>
+      <path d="M57 76 Q90 65 123 76 Q130 80 130 94
+               C129 121 128 159 126 190 Q125 205 114 210
+               L66 210 Q55 205 54 190 C52 159 51 121 50 94
+               Q50 80 57 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="24" d="M75 197 L75 312 M105 197 L105 312"/>
+    </symbol>
+
+    <symbol id="male-midsize" viewBox="0 0 180 340">
+      <title>Male, mid-size</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="22" d="M53 93 L22 184 M127 93 L158 184"/>
+      <path d="M53 76 Q90 63 127 76 Q135 81 136 96
+               C136 119 138 151 135 184 Q133 203 119 213
+               Q105 218 90 218 Q75 218 61 213 Q47 203 45 184
+               C42 151 44 119 44 96 Q45 81 53 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="28" d="M72 199 L72 312 M108 199 L108 312"/>
+    </symbol>
+
+    <symbol id="male-large" viewBox="0 0 180 340">
+      <title>Male, large</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="25" d="M49 95 L18 184 M131 95 L162 184"/>
+      <path d="M49 76 Q90 61 131 76 Q140 81 142 98
+               C145 122 148 153 145 180
+               Q142 202 126 212 Q110 219 90 219
+               Q70 219 54 212 Q38 202 35 180
+               C32 153 35 122 38 98 Q40 81 49 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="33" d="M69 207 L69 312 M111 207 L111 312"/>
+    </symbol>
+
+    <symbol id="male-very-large" viewBox="0 0 180 340">
+      <title>Male, very large</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="28" d="M43 98 L16 183 M137 98 L164 183"/>
+      <path d="M43 76 Q90 58 137 76 Q147 82 150 101
+               C154 125 159 153 156 179
+               Q154 204 135 218 Q116 229 90 229
+               Q64 229 45 218 Q26 204 24 179
+               C21 153 26 125 30 101 Q33 82 43 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="39" d="M65 216 L65 312 M115 216 L115 312"/>
+    </symbol>
+
+    <symbol id="female-slim" viewBox="0 0 180 340">
+      <title>Female, slim</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="17" d="M64 92 L31 184 M116 92 L149 184"/>
+      <path d="M65 76 Q90 67 115 76 Q122 80 123 93
+               C124 112 117 130 111 145
+               Q115 161 125 185 Q128 197 119 207
+               Q105 215 90 215 Q75 215 61 207
+               Q52 197 55 185 Q65 161 69 145
+               C63 130 56 112 57 93 Q58 80 65 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="21" d="M77 204 L77 312 M103 204 L103 312"/>
+    </symbol>
+
+    <symbol id="female-average" viewBox="0 0 180 340">
+      <title>Female, average</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="19" d="M61 93 L27 184 M119 93 L153 184"/>
+      <path d="M62 76 Q90 66 118 76 Q126 81 127 95
+               C128 113 119 132 113 146
+               Q119 161 132 184 Q137 198 126 210
+               Q110 220 90 220 Q70 220 54 210
+               Q43 198 48 184 Q61 161 67 146
+               C61 132 52 113 53 95 Q54 81 62 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="24" d="M74 208 L74 312 M106 208 L106 312"/>
+    </symbol>
+
+    <symbol id="female-midsize" viewBox="0 0 180 340">
+      <title>Female, mid-size</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="21" d="M58 94 L23 184 M122 94 L157 184"/>
+      <path d="M59 76 Q90 64 121 76 Q130 81 131 96
+               C132 116 123 134 117 149
+               Q124 163 140 184 Q147 199 134 214
+               Q114 226 90 226 Q66 226 46 214
+               Q33 199 40 184 Q56 163 63 149
+               C57 134 48 116 49 96 Q50 81 59 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="28" d="M71 214 L71 312 M109 214 L109 312"/>
+    </symbol>
+
+    <symbol id="female-large" viewBox="0 0 180 340">
+      <title>Female, large</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="24" d="M53 96 L18 184 M127 96 L162 184"/>
+      <path d="M54 76 Q90 62 126 76 Q136 82 137 98
+               C139 119 130 138 123 153
+               Q133 167 149 185 Q158 201 143 218
+               Q120 233 90 233 Q60 233 37 218
+               Q22 201 31 185 Q47 167 57 153
+               C50 138 41 119 43 98 Q44 82 54 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="33" d="M67 220 L67 312 M113 220 L113 312"/>
+    </symbol>
+
+    <symbol id="female-very-large" viewBox="0 0 180 340">
+      <title>Female, very large</title>
+      <circle cx="90" cy="34" r="29" stroke="none"/>
+      <path class="limb" stroke-width="27" d="M47 99 L15 183 M133 99 L165 183"/>
+      <path d="M48 76 Q90 59 132 76 Q143 82 145 101
+               C147 122 138 141 132 155
+               Q143 169 158 185 Q168 202 151 222
+               Q125 241 90 241 Q55 241 29 222
+               Q12 202 22 185 Q37 169 48 155
+               C42 141 33 122 35 101 Q37 82 48 76 Z"
+            stroke="none"/>
+      <path class="limb" stroke-width="39" d="M63 227 L63 312 M117 227 L117 312"/>
+    </symbol>
+  </defs>
+
+  <!-- Male row -->
+  <g id="male-row" class="silhouette">
+    <use id="male-slim-option" href="#male-slim" x="90" y="35" width="180" height="340"/>
+    <use id="male-average-option" href="#male-average" x="350" y="35" width="180" height="340"/>
+    <use id="male-midsize-option" href="#male-midsize" x="610" y="35" width="180" height="340"/>
+    <use id="male-large-option" href="#male-large" x="870" y="35" width="180" height="340"/>
+    <use id="male-very-large-option" href="#male-very-large" x="1130" y="35" width="180" height="340"/>
+  </g>
+
+  <!-- Female row -->
+  <g id="female-row" class="silhouette">
+    <use id="female-slim-option" href="#female-slim" x="90" y="465" width="180" height="340"/>
+    <use id="female-average-option" href="#female-average" x="350" y="465" width="180" height="340"/>
+    <use id="female-midsize-option" href="#female-midsize" x="610" y="465" width="180" height="340"/>
+    <use id="female-large-option" href="#female-large" x="870" y="465" width="180" height="340"/>
+    <use id="female-very-large-option" href="#female-very-large" x="1130" y="465" width="180" height="340"/>
+  </g>
+</svg>

@@ -17,11 +17,11 @@ export type FashionMemoryDelta = {
   extractionOps?: FashionLlmOp[];
 };
 
-export function applyFashionMemoryDelta(params: {
+export async function applyFashionMemoryDelta(params: {
   store: FashionLocalStore;
   userId: string;
   delta: FashionMemoryDelta;
-}): ExtractionOpResult[] {
+}): Promise<ExtractionOpResult[]> {
   const { store, userId, delta } = params;
   const results: ExtractionOpResult[] = [];
 
@@ -46,14 +46,14 @@ export function applyFashionMemoryDelta(params: {
 
   if (delta.extractionOps?.length) {
     results.push(
-      ...applyLocalFashionOps({
+      ...(await applyLocalFashionOps({
         store,
         userId,
         ops: delta.extractionOps,
         personShortIds: {},
         people: store.snapshot.people.filter((p) => p.user_id === userId),
         newMessageTexts: [],
-      }),
+      })),
     );
   }
 

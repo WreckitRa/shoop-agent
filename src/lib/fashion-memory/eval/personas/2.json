@@ -1,0 +1,2558 @@
+[
+  {
+    "id": "d622267c2fff332d",
+    "name": "Casey0",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "sneakers"
+      ],
+      "owns": [],
+      "occasion": "week by the sea",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "need help for week by the sea",
+    "specificity": "partial"
+  },
+  {
+    "id": "917d1d1891fb59be",
+    "name": "Casey1",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [
+        "light jacket"
+      ],
+      "occasion": "baptism with family",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need help for baptism with family",
+    "edge": "refines_after_results",
+    "specificity": "partial"
+  },
+  {
+    "id": "2b830bc5ae38553d",
+    "name": "Alex2",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "skirt",
+        "blouse"
+      ],
+      "owns": [],
+      "occasion": "baptism with family",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need something for soon",
+    "edge": "mentions_new_person",
+    "specificity": "vague"
+  },
+  {
+    "id": "170eab28707d930f",
+    "name": "Jordan3",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "everything",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [],
+      "occasion": "weekend brunch",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for dress + sandals + light jacket for weekend brunch, size M, show me 2",
+    "edge": "speed_signal_turn2",
+    "specificity": "complete"
+  },
+  {
+    "id": "74ae601ce1f433ea",
+    "name": "Morgan4",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "sweater"
+      ],
+      "owns": [],
+      "occasion": "week by the sea",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "options": 3
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for sweater for week by the sea, size M, show me 2",
+    "specificity": "complete"
+  },
+  {
+    "id": "631b5d55ef2ed504",
+    "name": "Jordan5",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "shirts",
+        "trousers",
+        "sneakers",
+        "overshirt"
+      ],
+      "owns": [
+        "overshirt"
+      ],
+      "occasion": "weekend brunch",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "need something for soon",
+    "edge": "speed_signal_turn2",
+    "specificity": "vague"
+  },
+  {
+    "id": "3b82f82c0d5ada41",
+    "name": "Casey6",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "everything",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "coat",
+        "boots"
+      ],
+      "owns": [],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "looking for coat + boots for date night, size S, show me 2",
+    "edge": "refines_after_results",
+    "specificity": "complete"
+  },
+  {
+    "id": "cdfb0add2cd2510f",
+    "name": "Casey7",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "polo",
+        "chinos",
+        "loafers"
+      ],
+      "owns": [
+        "loafers"
+      ],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "keep"
+    },
+    "opening_message": "need help for date night",
+    "edge": "changes_mind",
+    "specificity": "partial"
+  },
+  {
+    "id": "ca8ad834e086937f",
+    "name": "Jordan8",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "jeans",
+        "t-shirt"
+      ],
+      "owns": [],
+      "occasion": "baptism with family",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need something for soon",
+    "edge": "changes_mind",
+    "specificity": "vague"
+  },
+  {
+    "id": "aa65be3ba46eb9fa",
+    "name": "Jordan9",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [
+        "light jacket"
+      ],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "need help for date night",
+    "specificity": "partial"
+  },
+  {
+    "id": "7b75fd95e839cc6a",
+    "name": "Alex10",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "jeans"
+      ],
+      "owns": [],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": "no_cap",
+      "depth": "you_decide",
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for date night",
+    "edge": "speed_signal_turn2",
+    "specificity": "partial"
+  },
+  {
+    "id": "96a85b28306830a1",
+    "name": "Jordan11",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "shirt",
+        "trousers",
+        "blazer",
+        "shoes"
+      ],
+      "owns": [
+        "shoes"
+      ],
+      "occasion": "client meeting",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": "you_decide",
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for client meeting",
+    "edge": "dodges_size",
+    "specificity": "partial"
+  },
+  {
+    "id": "cb66e862f1b9c5e8",
+    "name": "Casey12",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [
+        "light jacket"
+      ],
+      "occasion": "winter commute",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "keep"
+    },
+    "opening_message": "need something for soon",
+    "edge": "changes_mind",
+    "specificity": "vague"
+  },
+  {
+    "id": "e1e6a49a474a7efe",
+    "name": "Jordan13",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "some",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "skirt",
+        "blouse"
+      ],
+      "owns": [],
+      "occasion": "winter commute",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for winter commute",
+    "edge": "mentions_new_person",
+    "specificity": "partial"
+  },
+  {
+    "id": "f77c8d60851719c8",
+    "name": "Casey14",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "blazer"
+      ],
+      "owns": [],
+      "occasion": "wedding guest",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for wedding guest",
+    "edge": "mentions_new_person",
+    "specificity": "partial"
+  },
+  {
+    "id": "25f2a54893c32634",
+    "name": "Riley15",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "little",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "dress"
+      ],
+      "owns": [],
+      "occasion": "client meeting",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need something for soon",
+    "edge": "speed_signal_turn2",
+    "specificity": "vague"
+  },
+  {
+    "id": "398915997f5a0064",
+    "name": "Alex16",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ],
+      "owns": [
+        "blazer"
+      ],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "surprise",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for blouse + trousers + blazer for job interview, size M, show me 2",
+    "edge": "speed_signal_turn2",
+    "specificity": "complete"
+  },
+  {
+    "id": "16c7c94299c50748",
+    "name": "Alex17",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "everything",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "polo",
+        "chinos",
+        "loafers"
+      ],
+      "owns": [],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "looking for polo + chinos + loafers for date night, size S, show me 2",
+    "edge": "refines_after_results",
+    "specificity": "complete"
+  },
+  {
+    "id": "7efd11044b24af45",
+    "name": "Sam18",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "some",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "jeans"
+      ],
+      "owns": [],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "need help for job interview",
+    "specificity": "partial"
+  },
+  {
+    "id": "e3f795ec4bc30972",
+    "name": "Alex19",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "everything",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "jeans",
+        "t-shirt"
+      ],
+      "owns": [],
+      "occasion": "baptism with family",
+      "formality": "dressy",
+      "color": "surprise",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for jeans + t-shirt for baptism with family, size S, show me 2",
+    "edge": "speed_signal_turn2",
+    "specificity": "complete"
+  },
+  {
+    "id": "0f48db3043a607e7",
+    "name": "Riley20",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "little",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [
+        "light jacket"
+      ],
+      "occasion": "office Friday",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "hey — need a hand finding something",
+    "edge": "mentions_new_person",
+    "specificity": "vague"
+  },
+  {
+    "id": "2c24be5271d9e83d",
+    "name": "Casey21",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ],
+      "owns": [
+        "blazer"
+      ],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "surprise",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "need something for soon",
+    "edge": "changes_mind",
+    "specificity": "vague"
+  },
+  {
+    "id": "b70b98cd3b6bac13",
+    "name": "Jordan22",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [
+        "light jacket"
+      ],
+      "occasion": "week by the sea",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for dress + sandals + light jacket for week by the sea, size M, show me 2",
+    "edge": "speed_signal_turn2",
+    "specificity": "complete"
+  },
+  {
+    "id": "c60c38a0c2807ead",
+    "name": "Riley23",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "jeans",
+        "t-shirt"
+      ],
+      "owns": [],
+      "occasion": "wedding guest",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for jeans + t-shirt for wedding guest, size M, show me 2",
+    "edge": "mentions_new_person",
+    "specificity": "complete"
+  },
+  {
+    "id": "451f5f677852d6a5",
+    "name": "Casey24",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "everything",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for dress + sandals + light jacket for date night, size S, show me 2",
+    "specificity": "complete"
+  },
+  {
+    "id": "747e2db2cd54c1f3",
+    "name": "Sam25",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "some",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "skirt",
+        "blouse"
+      ],
+      "owns": [],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need help for date night",
+    "edge": "speed_signal_turn2",
+    "specificity": "partial"
+  },
+  {
+    "id": "204e82b9e8e5e2d9",
+    "name": "Riley26",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "jeans"
+      ],
+      "owns": [],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "need help for date night",
+    "specificity": "partial"
+  },
+  {
+    "id": "6f9263555d76642b",
+    "name": "Casey27",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "little",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "skirt",
+        "blouse"
+      ],
+      "owns": [],
+      "occasion": "office Friday",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": "you_decide",
+      "anchor": "n/a"
+    },
+    "opening_message": "need something for soon",
+    "edge": "speed_signal_turn2",
+    "specificity": "vague"
+  },
+  {
+    "id": "f91809f4dc9e94d6",
+    "name": "Alex28",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "everything",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [],
+      "occasion": "client meeting",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for dress + sandals + light jacket for client meeting, size L, show me 2",
+    "edge": "dodges_size",
+    "specificity": "complete"
+  },
+  {
+    "id": "2060b5677bd4ecfe",
+    "name": "Morgan29",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "coat",
+        "boots"
+      ],
+      "owns": [],
+      "occasion": "client meeting",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "keep"
+    },
+    "opening_message": "need help for client meeting",
+    "specificity": "partial"
+  },
+  {
+    "id": "9ba8c019d84e9e31",
+    "name": "Casey30",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "skirt",
+        "blouse"
+      ],
+      "owns": [],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for skirt + blouse for date night, size L, show me 2",
+    "edge": "changes_mind",
+    "specificity": "complete"
+  },
+  {
+    "id": "62506460de6c56ce",
+    "name": "Riley31",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "sneakers"
+      ],
+      "owns": [],
+      "occasion": "office Friday",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "options": 3
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "looking for sneakers for office Friday, size S, show me 2",
+    "edge": "changes_mind",
+    "specificity": "complete"
+  },
+  {
+    "id": "15886dbbf9a7c8c0",
+    "name": "Casey32",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "blazer"
+      ],
+      "owns": [],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "surprise",
+      "budget": "no_cap",
+      "depth": "you_decide",
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for job interview",
+    "edge": "mentions_new_person",
+    "specificity": "partial"
+  },
+  {
+    "id": "4257d64b5e98d437",
+    "name": "Morgan33",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "everything",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ],
+      "owns": [],
+      "occasion": "client meeting",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for blouse + trousers + blazer for client meeting, size L, show me 2",
+    "edge": "changes_mind",
+    "specificity": "complete"
+  },
+  {
+    "id": "a6e4d1b22d98c0eb",
+    "name": "Morgan34",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "dress"
+      ],
+      "owns": [],
+      "occasion": "office Friday",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "options": 3
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for dress for office Friday, size M, show me 2",
+    "edge": "speed_signal_turn2",
+    "specificity": "complete"
+  },
+  {
+    "id": "34cab889f814eda9",
+    "name": "Alex35",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "some",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ],
+      "owns": [
+        "blazer"
+      ],
+      "occasion": "wedding guest",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need help for wedding guest",
+    "edge": "mentions_new_person",
+    "specificity": "partial"
+  },
+  {
+    "id": "6766f9ccb5f25705",
+    "name": "Casey36",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "new",
+      "department": "mens"
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ],
+      "owns": [],
+      "occasion": "week by the sea",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for blouse + trousers + blazer for week by the sea, size M, show me 2",
+    "edge": "changes_mind",
+    "specificity": "complete"
+  },
+  {
+    "id": "c01c683329e0ff3d",
+    "name": "Riley37",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "blazer"
+      ],
+      "owns": [],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "need something for soon",
+    "edge": "dodges_size",
+    "specificity": "vague"
+  },
+  {
+    "id": "19d6a89c79e7fffb",
+    "name": "Casey38",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "little",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "shirts",
+        "trousers",
+        "sneakers",
+        "overshirt"
+      ],
+      "owns": [
+        "overshirt"
+      ],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "keep"
+    },
+    "opening_message": "need something for soon",
+    "specificity": "vague"
+  },
+  {
+    "id": "abc625793c6a58a6",
+    "name": "Riley39",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "skirt",
+        "blouse"
+      ],
+      "owns": [],
+      "occasion": "client meeting",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "ned help for client meeting",
+    "edge": "typos",
+    "specificity": "partial"
+  },
+  {
+    "id": "d6d88018bc667f37",
+    "name": "Sam40",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "sneakers"
+      ],
+      "owns": [],
+      "occasion": "client meeting",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "ned help for client meeting",
+    "edge": "typos",
+    "specificity": "partial"
+  },
+  {
+    "id": "57e9a11a47143d54",
+    "name": "Alex41",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "lookng for dress + sandals + light jacket for job interview, size L, show me 2",
+    "edge": "typos",
+    "specificity": "complete"
+  },
+  {
+    "id": "3b6a4958498ed4f7",
+    "name": "Casey42",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "coat",
+        "boots"
+      ],
+      "owns": [],
+      "occasion": "weekend brunch",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need something for soon",
+    "edge": "dodges_size",
+    "specificity": "vague"
+  },
+  {
+    "id": "db00a2ed3e85718f",
+    "name": "Riley43",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "everything",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "shirt",
+        "trousers",
+        "blazer",
+        "shoes"
+      ],
+      "owns": [],
+      "occasion": "client meeting",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for shirt + trousers + blazer + shoes for client meeting, size S, show me 2",
+    "edge": "dodges_size",
+    "specificity": "complete"
+  },
+  {
+    "id": "16d2ae659e185c9b",
+    "name": "Jordan44",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "known_relevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "polo",
+        "chinos",
+        "loafers"
+      ],
+      "owns": [
+        "loafers"
+      ],
+      "occasion": "office Friday",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "need something for soon",
+    "edge": "changes_mind",
+    "specificity": "vague"
+  },
+  {
+    "id": "2801447b176586e4",
+    "name": "Jordan45",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "looking for dress + sandals + light jacket for job interview, size L, show me 2",
+    "specificity": "complete"
+  },
+  {
+    "id": "c28e767ee0227312",
+    "name": "Jordan46",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "profile": {
+      "state": "known_relevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [],
+      "occasion": "weekend brunch",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "looking for dress + sandals + light jacket for weekend brunch, size S, show me 2",
+    "edge": "speed_signal_turn2",
+    "specificity": "complete"
+  },
+  {
+    "id": "c24f984908c7a1fa",
+    "name": "Sam47",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "blazer"
+      ],
+      "owns": [],
+      "occasion": "winter commute",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need something for soon",
+    "edge": "speed_signal_turn2",
+    "specificity": "vague"
+  },
+  {
+    "id": "33e560a70999c257",
+    "name": "Alex48",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "some",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "shirt",
+        "trousers",
+        "blazer",
+        "shoes"
+      ],
+      "owns": [
+        "shoes"
+      ],
+      "occasion": "baptism with family",
+      "formality": "dressy",
+      "color": "surprise",
+      "budget": "no_cap",
+      "depth": "you_decide",
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for baptism with family",
+    "edge": "changes_mind",
+    "specificity": "partial"
+  },
+  {
+    "id": "5c9c8cb2a2947abe",
+    "name": "Morgan49",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "everything",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ],
+      "owns": [],
+      "occasion": "week by the sea",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for dress + sandals + light jacket for week by the sea, size S, show me 2",
+    "edge": "dodges_size",
+    "specificity": "complete"
+  },
+  {
+    "id": "8b7134c4c78210f3",
+    "name": "Sam50",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "new",
+      "department": "womens"
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": [
+        "shirts",
+        "trousers",
+        "sneakers",
+        "overshirt"
+      ],
+      "owns": [
+        "overshirt"
+      ],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for date night",
+    "edge": "mentions_new_person",
+    "specificity": "partial"
+  },
+  {
+    "id": "72a185dcb0968046",
+    "name": "Riley51",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "polo",
+        "chinos",
+        "loafers"
+      ],
+      "owns": [
+        "loafers"
+      ],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "need something for soon",
+    "edge": "dodges_size",
+    "specificity": "vague"
+  },
+  {
+    "id": "2d83a464bafe5869",
+    "name": "Riley52",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "everything",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "shirt",
+        "trousers",
+        "blazer",
+        "shoes"
+      ],
+      "owns": [],
+      "occasion": "week by the sea",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "explore"
+    },
+    "opening_message": "looking for shirt + trousers + blazer + shoes for week by the sea, size L, show me 2",
+    "specificity": "complete"
+  },
+  {
+    "id": "b2fc4f725c1ccac2",
+    "name": "Casey53",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "known_relevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ],
+      "owns": [
+        "blazer"
+      ],
+      "occasion": "wedding guest",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "need something for soon",
+    "edge": "speed_signal_turn2",
+    "specificity": "vague"
+  },
+  {
+    "id": "f22bffdbfc170c1f",
+    "name": "Riley54",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "polo",
+        "chinos",
+        "loafers"
+      ],
+      "owns": [
+        "loafers"
+      ],
+      "occasion": "date night",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "ned somthing for soon",
+    "edge": "typos",
+    "specificity": "vague"
+  },
+  {
+    "id": "2c63502875aaf5c0",
+    "name": "Alex55",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "little",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "depth_default": {
+        "count": 3,
+        "unit": "looks"
+      }
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "sneakers"
+      ],
+      "owns": [],
+      "occasion": "wedding guest",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": "you_decide",
+      "anchor": "n/a"
+    },
+    "opening_message": "need something for soon",
+    "edge": "refines_after_results",
+    "specificity": "vague"
+  },
+  {
+    "id": "77d834dbfd1a7446",
+    "name": "Casey56",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "everything",
+    "profile": {
+      "state": "new",
+      "department": "mens"
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ],
+      "owns": [],
+      "occasion": "week by the sea",
+      "formality": "smart casual",
+      "color": "surprise",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "looking for blouse + trousers + blazer for week by the sea, size M, show me 2",
+    "specificity": "complete"
+  },
+  {
+    "id": "4a91f7adeb3eebfd",
+    "name": "Riley57",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "profile": {
+      "state": "quick_shopper",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "34",
+        "shoes": "10"
+      },
+      "signals": [
+        "+navy [work, stated]",
+        "+tailored [work, stated]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": [
+        "navy blazer",
+        "white shirt"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "jeans",
+        "t-shirt"
+      ],
+      "owns": [],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "navy",
+      "budget": {
+        "max": 120,
+        "currency": "USD",
+        "scope": "per_item"
+      },
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "push"
+    },
+    "opening_message": "looking for jeans + t-shirt for job interview, size L, show me 2",
+    "edge": "speed_signal_turn2",
+    "specificity": "complete"
+  },
+  {
+    "id": "7e528510106dc64e",
+    "name": "Jordan58",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "profile": {
+      "state": "known_irrelevant",
+      "department": "womens",
+      "sizes": {
+        "tops": "S",
+        "bottoms": "27",
+        "shoes": "38",
+        "dresses": "4"
+      },
+      "signals": [
+        "+neon [festival, stated]",
+        "+boardshorts [beach, stated]"
+      ],
+      "recent_picks": [
+        "floral swim short"
+      ]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": [
+        "skirt",
+        "blouse"
+      ],
+      "owns": [],
+      "occasion": "winter commute",
+      "formality": "smart casual",
+      "color": "navy",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for winter commute",
+    "edge": "refines_after_results",
+    "specificity": "partial"
+  },
+  {
+    "id": "5aa9a4c3ba98dfc0",
+    "name": "Alex59",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "profile": {
+      "state": "new",
+      "department": "mens"
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": [
+        "blazer"
+      ],
+      "owns": [],
+      "occasion": "job interview",
+      "formality": "dressy",
+      "color": "surprise",
+      "budget": "no_cap",
+      "depth": {
+        "looks": 2
+      },
+      "anchor": "n/a"
+    },
+    "opening_message": "need help for job interview",
+    "edge": "mentions_new_person",
+    "specificity": "partial"
+  }
+]

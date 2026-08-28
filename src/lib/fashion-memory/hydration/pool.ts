@@ -280,6 +280,20 @@ class SlotPoolImpl implements SlotPool {
     });
   }
 
+  async ensureShortlist(): Promise<void> {
+    await this.runLocked(async () => {
+      const want = this.params.scoredProducts.slice(0, this.target);
+      const missing = want.filter(
+        (p) => !this.hydratedIds.has(p.id) && !this.in_flight.has(p.id),
+      );
+      if (missing.length) {
+        const stats = await this.hydrateWave(missing);
+        this.waveStats.push(stats);
+      }
+      await this.notifyMutation();
+    });
+  }
+
   async reportDeath(
     productId: string,
     cause: HydrationDeathCause,

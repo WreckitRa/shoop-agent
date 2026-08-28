@@ -53,7 +53,7 @@ export function AppShellProvider({
       void queueClientIdentityResync("auth", { force: true });
     };
     const onGuestChanged = () => {
-      void queueClientIdentityResync("guest", { force: true });
+      void queueClientIdentityResync("guest");
     };
     window.addEventListener("shoop-auth-changed", onAuthChanged);
     window.addEventListener("shoop-guest-changed", onGuestChanged);

@@ -6,8 +6,8 @@ import { Loader2, MessageCircle, Share2, Users } from "lucide-react";
 import { openAuthModal, useGuestMode } from "@/hooks/useGuestMode";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import {
-  ASK_VOTE_CHOICES,
   ASK_VOTE_LABELS,
+  choicesForPollMode,
   type LookAskSharePublic,
 } from "@/lib/ask/types";
 import {
@@ -44,7 +44,7 @@ function AskShareCard({
   function shareWhatsApp() {
     const url = askShareAbsoluteUrl(askPath);
     void copyAskShareUrl(url);
-    openWhatsAppAskShare(url);
+    openWhatsAppAskShare(url, share.pollMode === "compare");
     setShareHint("Opening WhatsApp…");
   }
 
@@ -128,7 +128,7 @@ function AskShareCard({
           ) : null}
 
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {ASK_VOTE_CHOICES.map((c) => {
+            {choicesForPollMode(share.pollMode).map((c) => {
               const n = share.tallies[c];
               if (!n) return null;
               return (
@@ -139,11 +139,18 @@ function AskShareCard({
                     share.ownerVote === c && "border-ink bg-ink text-white",
                   )}
                 >
-                  {ASK_VOTE_LABELS[c]} · {n}
+                  {share.pollMode === "compare"
+                    ? c === "a"
+                      ? "Look A"
+                      : "Look B"
+                    : ASK_VOTE_LABELS[c]}{" "}
+                  · {n}
                 </span>
               );
             })}
-            {!ASK_VOTE_CHOICES.some((c) => share.tallies[c] > 0) ? (
+            {!choicesForPollMode(share.pollMode).some(
+              (c) => share.tallies[c] > 0,
+            ) ? (
               <span className="text-[12px] text-ink-muted">No votes yet</span>
             ) : null}
           </div>

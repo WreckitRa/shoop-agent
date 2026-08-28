@@ -100,6 +100,7 @@ export async function migrateGuestFashionMemoryToUser(params: {
       status: signal.status,
       sourceQuote: signal.source_quote,
       incrementEvidence: false,
+      valueCanonical: signal.value_canonical,
     });
     signals += 1;
   }

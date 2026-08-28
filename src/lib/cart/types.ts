@@ -8,6 +8,12 @@ export type CartItemMetadata = {
   sellerName?: string | null;
   sellerDomain?: string | null;
   productId?: string | null;
+  /** Originating fashion search (assistant message id). */
+  searchId?: string | null;
+  /** Pick / product ref for purchase memory. */
+  ref?: string | null;
+  brand?: string | null;
+  color?: string | null;
   /** Rye-ready storefront URL (product page + `?variant=…`), built at add time. */
   productUrl?: string | null;
 };
@@ -25,6 +31,10 @@ export type ActiveCartLine = {
   sellerName: string | null;
   sellerDomain: string | null;
   productId: string | null;
+  searchId: string | null;
+  ref: string | null;
+  brand: string | null;
+  color: string | null;
   productUrl: string | null;
 };
 

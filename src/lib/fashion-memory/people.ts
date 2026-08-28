@@ -4,6 +4,11 @@ import {
   buildPersonShortIdMap,
   personShortId,
 } from "./extraction/context-format";
+import { canonicalizeRelation } from "./extraction/relation-aliases";
+import {
+  AMBIGUOUS_PERSON_ERROR,
+  resolveProposedPerson,
+} from "./resolve-person";
 import type { PersonRelation, PersonRow } from "./types";
 
 function isPersonUuid(value: string): boolean {
@@ -57,7 +62,9 @@ export async function ensureSelfPerson(userId: string): Promise<PersonRow> {
     .eq("user_id", userId)
     .eq("relation", "self")
     .maybeSingle();
-
+  if (existing.error) {
+    throw new Error(existing.error.message);
+  }
   if (existing.data) return existing.data as PersonRow;
 
   const { data: rpcData, error: rpcError } = await db.rpc(
@@ -90,9 +97,35 @@ export async function ensureSelfPerson(userId: string): Promise<PersonRow> {
     .select("*")
     .eq("user_id", userId)
     .eq("relation", "self")
-    .single();
+    .maybeSingle();
+  if (refetch.data) {
+    return assertFashionRow(
+      "ensureSelfPerson",
+      refetch.data as PersonRow | null,
+      refetch.error,
+    );
+  }
 
-  return assertFashionRow("ensureSelfPerson", refetch.data as PersonRow | null, refetch.error);
+  const inserted = await db
+    .from("people")
+    .insert({ user_id: userId, relation: "self" })
+    .select("*")
+    .single();
+  if (inserted.data) return inserted.data as PersonRow;
+  if (inserted.error?.code === "23505") {
+    const retry = await db
+      .from("people")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("relation", "self")
+      .single();
+    return assertFashionRow(
+      "ensureSelfPerson",
+      retry.data as PersonRow | null,
+      retry.error,
+    );
+  }
+  throw new Error(inserted.error?.message ?? "Failed to create self person");
 }
 
 export async function createPerson(params: {
@@ -195,44 +228,41 @@ export async function resolvePerson(params: {
     throw new Error(`Person not found: ${params.personId}`);
   }
 
-  const relation = params.relation ?? "self";
+  const relation = canonicalizeRelation(params.relation ?? "self") as PersonRelation;
   if (relation === "self") {
     return ensureSelfPerson(params.userId);
   }
 
   const name = params.name?.trim() || null;
-
-  // Exact relation + name (never matches a different relation sharing the name).
-  if (name) {
-    const byName = await findPersonByRelation({
-      userId: params.userId,
-      relation,
-      name,
-    });
-    if (byName) return byName;
-  }
-
-  const sameRelation = (await listPeopleForUser(params.userId)).filter(
-    (p) => p.relation === relation,
-  );
-
-  // Singleton unnamed of this relation → attach the new name (first "my son").
-  if (name && sameRelation.length === 1 && !sameRelation[0]!.name?.trim()) {
-    const updated = await updatePersonName({
-      userId: params.userId,
-      personId: sameRelation[0]!.id,
-      name,
-    });
-    if (updated) return updated;
-  }
-
-  if (!name && sameRelation[0]) return sameRelation[0];
-
-  return createPerson({
-    userId: params.userId,
+  const people = await listPeopleForUser(params.userId);
+  const decision = resolveProposedPerson({
+    people,
+    personShortIds: buildPersonShortIdMap(people),
     relation,
     name,
   });
+
+  if (decision.action === "merge") {
+    if (decision.attachName) {
+      const updated = await updatePersonName({
+        userId: params.userId,
+        personId: decision.person.id,
+        name: decision.attachName,
+      });
+      if (updated) return updated;
+    }
+    return decision.person;
+  }
+
+  if (decision.action === "create") {
+    return createPerson({
+      userId: params.userId,
+      relation: decision.relation as PersonRelation,
+      name: decision.name,
+    });
+  }
+
+  throw new Error(AMBIGUOUS_PERSON_ERROR);
 }
 
 export async function listPeopleForUser(userId: string): Promise<PersonRow[]> {

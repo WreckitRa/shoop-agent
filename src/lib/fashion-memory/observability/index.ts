@@ -6,7 +6,21 @@ export {
   beginTurnPipelineBuffer,
   drainTurnPipelineBuffer,
 } from "./trace";
-export { tracedLLMCall, withTracedLlmCall, buildCachedSystemBlocks } from "./traced-llm-call";
+export {
+  beginTurnLlmCostBuffer,
+  drainTurnLlmCostBuffer,
+  recordTurnLlmCall,
+  costFromLlmCalls,
+  emptyStageLatency,
+  mcpHitsFromQueryLogs,
+} from "./search-observability";
+export type {
+  SearchObservability,
+  SearchFunnelSlotCounts,
+  SearchStageLatency,
+  SearchCost,
+  SearchTasteFitLog,
+} from "./search-observability";
 export { promptCacheSnapshot, recordPromptCacheUsage } from "./prompt-cache-metrics";
 export {
   preSearchMetricsSnapshot,

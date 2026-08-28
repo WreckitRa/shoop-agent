@@ -149,6 +149,14 @@ describe("postProcessFashionCatalogSlots orchestration", () => {
     }
     assert.ok((slot.products[0]?.score?.final ?? 0) > (slot.products[1]?.score?.final ?? 0));
     assert.equal(slot.counts.unique_products, 2);
+    assert.deepEqual(result.funnel_mid, [
+      {
+        slot_id: "shirt",
+        normalized: 3,
+        hard_drop_survivors: 2,
+        scored: 2,
+      },
+    ]);
   });
 
   it("scoring never removes products — output count equals post-drop survivors", async () => {

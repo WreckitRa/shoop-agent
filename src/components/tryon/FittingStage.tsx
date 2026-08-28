@@ -576,6 +576,15 @@ export function FittingStage({
             title: item.title,
             imageUrl: item.imageUrl,
             productId: item.productId,
+            searchId:
+              item.messageSearchId ??
+              (item.provenance.kind === "search"
+                ? item.provenance.searchId
+                : null),
+            ref:
+              item.provenance.kind === "search"
+                ? item.provenance.ref
+                : (item.productId ?? item.id),
             priceCents: item.price?.amount ?? variant.price?.amount ?? null,
             currency: item.price?.currency ?? variant.price?.currency ?? null,
           },
@@ -720,6 +729,17 @@ export function FittingStage({
             </div>
             <div className="shoop-croom__mhead-actions">
               <span className="shoop-croom__dressed">{dressedLabel}</span>
+              {showResult && lookPainted && scanLive ? (
+                <button
+                  type="button"
+                  className="rounded-full bg-ink px-3 py-1.5 text-[11px] font-extrabold text-white transition hover:bg-ink/90"
+                  onClick={() =>
+                    useTryOnDrawerStore.getState().requestAskShare()
+                  }
+                >
+                  Ask friends
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="shoop-croom-close"
@@ -767,7 +787,7 @@ export function FittingStage({
                     status: "loading_avatar",
                     error: null,
                   });
-                  void fetch("/api/tryon/latest", { cache: "no-store" })
+                  void guestFetch("/api/tryon/latest", { cache: "no-store" })
                     .then(async (res) => {
                       if (!res.ok) throw new Error("reload");
                       const body = (await res.json()) as {

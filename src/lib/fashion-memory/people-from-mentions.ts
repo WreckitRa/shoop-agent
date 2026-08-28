@@ -1,5 +1,12 @@
+import { logAiChat } from "@/lib/ai-chat/observability";
+import { canonicalizeRelation } from "./extraction/relation-aliases";
 import type { FashionLocalStore } from "./local/store";
-import { resolvePerson } from "./people";
+import {
+  resolvePeopleFromUserMessage,
+  resolvePeopleFromUserMessageLocal,
+} from "./detect-people";
+import { listPeopleForUser } from "./people";
+import type { AmbiguousSubject } from "./extraction/tool-schema";
 import type { PersonRelation, PersonRow } from "./types";
 
 /**
@@ -8,6 +15,8 @@ import type { PersonRelation, PersonRow } from "./types";
  *
  * Friend/colleague are omitted: too ambiguous without a name, and the
  * extractor can still create them via new_person later.
+ *
+ * Warning-only: never a create path. detect_people owns creation.
  */
 const RELATION_CANONICAL: Record<string, string> = {
   mother: "mother",
@@ -82,35 +91,74 @@ export function extractMentionedRelationsFromMessages(
   return [...found] as PersonRelation[];
 }
 
-/** Ensure roster rows exist for gift recipients named in recent user turns. */
+function lastUserText(
+  messages: Array<{ role: string; content: string }>,
+): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role === "user" && m.content.trim()) return m.content;
+  }
+  return "";
+}
+
+function warnRegexOnly(params: {
+  userMessage: string;
+  rosterRelations: string[];
+}): void {
+  const regex = extractMentionedRelations(params.userMessage);
+  if (regex.length === 0) return;
+  const roster = new Set(
+    params.rosterRelations.map((r) => canonicalizeRelation(r)),
+  );
+  const unmatched = regex.filter((rel) => !roster.has(canonicalizeRelation(rel)));
+  if (unmatched.length === 0) return;
+  logAiChat("warn", "fashion_detect_people_regex_only", {
+    regex: unmatched,
+    roster: [...roster],
+  });
+}
+
+/** Ensure roster rows exist for gift recipients named in the latest user turn. */
 export async function ensureMentionedPeople(params: {
   userId: string;
   messages: Array<{ role: string; content: string }>;
-}): Promise<PersonRow[]> {
-  const relations = extractMentionedRelationsFromMessages(params.messages);
-  const created: PersonRow[] = [];
-  for (const relation of relations) {
-    created.push(
-      await resolvePerson({
-        userId: params.userId,
-        relation,
-      }),
-    );
-  }
-  return created;
+  traceId?: string | null;
+}): Promise<{ created: PersonRow[]; ambiguous: AmbiguousSubject[] }> {
+  const userMessage = lastUserText(params.messages);
+  if (!userMessage) return { created: [], ambiguous: [] };
+  const result = await resolvePeopleFromUserMessage({
+    userId: params.userId,
+    userMessage,
+    traceId: params.traceId,
+  });
+  const roster = await listPeopleForUser(params.userId);
+  warnRegexOnly({
+    userMessage,
+    rosterRelations: roster.map((p) => p.relation),
+  });
+  return result;
 }
 
 /** Guest / localStorage mirror of ensureMentionedPeople. */
-export function ensureMentionedPeopleLocal(params: {
+export async function ensureMentionedPeopleLocal(params: {
   userId: string;
   store: FashionLocalStore;
   messages: Array<{ role: string; content: string }>;
-}): PersonRow[] {
-  const relations = extractMentionedRelationsFromMessages(params.messages);
-  return relations.map((relation) =>
-    params.store.resolvePerson({
-      userId: params.userId,
-      relation,
-    }),
-  );
+  traceId?: string | null;
+}): Promise<{ created: PersonRow[]; ambiguous: AmbiguousSubject[] }> {
+  const userMessage = lastUserText(params.messages);
+  if (!userMessage) return { created: [], ambiguous: [] };
+  const result = await resolvePeopleFromUserMessageLocal({
+    userId: params.userId,
+    store: params.store,
+    userMessage,
+    traceId: params.traceId,
+  });
+  warnRegexOnly({
+    userMessage,
+    rosterRelations: params.store.snapshot.people
+      .filter((p) => p.user_id === params.userId)
+      .map((p) => p.relation),
+  });
+  return result;
 }

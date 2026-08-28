@@ -7,6 +7,8 @@ import { filterSignalsByEffectiveConfidence } from "../signal-confidence";
 import type { GuestFashionMemorySnapshot } from "../local/store";
 import { safeTrim } from "../safe-trim";
 import type { FashionSearchProfile } from "./types";
+import { TASTE_FIT_SIGNAL_TYPES } from "../scoring/taste-fit";
+import type { TasteFitSignal } from "../scoring/taste-fit";
 
 const DEFAULT_COUNTRY = "US";
 const DEFAULT_CURRENCY = "USD";
@@ -110,4 +112,40 @@ async function loadPositiveStyleSignals(params: {
     .slice(0, 8)
     .map((s) => safeTrim(s.value))
     .filter(Boolean);
+}
+
+const TASTE_TYPE_SET = new Set<string>(TASTE_FIT_SIGNAL_TYPES);
+
+/** Active like/dislike signals used by the S0 taste_fit diagnostic. */
+export async function loadRecipientTasteFitSignals(params: {
+  userId: string;
+  recipientPersonId: string;
+  guestSnapshot?: GuestFashionMemorySnapshot;
+}): Promise<TasteFitSignal[]> {
+  const fromSnapshot = params.guestSnapshot?.style_signals.filter(
+    (s) =>
+      s.user_id === params.userId &&
+      s.person_id === params.recipientPersonId &&
+      (s.status === "active" || s.status === "candidate") &&
+      TASTE_TYPE_SET.has(s.signal_type),
+  );
+  const rows =
+    fromSnapshot?.length
+      ? fromSnapshot
+      : isSupabaseAuthUserId(params.userId)
+        ? (
+            await listActiveStyleSignals({
+              userId: params.userId,
+              personId: params.recipientPersonId,
+            })
+          ).filter((s) => TASTE_TYPE_SET.has(s.signal_type))
+        : [];
+
+  return filterSignalsByEffectiveConfidence(rows).map((s) => ({
+    signal_type: s.signal_type,
+    value: s.value,
+    polarity: s.polarity,
+    source: s.source,
+    value_canonical: s.value_canonical ?? null,
+  }));
 }

@@ -83,8 +83,18 @@ export function missingSizeBucketsForGarments(
   hints?: IntakeProfileHints | null,
   department?: PersonDepartment | string | null,
   stated?: FashionStatedFacts | null,
+  requestType?: FashionSearchBrief["request_type"] | null,
 ): ReturnType<typeof sizeBucketsForGarments> {
-  const buckets = sizeBucketsForGarments(garments);
+  let buckets = sizeBucketsForGarments(garments);
+  // Womens outfit/capsule decomposition includes dresses even when the
+  // brief only lists separates — ask dress size with the rest.
+  if (
+    (department === "womens" || department === "girls") &&
+    (requestType === "outfit" || requestType === "capsule") &&
+    !buckets.includes("dresses")
+  ) {
+    buckets = [...buckets, "dresses"];
+  }
   const filtered =
     department === "mens" || department === "boys"
       ? buckets.filter((bucket) => bucket !== "dresses")
@@ -137,6 +147,8 @@ export function needsIntakeFacts(params: {
       garments,
       params.profileHints,
       department,
+      undefined,
+      params.brief.request_type,
     ).length > 0;
   return missingGender || missingSizes;
 }
@@ -251,6 +263,7 @@ export function buildBlockingClarification(params: {
     params.profileHints,
     department,
     stated,
+    params.brief.request_type,
   );
   for (const bucket of missingBuckets) {
     if (questions.length >= MAX_INTAKE_QUESTIONS) break;
@@ -321,32 +334,10 @@ export function parseDepartmentAnswer(text: string): GenderPresentation | null {
   return null;
 }
 
-/**
- * Kids department from age language + relation ("8 year old son" → boys).
- * Adult relation defaults stay in departmentFromRelation.
- */
-export function inferKidsDepartmentFromMessage(
-  text: string,
-): GenderPresentation | null {
-  const ageMatch =
-    text.match(/\b(\d{1,2})\s*(?:year|yr|y\.?o\.?)s?\s*old\b/i) ??
-    text.match(/\b(\d{1,2})\s*yo\b/i);
-  if (!ageMatch) return null;
-  const age = Number(ageMatch[1]);
-  if (!Number.isFinite(age) || age < 0 || age > 17) return null;
-  if (age < 2) return "baby";
-  if (/\b(daughter|girl)\b/i.test(text)) return "girls";
-  if (/\b(son|boy)\b/i.test(text)) return "boys";
-  return null;
-}
-
 /** Parses department from quick-option taps or batched intake replies. */
 export function parseDepartmentFromMessage(text: string): GenderPresentation | null {
   const standalone = parseDepartmentAnswer(text);
   if (standalone) return standalone;
-
-  const kids = inferKidsDepartmentFromMessage(text);
-  if (kids) return kids;
 
   const segments = text.split(/\.\s+/);
   for (const segment of segments) {
@@ -377,6 +368,8 @@ export function computeSizesUnconfirmed(params: {
     garmentsForIntakeGate(params.brief),
     params.profileHints,
     department,
+    undefined,
+    params.brief.request_type,
   );
 }
 

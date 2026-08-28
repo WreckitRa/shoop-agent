@@ -1,12 +1,13 @@
 import { z } from "zod";
+import { trackProductEvent } from "@/lib/analytics/track";
 import { getAuthContext } from "@/lib/auth/session";
 import { applyStatedMeasurements } from "@/lib/fashion-memory/intake/apply-stated-measurements";
-import { assertPhotoProcessingAllowed } from "@/lib/legal/photo-gate";
 import { inspectPhotoBytes } from "@/lib/photo-analysis/inspect-photo";
 import {
   PhotoUploadCapError,
   assertPhotoUploadCaps,
 } from "@/lib/photo-analysis/upload-caps";
+import { requireAvatarOwner } from "@/lib/tryon/avatar/request-auth";
 import {
   checkAvatarAttributes,
   submitAvatarAttributes,
@@ -25,17 +26,12 @@ const measurementSchema = z.object({
 export async function POST(req: Request) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
-  if (auth.isGuest) {
-    return Response.json({ error: "Sign in required." }, { status: 401 });
-  }
+  const owner = await requireAvatarOwner(req, auth);
+  if (!owner.ok) return owner.response;
 
   try {
     const contentType = req.headers.get("content-type") ?? "";
     if (contentType.includes("multipart/form-data")) {
-      const gate = await assertPhotoProcessingAllowed(auth);
-      if (!gate.ok) {
-        return Response.json({ error: gate.error }, { status: gate.status });
-      }
       const form = await req.formData();
       const personId = String(form.get("person_id") ?? "");
       const file = form.get("photo");
@@ -59,10 +55,18 @@ export async function POST(req: Request) {
         throw error;
       }
       const draft = await uploadAvatarPhoto({
-        userId: auth.userId,
+        userId: owner.userId,
         personId,
         bytes: new Uint8Array(bytes),
         contentType: inspected.contentType,
+      });
+      trackProductEvent({
+        name: "photo_uploaded",
+        userId: auth.userId,
+        props: {
+          source: "avatar",
+          person_id: personId,
+        },
       });
       return Response.json({ ok: true, draft });
     }
@@ -75,7 +79,7 @@ export async function POST(req: Request) {
 
     if (action === "check") {
       const draft = await checkAvatarAttributes({
-        userId: auth.userId,
+        userId: owner.userId,
         personId,
         statedAttributes: json.attributes,
         traceId: json.trace_id,
@@ -85,22 +89,20 @@ export async function POST(req: Request) {
 
     if (action === "measurements") {
       const measurements = z.array(measurementSchema).parse(json.measurements ?? []);
-      // Reserved for future size-chart fit — store only, no consumer.
       const written = await applyStatedMeasurements({
-        userId: auth.userId,
+        userId: owner.userId,
         personId,
         measurements,
       });
       return Response.json({
         ok: true,
         written: written.length,
-        // Privacy: never echo measurement values back
         measurements_on_file: written.length,
       });
     }
 
     const draft = await submitAvatarAttributes({
-      userId: auth.userId,
+      userId: owner.userId,
       personId,
       attributes: json.attributes,
     });
@@ -108,6 +110,7 @@ export async function POST(req: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Avatar upload failed.";
+    console.error("[shoop] avatar upload failed", error);
     return Response.json({ error: message }, { status: 500 });
   }
 }

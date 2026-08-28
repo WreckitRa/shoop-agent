@@ -27,7 +27,7 @@ const TERMS: LegalDocument = {
     "The agreement between you and Shoop Inc. for using shoop.world.",
   lastUpdated: LEGAL_LAST_UPDATED,
   markdown: `
-These terms are an agreement between you and Shoop Inc. ("Shoop", "we", "us"). They govern your use of shoop.world and everything on it. By creating an account you accept them.
+These terms are an agreement between you and Shoop Inc. ("Shoop", "we", "us"). They govern your use of shoop.world and everything on it. By starting the fitting or creating an account you accept them.
 
 We have tried to write these in plain language. Where a term is legally necessary but unusual, we explain why in the same paragraph.
 
@@ -48,7 +48,7 @@ Shoop is a styling and shopping assistant. We analyze a photograph of your face 
 
 ## 3. Age
 
-**You must be at least 13 years old to use Shoop.** We ask your date of birth at signup and do not create accounts for anyone under 13. We do not knowingly process the photograph of anyone under 13. If we learn an account belongs to someone under 13, we will close it and delete all associated data, including face data, without waiting for a request.
+**You must be at least 13 years old to use Shoop.** Before any photograph is processed you confirm you are at least 13 on a dedicated screen. An email address is not required for that confirmation. When you create an account we also record your date of birth and do not create accounts for anyone under 13. We do not knowingly process the photograph of anyone under 13. If we learn a session or account belongs to someone under 13, we will close it and delete all associated data, including face data, without waiting for a request.
 
 ## 4. Photographs you upload
 
@@ -166,7 +166,7 @@ Shoop serves the United States only and does not create accounts from the EU or 
 
 | Category | Examples | Why |
 | --- | --- | --- |
-| Account | Name, email, date of birth, password hash | To give you an account and enforce the age gate |
+| Account | Name, email, date of birth, password hash | To give you an account. Date of birth is recorded at signup. Age 13+ is also confirmed before any photograph is processed, including on a guest session. |
 | Questionnaire | Height, comfort constraints, climate, style preferences, occasions | To recommend clothing that fits your life |
 | Photograph | One face photo | To measure you and build your digital twin. Deleted after extraction. |
 | Derived measurements | Color values and proportions, each with a confidence value | To generate styling. Covered by the Biometric Consent. You can view and correct these in Settings. |
@@ -207,7 +207,7 @@ We instruct processors to delete data where their contract and API allow it. FAS
 
 | Data | Retention |
 | --- | --- |
-| Source face photograph | Deleted after extraction, at most 24 hours |
+| Source face photograph | Deleted after extraction, at most 24 hours. Also deleted if you leave the fitting without creating an account. |
 | Derived measurements and twin | Deleted on your request, on account closure, or 3 years after your last interaction with Shoop — whichever comes first |
 | Account and questionnaire | Until you close your account, then deleted |
 | Renders | Until you delete them or close your account |
@@ -227,7 +227,7 @@ Encryption in transit and at rest. Access limited to staff who need it, logged a
 
 ## 9. Children
 
-**Shoop is for users 13 and older.** We ask date of birth at signup and do not knowingly collect data from anyone under 13. If we discover that we have, we delete it, including any biometric data, without waiting for a request. Report a suspected under-13 account to ${CONTACT}.
+**Shoop is for users 13 and older.** You confirm you are at least 13 before any photograph is processed. We also record date of birth when you create an account. We do not knowingly collect data from anyone under 13. If we discover that we have, we delete it, including any biometric data, without waiting for a request. Report a suspected under-13 session or account to ${CONTACT}.
 
 ## 10. Where Shoop is available
 
@@ -248,7 +248,7 @@ const BIOMETRIC: LegalDocument = {
     "Written notice and release before any face photograph is processed, including retention and destruction.",
   lastUpdated: LEGAL_LAST_UPDATED,
   markdown: `
-This is a separate consent. It is presented on its own screen, immediately before the photo upload control, and must be accepted by an affirmative act before any photograph is processed. It is not bundled into the Terms of Service, and acceptance of the Terms does not constitute acceptance of this. This page also serves as our publicly available retention schedule and destruction guidelines.
+This is a separate consent. It is presented as the first screen of the fitting, immediately before the photo upload control, and must be accepted by an affirmative act before any photograph is processed. An email address is not required. If you continue as a guest, the ticks are logged against your session id; when you create an account we attach that log to the account. If you leave without creating an account, we delete the photograph and the measurements derived from it. It is not bundled into the Terms of Service, and acceptance of the Terms does not constitute acceptance of this. This page also serves as our publicly available retention schedule and destruction guidelines.
 
 ## 1. What we are asking
 
@@ -295,8 +295,8 @@ FASHN's public API has no deletion instruction we can call or verify. Their docu
 
 | What | Destroyed |
 | --- | --- |
-| Your photograph | On completion of extraction, at most 24 hours after upload |
-| Derived measurements | On your deletion request, on withdrawal of this consent, on account closure, or **3 years after your last interaction with Shoop** — whichever comes first |
+| Your photograph | On completion of extraction, at most 24 hours after upload. If you never create an account, also when you leave the fitting. |
+| Derived measurements | On your deletion request, on withdrawal of this consent, on account closure, when you leave without creating an account, or **3 years after your last interaction with Shoop** — whichever comes first |
 | Your twin and renders | The same |
 
 **Deletion is permanent.** When a trigger occurs, we destroy the measurements, twin and renders in our systems. FASHN does not expose a deletion API; their published CDN retention is three days. We keep no copy for training, research, or anything else. An automated job enforces the 3-year trigger without waiting for a request. Each automated or requested deletion is logged with a timestamp.
@@ -309,19 +309,22 @@ The named providers in section 4, for the purposes stated. Nobody else. We do no
 
 Withdraw at any time in Settings or by emailing ${CONTACT}. When you do: your measurements, twin and renders are deleted; your account stays open; you can keep using Shoop with questionnaire answers alone.
 
+If you have not created an account, leaving the fitting without signing up is a withdrawal: we delete the photograph and the measurements.
+
 **Withdrawing costs you the twin. It does not cost you the account.**
 
 ## 9. Your acknowledgement
 
-By ticking the box in the product you confirm:
+By ticking the boxes on the first fitting screen you confirm:
 
 1. You have read this document.
 2. You are at least 13 years old.
 3. The photograph is of you and you have the right to upload it.
 4. You permit Shoop Inc. to collect, store and use biometric information as described here, for the purpose described here, for the period described here, including processing by the named providers in section 4.
-5. You understand you can withdraw at any time.
+5. If you leave without creating an account, you want that photograph and those measurements deleted.
+6. You understand you can withdraw at any time.
 
-The box is not pre-ticked, is not bundled with any other consent, and is presented before the upload control is enabled. The tick is logged with timestamp, document version and user id.
+The boxes are not pre-ticked. The first fitting screen has three ticks — age, own photograph including measurement as described here, and deletion if you leave without an account — presented before the upload control is enabled. Each tick is logged with timestamp, document version and session or user id.
 `.trim(),
 };
 

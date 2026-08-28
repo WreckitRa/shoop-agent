@@ -10,7 +10,9 @@ import {
   canEscapePullSheet,
   clampStepper,
   defaultDisplayForGap,
+  formatCountLabel,
   formatPullSheetMessage,
+  formatPullSheetRecap,
   preselectedOptionIds,
   resolveQuestionDisplay,
   seedStepperValue,
@@ -70,7 +72,7 @@ describe("pull sheet", () => {
     const done = buildDoneAnswers([slots], ticked);
     assert.equal(
       formatPullSheetMessage([slots], done),
-      "T-shirt, Shorts, Sunglasses",
+      "slots: T-shirt, Shorts, Sunglasses",
     );
 
     const untouched = {
@@ -80,7 +82,7 @@ describe("pull sheet", () => {
     assert.ok(escaped);
     assert.equal(
       formatPullSheetMessage([slots], escaped),
-      "T-shirt, Shorts",
+      "slots: T-shirt, Shorts",
     );
   });
 
@@ -94,7 +96,7 @@ describe("pull sheet", () => {
     const done = buildDoneAnswers(questions, answers);
     assert.equal(
       formatPullSheetMessage(questions, done),
-      "T-shirt, Shorts, Sunglasses | 3 | Keep it me",
+      "slots: T-shirt, Shorts, Sunglasses | depth: 3 | preference_anchor: Keep it me",
     );
   });
 
@@ -123,7 +125,7 @@ describe("pull sheet", () => {
     assert.ok(escaped);
     assert.equal(
       formatPullSheetMessage(questions, escaped),
-      "M | T-shirt, Shorts",
+      "size: M | slots: T-shirt, Shorts",
     );
   });
 
@@ -148,6 +150,19 @@ describe("pull sheet", () => {
         quick_options: ["2 looks", "3 looks"],
       }),
       "chips",
+    );
+  });
+
+  it("recap pluralizes 1 look vs 3 looks", () => {
+    assert.equal(formatCountLabel(1, "look", "looks"), "1 look");
+    assert.equal(formatCountLabel(3, "look", "looks"), "3 looks");
+    assert.match(
+      formatPullSheetRecap({
+        garments: ["shirt"],
+        request_type: "outfit",
+        depth: { looks_wanted: 1, source: "stated" },
+      }) ?? "",
+      /\b1 look\b/,
     );
   });
 });

@@ -182,6 +182,35 @@ describe("signals_ranked_by_occasion", () => {
       ranked.some((s) => s.context === "elevated" || s.context === "event"),
     );
   });
+
+  it("excludes candidate signals from PROFILES ranking", () => {
+    const ranked = rankSignalsForRouter({
+      signals: [
+        signal({
+          id: "stripe",
+          value: "striped",
+          signal_type: "pattern",
+          polarity: -1,
+          status: "candidate",
+          confidence: 0.4,
+        }),
+        signal({
+          id: "navy",
+          value: "navy",
+          signal_type: "color",
+          polarity: 1,
+          status: "active",
+          confidence: 0.9,
+        }),
+      ],
+      limit: 8,
+    });
+    assert.equal(
+      ranked.some((s) => /strip/i.test(s.value)),
+      false,
+    );
+    assert.equal(ranked[0]?.value, "navy");
+  });
 });
 
 describe("continuity_resolves", () => {

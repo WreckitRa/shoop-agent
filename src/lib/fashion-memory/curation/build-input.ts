@@ -7,6 +7,7 @@ import type { FashionSearchPlan } from "../search-planner/types";
 import type { FashionSearchBrief } from "../router/types";
 import type { CurationRefRegistry, RunFashionCurationParams } from "./types";
 import { buildRefRegistry } from "./refs";
+import { isDegradedOutfitPlan } from "./validate";
 import {
   prepareCurationImages,
   type CurationImageBlock,
@@ -187,12 +188,9 @@ export async function buildCurationInput(params: {
 
   appendFullBrief(lines, brief);
 
-  if (
-    (params.plan.mode === "outfit" || params.plan.mode === "capsule") &&
-    params.plan.slots.length < Math.min(brief.garments.length, 5)
-  ) {
+  if (isDegradedOutfitPlan(params.plan)) {
     lines.push(
-      `\nDEGRADED PLAN: fewer slots than the brief — thin_note REQUIRED; do NOT present as a full fitting-room success.`,
+      `\nDEGRADED PLAN: plan misses a brief garment or has fewer slots — thin_note REQUIRED and must name the missing piece; do NOT present as a full fitting-room success.`,
     );
   }
 
@@ -344,6 +342,11 @@ export async function buildCurationInput(params: {
     lines.push(`  size_status: ${formatSizeStatus(c)}`);
     lines.push(`  suspicions: ${formatSuspicions(c)}`);
     lines.push(`  score: ${c.score?.final?.toFixed(3) ?? "n/a"}`);
+    if (c.taste_rating) {
+      lines.push(
+        `  taste_fit: ${c.taste_rating.taste_fit.toFixed(2)} lane=${c.taste_rating.lane}`,
+      );
+    }
     lines.push(`  image: ${imageBlock ? "shown below" : "not shown"}`);
 
     if (imageBlock) imageBlocks.push(imageBlock);

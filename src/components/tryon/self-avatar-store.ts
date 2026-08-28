@@ -105,10 +105,19 @@ export function resolveTryonCta(params: {
   cta?: "create_avatar";
   avatarStatus: SelfAvatarStatus;
 }): "tryon" | "create_avatar" | "hidden" {
-  const avatarReady = params.avatarStatus === "ready";
-  if (params.available === true) return "tryon";
-  if (params.cta === "create_avatar") {
-    return avatarReady ? "tryon" : "create_avatar";
+  const canOffer =
+    params.available === true || params.cta === "create_avatar";
+  if (!canOffer) return "hidden";
+
+  if (params.avatarStatus === "ready") return "tryon";
+  if (
+    params.avatarStatus === "missing" ||
+    params.avatarStatus === "signed_out"
+  ) {
+    return "create_avatar";
   }
-  return "hidden";
+  // unknown / loading: trust the contract so we don't flash CREATE AVATAR
+  // on a shopper who already has a twin.
+  if (params.cta === "create_avatar") return "create_avatar";
+  return "tryon";
 }

@@ -57,6 +57,36 @@ export function resetTryonBucketEnsuredForTests(): void {
   bucketEnsured = false;
 }
 
+const STORAGE_RETRY_DELAYS_MS = [400, 1200, 2800];
+
+export function isTransientTryonStorageError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /fetch failed|network|econnreset|etimedout|econnrefused|socket|und_err|other side closed|hang up|\b(429|502|503|504)\b/i.test(
+    msg,
+  );
+}
+
+async function withTryonStorageRetries<T>(fn: () => Promise<T>): Promise<T> {
+  let last: unknown;
+  for (let attempt = 0; attempt <= STORAGE_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      if (
+        attempt >= STORAGE_RETRY_DELAYS_MS.length ||
+        !isTransientTryonStorageError(err)
+      ) {
+        throw err;
+      }
+      await new Promise((r) =>
+        setTimeout(r, STORAGE_RETRY_DELAYS_MS[attempt]),
+      );
+    }
+  }
+  throw last;
+}
+
 export async function uploadPrivateObject(params: {
   userId: string;
   personId: string;
@@ -75,16 +105,18 @@ export async function uploadPrivateObject(params: {
     memoryStore.set(path, params.bytes);
     return { path };
   }
-  await ensureTryonBucket();
-  const client = getSupabaseAdminClient();
-  const { error } = await client.storage
-    .from(TRYON_PRIVATE_BUCKET)
-    .upload(path, params.bytes, {
-      contentType: params.contentType,
-      upsert: true,
-    });
-  if (error) throw new Error(`tryon upload failed: ${error.message}`);
-  return { path };
+  return withTryonStorageRetries(async () => {
+    await ensureTryonBucket();
+    const client = getSupabaseAdminClient();
+    const { error } = await client.storage
+      .from(TRYON_PRIVATE_BUCKET)
+      .upload(path, params.bytes, {
+        contentType: params.contentType,
+        upsert: true,
+      });
+    if (error) throw new Error(`tryon upload failed: ${error.message}`);
+    return { path };
+  });
 }
 
 export async function createSignedUrl(
@@ -97,15 +129,17 @@ export async function createSignedUrl(
     const b64 = Buffer.from(bytes).toString("base64");
     return `data:image/jpeg;base64,${b64}`;
   }
-  await ensureTryonBucket();
-  const client = getSupabaseAdminClient();
-  const { data, error } = await client.storage
-    .from(TRYON_PRIVATE_BUCKET)
-    .createSignedUrl(path, expiresInSeconds);
-  if (error || !data?.signedUrl) {
-    throw new Error(error?.message ?? "signed url failed");
-  }
-  return data.signedUrl;
+  return withTryonStorageRetries(async () => {
+    await ensureTryonBucket();
+    const client = getSupabaseAdminClient();
+    const { data, error } = await client.storage
+      .from(TRYON_PRIVATE_BUCKET)
+      .createSignedUrl(path, expiresInSeconds);
+    if (error || !data?.signedUrl) {
+      throw new Error(error?.message ?? "signed url failed");
+    }
+    return data.signedUrl;
+  });
 }
 
 /**
@@ -206,11 +240,17 @@ export async function persistProviderImage(params: {
       contentType = match[1];
       bytes = Uint8Array.from(Buffer.from(match[2], "base64"));
     } else {
-      const res = await fetch(params.imageUrl);
-      if (!res.ok) throw new Error(`fetch provider image ${res.status}`);
-      const buf = await res.arrayBuffer();
-      bytes = new Uint8Array(buf);
-      contentType = res.headers.get("content-type") ?? contentType;
+      const downloaded = await withTryonStorageRetries(async () => {
+        const res = await fetch(params.imageUrl);
+        if (!res.ok) throw new Error(`fetch provider image ${res.status}`);
+        const buf = await res.arrayBuffer();
+        return {
+          bytes: new Uint8Array(buf),
+          contentType: res.headers.get("content-type") ?? contentType,
+        };
+      });
+      bytes = downloaded.bytes;
+      contentType = downloaded.contentType;
     }
   }
   const { path } = await uploadPrivateObject({

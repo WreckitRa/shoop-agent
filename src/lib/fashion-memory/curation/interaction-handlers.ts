@@ -30,6 +30,7 @@ import { writeInteractionSignal, writeLookSwapSignals } from "./interaction-sign
 import { buildRenderContractWithTryon } from "@/lib/tryon/attach-render";
 import { runFashionCuration } from "./run-curation";
 import { recordPipelineEvent } from "../observability/trace";
+import { trackProductEvent } from "@/lib/analytics/track";
 
 async function persistCurationWithRender(params: {
   messageId: string;
@@ -172,6 +173,16 @@ export async function handleFashionPickAction(
         occasionContext,
         traceId: curation.trace_id,
       });
+      trackProductEvent({
+        name: "item_reacted",
+        userId,
+        props: {
+          item_id: promoted.id,
+          reaction: "promote",
+          ref: body.ref,
+          search_id: body.messageId,
+        },
+      });
       pool.recordShownRef(body.ref);
       await pool.persist();
     }
@@ -256,6 +267,16 @@ export async function handleFashionPickAction(
         product: rejected,
         occasionContext,
         traceId: curation.trace_id,
+      });
+      trackProductEvent({
+        name: "item_reacted",
+        userId,
+        props: {
+          item_id: rejected.id,
+          reaction: "reject",
+          ref: body.ref,
+          search_id: body.messageId,
+        },
       });
     }
     const updated: MessageFashionCurationMetaV1 = {

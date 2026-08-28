@@ -1,5 +1,6 @@
 import { getAuthContext } from "@/lib/auth/session";
 import { pollAvatarCompare } from "@/lib/tryon/avatar/service";
+import { requireAvatarOwner } from "@/lib/tryon/avatar/request-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,9 +11,8 @@ export async function GET(
 ) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
-  if (auth.isGuest) {
-    return Response.json({ error: "Sign in required." }, { status: 401 });
-  }
+  const owner = await requireAvatarOwner(req, auth, { photoGate: false });
+  if (!owner.ok) return owner.response;
 
   const { jobId } = await ctx.params;
   const personId = new URL(req.url).searchParams.get("person_id");
@@ -23,7 +23,7 @@ export async function GET(
   try {
     const result = await pollAvatarCompare({
       jobId,
-      userId: auth.userId,
+      userId: owner.userId,
       personId,
     });
     return Response.json(result);

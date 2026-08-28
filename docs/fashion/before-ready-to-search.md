@@ -2,7 +2,7 @@
 
 > **Audience:** engineer or AI reviewing how Shoop decides *whether* to search, and what it already knows about the shopper.  
 > **Scope:** fashion-memory chat pipeline from user message → router context assembly → clarification / off-topic / **handoff at `ready_to_search`**.  
-> **Not in scope:** planner, catalog fan-out, curation, or UI render after search — see [`ready-to-search-to-display.md`](./ready-to-search-to-display.md).  
+> **Not in scope:** planner, catalog fan-out, curation, or UI render after search — see [`search-pipeline-agent.md`](./search-pipeline-agent.md) (canonical) or the historical [`ready-to-search-to-display.md`](./ready-to-search-to-display.md).  
 > **Scope note:** fashion-memory is the only chat path.  
 > **Source of truth:** `src/lib/ai-chat/run-fashion-chat-stream.ts`, `src/lib/fashion-memory/**`.  
 > **Date of capture:** 2026-07-30.

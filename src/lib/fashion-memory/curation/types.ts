@@ -158,6 +158,8 @@ export type FashionCurationPresentation = {
 export type FashionCurationResult = {
   presentation: FashionCurationPresentation;
   curation_ms: number;
+  stage_a_ms?: number;
+  stage_b_ms?: number;
   registry: CurationRefRegistry;
 };
 

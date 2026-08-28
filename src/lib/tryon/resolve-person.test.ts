@@ -27,6 +27,17 @@ describe("tryonUserFacingError", () => {
     assert.equal(out.status, 400);
   });
 
+  it("maps guest ensureSelfPerson failures to a Fitting prompt", () => {
+    const out = tryonUserFacingError(
+      new Error(
+        "ensureSelfPerson requires a Supabase auth user id (got guest-d2917424-a544-4bed…)",
+      ),
+    );
+    assert.match(out.message, /Fitting/i);
+    assert.equal(out.status, 400);
+    assert.doesNotMatch(out.message, /ensureSelfPerson|guest-/i);
+  });
+
   it("never leaks Prisma uuid / Turbopack noise", () => {
     const out = tryonUserFacingError(
       new Error(
@@ -42,5 +53,16 @@ describe("tryonUserFacingError", () => {
     const out = tryonUserFacingError(new TryonCapError("Daily try-on limit reached."));
     assert.match(out.message, /limit/i);
     assert.equal(out.status, 429);
+  });
+});
+
+describe("tryResolveTryonPersonId", () => {
+  it("returns null for guest ids without throwing", async () => {
+    const { tryResolveTryonPersonId } = await import("./resolve-person");
+    const id = await tryResolveTryonPersonId(
+      "guest-d2917424-a544-4bed-8f11-abcdef123456",
+      null,
+    );
+    assert.equal(id, null);
   });
 });

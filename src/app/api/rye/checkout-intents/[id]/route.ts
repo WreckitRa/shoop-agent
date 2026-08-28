@@ -7,6 +7,7 @@ import {
 } from "@/lib/rye/errors";
 import { isRyeConfigured } from "@/lib/rye/env";
 import { serializeRyeCheckoutIntent } from "@/lib/rye/serialize";
+import { completeCheckoutPurchase } from "@/lib/fashion-memory/purchase-from-checkout";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +31,17 @@ export async function GET(_req: Request, ctx: Ctx) {
     const snapshot = serializeRyeCheckoutIntent(intent);
     const failureCode =
       intent.state === "failed" ? intent.failureReason?.code : undefined;
+    const fashionPurchase =
+      intent.state === "completed"
+        ? await completeCheckoutPurchase({
+            userId: auth.userId,
+            productUrl: intent.productUrl,
+          })
+        : null;
 
     return Response.json({
       intent: snapshot,
+      fashionPurchase,
       error:
         intent.state === "failed"
           ? ryeFailureUserMessage(

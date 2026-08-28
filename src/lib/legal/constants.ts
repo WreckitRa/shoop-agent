@@ -1,7 +1,7 @@
 /** Public legal document version. Logged with biometric consent ticks. */
-export const LEGAL_DOC_VERSION = "2026-08-24";
+export const LEGAL_DOC_VERSION = "2026-08-26";
 
-export const LEGAL_LAST_UPDATED = "August 24, 2026";
+export const LEGAL_LAST_UPDATED = "August 26, 2026";
 
 export const LEGAL_CONTACT_EMAIL = "hello@shoop.email";
 

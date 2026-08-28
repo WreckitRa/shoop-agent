@@ -1,0 +1,269 @@
+{
+  "calibration_id": "cal-05",
+  "source_run": "1-2026-08-26T09-18-59-339Z",
+  "persona_id": "b91c8efa8d68b117",
+  "persona_name": "Sam48",
+  "cell": "capsule×partial",
+  "profile_state": "new",
+  "judge_overall": 3.2,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 2,
+      "why": "Re-asked tops size after client already answered M/32/9; felt processed, not remembered mid-conversation."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Garment and shoe/bottom sizes justified, but tops size irrelevant for a dress/sandals/jacket capsule."
+    },
+    "not_interrogated": {
+      "score": 3,
+      "why": "Opened with a four-question stack, then a redundant sizing round; form-like for a quick shopper."
+    },
+    "no_silent_guess": {
+      "score": 4,
+      "why": "Warmer-tone swap and kept sandals/jacket stated aloud as speech; corrections were possible."
+    },
+    "accuracy": {
+      "score": 4,
+      "why": "Brief matches garments, occasion, smart-casual polish, warm-tone swap; missed second-look capsule depth slightly."
+    },
+    "voice": {
+      "score": 3,
+      "why": "Competent, mildly warm ('something sharp'), but generic; no distinct stylist personality for this person."
+    },
+    "would_proceed": {
+      "score": 4,
+      "why": "Impatient 'just show me' but stayed, engaged with results and requested a swap; kept going."
+    }
+  },
+  "human_overall": 3,
+  "human_dimensions": null,
+  "human_notes": "Provisional human reader (Claude calibration grades, not a separate human). Overall only.",
+  "agreement": {
+    "overall_within_0_4": true,
+    "opus_minus_reader": -0.2,
+    "sonnet_minus_reader": -0.5
+  },
+  "truth": {
+    "request_type": "capsule",
+    "garments": [
+      "dress",
+      "sandals",
+      "light jacket"
+    ],
+    "owns": [],
+    "occasion": "client meeting",
+    "formality": "smart casual",
+    "color": "surprise",
+    "budget": "no_cap",
+    "depth": {
+      "looks": 2
+    },
+    "anchor": "n/a"
+  },
+  "opening_message": "need help for client meeting",
+  "brief": {
+    "recipient_person_id": "1a5c45e7-05ad-4004-a15d-d6ef93415c60",
+    "request_type": "outfit",
+    "garments": [
+      "dress",
+      "sandals",
+      "light jacket"
+    ],
+    "occasion_context": "client meeting",
+    "quantity_hint": "one outfit",
+    "must_haves": [
+      "warmer tone dress option"
+    ],
+    "nice_to_haves": [],
+    "budget_context": {
+      "stated": false
+    },
+    "style_direction": "Polished, professional look for a client meeting, with one dress option swapped into a warmer tone for variety.",
+    "department_scope": "womens",
+    "color_direction": {
+      "source": "stated",
+      "stated_colors": [
+        "warm tone"
+      ]
+    },
+    "brand_direction": {
+      "source": "none"
+    },
+    "stated_facts": {
+      "person_ref": "self",
+      "department": "womens",
+      "sizes": {
+        "bottoms": "32",
+        "shoes": "9",
+        "dresses": "M"
+      }
+    },
+    "depth": {
+      "source": "you_decide"
+    },
+    "preference_anchor": "unspecified",
+    "assumptions": [
+      "Kept sandals and jacket as shown, swapping one dress for a warmer tone."
+    ],
+    "knowledge_state": {
+      "department": "womens",
+      "sizes_confirmed": [
+        "dress",
+        "light jacket"
+      ],
+      "sizes_unconfirmed": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ]
+    }
+  },
+  "question_rounds": 2,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "need help for client meeting"
+    },
+    {
+      "role": "assistant",
+      "content": "Happy to help you pull together something sharp for a client meeting. A couple quick things first.",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "garment",
+          "text": "What are you thinking for the meeting?"
+        },
+        {
+          "gap": "size",
+          "text": "What size do you usually wear in tops?"
+        },
+        {
+          "gap": "size",
+          "text": "And for bottoms — waist/size?"
+        },
+        {
+          "gap": "size",
+          "text": "Shoe size?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "dress, sandals, light jacket. M, 32, and 9 please!"
+    },
+    {
+      "role": "assistant",
+      "content": "Quick sizing so everything I pull actually fits.",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "size",
+          "text": "What size does Sam48 usually wear in tops?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "just show me what you've got"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    },
+    {
+      "role": "user",
+      "content": "Ooh nice, let me see these closer. Can you swap one of the dresses for something in a warmer tone though?"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ],
+  "sonnet_grade": {
+    "recognized": {
+      "score": 2,
+      "why": "Re-asked size (tops) already given, ignoring stated 'M' for dress, felt like a form."
+    },
+    "asked_right": {
+      "score": 2,
+      "why": "Redundant top size question wasted a round; never asked about color/formality nuances that matter."
+    },
+    "not_interrogated": {
+      "score": 2,
+      "why": "Two rounds of size questions before any garments shown feels like intake form, not styling chat."
+    },
+    "no_silent_guess": {
+      "score": 3,
+      "why": "Warm tone swap was spoken and user-driven, but sandals/jacket sizes silently assumed unconfirmed."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Captured garments and warm-tone dress correctly, but no visible depth of 2 looks confirmed."
+    },
+    "voice": {
+      "score": 1,
+      "why": "Only log-speak 'Searching the stores' with no real stylist commentary or personality shown."
+    },
+    "would_proceed": {
+      "score": 3,
+      "why": "User stayed engaged despite redundant questions, curious to see results and swap options."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.5,
+    "worst_moment": {
+      "quote": "Q: size:What size does Sam48 usually wear in tops?",
+      "better": "Got it, M/32/9 noted — pulling client-meeting looks now, one dress in a warmer tone as requested."
+    },
+    "judge_model": "claude-sonnet-5"
+  },
+  "opus_grade": {
+    "recognized": {
+      "score": 2,
+      "why": "Client stated sizes clearly, yet stylist re-asked top size for \"Sam48\" — felt processed, not known."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Garment and size questions were relevant, but re-asking top size after it was given wasted a round."
+    },
+    "not_interrogated": {
+      "score": 2,
+      "why": "Stacked four questions upfront then re-asked size; felt form-like and slightly robotic."
+    },
+    "no_silent_guess": {
+      "score": 3,
+      "why": "Color surprise and depth decided silently; warmer-tone swap honored but no spoken assumptions to correct."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Right garments, occasion, smart casual; but read as single outfit, missed two-look capsule intent."
+    },
+    "voice": {
+      "score": 2,
+      "why": "Generic and log-like; \"Searching the stores\" twice, no personal callback or specific stylist voice."
+    },
+    "would_proceed": {
+      "score": 4,
+      "why": "Client engaged, said \"Ooh nice,\" requested a swap — clearly waiting for results."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.8,
+    "worst_moment": {
+      "quote": "Quick sizing so everything I pull actually fits. Q: What size does Sam48 usually wear in tops?",
+      "better": "\"Got it — M top, 32, size 9. Let me pull two client-meeting looks now.\""
+    },
+    "judge_model": "claude-opus-4-8"
+  },
+  "sonnet_offset_vs_opus": -0.3,
+  "sonnet_offset_vs_human": -0.5,
+  "sonnet_dim_agreement_vs_opus_pct": 57.1,
+  "opus_offset_vs_human": -0.2
+}

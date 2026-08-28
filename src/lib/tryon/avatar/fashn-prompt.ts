@@ -4,7 +4,15 @@ import type { AvatarAttributes } from "../types";
  * Versioned avatar prompt for FASHN face-to-model.
  * Bump when attribute→phrase maps or base-wardrobe / normalize rules change.
  */
-export const TRYON_AVATAR_PROMPT_VERSION = "v4" as const;
+export const TRYON_AVATAR_PROMPT_VERSION = "v5" as const;
+
+const BUILD_PHRASE: Record<NonNullable<AvatarAttributes["build"]>, string> = {
+  slim: "slender frame, narrow shoulders and chest",
+  average: "average build",
+  athletic: "athletic build, wide shoulders, narrow waist",
+  broad: "broad solid frame, wide shoulders",
+  plus: "curvy fuller figure",
+};
 
 const BODY_SHAPE_PHRASE: Record<
   NonNullable<AvatarAttributes["body_shape"]>,
@@ -27,8 +35,25 @@ const BUST_FULLNESS_PHRASE: Record<
   very_full: "very full bust",
 };
 
-const FIDELITY_RULE =
-  "faithful to stated body attributes only — no beautification, slimming, or idealization beyond them";
+const MUSCLE_PHRASE: Record<
+  NonNullable<AvatarAttributes["muscularity"]>,
+  string
+> = {
+  low: "soft physique",
+  moderate: "lightly toned",
+  high: "defined musculature",
+};
+
+const HEIGHT_PHRASE: Record<
+  NonNullable<AvatarAttributes["height_band"]>,
+  string
+> = {
+  under_160: "petite stature",
+  "160_170": "medium height",
+  "170_180": "average height",
+  "180_190": "tall stature",
+  over_190: "very tall stature",
+};
 
 /**
  * Replaceable studio base the try-on dress step expects.
@@ -37,76 +62,51 @@ const FIDELITY_RULE =
 export const AVATAR_BASE_WARDROBE =
   "plain fitted white crewneck t-shirt and simple dark fitted trousers only — no jacket, no coat, no scarf, no hat, no jewelry, no bag, no logos, no busy patterns, no layered outfits";
 
-/**
- * FASHN `edit` pass after face-to-model — strips leftover source-photo clothes
- * and accessories so the stored twin is always a clean try-on base.
- */
-export const AVATAR_BASE_NORMALIZE_PROMPT =
-  `Replace ALL clothing and accessories on this person with a ${AVATAR_BASE_WARDROBE}. ` +
-  "Remove scarves, jackets, coats, hats, jewelry, bags, patterned tops, dresses, and any outfit copied from the source photo. " +
-  "Keep the same face, hair, skin tone, body shape, and neutral standing pose with arms relaxed at sides. " +
-  "Clean studio backdrop, soft even lighting. Do not change identity.";
+/** Stated silhouette only — FASHN infers body from the face unless we say otherwise. */
+export function buildFashnBodyGuidance(attributes: AvatarAttributes): string {
+  const parts: string[] = [];
+  if (attributes.build) parts.push(BUILD_PHRASE[attributes.build]);
+  if (attributes.body_shape) parts.push(BODY_SHAPE_PHRASE[attributes.body_shape]);
+  if (attributes.bust_fullness) {
+    parts.push(BUST_FULLNESS_PHRASE[attributes.bust_fullness]);
+  }
+  if (attributes.muscularity) parts.push(MUSCLE_PHRASE[attributes.muscularity]);
+  if (attributes.height_band) parts.push(HEIGHT_PHRASE[attributes.height_band]);
+  return parts.join(", ");
+}
 
 /**
- * Compact body-shape prompt for FASHN face-to-model.
- * Face/hair/skin identity come from `face_image` — never restate them here.
- * Image generators consume visual descriptions, not centimeters.
+ * FASHN face-to-model `prompt` is body/styling guidance, not a clothing essay.
+ * Docs examples: "athletic build", "curvy figure", "slender frame".
+ * Face/hair/skin come from `face_image`.
  */
 export function buildFashnAvatarPrompt(
   attributes: AvatarAttributes,
 ): string | undefined {
-  const parts: string[] = [];
+  const body = buildFashnBodyGuidance(attributes);
+  if (!body) return undefined;
+  return [
+    body,
+    "Do not infer body type from the face",
+    "neutral standing pose, arms relaxed at sides",
+    "plain fitted white crewneck t-shirt",
+  ].join(". ");
+}
 
-  if (attributes.build) {
-    parts.push(
-      {
-        slim: "slender frame",
-        average: "average build",
-        broad: "broad solid frame",
-        athletic: "athletic build",
-        plus: "curvy fuller figure",
-      }[attributes.build],
-    );
-  }
-
-  if (attributes.body_shape) {
-    parts.push(BODY_SHAPE_PHRASE[attributes.body_shape]);
-  }
-
-  if (attributes.bust_fullness) {
-    parts.push(BUST_FULLNESS_PHRASE[attributes.bust_fullness]);
-  }
-
-  if (attributes.muscularity) {
-    parts.push(
-      {
-        low: "soft physique",
-        moderate: "lightly toned",
-        high: "defined musculature",
-      }[attributes.muscularity],
-    );
-  }
-
-  if (attributes.height_band) {
-    parts.push(
-      {
-        under_160: "petite stature",
-        "160_170": "medium height",
-        "170_180": "average height",
-        "180_190": "tall stature",
-        over_190: "very tall stature",
-      }[attributes.height_band],
-    );
-  }
-
-  // Pose + base wardrobe that dress try-on can replace cleanly.
-  // face-to-model often copies scarves/jackets from the selfie — forbid that.
-  parts.push("neutral standing pose, arms relaxed at sides");
-  parts.push(`wearing a ${AVATAR_BASE_WARDROBE}`);
-  parts.push(
-    "do not keep any clothing, scarf, jacket, jewelry, or accessories from the face photo — generate a fresh studio outfit as specified",
+/**
+ * FASHN `edit` pass after face-to-model.
+ * Must restate body — "keep the same body shape" would lock in the selfie-inferred figure.
+ */
+export function buildFashnNormalizePrompt(attributes: AvatarAttributes): string {
+  const body = buildFashnBodyGuidance(attributes);
+  const reshape = body
+    ? `Reshape the body to match: ${body}. Do not keep the body inferred from the source photo. `
+    : "";
+  return (
+    reshape +
+    `Replace ALL clothing and accessories on this person with a ${AVATAR_BASE_WARDROBE}. ` +
+    "Remove scarves, jackets, coats, hats, jewelry, bags, patterned tops, dresses, and any outfit copied from the source photo. " +
+    "Keep the same face, hair, and skin tone. Neutral standing pose with arms relaxed at sides. " +
+    "Clean studio backdrop, soft even lighting. Do not change identity."
   );
-  parts.push(FIDELITY_RULE);
-
-  return parts.length ? parts.join(", ") : undefined;
 }

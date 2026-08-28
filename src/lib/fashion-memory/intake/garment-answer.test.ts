@@ -50,6 +50,24 @@ describe("normalizeGarmentClarificationAnswer", () => {
       "accessories",
     ]);
   });
+
+  it("keeps apparel siblings when sneakers are in the same clause", () => {
+    assert.deepEqual(
+      normalizeGarmentClarificationAnswer(
+        "shirts, trousers, sneakers, overshirt. just show me what you've got",
+      ).sort(),
+      ["overshirt", "shirts", "sneakers", "trousers"],
+    );
+  });
+
+  it("keeps coat with boots in the opening clause", () => {
+    assert.deepEqual(
+      normalizeGarmentClarificationAnswer(
+        "winter coat and boots for the commute",
+      ).sort(),
+      ["boots", "coat"],
+    );
+  });
 });
 
 describe("hasConcreteGarmentDirection", () => {

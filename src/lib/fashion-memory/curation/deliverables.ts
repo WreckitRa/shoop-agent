@@ -3,6 +3,7 @@
  * single_item < outfit < capsule for image spend.
  */
 
+import { isTasteScoringEnabled } from "../scoring/weights";
 import { agreedDepth, DEPTH_CEILING } from "../agreed-depth";
 import type { FashionSearchBrief } from "../router/types";
 import type { SearchPlanMode } from "../search-planner/types";
@@ -20,35 +21,48 @@ export const CURATION_UNVERIFIED_OVERFLOW = 10;
 
 /**
  * How many product images to attach for the curator LLM call.
- * Phase 0: scorer already ranked — trust it; images only for visual veto/pick.
  * Bench + overflow remain text refs only (image_shown=false beyond budget).
+ * v4: anchor / single-item min(8, agreedDepth × 2). Support stays 4.
+ * v3 (pre-S1): fixed 6 / 4 / 6.
  */
 export const CURATION_IMAGE_BUDGET = {
-  /** Single / multi — top 6 imaged. */
-  single_item: 6,
-  /** Outfit — top 4 per slot. */
+  support: 4,
+  cap: 8,
+} as const;
+
+const CURATION_IMAGE_BUDGET_V3 = {
+  support: 4,
+  single: 6,
   outfit_anchor: 4,
-  outfit_support: 4,
-  /** Capsule — still lean; previously 22–28. */
   capsule_anchor: 6,
-  capsule_support: 4,
 } as const;
 
 export function imageBudgetForSlot(params: {
   mode: "single_item" | "outfit" | "capsule" | "multi_item";
   role: "anchor" | "support";
+  brief?: Pick<FashionSearchBrief, "request_type" | "depth">;
 }): number {
-  if (params.mode === "single_item" || params.mode === "multi_item") {
-    return CURATION_IMAGE_BUDGET.single_item;
+  if (!isTasteScoringEnabled()) {
+    if (
+      params.role === "support" &&
+      params.mode !== "single_item" &&
+      params.mode !== "multi_item"
+    ) {
+      return CURATION_IMAGE_BUDGET_V3.support;
+    }
+    if (params.mode === "outfit") return CURATION_IMAGE_BUDGET_V3.outfit_anchor;
+    if (params.mode === "capsule") return CURATION_IMAGE_BUDGET_V3.capsule_anchor;
+    return CURATION_IMAGE_BUDGET_V3.single;
   }
-  if (params.mode === "capsule") {
-    return params.role === "anchor"
-      ? CURATION_IMAGE_BUDGET.capsule_anchor
-      : CURATION_IMAGE_BUDGET.capsule_support;
+  if (
+    params.role === "support" &&
+    params.mode !== "single_item" &&
+    params.mode !== "multi_item"
+  ) {
+    return CURATION_IMAGE_BUDGET.support;
   }
-  return params.role === "anchor"
-    ? CURATION_IMAGE_BUDGET.outfit_anchor
-    : CURATION_IMAGE_BUDGET.outfit_support;
+  const depth = params.brief ? agreedDepth(params.brief).picks : 3;
+  return Math.min(CURATION_IMAGE_BUDGET.cap, depth * 2);
 }
 
 /** Cap of picks the curator should deliver for a slot (UI heroes). */

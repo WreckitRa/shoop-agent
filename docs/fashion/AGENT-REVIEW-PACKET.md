@@ -20,9 +20,11 @@ Share **this file plus** the six CI-hashed verbatim prompt files (do not paraphr
 | `docs/fashion/brand_translate.md`    | `src/lib/fashion-memory/brand/prompt.ts`           | Unavailable-brand DNA      |
 | `docs/fashion/normalize_classify.md` | `src/lib/fashion-memory/normalize/llm-classify.ts` | Merchant color/size labels |
 
+**Standalone search-pipeline briefing (ready → plan → filters → display):** [`search-pipeline-agent.md`](./search-pipeline-agent.md). Share that file when the task is “how does search work,” not a full prompt review.
+
 Deeper operational I/O (fetch/store per call): `docs/fashion/llm-calls.md`.  
 Pre-search gates: `docs/fashion/before-ready-to-search.md`.  
-Post-search find pipeline: `docs/fashion/ready-to-search-to-display.md`.  
+Post-search find pipeline (historical v1.1 notes; prefer the briefing above): `docs/fashion/ready-to-search-to-display.md`.  
 Doctrines: `docs/fashion/doctrines.md`.  
 Enums: `docs/fashion/enums.md`.
 
@@ -353,7 +355,7 @@ Events must include `rejection_samples` (product_id + rule + evidence). Tripwire
 | `department_confirmed` | 0.08                  |
 | suspicion              | 0.03 / flag, cap 0.08 |
 
-`SCORING_WEIGHTS_VERSION = "20260709-v3-brand"`. Also: attire-conflict penalties, price-outlier suspicion.
+Default `SCORING_WEIGHTS_VERSION=v4-taste`. `v3-brand` is the pre-S1 table. Also: attire-conflict penalties, price-outlier suspicion.
 
 ### 8.4 Budget
 

@@ -47,6 +47,11 @@ const nextConfig: NextConfig = {
               "form-action 'self'",
             ].join("; "),
           },
+          // Apex→www is edge 301; HSTS locks browsers onto HTTPS after first www hit.
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
         ],
       },
       {

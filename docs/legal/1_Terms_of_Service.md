@@ -2,7 +2,7 @@
 
 *Last updated: \[DATE\] · Effective: \[DATE\] · v2 draft, August 19, 2026 — counsel questions resolved into positions; remaining brackets are pending facts, not pending advice.*
 
-These terms are an agreement between you and Shoop Inc. ("Shoop", "we", "us"). They govern your use of shoop.world and everything on it. By creating an account you accept them.
+These terms are an agreement between you and Shoop Inc. ("Shoop", "we", "us"). They govern your use of shoop.world and everything on it. By starting the fitting or creating an account you accept them.
 
 We have tried to write these in plain language. Where a term is legally necessary but unusual, we explain why in the same paragraph.
 
@@ -23,9 +23,9 @@ Shoop is a styling and shopping assistant. We analyze a photograph of your face 
 
 ## 3\. Age
 
-**You must be at least 13 years old to use Shoop.** We ask your date of birth at signup and do not create accounts for anyone under 13\. We do not knowingly process the photograph of anyone under 13\. If we learn an account belongs to someone under 13, we will close it and delete all associated data, including face data, without waiting for a request.
+**You must be at least 13 years old to use Shoop.** Before any photograph is processed you confirm you are at least 13 on a dedicated screen. An email address is not required for that confirmation. When you create an account we also record your date of birth and do not create accounts for anyone under 13. We do not knowingly process the photograph of anyone under 13. If we learn a session or account belongs to someone under 13, we will close it and delete all associated data, including face data, without waiting for a request.
 
-*Position (replacing the prior counsel question):* the federal floor under COPPA is 13, and the biometric statutes are consent regimes rather than age bans above that floor. The gate is a neutral date-of-birth field, not a checkbox. Self-declaration is the launch standard; age assurance beyond it is a roadmap item, not a launch requirement, at current scale.
+*Position (updated August 26, 2026):* 13+ is confirmed on the first fitting screen before any photograph is processed. Date of birth is still recorded at account creation. Self-declaration remains the launch standard.
 
 ## 4\. Photographs you upload
 

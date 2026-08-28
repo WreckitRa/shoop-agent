@@ -5,6 +5,7 @@ import { prisma } from "@/lib/ai-chat/db";
 import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
 import {
   ASK_VOTE_LABELS,
+  isAskRateChoice,
   isAskVoteChoice,
   type AskVoteChoice,
 } from "@/lib/ask/types";
@@ -80,9 +81,9 @@ function asLookScanVerdict(value: unknown): LookScanVerdict | null {
     return null;
   }
   const vote =
-    typeof obj.vote === "string" && isAskVoteChoice(obj.vote) ?
-      obj.vote
-    : undefined;
+    typeof obj.vote === "string" && isAskRateChoice(obj.vote)
+      ? obj.vote
+      : undefined;
   return {
     verdict_title: title,
     verdict_body: body,

@@ -23,6 +23,7 @@ import {
   appendUtmToContinueUrlAction,
   getProductAction,
 } from "@/actions/catalog";
+import { trackClientEvent } from "@/lib/analytics/client";
 import { useRouter } from "next/navigation";
 import {
   collectCatalogImageUrls,
@@ -83,6 +84,8 @@ import {
   inferPreferredOptions,
   type ProductPriceRangeHint,
 } from "@/lib/ai-chat/curation/preferred-options";
+import { useChatMessageProductLink } from "@/components/chat/ChatMessageProductLinkContext";
+
 export type ProductPageViewProps = {
   productId: string;
   featuredVariantId?: string;
@@ -90,6 +93,9 @@ export type ProductPageViewProps = {
   fallbackImageUrl?: string;
   prefilledOptions?: SelectedOption[];
   chatPriceRange?: ProductPriceRangeHint;
+  /** Originating fashion search. Falls back to chat message link context. */
+  searchId?: string | null;
+  productRef?: string | null;
   onClose?: () => void;
 };
 
@@ -177,6 +183,8 @@ export function ProductPageView({
   fallbackImageUrl,
   prefilledOptions,
   chatPriceRange,
+  searchId: searchIdProp,
+  productRef,
   onClose,
 }: ProductPageViewProps) {
   const [phase, setPhase] = useState<Phase>("loading");
@@ -195,6 +203,8 @@ export function ProductPageView({
   const cartBusy = useCartStore((s) => s.mutating);
   const cartError = useCartStore((s) => s.error);
   const addCartItem = useCartStore((s) => s.addItem);
+  const messageSearchId = useChatMessageProductLink();
+  const searchId = searchIdProp ?? messageSearchId;
   const updateCartQuantity = useCartStore((s) => s.updateQuantity);
   const setDrawerOpen = useCartStore((s) => s.setDrawerOpen);
   const clearCartError = useCartStore((s) => s.clearError);
@@ -457,6 +467,10 @@ export function ProductPageView({
 
   const cartProductMetadata = useMemo(() => {
     if (!resolvedVariant || !catalogProductId) return undefined;
+    const color =
+      Object.entries(pickedOptions).find(([name]) =>
+        isColorOptionName(name),
+      )?.[1] ?? null;
     return {
       title: detail?.title ?? fallbackTitle ?? "Product",
       imageUrl: productImage ?? fallbackImageUrl ?? null,
@@ -465,6 +479,10 @@ export function ProductPageView({
       sellerName,
       sellerDomain,
       productId: catalogProductId,
+      searchId: searchId ?? null,
+      ref: productRef ?? catalogProductId,
+      brand: detail?.brand ?? null,
+      color,
       // Rye-ready URL (product page + ?variant=…) saved now so checkout never re-fetches.
       productUrl: detail ? buildRyeProductUrl(detail, resolvedVariant) : null,
     };
@@ -473,8 +491,11 @@ export function ProductPageView({
     detail,
     fallbackImageUrl,
     fallbackTitle,
+    pickedOptions,
     productImage,
+    productRef,
     resolvedVariant,
+    searchId,
     sellerName,
     sellerDomain,
   ]);
@@ -605,6 +626,13 @@ export function ProductPageView({
           ? cart.continueUrl
           : resolvedVariant.checkout_url!;
       const { url } = await appendUtmToContinueUrlAction(target);
+      trackClientEvent("outbound_click", {
+        item_id: catalogProductId ?? null,
+        variant_id: resolvedVariant.id ?? null,
+        url,
+        handoff: handoffOpen,
+        shop_domain: merchantSupport?.shopDomain ?? sellerDomain ?? null,
+      });
       window.open(url, "_blank", "noopener,noreferrer");
       setHandoffOpen(null);
     } catch (e) {
@@ -612,7 +640,14 @@ export function ProductPageView({
     } finally {
       setHandoffBusy(false);
     }
-  }, [handoffOpen, cart, resolvedVariant]);
+  }, [
+    handoffOpen,
+    cart,
+    resolvedVariant,
+    catalogProductId,
+    merchantSupport?.shopDomain,
+    sellerDomain,
+  ]);
 
   const priceLabel = resolvedVariant?.price
     ? formatPrice(resolvedVariant.price.amount, resolvedVariant.price.currency)

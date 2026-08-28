@@ -189,7 +189,37 @@ function QuestionTreatment({
               </label>
             );
           })}
+          {other.map((option) => {
+            const on = selectedIds.includes(option.id);
+            return (
+              <label
+                key={option.id}
+                className={`shoop-pullsheet__check-row${on ? " shoop-pullsheet__check-row--on" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={disabled}
+                  onChange={() => onToggle(option.id)}
+                />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
         </div>
+        {showOtherInput ||
+        selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID) ? (
+          <input
+            type="text"
+            className="shoop-pullsheet__other"
+            placeholder={
+              question.gap === "slots" ? "Add a piece…" : "Other…"
+            }
+            value={freeText}
+            disabled={disabled}
+            onChange={(e) => onFreeText(e.target.value)}
+          />
+        ) : null}
         {youDecideChip}
       </div>
     );
@@ -423,7 +453,9 @@ export const FashionRouterControls = memo(function FashionRouterControls({
   const [selections, setSelections] = useState<Record<string, string[]>>(() => {
     const out: Record<string, string[]> = {};
     for (const q of questions) {
-      if (q.gap === "slots") out[q.text] = preselectedOptionIds(q);
+      if (q.gap === "slots" || q.gap === "preference_anchor") {
+        out[q.text] = preselectedOptionIds(q);
+      }
     }
     return out;
   });
@@ -488,6 +520,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
         question.gap !== "person_name" &&
         question.gap !== "size" &&
         question.gap !== "garment" &&
+        question.gap !== "preference_anchor" &&
         question.allow_multiple === true);
     const multi =
       display === "checklist" ||
@@ -540,9 +573,14 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     );
   }
 
-  const renderBlock = (q: FashionClarificationQuestion) => (
+  const renderBlock = (q: FashionClarificationQuestion) => {
+    const isAnchor = q.gap === "preference_anchor";
+    const caption = isAnchor
+      ? (q.why?.trim() || q.text.trim())
+      : null;
+    return (
     <div key={q.text} className="shoop-qcardz__block">
-      <p className="shoop-qcardz__q">{q.text}</p>
+      {isAnchor ? null : <p className="shoop-qcardz__q">{q.text}</p>}
       <QuestionTreatment
         question={q}
         selectedIds={selections[q.text] ?? []}
@@ -576,14 +614,26 @@ export const FashionRouterControls = memo(function FashionRouterControls({
           setFreeTexts((prev) => ({ ...prev, [q.text]: text }));
         }}
       />
-      {q.why && isConsultQuestion(q) ? (
+      {caption ? (
+        <p className="shoop-pullsheet__why">{caption}</p>
+      ) : q.why && isConsultQuestion(q) ? (
         <p className="shoop-pullsheet__why">{q.why}</p>
       ) : null}
     </div>
-  );
+    );
+  };
+
+  const anchorOnlyCard =
+    questions.length === 1 &&
+    questions[0]?.gap === "preference_anchor" &&
+    !rideQuestion;
 
   return (
-    <div className="shoop-qcardz shoop-pullsheet">
+    <div
+      className={`shoop-qcardz shoop-pullsheet${
+        anchorOnlyCard ? " shoop-pullsheet--anchor" : ""
+      }`}
+    >
       {fashionRouter.known_summary ? (
         <p className="shoop-pullsheet__known">{fashionRouter.known_summary}</p>
       ) : null}
@@ -604,7 +654,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
         }}
         className="shoop-quiz-apply shoop-pullsheet__done mt-4"
       >
-        Done
+        {anchorOnlyCard ? "Pull it" : "Done"}
         <span aria-hidden>→</span>
       </button>
       {fashionRouter.escape_chip ? (

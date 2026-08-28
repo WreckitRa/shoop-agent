@@ -47,7 +47,7 @@ export const ChatLayout = memo(function ChatLayout() {
   const collapseInlineProduct = useInlineProductStore((s) => s.collapse);
   const tryOnOpen = useTryOnDrawerStore((s) => s.open);
   const fittingColumnOpen = useInlineFittingStore((s) => s.columnOpen);
-  const closeFittingColumn = useInlineFittingStore((s) => s.dismissColumn);
+  const closeFittingColumn = useInlineFittingStore((s) => s.requestDismiss);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [desktop, setDesktop] = useState(false);
 
@@ -109,6 +109,7 @@ export const ChatLayout = memo(function ChatLayout() {
                 ? "gap-3 px-4 py-3.5"
                 : "gap-4 md:gap-5",
             )}
+            data-fitting-column={fittingColumnOpen ? "" : undefined}
           >
             {showLoading ? (
               <div className="flex min-h-[40vh] items-center justify-center py-20 text-sm text-ink-muted">
@@ -205,7 +206,7 @@ export const ChatLayout = memo(function ChatLayout() {
                       className={cn(
                         "grid min-h-0 flex-1 grid-cols-1",
                         fittingColumnOpen
-                          ? "grid-rows-[minmax(0,0.7fr)_minmax(180px,0.5fr)_minmax(0,1.1fr)] gap-2.5 p-2.5 lg:grid-rows-1 lg:grid-cols-[2fr_1fr_2fr]"
+                          ? "grid-rows-[minmax(108px,0.38fr)_minmax(0,1fr)] lg:grid-rows-1 lg:grid-cols-[minmax(220px,0.42fr)_minmax(0,1fr)]"
                           : "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
                       )}
                     >
@@ -213,46 +214,44 @@ export const ChatLayout = memo(function ChatLayout() {
                         className={cn(
                           "relative flex min-h-0 min-w-0 flex-col",
                           fittingColumnOpen &&
-                            "overflow-hidden rounded-[14px] bg-white lg:border lg:border-hairline",
+                            "overflow-hidden bg-[#F7F7F8] lg:border-r lg:border-[var(--fitting-line)]",
                         )}
                       >
                         {thread}
                       </div>
 
-                      <aside
-                        className={cn(
-                          "min-h-0 flex-col overflow-hidden",
-                          fittingColumnOpen ? "flex" : "hidden",
-                        )}
-                      >
-                        <div
-                          id={INLINE_FITTING_CARD_SLOT_ID}
-                          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                        />
-                      </aside>
-
                       <section
                         className={cn(
-                          "relative min-h-0 flex-col overflow-hidden rounded-[14px] border border-hairline bg-white",
-                          fittingColumnOpen ? "flex" : "hidden",
+                          "relative min-h-0 overflow-hidden bg-white",
+                          fittingColumnOpen
+                            ? "grid grid-rows-[minmax(0,1.5fr)_minmax(190px,0.65fr)] lg:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_minmax(230px,300px)]"
+                            : "hidden",
                         )}
                       >
-                        {fittingColumnOpen ? (
-                          <button
-                            type="button"
-                            aria-label="Keep chatting"
-                            onClick={closeFittingColumn}
-                            className="absolute right-2.5 top-2.5 z-20 grid size-8 place-items-center rounded-full border border-hairline bg-white text-ink-muted transition hover:text-ink"
-                          >
-                            <span aria-hidden className="text-lg leading-none">
-                              ×
-                            </span>
-                          </button>
-                        ) : null}
-                        <div
-                          id={INLINE_FITTING_SLOT_ID}
-                          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                        />
+                        <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
+                          {fittingColumnOpen ? (
+                            <button
+                              type="button"
+                              aria-label="Keep chatting"
+                              onClick={closeFittingColumn}
+                              className="absolute right-2.5 top-2.5 z-20 grid size-8 place-items-center rounded-full border border-[var(--fitting-line)] bg-white text-[var(--fitting-quiet)] transition hover:text-[var(--fitting-ink)]"
+                            >
+                              <span aria-hidden className="text-lg leading-none">
+                                ×
+                              </span>
+                            </button>
+                          ) : null}
+                          <div
+                            id={INLINE_FITTING_SLOT_ID}
+                            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                          />
+                        </div>
+                        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-[var(--fitting-line)] lg:border-l lg:border-t-0">
+                          <div
+                            id={INLINE_FITTING_CARD_SLOT_ID}
+                            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                          />
+                        </aside>
                       </section>
 
                       {fittingColumnOpen ? null : (

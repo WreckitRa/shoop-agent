@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/ai-chat/cn";
 import {
+  FittingKick,
+  FittingMulti,
   FittingNavRow,
   FittingTitle,
   FittingWhisper,
@@ -93,12 +95,15 @@ export function TasteOutfitGridStep({
 
   return (
     <section>
+      <FittingKick>
+        {mode === "worn" ? "EVIDENCE · WORN" : "DIRECTION · WANTED"}
+      </FittingKick>
       <FittingTitle lines={[...title]} />
       <FittingWhisper>
         {mode === "worn" ? (
           <>
             No judgment... this is a safe space for that hoodie.{" "}
-            <b>Your picks are voting on the print.</b>
+            <b>Your picks are voting on the twin.</b>
           </>
         ) : (
           <>
@@ -107,6 +112,9 @@ export function TasteOutfitGridStep({
           </>
         )}
       </FittingWhisper>
+      <FittingMulti>
+        {mode === "worn" ? "PICK UP TO THREE" : "PICK TWO"}
+      </FittingMulti>
 
       {maxHint ? (
         <p className="mb-3 text-xs font-bold text-[var(--fitting-red)]">
@@ -115,16 +123,16 @@ export function TasteOutfitGridStep({
       ) : null}
 
       {loading ? (
-        <div className="grid max-w-[680px] grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid max-w-[680px] grid-cols-2 gap-2.5 sm:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="animate-pulse rounded-[14px] bg-[#E9E9EE] aspect-[4/5]"
+              className="aspect-[4/5] animate-pulse rounded-2xl bg-[var(--fitting-g2)]"
             />
           ))}
         </div>
       ) : (
-        <div className="grid max-w-[680px] grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid max-w-[680px] grid-cols-2 gap-2.5 sm:grid-cols-3">
           {cards.map((card, index) => {
             const selected = selectedIds.includes(card.id);
             const bg =
@@ -135,10 +143,10 @@ export function TasteOutfitGridStep({
                 type="button"
                 onClick={() => handleToggle(card)}
                 className={cn(
-                  "relative w-full overflow-hidden rounded-[14px] border-[2.5px] border-transparent text-left transition-all duration-150",
-                  "aspect-[4/5] [filter:saturate(0.9)] hover:[filter:saturate(1.05)] hover:-translate-y-0.5",
+                  "relative w-full overflow-hidden rounded-2xl border-2 border-transparent text-left transition-all duration-150",
+                  "aspect-[4/5] [filter:saturate(0.9)] hover:-translate-y-[3px] hover:[filter:saturate(1.05)] hover:shadow-[0_16px_30px_-20px_rgba(26,26,46,0.4)]",
                   selected &&
-                    "border-[var(--fitting-ink)] [filter:saturate(1.12)] shadow-[inset_0_5px_6px_-2px_rgba(0,0,0,0.55),0_10px_24px_-14px_rgba(14,14,17,0.5)]",
+                    "border-[var(--fitting-ink)] [filter:saturate(1.12)]",
                   !selected &&
                     selectedIds.length >= maxPicks &&
                     "opacity-50",
@@ -167,7 +175,7 @@ export function TasteOutfitGridStep({
                 />
                 <span
                   className={cn(
-                    "absolute right-2.5 top-2.5 z-[3] font-display text-[13px] font-extrabold text-white transition-opacity",
+                    "absolute right-2.5 top-2.5 z-[3] grid size-[19px] place-items-center rounded-full bg-white font-display text-[9px] font-extrabold text-[var(--fitting-ink)] transition-opacity",
                     selected ? "opacity-100" : "opacity-0",
                   )}
                 >
@@ -189,7 +197,7 @@ export function TasteOutfitGridStep({
             onClick={onSeeMore}
             disabled={loadingMore || busy}
             aria-busy={loadingMore || undefined}
-            className="inline-flex h-12 items-center gap-2 rounded-[14px] border-[1.5px] border-[var(--fitting-ink)] bg-white px-5 font-display text-[13.5px] font-extrabold text-[var(--fitting-ink)] transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_20px_-12px_rgba(14,14,17,0.35)] disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+            className="inline-flex h-[52px] items-center gap-2 rounded-[14px] border-[1.5px] border-[var(--fitting-ink)] bg-white px-5 font-display text-[13.5px] font-extrabold text-[var(--fitting-ink)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
           >
             {loadingMore ? "Loading more…" : "See more styles"}
             {!loadingMore ? (

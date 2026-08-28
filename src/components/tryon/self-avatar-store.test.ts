@@ -18,6 +18,16 @@ describe("resolveTryonCta", () => {
     );
   });
 
+  it("keeps create_avatar when avatar missing even if available is true", () => {
+    assert.equal(
+      resolveTryonCta({
+        available: true,
+        avatarStatus: "missing",
+      }),
+      "create_avatar",
+    );
+  });
+
   it("flips create_avatar to tryon once avatar is ready", () => {
     assert.equal(
       resolveTryonCta({
@@ -29,11 +39,11 @@ describe("resolveTryonCta", () => {
     );
   });
 
-  it("respects available tryon", () => {
+  it("still dresses when the twin is ready and try-on is available", () => {
     assert.equal(
       resolveTryonCta({
         available: true,
-        avatarStatus: "missing",
+        avatarStatus: "ready",
       }),
       "tryon",
     );

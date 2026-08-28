@@ -17,9 +17,28 @@ export async function hasActiveBiometricConsent(userId: string): Promise<boolean
   );
 }
 
-export async function recordBiometricConsent(userId: string) {
+export async function recordBiometricConsent(
+  userId: string,
+  opts?: {
+    ageAttested?: boolean;
+    ownPhotoAttested?: boolean;
+    abandonDeleteAck?: boolean;
+  },
+) {
+  const flags = {
+    ageAttested: Boolean(opts?.ageAttested),
+    ownPhotoAttested: Boolean(opts?.ownPhotoAttested),
+    abandonDeleteAck: Boolean(opts?.abandonDeleteAck),
+  };
   const current = await latestBiometricConsent(userId);
-  if (current && !current.withdrawnAt && current.documentVersion === LEGAL_DOC_VERSION) {
+  if (
+    current &&
+    !current.withdrawnAt &&
+    current.documentVersion === LEGAL_DOC_VERSION &&
+    current.ageAttested === flags.ageAttested &&
+    current.ownPhotoAttested === flags.ownPhotoAttested &&
+    current.abandonDeleteAck === flags.abandonDeleteAck
+  ) {
     return current;
   }
   return prisma.biometricConsent.create({
@@ -27,6 +46,7 @@ export async function recordBiometricConsent(userId: string) {
       userId,
       documentVersion: LEGAL_DOC_VERSION,
       acceptedAt: new Date(),
+      ...flags,
     },
   });
 }

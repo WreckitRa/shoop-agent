@@ -1,3 +1,13 @@
+import { canonicalizeRelation } from "../extraction/relation-aliases";
+import { buildPersonShortIdMap } from "../extraction/context-format";
+import {
+  AMBIGUOUS_PERSON_ERROR,
+  resolveProposedPerson,
+} from "../resolve-person";
+import {
+  canonicalizeSignalValueSync,
+  signalCanonicalKey,
+} from "../normalize/signal-canonical";
 import type {
   ExtractionOpResult,
   ExtractionRunRow,
@@ -177,40 +187,39 @@ export class FashionLocalStore {
       throw new Error(`Person not found: ${params.personId}`);
     }
 
-    const relation = params.relation ?? "self";
+    const relation = canonicalizeRelation(params.relation ?? "self") as PersonRelation;
     if (relation === "self") return this.ensureSelfPerson(params.userId);
 
     const name = params.name?.trim() || null;
-
-    if (name) {
-      const byName = this.findPersonByRelation({
-        userId: params.userId,
-        relation,
-        name,
-      });
-      if (byName) return byName;
-    }
-
-    const sameRelation = this.snapshot.people.filter(
-      (p) => p.user_id === params.userId && p.relation === relation,
-    );
-
-    if (name && sameRelation.length === 1 && !sameRelation[0]!.name?.trim()) {
-      const updated = this.updatePersonName({
-        userId: params.userId,
-        personId: sameRelation[0]!.id,
-        name,
-      });
-      if (updated) return updated;
-    }
-
-    if (!name && sameRelation[0]) return sameRelation[0]!;
-
-    return this.createPerson({
-      userId: params.userId,
+    const people = this.snapshot.people.filter((p) => p.user_id === params.userId);
+    const decision = resolveProposedPerson({
+      people,
+      personShortIds: buildPersonShortIdMap(people),
       relation,
       name,
     });
+
+    if (decision.action === "merge") {
+      if (decision.attachName) {
+        const updated = this.updatePersonName({
+          userId: params.userId,
+          personId: decision.person.id,
+          name: decision.attachName,
+        });
+        if (updated) return updated;
+      }
+      return decision.person;
+    }
+
+    if (decision.action === "create") {
+      return this.createPerson({
+        userId: params.userId,
+        relation: decision.relation as PersonRelation,
+        name: decision.name,
+      });
+    }
+
+    throw new Error(AMBIGUOUS_PERSON_ERROR);
   }
 
   upsertFashionFact<T extends FashionFactType>(params: {
@@ -236,6 +245,13 @@ export class FashionLocalStore {
       const fGarment = f.garment_type ?? null;
       return fGarment === garment;
     });
+
+    if (activeIdx >= 0) {
+      const prev = this.snapshot.fashion_facts[activeIdx]!;
+      if (JSON.stringify(prev.value) === JSON.stringify(params.value)) {
+        return prev as FashionFactRow<T>;
+      }
+    }
 
     const newRow: FashionFactRow<T> = {
       id: newId(),
@@ -292,24 +308,34 @@ export class FashionLocalStore {
     status?: StyleSignalStatus;
     sourceQuote?: string | null;
     incrementEvidence?: boolean;
+    valueCanonical?: string | null;
   }): StyleSignalRow {
     const context = params.context?.trim() || "general";
     const value = normalizeSignalValue(params.value);
+    const canonical = (
+      params.valueCanonical?.trim() ||
+      canonicalizeSignalValueSync(params.signalType, params.value)
+    );
     const polarity = params.polarity ?? 1;
     const status =
       params.status ?? (params.source === "stated" ? "active" : "candidate");
     const now = nowIso();
 
-    const idx = this.snapshot.style_signals.findIndex(
-      (s) =>
-        s.user_id === params.userId &&
-        s.person_id === params.personId &&
-        s.context === context &&
-        s.signal_type === params.signalType &&
-        s.value === value &&
-        s.polarity === polarity &&
-        (s.status === "active" || s.status === "candidate"),
-    );
+    const idx = this.snapshot.style_signals.findIndex((s) => {
+      if (
+        s.user_id !== params.userId ||
+        s.person_id !== params.personId ||
+        s.context !== context ||
+        s.signal_type !== params.signalType ||
+        s.polarity !== polarity ||
+        (s.status !== "active" && s.status !== "candidate")
+      ) {
+        return false;
+      }
+      return (
+        signalCanonicalKey(s).toLowerCase() === canonical.toLowerCase()
+      );
+    });
 
     if (idx >= 0) {
       const row = this.snapshot.style_signals[idx]!;
@@ -333,6 +359,7 @@ export class FashionLocalStore {
         params.incrementEvidence === false ? 0 : 1;
       row.last_seen_at = now;
       row.source_quote = params.sourceQuote ?? row.source_quote;
+      row.value_canonical = row.value_canonical || canonical;
       return row;
     }
 
@@ -343,6 +370,7 @@ export class FashionLocalStore {
       context,
       signal_type: params.signalType,
       value,
+      value_canonical: canonical,
       polarity,
       source: params.source,
       confidence: Math.min(
@@ -402,21 +430,30 @@ export class FashionLocalStore {
     signalType: StyleSignalType;
     value: string;
     polarity?: -1 | 1;
+    valueCanonical?: string | null;
   }): StyleSignalRow | null {
     const context = params.context?.trim() || "general";
-    const value = normalizeSignalValue(params.value);
+    const canonical = (
+      params.valueCanonical?.trim() ||
+      canonicalizeSignalValueSync(params.signalType, params.value)
+    );
     const polarity = params.polarity ?? 1;
     return (
-      this.snapshot.style_signals.find(
-        (s) =>
-          s.user_id === params.userId &&
-          s.person_id === params.personId &&
-          s.context === context &&
-          s.signal_type === params.signalType &&
-          s.value === value &&
-          s.polarity === polarity &&
-          (s.status === "active" || s.status === "candidate"),
-      ) ?? null
+      this.snapshot.style_signals.find((s) => {
+        if (
+          s.user_id !== params.userId ||
+          s.person_id !== params.personId ||
+          s.context !== context ||
+          s.signal_type !== params.signalType ||
+          s.polarity !== polarity ||
+          (s.status !== "active" && s.status !== "candidate")
+        ) {
+          return false;
+        }
+        return (
+          signalCanonicalKey(s).toLowerCase() === canonical.toLowerCase()
+        );
+      }) ?? null
     );
   }
 
@@ -538,8 +575,8 @@ export function runLocalRequestEventCorroboration(
       const signalType =
         ATTRIBUTE_TO_SIGNAL[key as keyof RequestEventAttributes];
       if (!signalType || !raw?.trim()) continue;
-      const value = normalizeSignalValue(raw);
-      const bucketKey = `${signalType}:${value}`;
+      const value = canonicalizeSignalValueSync(signalType, raw);
+      const bucketKey = `${signalType}:${value.toLowerCase()}`;
       const existing = buckets.get(bucketKey);
       if (existing) {
         existing.eventCount += 1;

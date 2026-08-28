@@ -23,8 +23,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const asker =
     share.askerName.trim().split(/\s+/)[0] || share.askerName.trim() || "they";
   const lookImage = absoluteAskShareImageUrl(share.token);
-  const title = `Should ${asker} get it? · ${SITE_NAME}`;
-  const description = "Vote before you peek at Shoop’s verdict.";
+  const isCompare =
+    share.pollMode === "compare" && Boolean(share.altImageUrl?.trim());
+  const title = isCompare
+    ? `Which look for ${asker}? · ${SITE_NAME}`
+    : `Should ${asker} get it? · ${SITE_NAME}`;
+  const description = isCompare
+    ? "Pick one look before you peek at Shoop’s verdict."
+    : "Vote before you peek at Shoop’s verdict.";
   const imageAlt = `${asker}'s try-on look`;
 
   const base = createPageMetadata({

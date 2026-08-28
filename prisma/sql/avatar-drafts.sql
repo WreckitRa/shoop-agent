@@ -18,3 +18,9 @@ CREATE TABLE IF NOT EXISTS public.avatar_drafts (
 );
 
 CREATE INDEX IF NOT EXISTS avatar_drafts_user_id ON public.avatar_drafts(user_id);
+
+GRANT ALL ON TABLE public.avatar_drafts TO postgres, service_role, anon, authenticated;
+
+-- PostgREST caches the public schema; without this, new tables 404 as missing.
+NOTIFY pgrst, 'reload schema';
+

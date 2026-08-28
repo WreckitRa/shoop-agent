@@ -3,6 +3,7 @@ import { getAuthContext } from "@/lib/auth/session";
 import { startFittingRoomRender } from "@/lib/tryon/run-fitting-room";
 import { MAX_FITTING_ROOM_ITEMS } from "@/lib/tryon/fitting-room-types";
 import { tryonErrorResponse } from "@/lib/tryon/resolve-person";
+import { requireAvatarOwner } from "@/lib/tryon/avatar/request-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +43,8 @@ const bodySchema = z.object({
 export async function POST(req: Request) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
+  const owner = await requireAvatarOwner(req, auth);
+  if (!owner.ok) return owner.response;
 
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
@@ -56,7 +59,8 @@ export async function POST(req: Request) {
 
   try {
     const result = await startFittingRoomRender({
-      userId: auth.userId,
+      userId: owner.userId,
+      searchUserId: auth.userId,
       descriptors: parsed.data.items,
     });
     return Response.json({ ok: true, ...result });

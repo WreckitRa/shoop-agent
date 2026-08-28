@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/ai-chat/db";
 import { isAtLeastAge } from "@/lib/onboarding/form-options";
 import { MIN_ACCOUNT_AGE } from "./constants";
-import { hasActiveBiometricConsent } from "./consents";
+import { hasActiveBiometricConsent, latestBiometricConsent } from "./consents";
+import { decideSignupRegion } from "./geo-gate";
+import { guestPhotoConsentSatisfied } from "./photo-consent";
 
 export type PhotoProcessGate =
   | { ok: true }
@@ -10,13 +12,23 @@ export type PhotoProcessGate =
 export async function assertPhotoProcessingAllowed(params: {
   userId: string;
   isGuest: boolean;
+  countryCode?: string | null;
 }): Promise<PhotoProcessGate> {
   if (params.isGuest) {
-    return {
-      ok: false,
-      status: 401,
-      error: "Create an account before uploading a photograph.",
-    };
+    const region = decideSignupRegion(params.countryCode);
+    if (!region.ok) {
+      return { ok: false, status: 403, error: region.reason };
+    }
+    const row = await latestBiometricConsent(params.userId);
+    if (!guestPhotoConsentSatisfied(row)) {
+      return {
+        ok: false,
+        status: 403,
+        error:
+          "Confirm you are at least 13, that the photo is of you, and that we may delete it if you leave without saving — then accept measurement.",
+      };
+    }
+    return { ok: true };
   }
 
   const profile = await prisma.userProfile.findUnique({

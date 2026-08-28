@@ -7,6 +7,7 @@ import {
   PIPELINE_EVENT_CHAT_MAX,
   type CompactPipelineEvent,
 } from "./pipeline-event-payloads";
+import { beginTurnLlmCostBuffer } from "./search-observability";
 
 export type FashionTraceSummary = {
   route?: string;
@@ -58,6 +59,7 @@ const turnPipelineBuffers = new Map<string, CompactPipelineEvent[]>();
 export function beginTurnPipelineBuffer(traceId: string): void {
   if (!isUuid(traceId)) return;
   turnPipelineBuffers.set(traceId, []);
+  beginTurnLlmCostBuffer(traceId);
 }
 
 export function drainTurnPipelineBuffer(

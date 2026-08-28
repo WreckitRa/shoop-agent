@@ -74,6 +74,8 @@ export function ensureYouDecideOption(
   question: FashionClarificationQuestion,
 ): FashionClarificationQuestion {
   if (!isConsultQuestion(question)) return question;
+  // "The usual" is the decide-for-me on preference_anchor — never add You decide.
+  if (question.gap === "preference_anchor") return question;
   const existing = asNormalizedOptions(question.quick_options);
   if (existing.some(isYouDecideOption)) return question;
   return {
@@ -83,6 +85,44 @@ export function ensureYouDecideOption(
       { id: YOU_DECIDE_OPTION_ID, label: YOU_DECIDE_LABEL },
     ],
   };
+}
+
+const ANCHOR_CHIP_LABELS = new Set([
+  "the usual",
+  "push me a little",
+  "something new",
+]);
+
+/** LLM sometimes tags the usual/new chips as occasion — the chips are the gap. */
+export function coerceMislabelledPreferenceAnchor(
+  question: FashionClarificationQuestion,
+): FashionClarificationQuestion {
+  const opts = asNormalizedOptions(question.quick_options);
+  const hits = opts.filter((o) =>
+    ANCHOR_CHIP_LABELS.has(o.label.trim().toLowerCase()),
+  ).length;
+  if (question.gap !== "preference_anchor" && hits < 2) return question;
+  return {
+    ...question,
+    gap: "preference_anchor",
+    kind: "consult",
+    quick_options: opts.filter((o) => !isYouDecideOption(o)),
+  };
+}
+
+/** Consult questions that spend a consult round (preference_anchor alone does not). */
+export function consultQuestionsThatSpendBudget(
+  questions: Array<Pick<FashionClarificationQuestion, "gap" | "kind">>,
+): Array<Pick<FashionClarificationQuestion, "gap" | "kind">> {
+  return questions.filter(
+    (q) => isConsultQuestion(q) && q.gap !== "preference_anchor",
+  );
+}
+
+export function questionsSpendConsultRound(
+  questions: Array<Pick<FashionClarificationQuestion, "gap" | "kind">>,
+): boolean {
+  return consultQuestionsThatSpendBudget(questions).length > 0;
 }
 
 export function garmentsKey(garments: string[] | undefined): string {
@@ -99,7 +139,8 @@ export function nextConsultRoundsUsed(params: {
   questions: Array<Pick<FashionClarificationQuestion, "gap" | "kind">>;
 }): 0 | 1 | 2 {
   const prev = params.pending?.consult_rounds_used ?? 0;
-  if (!questionsHaveConsult(params.questions)) {
+  // preference_anchor alone is a recognition gesture — not a consult round.
+  if (!questionsSpendConsultRound(params.questions)) {
     return prev === 1 || prev === 2 ? prev : 0;
   }
   const pending = params.pending;
@@ -124,6 +165,16 @@ export function isEscapeOrYouDecideMessage(
   if (t === YOU_DECIDE_LABEL.toLowerCase()) return true;
   if (t === JUST_SHOW_ME_LABEL.toLowerCase()) return true;
   if (escapeChip && t === escapeChip.trim().toLowerCase()) return true;
+  // Shopper paraphrases of the escape chip (en / fr / ar)
+  if (/^just show me\b/.test(t)) return true;
+  if (/^(ooh|hmm|nice)[,!.]?\s/i.test(t) && /let me see|show me|what you'?ve got/i.test(t)) {
+    return true;
+  }
+  if (/\b(show me what you'?ve got|let me see what you'?ve got|surprise me)\b/.test(t)) {
+    return true;
+  }
+  if (/\b(montre[- ]moi|vas[- ]y|juste (ça|ca)\b)/.test(t)) return true;
+  if (/وريني|بس وريني|اعرض لي/.test(t)) return true;
   return false;
 }
 

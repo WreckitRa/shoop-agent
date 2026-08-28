@@ -9,7 +9,11 @@ import {
 } from "@/lib/fashion-memory/extraction/gate";
 import { newMessageTextsFromContextBlock } from "@/lib/fashion-memory/extraction/evidence";
 import type { RecordFashionOpsResult } from "@/lib/fashion-memory/extraction/tool-schema";
-import { applyLocalFashionOps } from "@/lib/fashion-memory/local/apply-local-fashion-ops";
+import { applyLocalFashionOpsTraced } from "@/lib/fashion-memory/local/apply-local-fashion-ops";
+import {
+  attachParkedOps,
+  mergeAmbiguousSubjects,
+} from "@/lib/fashion-memory/unresolved";
 import {
   FashionLocalStore,
   runLocalRequestEventCorroboration,
@@ -130,16 +134,15 @@ export async function spawnGuestFashionExtraction(params: {
     const extracted = (await res.json()) as RecordFashionOpsResult;
 
     const people = store.snapshot.people.filter((p) => p.user_id === userId);
-    opResults.push(
-      ...applyLocalFashionOps({
-        store,
-        userId,
-        ops: extracted.ops,
-        personShortIds: context.personShortIds,
-        people,
-        newMessageTexts: newMessageTextsFromContextBlock(context.messages),
-      }),
-    );
+    const applied = await applyLocalFashionOpsTraced({
+      store,
+      userId,
+      ops: extracted.ops,
+      personShortIds: context.personShortIds,
+      people,
+      newMessageTexts: newMessageTextsFromContextBlock(context.messages),
+    });
+    opResults.push(...applied.results);
 
     const self = store.ensureSelfPerson(userId);
     opResults.push(
@@ -153,7 +156,13 @@ export async function spawnGuestFashionExtraction(params: {
       runId: run.id,
       status: "done",
       opsApplied: opResults,
-      ambiguousSubjects: extracted.ambiguous_subjects,
+      ambiguousSubjects: attachParkedOps(
+        mergeAmbiguousSubjects(
+          extracted.ambiguous_subjects,
+          applied.unresolvedSubjects,
+        ),
+        applied.parkedOps,
+      ),
     });
   } catch {
     store.finishExtractionRun({

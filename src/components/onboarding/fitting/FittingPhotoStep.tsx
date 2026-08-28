@@ -11,7 +11,6 @@ import {
   OnboardingChip,
   OnboardingWhy,
 } from "@/components/onboarding/onboarding-ui";
-import { ScanStage } from "./scan-ui";
 import { cn } from "@/lib/ai-chat/cn";
 import type {
   BodyShapeBand,
@@ -21,6 +20,7 @@ import type {
 } from "@/lib/tryon/types";
 import type { BuildKey } from "./types";
 import type { PhotoCoverage } from "@/lib/photo-analysis/result";
+import { resolveVisualDefinition } from "./bodySilhouetteGeometry";
 
 export type LegLineBand = "long_torso" | "even" | "long_leg";
 
@@ -60,17 +60,15 @@ type Props = {
   showBust?: boolean;
   /** scan = photo + analysis first; body = height/build after identity. */
   mode?: "scan" | "body";
-  /** Hide the file picker until biometric consent is ticked. */
-  photoLocked?: boolean;
+  /** Guest: local preview only — processing waits until they save progress. */
+  deferProcessing?: boolean;
 };
 
 /** Smart default when user skips definition — still satisfies FASHN required attrs. */
 export function defaultMuscularityForBuild(
   build: BuildBand | BuildKey | null | undefined,
 ): MuscularityBand {
-  if (build === "athletic") return "high";
-  if (build === "slim") return "low";
-  return "moderate";
+  return resolveVisualDefinition(build ?? null, null);
 }
 
 const BUILDS: { label: string; value: BuildKey }[] = [
@@ -125,7 +123,7 @@ function UnitSeg({
   onChange: (id: string) => void;
 }) {
   return (
-    <span className="inline-flex shrink-0 overflow-hidden rounded-xl border border-[#D6D6DE] bg-white">
+    <span className="inline-flex shrink-0 overflow-hidden rounded-[13px] border-[1.5px] border-[var(--fitting-g3)] bg-white">
       {options.map((opt) => (
         <button
           key={opt.id}
@@ -182,7 +180,7 @@ function NumBox({
   }
 
   return (
-    <span className="inline-flex h-[52px] items-center overflow-visible rounded-xl border border-[#D6D6DE] bg-white">
+    <span className="inline-flex h-[52px] items-center overflow-visible rounded-[13px] border-[1.5px] border-[var(--fitting-g3)] bg-white">
       <input
         type="text"
         inputMode="numeric"
@@ -270,7 +268,7 @@ export function FittingPhotoStep({
   showContinue = true,
   showBust = false,
   mode = "scan",
-  photoLocked = false,
+  deferProcessing = false,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -307,15 +305,14 @@ export function FittingPhotoStep({
   const scan = mode === "scan";
   const showBody = true;
   const showLegs = true;
-  const addLabel = "Add a face photo";
-  const dropHint =
-    "Hairline and jaw in the light, plain wall. Body traits are inferred — you can correct them in Settings.";
 
   return (
     <section>
       {scan ? (
-        <FittingKick>THE SCAN · FACE</FittingKick>
-      ) : null}
+        <FittingKick>LOOK · PHOTO</FittingKick>
+      ) : (
+        <FittingKick>LOOK · BUILD</FittingKick>
+      )}
       <FittingTitle
         lines={
           scan
@@ -331,9 +328,9 @@ export function FittingPhotoStep({
       />
       {scan ? (
         <FittingWhisper>
-          One face photograph. We never ask for a body photo. Height and build
-          are typed facts after this — used for the twin, never shown, never
-          judged.
+          {deferProcessing
+            ? "One face photograph — tap the face on the card. It stays on this device until you save your progress — we don't process it until then. Height and build are typed facts after this."
+            : "One face photograph — tap the face on the card. Height and build are typed facts after this — used for the twin, never shown, never judged."}
         </FittingWhisper>
       ) : (
         <FittingWhisper>
@@ -344,73 +341,35 @@ export function FittingPhotoStep({
 
       {scan ? (
         <>
-          <div className="w-full min-w-0">
-        {!values.photoPreview ? (
-          <>
-            <ScanStage size="drop">
-              <div className="z-[4] px-6 text-center">
-                <label className={photoLocked ? "pointer-events-none" : "cursor-pointer"}>
-                  <span
-                    className={cn(
-                      "group inline-flex h-12 max-w-full items-center gap-2 rounded-[14px] bg-[var(--fitting-ink)] px-4 font-display text-[13px] font-extrabold text-white transition-all",
-                      photoLocked
-                        ? "opacity-40"
-                        : "hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-12px_rgba(14,14,17,.5)]",
-                    )}
-                  >
-                    {addLabel}{" "}
-                    <span className="transition-transform group-hover:translate-x-1">
-                      →
-                    </span>
-                  </span>
-                  {photoLocked ? null : (
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) onPhotoFile?.(f);
-                      }}
-                    />
-                  )}
-                </label>
-                <p className="mt-3 font-whisper text-[13px] italic leading-[1.5] text-[var(--fitting-quiet)]">
-                  {dropHint}
-                </p>
-              </div>
-            </ScanStage>
+          {!values.photoPreview ? (
             <button
               type="button"
               onClick={onSkipPhoto}
-              className="mt-3 border-0 border-b border-[var(--fitting-line)] bg-transparent pb-0.5 text-[12.5px] font-semibold text-[var(--fitting-quiet)]"
+              className="mt-1 border-0 border-b border-[var(--fitting-line)] bg-transparent pb-0.5 text-[12.5px] font-semibold text-[var(--fitting-quiet)]"
             >
               skip... you can add it at the Mirror
             </button>
-          </>
-        ) : (
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="text-[12.5px] font-bold text-[var(--fitting-quiet)] hover:text-[var(--fitting-ink)]"
-            >
-              Change photo
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onPhotoFile?.(f);
-              }}
-            />
-          </div>
-        )}
-          </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="text-[12.5px] font-bold text-[var(--fitting-quiet)] hover:text-[var(--fitting-ink)]"
+              >
+                Change photo
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onPhotoFile?.(f);
+                }}
+              />
+            </div>
+          )}
 
           <OnboardingWhy>
             Face the light, just you, no heavy filters.{" "}
@@ -528,7 +487,12 @@ export function FittingPhotoStep({
           <OnboardingChip
             key={m.value}
             selected={values.muscularity === m.value}
-            onClick={() => onChange("muscularity", m.value)}
+            onClick={() =>
+              onChange(
+                "muscularity",
+                values.muscularity === m.value ? null : m.value,
+              )
+            }
           >
             {m.label}
           </OnboardingChip>
@@ -591,7 +555,12 @@ export function FittingPhotoStep({
               <OnboardingChip
                 key={l.value}
                 selected={values.legLine === l.value}
-                onClick={() => onChange("legLine", l.value)}
+                onClick={() =>
+                  onChange(
+                    "legLine",
+                    values.legLine === l.value ? null : l.value,
+                  )
+                }
               >
                 {l.label}
               </OnboardingChip>
@@ -604,7 +573,7 @@ export function FittingPhotoStep({
 
       {showContinue ? (
         scan && values.photoPreview ? (
-          <div className="mt-10">
+          <div className="sticky bottom-0 z-[4] mt-8 bg-gradient-to-t from-white via-white/95 to-transparent pt-6">
             <FittingCta onClick={onContinue} disabled={busy}>
               {busy ? "Saving…" : "Keep going... it's developing"}
             </FittingCta>

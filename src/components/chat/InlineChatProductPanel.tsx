@@ -42,6 +42,8 @@ export function InlineChatProductPanel({ onClose }: { onClose: () => void }) {
         fallbackImageUrl={state.fallbackImageUrl}
         prefilledOptions={state.prefilledOptions}
         chatPriceRange={state.chatPriceRange}
+        searchId={state.messageId}
+        productRef={state.productId}
       />
       </div>
     </div>

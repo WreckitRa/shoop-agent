@@ -114,11 +114,32 @@ function assumptionVoiced(opening: string, assumption: string): boolean {
   return hits >= Math.min(3, words.length);
 }
 
+export const ASSUMPTION_STYLE_BANNED_RE =
+  /\b(since|because|wasn't specified|depth|brief|pipeline|funnel|curation|knowledge_state)\b/i;
+
+export function flagAssumptionStyleViolations(params: {
+  assumptions?: string[];
+  traceId?: string | null;
+}): void {
+  for (const line of params.assumptions ?? []) {
+    if (!ASSUMPTION_STYLE_BANNED_RE.test(line)) continue;
+    recordPipelineEvent({
+      traceId: params.traceId,
+      stage: "curation",
+      payload: {
+        kind: "assumption_style_violation",
+        line: line.slice(0, 160),
+      },
+    });
+  }
+}
+
 export function repairUnspokenAssumptions(params: {
   opening: string;
   assumptions?: string[];
   traceId?: string | null;
 }): string {
+  flagAssumptionStyleViolations(params);
   const missing = (params.assumptions ?? []).filter(
     (a) => !assumptionVoiced(params.opening, a),
   );

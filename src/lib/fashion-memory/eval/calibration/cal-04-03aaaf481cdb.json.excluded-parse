@@ -1,0 +1,158 @@
+{
+  "calibration_id": "cal-04",
+  "source_run": "1-2026-08-26T09-18-59-339Z",
+  "persona_id": "03aaaf481cdbaaa0",
+  "persona_name": "Alex26",
+  "cell": "single_item×complete",
+  "profile_state": "has_pick_history",
+  "judge_overall": 3,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 3,
+      "why": "dimension defaulted"
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "dimension defaulted"
+    },
+    "not_interrogated": {
+      "score": 3,
+      "why": "dimension defaulted"
+    },
+    "no_silent_guess": {
+      "score": 3,
+      "why": "dimension defaulted"
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "dimension defaulted"
+    },
+    "voice": {
+      "score": 3,
+      "why": "dimension defaulted"
+    },
+    "would_proceed": {
+      "score": 3,
+      "why": "dimension defaulted"
+    }
+  },
+  "human_overall": null,
+  "human_dimensions": null,
+  "human_notes": null,
+  "agreement": null,
+  "truth": {
+    "request_type": "single_item",
+    "garments": [
+      "dress"
+    ],
+    "owns": [],
+    "occasion": "job interview",
+    "formality": "dressy",
+    "color": "navy",
+    "budget": {
+      "max": 120,
+      "currency": "USD",
+      "scope": "per_item"
+    },
+    "depth": {
+      "options": 3
+    },
+    "anchor": "push"
+  },
+  "opening_message": "lookng for dress for job interview, size L, show me 2",
+  "brief": {
+    "recipient_person_id": "673d74a3-7848-4ba0-b0f2-f2b55649412b",
+    "request_type": "outfit",
+    "garments": [
+      "dress"
+    ],
+    "occasion_context": "job interview",
+    "quantity_hint": "2 looks",
+    "must_haves": [],
+    "nice_to_haves": [],
+    "budget_context": {
+      "stated": false
+    },
+    "style_direction": "Elevated, tailored interview looks in a navy-led palette, pushed slightly beyond his usual guided staples with a fresher cut or texture.",
+    "department_scope": "mens",
+    "color_direction": {
+      "source": "profile"
+    },
+    "brand_direction": {
+      "source": "none"
+    },
+    "stated_facts": {
+      "person_ref": "673d",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "US34",
+        "shoes": "US10"
+      }
+    },
+    "depth": {
+      "looks_wanted": 2,
+      "options_per_item": 2,
+      "source": "stated"
+    },
+    "preference_anchor": "push",
+    "consultation": {
+      "confirmed": [
+        "push me a little"
+      ],
+      "rounds_used": 1
+    },
+    "assumptions": [
+      "I built full interview outfits: blazer, shirt, trousers, shoes."
+    ],
+    "knowledge_state": {
+      "department": "mens",
+      "sizes_confirmed": [],
+      "sizes_unconfirmed": [
+        "dress"
+      ]
+    }
+  },
+  "question_rounds": 2,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "lookng for dress for job interview, size L, show me 2"
+    },
+    {
+      "role": "assistant",
+      "content": "Going on what I know — the usual, or something new?",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "preference_anchor",
+          "text": "The usual, or something new?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "Push me a little"
+    },
+    {
+      "role": "assistant",
+      "content": "What should I pull for this?",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "slots",
+          "text": "What should I pull?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "dress. just show me what you've got"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ]
+}

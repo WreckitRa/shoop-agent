@@ -2,6 +2,7 @@
 
 > **Audience:** engineer or AI reviewing what Shoop learns during onboarding.  
 > **Scope:** authenticated modal onboarding (`OnboardingGate`) — fitting-room style steps through complete, including storage and projection into fashion-memory.  
+> **Question script (copy + options, for agents):** [`questions-for-agents.md`](./questions-for-agents.md).  
 > **Deep dive on outfit grids only:** [`outfit-grid-wear-steal-logic.md`](./outfit-grid-wear-steal-logic.md).  
 > **How onboarding feeds fashion search:** [`../fashion/before-ready-to-search.md`](../fashion/before-ready-to-search.md) §3.  
 > **Source of truth:** `src/components/onboarding/OnboardingGate.tsx`, `src/lib/onboarding/**`, `prisma/schema.prisma` (`UserProfile`, `SizingProfile`, …).  

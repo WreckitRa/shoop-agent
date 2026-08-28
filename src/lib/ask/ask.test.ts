@@ -124,6 +124,28 @@ describe("buildLookAskPublic reveal gating", () => {
     }>,
   };
 
+  it("hides friend tallies and vote rows until visitor has voted", () => {
+    const sealed = buildLookAskPublic({
+      share: {
+        ...baseShare,
+        votes: [
+          {
+            choice: "love",
+            displayName: "Prior",
+            voterKey: "guest:prior",
+          },
+        ],
+      },
+      viewerUserId: null,
+      viewerVoterKey: "guest:x",
+    });
+    assert.equal(sealed.shoopRevealed, false);
+    assert.equal(sealed.votes.length, 0);
+    assert.equal(sealed.tallies.love, 0);
+    assert.equal(sealed.notes.length, 0);
+    assert.equal(sealed.ownerVote, null);
+  });
+
   it("hides Shoop vote until visitor has voted", () => {
     const sealed = buildLookAskPublic({
       share: baseShare,
@@ -135,6 +157,46 @@ describe("buildLookAskPublic reveal gating", () => {
     assert.equal(sealed.shoopVerdict, null);
     assert.equal(sealed.imageUrl, "/api/ask/abc/image");
     assert.equal(sealed.tallies.almost, 0);
+    assert.equal(sealed.pollMode, "rate");
+  });
+
+  it("exposes compare images and a|b choices", () => {
+    const sealed = buildLookAskPublic({
+      share: {
+        ...baseShare,
+        pollMode: "compare",
+        altImageUrl: "path:alt.jpg",
+        shoopVote: "a",
+      },
+      viewerUserId: null,
+      viewerVoterKey: "guest:x",
+    });
+    assert.equal(sealed.pollMode, "compare");
+    assert.equal(sealed.altImageUrl, "/api/ask/abc/image?side=alt");
+    assert.equal(sealed.shoopRevealed, false);
+
+    const revealed = buildLookAskPublic({
+      share: {
+        ...baseShare,
+        pollMode: "compare",
+        altImageUrl: "path:alt.jpg",
+        shoopVote: "a",
+        votes: [
+          {
+            choice: "b",
+            displayName: "Maya",
+            voterKey: "guest:x",
+          },
+        ],
+      },
+      viewerUserId: null,
+      viewerVoterKey: "guest:x",
+    });
+    assert.equal(revealed.shoopRevealed, true);
+    assert.equal(revealed.myVote, "b");
+    assert.equal(revealed.shoopVote, "a");
+    assert.equal(revealed.tallies.a, 1);
+    assert.equal(revealed.tallies.b, 1);
   });
 
   it("reveals Shoop after visitor votes and includes Shoop in tallies", () => {
@@ -246,7 +308,7 @@ describe("buildLookAskPublic reveal gating", () => {
         { choice: "love" },
         { choice: "nope" },
       ]),
-      { no: 0, meh: 0, almost: 0, love: 2 },
+      { no: 0, meh: 0, almost: 0, love: 2, a: 0, b: 0 },
     );
   });
 });

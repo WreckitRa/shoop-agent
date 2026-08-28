@@ -1,0 +1,270 @@
+{
+  "calibration_id": "cal-07",
+  "source_run": "1-2026-08-26T09-18-59-339Z",
+  "persona_id": "346d2347e2331cf3",
+  "persona_name": "Riley53",
+  "cell": "outfit×vague",
+  "profile_state": "has_depth_default",
+  "judge_overall": 3.8,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 4,
+      "why": "Caught the men's-sizing flag and confirmed 'for you,' avoided misgendering; owned blazer never surfaced but not asked ei"
+    },
+    "asked_right": {
+      "score": 5,
+      "why": "Occasion, recipient, lane, color — every question moved the rack. No wasted turns."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "Batched style+color in one round, conversational; felt like a stylist, not a form."
+    },
+    "no_silent_guess": {
+      "score": 4,
+      "why": "Spoke both assumptions — color picks and one full look — leaving them correctable."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Blouse+trousers+date night+smart casual+surprise all match; but truth wanted a blazer too and it was dropped."
+    },
+    "voice": {
+      "score": 4,
+      "why": "Warm, specific callbacks ('Date night blouse + trousers for you'); reads like one attentive stylist, no log-speak."
+    },
+    "would_proceed": {
+      "score": 4,
+      "why": "As a guided shopper I'd happily wait — questions were quick, tone confident, look framed well."
+    }
+  },
+  "human_overall": 3.4,
+  "human_dimensions": null,
+  "human_notes": "Provisional human reader (Claude calibration grades, not a separate human). Overall only.",
+  "agreement": {
+    "overall_within_0_4": true,
+    "opus_minus_reader": 0.4,
+    "sonnet_minus_reader": -1.1
+  },
+  "truth": {
+    "request_type": "outfit",
+    "garments": [
+      "blouse",
+      "trousers",
+      "blazer"
+    ],
+    "owns": [
+      "blazer"
+    ],
+    "occasion": "date night",
+    "formality": "smart casual",
+    "color": "surprise",
+    "budget": "no_cap",
+    "depth": "you_decide",
+    "anchor": "n/a"
+  },
+  "opening_message": "need something for soon",
+  "brief": {
+    "recipient_person_id": "604a6525-a078-403e-a98a-e3323e5473d2",
+    "request_type": "multi_item",
+    "garments": [
+      "blouse",
+      "trousers"
+    ],
+    "occasion_context": "date night",
+    "quantity_hint": "one blouse and one pair of trousers",
+    "must_haves": [],
+    "nice_to_haves": [
+      "smart casual"
+    ],
+    "budget_context": {
+      "stated": false
+    },
+    "style_direction": "Smart-casual date-night look for him — a clean blouse-style shirt paired with tailored trousers, polished but relaxed.",
+    "department_scope": "mens",
+    "color_direction": {
+      "source": "none"
+    },
+    "brand_direction": {
+      "source": "none"
+    },
+    "stated_facts": {
+      "person_ref": "604a",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "US34",
+        "shoes": "US10"
+      }
+    },
+    "depth": {
+      "source": "you_decide"
+    },
+    "preference_anchor": "explore",
+    "consultation": {
+      "confirmed": [
+        "smart casual",
+        "surprise me on color"
+      ],
+      "rounds_used": 1
+    },
+    "assumptions": [
+      "I picked a few color options since you said surprise me.",
+      "I put together one full look with a few choices each."
+    ],
+    "knowledge_state": {
+      "department": "mens",
+      "sizes_confirmed": [
+        "blouse",
+        "trousers"
+      ],
+      "sizes_unconfirmed": [
+        "blouse",
+        "trousers"
+      ]
+    }
+  },
+  "question_rounds": 3,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "need something for soon"
+    },
+    {
+      "role": "assistant",
+      "content": "Happy to help! What's the occasion you're shopping for?",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "garment",
+          "text": "What are you shopping for?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "blouse, trousers"
+    },
+    {
+      "role": "assistant",
+      "content": "Got it — a blouse and trousers. Quick check since your profile has you in men's sizing: is this for you or someone else, and what's the occasion?",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "occasion",
+          "text": "What's the occasion?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "It's for me, and it's for a date night."
+    },
+    {
+      "role": "assistant",
+      "content": "Date night blouse + trousers for you, got it. Quick style call before I pull options:",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "style_lane",
+          "text": "What vibe are you going for?"
+        },
+        {
+          "gap": "color",
+          "text": "Any color direction?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "Smart casual, and surprise me on the color!"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ],
+  "sonnet_grade": {
+    "recognized": {
+      "score": 2,
+      "why": "Ignored owned blazer and outfit framing; treated as generic blouse/trousers request, not a full outfit."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Occasion and style questions were useful, but blazer ownership and third garment never clarified."
+    },
+    "not_interrogated": {
+      "score": 3,
+      "why": "Only three short rounds, felt like a form but not overly long."
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Silently dropped blazer from garments and outfit scope without flagging it to the user."
+    },
+    "accuracy": {
+      "score": 2,
+      "why": "Truth wants full outfit (blouse, trousers, blazer); brief only covers two items, missing blazer entirely."
+    },
+    "voice": {
+      "score": 2,
+      "why": "Functional, log-like phrasing; feels like a form-bot, not a personal stylist voice."
+    },
+    "would_proceed": {
+      "score": 2,
+      "why": "Missing blazer means the outfit is incomplete; shopper would likely pause before results."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.3,
+    "worst_moment": {
+      "quote": "assistant [ready_to_search]: Searching the stores",
+      "better": "Should have said: \"You already own a blazer—want me to pull blouse and trousers to match it, or suggest a new blazer too?\""
+    },
+    "judge_model": "claude-sonnet-5"
+  },
+  "opus_grade": {
+    "recognized": {
+      "score": 4,
+      "why": "Used profile sizing/department, echoed answers back, no re-asks; felt tracked though brief dropped the owned blazer."
+    },
+    "asked_right": {
+      "score": 5,
+      "why": "Occasion, recipient, vibe, color — each shifts the rack; nothing wasted."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "Efficient one-round consult, conversational callbacks; slightly stacked questions but not form-like."
+    },
+    "no_silent_guess": {
+      "score": 4,
+      "why": "Voiced color/depth assumptions in brief, but blazer-as-outfit-anchor was silently dropped."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Blouse, trousers, smart casual, surprise color match; missed blazer he owns — outfit should style around it."
+    },
+    "voice": {
+      "score": 4,
+      "why": "Warm, specific, brisk callbacks; reads like a real stylist, no log-speak or filler praise."
+    },
+    "would_proceed": {
+      "score": 4,
+      "why": "Felt heard and confirmed quickly; I'd wait for results, though hoping picks nod to my blazer."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 3.8,
+    "worst_moment": {
+      "quote": "Date night blouse + trousers for you, got it.",
+      "better": "Since you've got a blazer already, want me to build the blouse and trousers to layer under it?"
+    },
+    "judge_model": "claude-opus-4-8"
+  },
+  "sonnet_offset_vs_opus": -1.5,
+  "sonnet_offset_vs_human": -1.1,
+  "sonnet_dim_agreement_vs_opus_pct": 0,
+  "opus_offset_vs_human": 0.4
+}

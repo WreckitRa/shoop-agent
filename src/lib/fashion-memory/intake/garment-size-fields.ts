@@ -69,6 +69,30 @@ export function sizeBucketsForGarments(garments: string[]): SizeGarmentBucket[] 
   return [...out];
 }
 
+/** Buckets present on size clarification rows (after normalize). */
+export function sizeFamiliesAskedFromQuestions(
+  questions: Array<{ gap: string; garment_type?: string | null }>,
+): SizeGarmentBucket[] {
+  const out: SizeGarmentBucket[] = [];
+  const seen = new Set<string>();
+  for (const q of questions) {
+    if (q.gap !== "size") continue;
+    const bucket = q.garment_type?.trim().toLowerCase();
+    if (
+      bucket !== "tops" &&
+      bucket !== "bottoms" &&
+      bucket !== "shoes" &&
+      bucket !== "dresses"
+    ) {
+      continue;
+    }
+    if (seen.has(bucket)) continue;
+    seen.add(bucket);
+    out.push(bucket);
+  }
+  return out;
+}
+
 export function intakeFieldForBucket(bucket: SizeGarmentBucket): IntakeSizeField {
   return INTAKE_FIELD_BY_BUCKET[bucket];
 }

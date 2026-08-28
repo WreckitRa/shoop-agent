@@ -5,6 +5,7 @@ import {
 } from "@/lib/fashion-memory/facts";
 import type { PersonDepartment } from "@/lib/fashion-memory/department";
 import { listPeopleForUser } from "@/lib/fashion-memory/people";
+import { requireAvatarOwner } from "@/lib/tryon/avatar/request-auth";
 import { getStoredAvatar } from "@/lib/tryon/avatar/service";
 
 export const runtime = "nodejs";
@@ -29,22 +30,20 @@ async function personDepartment(
   return v?.presentation ?? null;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
-  if (auth.isGuest) {
-    return Response.json({ error: "Sign in to manage avatars." }, { status: 401 });
-  }
+  const owner = await requireAvatarOwner(req, auth, { photoGate: false });
+  if (!owner.ok) return owner.response;
 
   try {
-    const people = await listPeopleForUser(auth.userId);
+    const people = await listPeopleForUser(owner.userId);
     const rows = await Promise.all(
       people.map(async (person) => {
-        const avatar = await getStoredAvatar(auth.userId, person.id);
-        const department = await personDepartment(auth.userId, person.id);
-        // Privacy: count only — never return measurement values
+        const avatar = await getStoredAvatar(owner.userId, person.id);
+        const department = await personDepartment(owner.userId, person.id);
         const measurements_on_file = await countActiveMeasurementFacts({
-          userId: auth.userId,
+          userId: owner.userId,
           personId: person.id,
         });
         return {

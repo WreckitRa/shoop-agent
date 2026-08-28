@@ -1,3 +1,4 @@
+import { isSupabaseAuthUserId } from "@/lib/fashion-memory/auth";
 import {
   ensureSelfPerson,
   resolvePersonIdRef,
@@ -29,9 +30,31 @@ export async function resolveTryonPersonId(
   return (await ensureSelfPerson(userId)).id;
 }
 
+/**
+ * Same as resolveTryonPersonId, but never throws — guests and roster misses
+ * return null so search/presentation can keep going without a twin.
+ */
+export async function tryResolveTryonPersonId(
+  userId: string,
+  personRef: string | null | undefined,
+): Promise<string | null> {
+  if (!isSupabaseAuthUserId(userId)) return null;
+  try {
+    const id = await resolveTryonPersonId(userId, personRef);
+    return id.trim() ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 const FRIENDLY_BY_MESSAGE: Array<{ test: RegExp; message: string; status: number }> = [
   {
     test: /avatar required/i,
+    message: "Finish The Fitting first so I can dress you.",
+    status: 400,
+  },
+  {
+    test: /ensureSelfPerson|supabase auth user id/i,
     message: "Finish The Fitting first so I can dress you.",
     status: 400,
   },

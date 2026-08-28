@@ -1,7 +1,14 @@
 /**
- * Derive brand / veto chip suggestions from earlier onboarding answers.
- * Not a static list — ranked by gender, era, lifestyle, spend, and worn/aspirational looks.
+ * Derive brand / veto / comfort chip suggestions from earlier onboarding answers.
+ * Gender is a hard gate (not a score bonus) so "no heels" never lands on a man.
  */
+
+import {
+  COMFORT_OPTIONS,
+  normalizeGender,
+  type ComfortOption,
+  type SuggestionAudience,
+} from "@/lib/onboarding/form-options";
 
 export type LovesVetoesContext = {
   genderPresentation?: string;
@@ -9,6 +16,8 @@ export type LovesVetoesContext = {
   lifestyleTags?: string[];
   valuePhilosophy?: string;
   shippingCountry?: string;
+  climate?: string;
+  build?: string;
   wornLabels?: string[];
   aspirationalLabels?: string[];
   wornTasteTags?: string[];
@@ -21,19 +30,21 @@ type ScoredItem = {
   signals: string[];
   /** Soft demote when these signals dominate (e.g. luxury brand for deal hunters). */
   antiSignals?: string[];
+  /** Hard gate. Omit = any presentation. */
+  audience?: SuggestionAudience;
 };
 
 const BRAND_POOL: ScoredItem[] = [
-  { label: "COS", signals: ["minimal", "classic", "premium", "deep_in_career", "quiet-luxury", "gallery", "masculine", "feminine", "30s", "40s"] },
+  { label: "COS", signals: ["minimal", "classic", "premium", "deep_in_career", "quiet-luxury", "gallery", "30s", "40s"] },
   { label: "Uniqlo", signals: ["best_value", "deal_hunter", "minimal", "casual", "campus_life", "first_job", "athleisure", "knit"] },
-  { label: "Everlane", signals: ["best_value", "minimal", "classic", "design_first", "feminine", "deep_in_career"] },
-  { label: "Arket", signals: ["minimal", "premium", "classic", "linen", "scandinavian", "masculine", "feminine"] },
-  { label: "Sézane", signals: ["feminine", "romantic", "parisian", "french", "premium", "blouse", "23_29", "30s"] },
-  { label: "Reformation", signals: ["feminine", "romantic", "design_first", "premium", "garden", "18_22", "23_29"] },
-  { label: "Aritzia", signals: ["feminine", "polished", "premium", "blazer", "deep_in_career", "23_29", "30s"] },
+  { label: "Everlane", signals: ["best_value", "minimal", "classic", "design_first", "deep_in_career"] },
+  { label: "Arket", signals: ["minimal", "premium", "classic", "linen", "scandinavian"] },
+  { label: "Sézane", audience: "feminine", signals: ["romantic", "parisian", "french", "premium", "blouse", "23_29", "30s"] },
+  { label: "Reformation", audience: "feminine", signals: ["romantic", "design_first", "premium", "garden", "18_22", "23_29"] },
+  { label: "Aritzia", audience: "feminine", signals: ["polished", "premium", "blazer", "deep_in_career", "23_29", "30s"] },
   { label: "Zara", signals: ["best_value", "deal_hunter", "trend", "campus_life", "first_job", "18_22", "23_29"] },
-  { label: "& Other Stories", signals: ["feminine", "design_first", "best_value", "romantic", "23_29"] },
-  { label: "Massimo Dutti", signals: ["classic", "premium", "tailored", "deep_in_career", "masculine", "feminine", "30s", "40s"] },
+  { label: "& Other Stories", audience: "feminine", signals: ["design_first", "best_value", "romantic", "23_29"] },
+  { label: "Massimo Dutti", signals: ["classic", "premium", "tailored", "deep_in_career", "30s", "40s"] },
   { label: "Theory", signals: ["classic", "premium", "tailored", "blazer", "deep_in_career", "running_the_show", "30s", "40s", "50s_60s"] },
   { label: "Lululemon", signals: ["athleisure", "sporty", "premium", "campus_life", "first_job", "deep_in_career"] },
   { label: "Nike", signals: ["athleisure", "sporty", "street", "campus_life", "best_value", "deal_hunter"] },
@@ -44,24 +55,24 @@ const BRAND_POOL: ScoredItem[] = [
   { label: "Ralph Lauren", signals: ["classic", "preppy", "premium", "luxury", "tailored", "oxford"] },
   { label: "J.Crew", signals: ["classic", "preppy", "best_value", "premium", "oxford", "chinos"] },
   { label: "Banana Republic", signals: ["classic", "deep_in_career", "best_value", "tailored", "30s", "40s"] },
-  { label: "Todd Snyder", signals: ["masculine", "premium", "classic", "tailored", "deep_in_career", "30s", "40s"] },
-  { label: "Buck Mason", signals: ["masculine", "minimal", "premium", "classic", "tee", "oxford"] },
-  { label: "Asket", signals: ["masculine", "minimal", "premium", "best_value", "classic"] },
-  { label: "Ami", signals: ["masculine", "parisian", "premium", "design_first", "23_29", "30s"] },
+  { label: "Todd Snyder", audience: "masculine", signals: ["premium", "classic", "tailored", "deep_in_career", "30s", "40s"] },
+  { label: "Buck Mason", audience: "masculine", signals: ["minimal", "premium", "classic", "tee", "oxford"] },
+  { label: "Asket", audience: "masculine", signals: ["minimal", "premium", "best_value", "classic"] },
+  { label: "Ami", audience: "masculine", signals: ["parisian", "premium", "design_first", "23_29", "30s"] },
   { label: "APC", signals: ["minimal", "denim", "premium", "parisian", "jeans"] },
-  { label: "Toteme", signals: ["feminine", "minimal", "luxury", "quiet-luxury", "premium", "30s", "40s"] },
+  { label: "Toteme", audience: "feminine", signals: ["minimal", "luxury", "quiet-luxury", "premium", "30s", "40s"] },
   { label: "The Row", signals: ["luxury", "minimal", "quiet-luxury", "premium", "running_the_show", "40s", "50s_60s"], antiSignals: ["deal_hunter", "best_value"] },
   { label: "Loro Piana", signals: ["luxury", "quiet-luxury", "premium", "running_the_show", "cashmere", "airport"], antiSignals: ["deal_hunter", "campus_life"] },
   { label: "Gucci", signals: ["luxury", "bold", "designer", "running_the_show"], antiSignals: ["minimal", "deal_hunter", "best_value"] },
   { label: "Prada", signals: ["luxury", "minimal", "designer", "gallery", "running_the_show"], antiSignals: ["deal_hunter"] },
-  { label: "Mango", signals: ["best_value", "deal_hunter", "feminine", "campus_life", "first_job"] },
+  { label: "Mango", audience: "feminine", signals: ["best_value", "deal_hunter", "campus_life", "first_job"] },
   { label: "H&M", signals: ["deal_hunter", "best_value", "campus_life", "13_14", "15_17", "18_22"], antiSignals: ["luxury", "premium", "quiet-luxury"] },
-  { label: "Madewell", signals: ["feminine", "denim", "jeans", "best_value", "classic"] },
+  { label: "Madewell", audience: "feminine", signals: ["denim", "jeans", "best_value", "classic"] },
   { label: "Quince", signals: ["best_value", "premium", "minimal", "cashmere", "deal_hunter"] },
-  { label: "Suistudio", signals: ["feminine", "tailored", "blazer", "premium", "deep_in_career"] },
-  { label: "Me+Em", signals: ["feminine", "polished", "premium", "40s", "50s_60s", "deep_in_career"] },
+  { label: "Suistudio", audience: "feminine", signals: ["tailored", "blazer", "premium", "deep_in_career"] },
+  { label: "Me+Em", audience: "feminine", signals: ["polished", "premium", "40s", "50s_60s", "deep_in_career"] },
   { label: "Brunello Cucinelli", signals: ["luxury", "italian", "quiet-luxury", "cashmere", "running_the_show"], antiSignals: ["deal_hunter"] },
-  { label: "Stone Island", signals: ["street", "masculine", "premium", "bold", "23_29"] },
+  { label: "Stone Island", audience: "masculine", signals: ["street", "premium", "bold", "23_29"] },
 ];
 
 const VETO_POOL: ScoredItem[] = [
@@ -71,8 +82,8 @@ const VETO_POOL: ScoredItem[] = [
   { label: "chunky sneakers", signals: ["classic", "tailored", "polished", "quiet-luxury", "formal", "blazer"] },
   { label: "fast fashion", signals: ["luxury", "premium", "quiet-luxury", "design_first", "running_the_show"] },
   { label: "overly trendy pieces", signals: ["classic", "minimal", "40s", "50s_60s", "65_plus", "time_is_mine"] },
-  { label: "see-through fabrics", signals: ["classic", "deep_in_career", "polished", "tailored"] },
-  { label: "super cropped cuts", signals: ["classic", "deep_in_career", "40s", "50s_60s", "polished"] },
+  { label: "see-through fabrics", audience: "feminine", signals: ["classic", "deep_in_career", "polished", "tailored"] },
+  { label: "super cropped cuts", audience: "feminine", signals: ["classic", "deep_in_career", "40s", "50s_60s", "polished"] },
   { label: "heavy distressing", signals: ["classic", "premium", "quiet-luxury", "polished"] },
   { label: "costume-y prints", signals: ["minimal", "classic", "quiet-luxury", "gallery"] },
   { label: "stiff formalwear", signals: ["athleisure", "linen", "relaxed", "festival", "street", "time_is_mine"] },
@@ -81,17 +92,19 @@ const VETO_POOL: ScoredItem[] = [
   { label: "skin-tight everything", signals: ["relaxed", "linen", "minimal", "classic", "masculine"] },
   { label: "synthetic sheen", signals: ["premium", "luxury", "quiet-luxury", "linen", "design_first"] },
   { label: "logo belts", signals: ["minimal", "quiet-luxury", "classic", "premium"] },
-  { label: "party sequins day-to-day", signals: ["minimal", "classic", "deep_in_career", "athleisure"] },
+  { label: "party sequins day-to-day", audience: "feminine", signals: ["minimal", "classic", "deep_in_career", "athleisure"] },
   { label: "tech-fabric everywhere", signals: ["classic", "romantic", "linen", "parisian", "italian"] },
+  { label: "drop-crotch", audience: "masculine", signals: ["classic", "tailored", "polished", "premium"] },
+  { label: "graphic-heavy tees", audience: "masculine", signals: ["classic", "minimal", "tailored", "deep_in_career"] },
 ];
 
 const AVOID_BRAND_POOL: ScoredItem[] = [
   { label: "Shein", signals: ["luxury", "premium", "quiet-luxury", "design_first", "deep_in_career"] },
-  { label: "Fashion Nova", signals: ["minimal", "classic", "premium", "luxury", "masculine"] },
+  { label: "Fashion Nova", audience: "feminine", signals: ["minimal", "classic", "premium", "luxury"] },
   { label: "Supreme", signals: ["minimal", "classic", "quiet-luxury", "polished", "40s", "50s_60s"] },
   { label: "Balenciaga", signals: ["minimal", "classic", "best_value", "deal_hunter", "quiet-luxury"] },
   { label: "H&M", signals: ["luxury", "premium", "quiet-luxury", "running_the_show"] },
-  { label: "Forever 21", signals: ["premium", "luxury", "minimal", "deep_in_career", "40s"] },
+  { label: "Forever 21", audience: "feminine", signals: ["premium", "luxury", "minimal", "deep_in_career", "40s"] },
   { label: "Guess", signals: ["minimal", "quiet-luxury", "premium", "classic"] },
   { label: "Ed Hardy", signals: ["minimal", "classic", "premium", "quiet-luxury", "polished"] },
 ];
@@ -115,6 +128,8 @@ function contextTokens(ctx: LovesVetoesContext): Set<string> {
   add(ctx.styleEra);
   add(ctx.valuePhilosophy);
   add(ctx.shippingCountry);
+  add(ctx.climate);
+  add(ctx.build);
   for (const t of ctx.lifestyleTags ?? []) add(t);
   for (const t of ctx.wornLabels ?? []) add(t);
   for (const t of ctx.aspirationalLabels ?? []) add(t);
@@ -141,16 +156,36 @@ function contextTokens(ctx: LovesVetoesContext): Set<string> {
   }
   if (vpSet.has("design_first")) tokens.add("design_first");
 
-  const g = ctx.genderPresentation?.toLowerCase() ?? "";
+  const g = normalizeGender(ctx.genderPresentation);
   if (g === "masculine") tokens.add("masculine");
   if (g === "feminine") tokens.add("feminine");
   if (g === "androgynous" || g === "nonbinary") {
     tokens.add("minimal");
-    tokens.add("masculine");
-    tokens.add("feminine");
+  }
+  if (ctx.build === "plus" || ctx.build === "broad") {
+    tokens.add("relaxed");
+    tokens.add(ctx.build);
   }
 
   return tokens;
+}
+
+function suggestionAudience(
+  ctx: LovesVetoesContext,
+): SuggestionAudience | "any" {
+  const g = normalizeGender(ctx.genderPresentation);
+  if (g === "masculine") return "masculine";
+  if (g === "feminine") return "feminine";
+  return "any";
+}
+
+function itemFitsAudience(
+  itemAudience: SuggestionAudience | undefined,
+  user: SuggestionAudience | "any",
+): boolean {
+  if (!itemAudience) return true;
+  if (user === "any") return true;
+  return itemAudience === user;
 }
 
 function scoreItem(item: ScoredItem, tokens: Set<string>): number {
@@ -177,8 +212,12 @@ function rankPool(
   pool: ScoredItem[],
   tokens: Set<string>,
   limit: number,
+  audience: SuggestionAudience | "any",
 ): string[] {
-  const ranked = pool
+  const eligible = pool.filter((item) =>
+    itemFitsAudience(item.audience, audience),
+  );
+  const ranked = eligible
     .map((item) => ({ item, score: scoreItem(item, tokens) }))
     .filter((row) => row.score > 0)
     .sort((a, b) => b.score - a.score || a.item.label.localeCompare(b.item.label));
@@ -193,14 +232,14 @@ function rankPool(
     if (out.length >= limit) break;
   }
 
-  // If context was sparse, still offer a sensible baseline from top of pool by mild defaults
   if (out.length < Math.min(4, limit)) {
-    const fallback = pool
-      .filter((item) => !seen.has(item.label.toLowerCase()))
-      .slice(0, limit - out.length);
+    const fallback = eligible.filter(
+      (item) => !seen.has(item.label.toLowerCase()),
+    );
     for (const item of fallback) {
       out.push(item.label);
       seen.add(item.label.toLowerCase());
+      if (out.length >= limit) break;
     }
   }
 
@@ -211,19 +250,62 @@ export function suggestBrandLikes(
   ctx: LovesVetoesContext,
   limit = 8,
 ): string[] {
-  return rankPool(BRAND_POOL, contextTokens(ctx), limit);
+  return rankPool(
+    BRAND_POOL,
+    contextTokens(ctx),
+    limit,
+    suggestionAudience(ctx),
+  );
 }
 
 export function suggestStyleVetoes(
   ctx: LovesVetoesContext,
   limit = 8,
 ): string[] {
-  return rankPool(VETO_POOL, contextTokens(ctx), limit);
+  return rankPool(
+    VETO_POOL,
+    contextTokens(ctx),
+    limit,
+    suggestionAudience(ctx),
+  );
 }
 
 export function suggestBrandAvoids(
   ctx: LovesVetoesContext,
   limit = 6,
 ): string[] {
-  return rankPool(AVOID_BRAND_POOL, contextTokens(ctx), limit);
+  return rankPool(
+    AVOID_BRAND_POOL,
+    contextTokens(ctx),
+    limit,
+    suggestionAudience(ctx),
+  );
+}
+
+export function suggestComfortLines(
+  ctx: LovesVetoesContext,
+): Array<{ value: string; label: string }> {
+  const tokens = contextTokens(ctx);
+  const audience = suggestionAudience(ctx);
+  return COMFORT_OPTIONS.filter((o) => itemFitsAudience(o.audience, audience))
+    .map((item) => ({
+      item,
+      score: scoreComfort(item, tokens),
+    }))
+    .sort(
+      (a, b) =>
+        b.score - a.score || a.item.label.localeCompare(b.item.label),
+    )
+    .map((row) => ({ value: row.item.value, label: row.item.label }));
+}
+
+function scoreComfort(item: ComfortOption, tokens: Set<string>): number {
+  return scoreItem(
+    {
+      label: item.label,
+      signals: [...item.signals],
+      antiSignals: item.antiSignals ? [...item.antiSignals] : undefined,
+    },
+    tokens,
+  );
 }

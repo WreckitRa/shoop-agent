@@ -1,9 +1,9 @@
 import { z } from "zod";
+import { trackProductEvent } from "@/lib/analytics/track";
 import { getAuthContext } from "@/lib/auth/session";
 import { loadShareByToken } from "@/lib/ask/create-share";
 import { upsertOwnerAskVote } from "@/lib/ask/owner-vote";
 import { buildLookAskPublic } from "@/lib/ask/public-payload";
-import { ASK_VOTE_CHOICES } from "@/lib/ask/types";
 import { prisma } from "@/lib/ai-chat/db";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ type Ctx = { params: Promise<{ token: string }> };
 
 const bodySchema = z
   .object({
-    choice: z.enum(ASK_VOTE_CHOICES),
+    choice: z.enum(["no", "meh", "almost", "love", "a", "b"]),
     displayName: z.string().trim().min(1).max(40),
     voterKey: z.string().trim().min(3).max(120),
   })
@@ -38,6 +38,15 @@ export async function POST(req: Request, ctx: Ctx) {
     );
   }
 
+  const pollMode =
+    share.pollMode === "compare" && share.altImageUrl?.trim()
+      ? "compare"
+      : "rate";
+  const allowed =
+    pollMode === "compare"
+      ? (["a", "b"] as const)
+      : (["no", "meh", "almost", "love"] as const);
+
   const auth = await getAuthContext();
   const viewerUserId = auth.ok ? auth.userId : null;
 
@@ -48,12 +57,23 @@ export async function POST(req: Request, ctx: Ctx) {
   const isOwner = Boolean(viewerUserId) && viewerUserId === share.ownerUserId;
 
   // Owner strip vote — create or change freely; display name is the asker.
+  // Rate strip choices map onto a|b when the share is comparative.
   if (isOwner && viewerUserId) {
+    let ownerChoice = parsed.data.choice;
+    if (pollMode === "compare" && !["a", "b"].includes(ownerChoice)) {
+      ownerChoice =
+        ownerChoice === "love" || ownerChoice === "almost" ? "a" : "b";
+    } else if (!(allowed as readonly string[]).includes(ownerChoice)) {
+      return Response.json(
+        { error: "That choice isn't on this poll." },
+        { status: 400 },
+      );
+    }
     await upsertOwnerAskVote({
       shareId: share.id,
       ownerUserId: viewerUserId,
       askerName: share.askerName,
-      choice: parsed.data.choice,
+      choice: ownerChoice,
     });
 
     const fresh = await loadShareByToken(token);
@@ -68,6 +88,13 @@ export async function POST(req: Request, ctx: Ctx) {
         viewerVoterKey: voterKey,
       }),
     });
+  }
+
+  if (!(allowed as readonly string[]).includes(parsed.data.choice)) {
+    return Response.json(
+      { error: "That choice isn't on this poll." },
+      { status: 400 },
+    );
   }
 
   const existing = await prisma.lookAskVote.findUnique({
@@ -99,6 +126,17 @@ export async function POST(req: Request, ctx: Ctx) {
       displayName: parsed.data.displayName.slice(0, 40),
       userId: viewerUserId,
       choice: parsed.data.choice,
+    },
+  });
+
+  trackProductEvent({
+    name: "friend_vote_received",
+    userId: share.ownerUserId,
+    props: {
+      share_id: share.id,
+      token,
+      choice: parsed.data.choice,
+      voter_user_id: viewerUserId,
     },
   });
 

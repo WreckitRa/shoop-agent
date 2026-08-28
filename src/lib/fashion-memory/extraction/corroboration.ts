@@ -1,5 +1,6 @@
 import { fashionMemoryDb } from "../db";
-import { normalizeSignalValue, upsertStyleSignal } from "../signals";
+import { canonicalizeSignalValueSync } from "../normalize/signal-canonical";
+import { upsertStyleSignal } from "../signals";
 import type {
   ExtractionOpResult,
   RequestEventAttributes,
@@ -42,8 +43,8 @@ function bucketsFromRequestEvents(
     for (const [key, raw] of Object.entries(attrs)) {
       const signalType = ATTRIBUTE_TO_SIGNAL[key as keyof RequestEventAttributes];
       if (!signalType || !raw?.trim()) continue;
-      const value = normalizeSignalValue(raw);
-      const bucketKey = `${signalType}:${value}`;
+      const value = canonicalizeSignalValueSync(signalType, raw);
+      const bucketKey = `${signalType}:${value.toLowerCase()}`;
       const existing = map.get(bucketKey);
       if (existing) {
         existing.eventCount += 1;

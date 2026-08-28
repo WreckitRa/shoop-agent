@@ -2,6 +2,7 @@ import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildFashnAvatarPrompt,
+  buildFashnNormalizePrompt,
   TRYON_AVATAR_PROMPT_VERSION,
 } from "../avatar/fashn-prompt";
 import {
@@ -21,9 +22,9 @@ import { buildFashionExtractionPrompt } from "@/lib/fashion-memory/extraction/pr
 import { buildPersonShortIdMap } from "@/lib/fashion-memory/extraction/context-format";
 import type { FashionFactRow, PersonRow } from "@/lib/fashion-memory/types";
 
-describe("avatar prompt v4 — body_shape + bust + clean base", () => {
+describe("avatar prompt v5 — body-first FTM, reshape on edit", () => {
   it("bumps prompt version", () => {
-    assert.equal(TRYON_AVATAR_PROMPT_VERSION, "v4");
+    assert.equal(TRYON_AVATAR_PROMPT_VERSION, "v5");
   });
 
   it("Tailored: triangle + full bust maps to visual phrases", () => {
@@ -36,9 +37,8 @@ describe("avatar prompt v4 — body_shape + bust + clean base", () => {
     });
     assert.match(prompt ?? "", /fuller hips relative to shoulders/);
     assert.match(prompt ?? "", /full bust/);
-    assert.match(prompt ?? "", /no beautification/);
-    assert.match(prompt ?? "", /do not keep any clothing/i);
-    assert.match(prompt ?? "", /no scarf/i);
+    assert.match(prompt ?? "", /Do not infer body type from the face/);
+    assert.doesNotMatch(prompt ?? "", /no jacket, no coat, no scarf/);
   });
 
   it("Quick essentials: no body_shape / bust phrases", () => {
@@ -48,7 +48,35 @@ describe("avatar prompt v4 — body_shape + bust + clean base", () => {
       muscularity: "moderate",
     });
     assert.doesNotMatch(prompt ?? "", /fuller hips|full bust|balanced proportions|broader shoulders/);
-    assert.match(prompt ?? "", /no beautification/);
+    assert.match(prompt ?? "", /Do not infer body type from the face/);
+  });
+
+  it("plus and athletic FTM prompts actually differ", () => {
+    const plus = buildFashnAvatarPrompt({
+      build: "plus",
+      muscularity: "low",
+      height_band: "170_180",
+    });
+    const athletic = buildFashnAvatarPrompt({
+      build: "athletic",
+      muscularity: "high",
+      height_band: "170_180",
+    });
+    assert.match(plus ?? "", /curvy fuller figure/);
+    assert.match(athletic ?? "", /athletic build/);
+    assert.notEqual(plus, athletic);
+  });
+
+  it("edit pass restates body instead of keeping the selfie figure", () => {
+    const edit = buildFashnNormalizePrompt({
+      build: "plus",
+      muscularity: "low",
+      height_band: "170_180",
+    });
+    assert.match(edit, /Reshape the body to match: curvy fuller figure/);
+    assert.match(edit, /Do not keep the body inferred from the source photo/);
+    assert.doesNotMatch(edit, /Keep the same .* body shape/);
+    assert.match(edit, /no scarf/i);
   });
 });
 
@@ -136,7 +164,7 @@ describe("measurement facts — tailored accordion + extraction", () => {
     );
   });
 
-  it('"my waist is 84cm" extraction writes measurement with supersede', () => {
+  it('"my waist is 84cm" extraction writes measurement with supersede', async () => {
     const store = new FashionLocalStore(emptyGuestFashionMemorySnapshot());
     const person = store.createPerson({
       userId: "u1",
@@ -156,7 +184,7 @@ describe("measurement facts — tailored accordion + extraction", () => {
       sourceQuote: "was 80",
     });
 
-    const results = applyLocalFashionOps({
+    const results = await applyLocalFashionOps({
       store,
       userId: "u1",
       personShortIds: shortIds,

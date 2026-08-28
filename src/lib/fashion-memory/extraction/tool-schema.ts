@@ -1,12 +1,15 @@
 import { z } from "zod";
 import {
+  FASHION_MEASUREMENT_METRICS,
   fashionFactBudgetBandValueSchema,
+  fashionFactDepthDefaultValueSchema,
   fashionFactFitValueSchema,
   fashionFactGenderPresentationValueSchema,
   fashionFactMeasurementValueSchema,
   fashionFactNoGoValueSchema,
   fashionFactSizeValueSchema,
 } from "./fact-value-schemas";
+import { CANONICAL_PERSON_RELATIONS } from "./relation-aliases";
 
 export const RECORD_FASHION_OPS_TOOL_NAME = "record_fashion_ops";
 
@@ -17,6 +20,9 @@ const factValueSchema = z.union([
   fashionFactBudgetBandValueSchema,
   fashionFactGenderPresentationValueSchema,
   fashionFactMeasurementValueSchema,
+  fashionFactDepthDefaultValueSchema,
+  z.string(),
+  z.number(),
   z.record(z.string(), z.unknown()),
 ]);
 
@@ -52,8 +58,17 @@ const opBaseSchema = z.object({
 export const fashionLlmOpSchema = z.discriminatedUnion("op", [
   opBaseSchema.extend({
     op: z.literal("new_person"),
-    relation: z.string().min(1).max(80),
+    relation: z.enum(CANONICAL_PERSON_RELATIONS),
     name: z.string().max(120).nullable().optional(),
+    match_existing: z
+      .object({
+        person_ref: z.string().min(1).max(80).optional(),
+        person_id: z.string().min(1).max(80).optional(),
+        confidence: z.number().min(0).max(1),
+        why: z.string().max(500).optional(),
+      })
+      .nullable()
+      .optional(),
   }),
   opBaseSchema.extend({
     op: z.literal("fact_add"),
@@ -117,6 +132,7 @@ export const ambiguousSubjectSchema = z.object({
   description: z.string().min(1).max(500),
   candidate_person_refs: z.array(z.string().min(1).max(80)).min(1).max(8),
   evidence_quote: z.string().min(1).max(2000),
+  parked_ops: z.array(fashionLlmOpSchema).optional(),
 });
 
 export const recordFashionOpsResultSchema = z.object({
@@ -341,7 +357,21 @@ export const RECORD_FASHION_OPS_TOOL = {
               ],
             },
             garment_type: { type: ["string", "null"] },
-            value: { type: "object" },
+            value: {
+              type: "object",
+              properties: {
+                metric: {
+                  type: "string",
+                  enum: [...FASHION_MEASUREMENT_METRICS],
+                },
+                value: {},
+                unit: { type: "string", enum: ["cm", "in"] },
+                system: {
+                  type: "string",
+                  enum: ["alpha", "eu", "us", "uk", "waist_inseam"],
+                },
+              },
+            },
             old_value: { type: "object" },
             signal_type: {
               type: "string",
@@ -360,8 +390,20 @@ export const RECORD_FASHION_OPS_TOOL = {
             polarity: { type: "integer", enum: [1, -1] },
             context: { type: "string" },
             new_context_label: { type: "string" },
-            relation: { type: "string" },
+            relation: {
+              type: "string",
+              enum: [...CANONICAL_PERSON_RELATIONS],
+            },
             name: { type: ["string", "null"] },
+            match_existing: {
+              type: ["object", "null"],
+              properties: {
+                person_ref: { type: "string" },
+                person_id: { type: "string" },
+                confidence: { type: "number" },
+                why: { type: "string" },
+              },
+            },
             source: { type: "string", enum: ["stated", "inferred"] },
             confidence: { type: "number" },
             evidence_quote: { type: "string" },

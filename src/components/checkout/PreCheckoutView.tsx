@@ -783,6 +783,12 @@ export function PreCheckoutView() {
             <div className="px-5 py-4 sm:px-6">
               <RyeCheckoutPanel
                 intent={ryeIntent}
+                searchId={line.searchId}
+                productRef={line.ref}
+                productId={line.productId}
+                title={line.title}
+                brand={line.brand}
+                color={line.color}
                 onComplete={handleRyeComplete}
                 onError={handleRyeError}
                 onIntentUpdate={setRyeIntent}

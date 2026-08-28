@@ -26,6 +26,9 @@ export const PLANNER_HARD_MS = envMs("FASHION_PLANNER_HARD_MS", 45_000);
 export const NORMALIZE_TRIPWIRE_MS = envMs("FASHION_NORMALIZE_TRIPWIRE_MS", 12_000);
 export const NORMALIZE_HARD_MS = envMs("FASHION_NORMALIZE_HARD_MS", 45_000);
 
+/** Taste rerank hang-safety — fail-open to prior score. */
+export const TASTE_RERANK_HARD_MS = envMs("FASHION_TASTE_RERANK_HARD_MS", 20_000);
+
 export const HYDRATION_WAVE_TRIPWIRE_MS = envMs(
   "FASHION_HYDRATION_WAVE_TRIPWIRE_MS",
   20_000,

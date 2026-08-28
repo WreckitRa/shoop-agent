@@ -110,6 +110,8 @@ export type MessageMetadata = {
   fashionSearchPlan?: import("@/lib/fashion-memory/search-planner/types").MessageFashionSearchPlanMetaV1;
   /** Raw UCP catalog fan-out per slot (no normalization/scoring). */
   fashionCatalogSearch?: import("@/lib/fashion-memory/catalog-search/types").MessageFashionCatalogSearchMetaV1;
+  /** User message came from a clarification chip tap, not typed words. */
+  fashionChipTap?: boolean;
   /**
    * Compact “Ask your friends” share card injected after Studying Scan.
    */
@@ -120,6 +122,10 @@ export type MessageMetadata = {
     askPath: string;
     shoopVote?: string;
   };
+  /** Compact pipeline events for this turn (debug panel). */
+  fashionPipelineEvents?: import("@/lib/fashion-memory/observability/pipeline-event-payloads").CompactPipelineEvent[];
+  /** Search funnel / latency / cost / taste_fit (ready_to_search turns). */
+  searchObservability?: import("@/lib/fashion-memory/observability/search-observability").SearchObservability;
 };
 
 export type ChatMessage = {

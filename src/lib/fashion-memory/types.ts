@@ -169,6 +169,7 @@ export type StyleSignalRow = {
   evidence_count: number;
   status: StyleSignalStatus;
   source_quote: string | null;
+  value_canonical?: string | null;
   first_seen_at: string;
   last_seen_at: string;
 };
@@ -204,6 +205,7 @@ export type AmbiguousSubject = {
   description: string;
   candidate_person_refs: string[];
   evidence_quote: string;
+  parked_ops?: import("./extraction/tool-schema").FashionLlmOp[];
 };
 
 export type ExtractionRunStatus = "running" | "done" | "failed";

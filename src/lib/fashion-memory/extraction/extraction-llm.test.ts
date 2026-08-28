@@ -6,7 +6,7 @@ import {
   normalizeEvidenceText,
 } from "./evidence";
 import { effectiveSignalConfidence, signalAboveEffectiveThreshold } from "../signal-confidence";
-import { recordFashionOpsResultSchema, parseRecordFashionOpsResult } from "./tool-schema";
+import { recordFashionOpsResultSchema, parseRecordFashionOpsResult, RECORD_FASHION_OPS_TOOL } from "./tool-schema";
 import { fashionFactGenderPresentationValueSchema } from "./fact-value-schemas";
 import { buildFashionExtractionPrompt } from "./prompt";
 import {
@@ -31,11 +31,36 @@ describe("fashion extraction evidence", () => {
     );
   });
 
+  it("strips curly quotes before substring", () => {
+    assert.equal(
+      evidenceQuoteInMessages(
+        "I always wear \"black\"",
+        ["I always wear \u201Cblack\u201D"],
+      ),
+      true,
+    );
+  });
+
   it("parses [NEW] lines from the messages block", () => {
     const texts = newMessageTextsFromContextBlock(
       "[CONTEXT] assistant: slim like usual?\n[NEW] user: yeah I'm an L now",
     );
     assert.deepEqual(texts, ["yeah I'm an L now"]);
+  });
+
+  it("preserves [tap] on NEW tap lines", () => {
+    const texts = newMessageTextsFromContextBlock(
+      "[NEW] [tap] user: You decide",
+    );
+    assert.deepEqual(texts, ["[tap] You decide"]);
+    assert.equal(
+      evidenceQuoteInMessages("You decide", texts),
+      true,
+    );
+    assert.equal(
+      evidenceQuoteInMessages("You decide [tapped twice]", texts),
+      true,
+    );
   });
 });
 
@@ -46,6 +71,26 @@ describe("fashion extraction tool schema", () => {
       ambiguous_subjects: [],
     });
     assert.equal(parsed.ops.length, 0);
+  });
+
+  it("constrains measurement metric on the tool schema", () => {
+    const value = (
+      RECORD_FASHION_OPS_TOOL.input_schema.properties.ops as {
+        items: { properties: { value: { properties: { metric: { enum: string[] } } } } };
+      }
+    ).items.properties.value.properties.metric.enum;
+    assert.deepEqual(value, [
+      "height",
+      "neck",
+      "chest",
+      "waist",
+      "hips",
+      "inseam",
+    ]);
+    assert.match(
+      buildFashionExtractionPrompt(),
+      /Shoe, top, bottom, dress sizes are size facts, never/,
+    );
   });
 
   it("coerces missing evidence_quote and keeps valid ops", () => {
@@ -118,6 +163,11 @@ describe("extractor prompt v2", () => {
     assert.match(prompt, /RELATION ALIASES/);
     assert.match(prompt, /short answer to an assistant question/);
     assert.match(prompt, /boys" \| "girls"/);
+    assert.match(prompt, /Never split into style=flashy/);
+    assert.match(prompt, /\[NEW\] \[tap\] user:/);
+    assert.match(prompt, /chip label alone/);
+    assert.match(prompt, /I'm done with navy/);
+    assert.match(prompt, /signal_add silhouette/);
     assert.doesNotMatch(prompt, /THE SINGLE MOST IMPORTANT RULE/);
   });
 });
@@ -174,19 +224,27 @@ describe("short_answer_size", () => {
   });
 });
 
-describe("mom_alias_no_duplicate", () => {
-  it("rejects new_person when mama aliases to existing mother", () => {
-    assert.equal(normalizeRelationAlias("mama"), "mother");
-    assert.equal(normalizeRelationAlias("ماما"), "mother");
+describe("canonical_relation_enum", () => {
+  it("does not map mama on the input side", () => {
+    assert.equal(normalizeRelationAlias("mama"), null);
+    assert.equal(normalizeRelationAlias("ماما"), null);
+    assert.equal(normalizeRelationAlias("mother"), "mother");
 
     const duplicate = findRosterDuplicateForNewPerson({
       people: [motherRima],
-      relation: "mama",
+      relation: "mother",
       name: null,
     });
     assert.equal(duplicate?.id, motherRima.id);
+    assert.equal(
+      findRosterDuplicateForNewPerson({
+        people: [motherRima],
+        relation: "mama",
+        name: null,
+      }),
+      null,
+    );
 
-    // Expected LLM path: no new_person; facts attach to existing mother short id.
     const ops = recordFashionOpsResultSchema.parse({
       ops: [
         {

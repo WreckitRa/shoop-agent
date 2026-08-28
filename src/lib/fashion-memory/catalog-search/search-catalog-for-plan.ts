@@ -18,6 +18,18 @@ import {
   type BudgetRaiseAsk,
 } from "../budget/budget-raise-ask";
 import { recordPipelineEvent } from "../observability/trace";
+import {
+  emptyStageLatency,
+  laneMixFromRatings,
+  mcpHitsFromQueryLogs,
+  type SearchFunnelSlotCounts,
+  type SearchObservability,
+  type SearchSlotLaneLog,
+} from "../observability/search-observability";
+import { tasteFitForHeroes } from "../scoring/taste-fit";
+import { applyTasteRerankToSlots, hashTasteSignals } from "../scoring/taste-rerank";
+import { isTasteScoringEnabled } from "../scoring/weights";
+import { loadRecipientTasteFitSignals } from "./profile";
 import { resolveBrandForCatalogSlots } from "./resolve-brand-slots";
 import { searchCatalogForSlot } from "./search-catalog-for-slot";
 import { dedupeProductsAcrossSlots } from "./dedupe";
@@ -35,9 +47,9 @@ import type { HardDropMetrics } from "../hard-drops/types";
 import { runFashionCuration } from "../curation/run-curation";
 import { buildProvisionalPresentation } from "../curation/provisional-rack";
 import type { SlotPool } from "../hydration/types";
-import { persistAllSlotPools } from "../hydration/pool-persistence";
+import { persistAllSlotPools, loadPoolsForSearch } from "../hydration/pool-persistence";
+import { bindReusedSlot, familyKeyForSlot, indexPoolsByFamily } from "./reuse-slots";
 import { buildCatalogCallContext } from "@/lib/shopify/catalog";
-import { scheduleDetachedWork } from "../schedule-detached";
 import {
   FASHION_PROVISIONAL_RACK_ENABLED,
   FASHION_CURATION_SPLIT_ENABLED,
@@ -119,12 +131,21 @@ export async function postProcessFashionCatalogSlots(params: {
   hard_drop_ms: number;
   scoring_ms: number;
   hardDropMetrics: HardDropMetrics[];
+  funnel_mid: Array<{
+    slot_id: string;
+    normalized: number;
+    hard_drop_survivors: number;
+    scored: number;
+  }>;
 }> {
   const normalized = await normalizeCatalogSearchSlots({
     traceId: params.traceId,
     slots: params.slots,
     signal: params.signal,
   });
+  const normalizedCounts = new Map(
+    normalized.slots.map((s) => [s.slot_id, s.products.length]),
+  );
 
   const hardDropped = await applyHardDropsForSlots({
     traceId: params.traceId,
@@ -136,6 +157,9 @@ export async function postProcessFashionCatalogSlots(params: {
     profileCurrency: params.profileCurrency,
     liftedMaxBySlot: params.liftedMaxBySlot,
   });
+  const survivorCounts = new Map(
+    hardDropped.slots.map((s) => [s.slot_id, s.products.length]),
+  );
 
   const scored = scoreCatalogSlots({
     traceId: params.traceId,
@@ -153,6 +177,12 @@ export async function postProcessFashionCatalogSlots(params: {
     hard_drop_ms: hardDropped.metrics.reduce((n, m) => n + m.ms, 0),
     scoring_ms: scored.metrics.reduce((n, m) => n + m.ms, 0),
     hardDropMetrics: hardDropped.metrics,
+    funnel_mid: slots.map((s) => ({
+      slot_id: s.slot_id,
+      normalized: normalizedCounts.get(s.slot_id) ?? s.products.length,
+      hard_drop_survivors: survivorCounts.get(s.slot_id) ?? s.products.length,
+      scored: s.products.length,
+    })),
   };
 }
 
@@ -492,6 +522,7 @@ export async function searchFashionCatalogPlan(
   params: SearchFashionCatalogPlanParams,
 ): Promise<FashionCatalogSearchResult> {
   const started = Date.now();
+  let total_to_provisional_ms: number | null = null;
   const abortScope = createAbortScope(params.signal);
 
   let plan: FashionSearchPlan = {
@@ -535,8 +566,79 @@ export async function searchFashionCatalogPlan(
         })
       : null;
 
+  const refinementMode = params.refinement?.mode ?? "full";
+  const reuseVerifiedBySlot = new Map<
+    string,
+    import("../hydration/types").HydratedCandidate[]
+  >();
+  const reusedByFamily =
+    refinementMode !== "full" &&
+    params.refinement?.previousSearchId &&
+    params.userId
+      ? indexPoolsByFamily(
+          await loadPoolsForSearch({
+            searchId: params.refinement.previousSearchId,
+            userId: params.userId,
+          }),
+        )
+      : new Map();
+  const canRescore =
+    refinementMode === "rescore-only" && reusedByFamily.size > 0;
+  const effectiveMode =
+    refinementMode !== "full" && reusedByFamily.size === 0
+      ? "full"
+      : refinementMode;
+  if (
+    refinementMode !== "full" &&
+    effectiveMode === "full" &&
+    params.refinement?.previousSearchId
+  ) {
+    logAiChat("info", "fashion_refinement_reuse_miss", {
+      traceId: params.traceId,
+      mode: refinementMode,
+      previous_search_id: params.refinement.previousSearchId,
+    });
+  }
+
+  if (canRescore && params.onProvisional) {
+    const earlySlots = plan.slots.map((planSlot) => {
+      const reused = reusedByFamily.get(familyKeyForSlot(planSlot.garment));
+      if (!reused) {
+        return {
+          slot_id: planSlot.slot_id,
+          garment: planSlot.garment,
+          products: [],
+          query_variants_used: [],
+          counts: { unique_products: 0, per_variant: [], reformulated: false },
+          query_logs: [],
+        } satisfies FashionSlotCatalogResult;
+      }
+      const bound = bindReusedSlot(planSlot, reused.slot);
+      reuseVerifiedBySlot.set(planSlot.slot_id, reused.verified);
+      return { ...bound, verified_pool: reused.verified };
+    });
+    const provisional = buildProvisionalPresentation({
+      plan,
+      slots: earlySlots,
+      traceId: params.traceId,
+    });
+    if (provisional) {
+      params.onProvisional({ curation: provisional });
+      if (total_to_provisional_ms == null) {
+        total_to_provisional_ms = Date.now() - started;
+      }
+    }
+  }
+
+  const fanOutStarted = Date.now();
   const settled = await Promise.allSettled(
     plan.slots.map(async (slot) => {
+      const family = familyKeyForSlot(slot.garment);
+      const reused = effectiveMode !== "full" ? reusedByFamily.get(family) : undefined;
+      if (reused && (canRescore || effectiveMode === "partial")) {
+        reuseVerifiedBySlot.set(slot.slot_id, reused.verified);
+        return bindReusedSlot(slot, reused.slot);
+      }
       const result = await searchCatalogForSlot({
         slot,
         brief: plan.brief,
@@ -600,12 +702,23 @@ export async function searchFashionCatalogPlan(
       thin_slot: true,
     };
   });
+  const fan_out_ms = Date.now() - fanOutStarted;
+  const retrievalBySlot = new Map(
+    slots.map((s) => [
+      s.slot_id,
+      {
+        garment: s.garment,
+        mcp_hits: mcpHitsFromQueryLogs(s.query_logs),
+        deduped: s.products.length,
+      },
+    ]),
+  );
 
   const timing_ms = Date.now() - started;
 
   let brandNarration: string | null = null;
 
-  if (brandsListed.length) {
+  if (brandsListed.length && !canRescore) {
     const prefetched = brandTranslatePromise
       ? await brandTranslatePromise
       : [];
@@ -643,7 +756,16 @@ export async function searchFashionCatalogPlan(
     droppedImages: droppedUrlsFromSlots(initialProcessed.slots),
   });
 
-  const liftResult = await runBudgetLiftRetries({
+  const liftResult = canRescore
+    ? {
+        plan,
+        slots: initialProcessed.slots,
+        hardDropMetrics: initialProcessed.hardDropMetrics,
+        liftedSlots: new Set<string>(),
+        preLiftSurvivorCounts: new Map<string, number>(),
+        preLiftBudgetDrops: new Map<string, number>(),
+      }
+    : await runBudgetLiftRetries({
     plan,
     slots: initialProcessed.slots,
     hardDropMetrics: initialProcessed.hardDropMetrics,
@@ -732,15 +854,91 @@ export async function searchFashionCatalogPlan(
       budget_interpretation: plan.budget_allocation?.budget_interpretation,
       budget_tension,
       budget_raise_ask: budgetRaiseAsk,
+      search_observability: await assembleCatalogObservability({
+        plan,
+        slots,
+        retrievalBySlot,
+        funnelMid: initialProcessed.funnel_mid,
+        latency: {
+          fan_out_ms,
+          normalize_ms: initialProcessed.normalize_ms,
+          hard_drops_ms: initialProcessed.hard_drop_ms,
+          score_ms: initialProcessed.scoring_ms,
+          total_to_final_ms: Date.now() - started,
+        },
+        userId: params.userId,
+        guestSnapshot: params.guestSnapshot,
+        tasteSignals: params.tasteSignals,
+        traceId: params.traceId,
+        refinement_mode: effectiveMode,
+      }),
     };
   }
 
   let hydration_ms = 0;
+  let taste_rerank_ms = 0;
+  let tasteRerankStats = {
+    calls: 0,
+    aborted: 0,
+    rated: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_hits: 0,
+  };
   let curation_ms = 0;
+  let stage_a_ms = 0;
+  let stage_b_ms = 0;
   let curation;
+  let curationRegistry: import("../curation/types").CurationRefRegistry | undefined;
   let pools: Map<string, SlotPool> | undefined;
 
   if (params.accessToken != null && params.profile != null) {
+    let recipientProfile = params.recipientProfile;
+    if (!recipientProfile?.trim() && params.userId && plan.brief.recipient_person_id) {
+      const { buildRecipientProfileBlockForPlanner } = await import(
+        "../search-planner/recipient-profile"
+      );
+      recipientProfile = await buildRecipientProfileBlockForPlanner({
+        userId: params.userId,
+        recipientPersonId: plan.brief.recipient_person_id,
+        guestSnapshot: params.guestSnapshot,
+      });
+    }
+
+    const tasteSignals =
+      params.tasteSignals ??
+      params.profile.positiveSignals.map((s) => ({
+        attribute_type: "style",
+        attribute_value: s,
+        polarity: 1,
+      }));
+    const signalsHash = hashTasteSignals(
+      tasteSignals.map((s) => ({
+        signal_type: s.attribute_type,
+        value: s.attribute_value,
+        polarity: s.polarity,
+      })),
+    );
+
+    const tasteStarted = Date.now();
+    if (isTasteScoringEnabled()) {
+      const reranked = await applyTasteRerankToSlots({
+        slots,
+        planSlots: plan.slots,
+        brief: plan.brief,
+        recipientFacts: params.recipientFacts ?? [],
+        recipientProfile: recipientProfile ?? "",
+        recipientPersonId: plan.brief.recipient_person_id,
+        signalsHash,
+        signal: params.signal,
+        traceId: params.traceId,
+        createMessage: params.createMessage,
+      });
+      slots = reranked.slots;
+      tasteRerankStats = reranked.stats;
+    }
+    taste_rerank_ms = Date.now() - tasteStarted;
+
     params.onPhase?.({
       line: "Checking stock and your size",
       previewImages: previewUrlsFromSlots(slots),
@@ -756,6 +954,9 @@ export async function searchFashionCatalogPlan(
       profile: params.profile,
       signal: params.signal,
       abortScope,
+      ...(reuseVerifiedBySlot.size
+        ? { reuseVerifiedBySlot }
+        : {}),
     });
     slots = hydrated.slots;
     pools = hydrated.pools;
@@ -793,6 +994,9 @@ export async function searchFashionCatalogPlan(
           previewImages: verifiedUrlsFromSlots(slots),
         });
         params.onProvisional({ curation: provisional });
+        if (total_to_provisional_ms == null) {
+          total_to_provisional_ms = Date.now() - started;
+        }
       }
     }
 
@@ -802,6 +1006,7 @@ export async function searchFashionCatalogPlan(
         "../curation/curation-images"
       );
       const { imageBudgetForSlot } = await import("../curation/deliverables");
+      const { pickImagedIds } = await import("../curation/refs");
       const prefetchUrls: string[] = [];
       for (const slot of slots) {
         const planSlot = plan.slots.find((p) => p.slot_id === slot.slot_id);
@@ -809,11 +1014,18 @@ export async function searchFashionCatalogPlan(
         const budget = imageBudgetForSlot({
           mode: plan.mode,
           role: planSlot.role,
+          brief: plan.brief,
         });
         const ranked = [...(slot.verified_pool ?? [])].sort(
           (a, b) => (b.score?.final ?? 0) - (a.score?.final ?? 0),
         );
-        for (const c of ranked.slice(0, budget)) {
+        const imagedIds = pickImagedIds({
+          candidates: ranked,
+          budget,
+          anchor: plan.brief.preference_anchor,
+        });
+        for (const c of ranked) {
+          if (!imagedIds.has(c.id)) continue;
           const url = c.media_urls?.[0] ?? c.image_urls?.[0];
           if (url) prefetchUrls.push(url);
         }
@@ -821,26 +1033,6 @@ export async function searchFashionCatalogPlan(
       prefetchCurationImageUrls(prefetchUrls, params.signal);
     } catch {
       /* non-fatal */
-    }
-
-    const tasteSignals =
-      params.tasteSignals ??
-      params.profile.positiveSignals.map((s) => ({
-        attribute_type: "style",
-        attribute_value: s,
-        polarity: 1,
-      }));
-
-    let recipientProfile = params.recipientProfile;
-    if (!recipientProfile?.trim() && params.userId && plan.brief.recipient_person_id) {
-      const { buildRecipientProfileBlockForPlanner } = await import(
-        "../search-planner/recipient-profile"
-      );
-      recipientProfile = await buildRecipientProfileBlockForPlanner({
-        userId: params.userId,
-        recipientPersonId: plan.brief.recipient_person_id,
-        guestSnapshot: params.guestSnapshot,
-      });
     }
 
     const survivorThumbs = (() => {
@@ -929,7 +1121,10 @@ export async function searchFashionCatalogPlan(
       resolveCurationMessage: params.resolveCurationMessage,
     });
     curation = curationResult.presentation;
+    curationRegistry = curationResult.registry;
     curation_ms = Date.now() - curationStarted;
+    stage_a_ms = curationResult.stage_a_ms ?? curation_ms;
+    stage_b_ms = curationResult.stage_b_ms ?? 0;
     recordPipelineEvent({
       traceId: params.traceId,
       stage: "curation",
@@ -957,6 +1152,7 @@ export async function searchFashionCatalogPlan(
           {
             slot: planSlot,
             brief: plan.brief,
+            plan,
             recipientFacts: params.recipientFacts ?? [],
             accessToken: params.accessToken,
             catalogContext,
@@ -964,25 +1160,24 @@ export async function searchFashionCatalogPlan(
           },
         ]),
       );
-      const searchId = params.searchId;
-      const userId = params.userId;
-      const traceId = params.traceId;
-      const poolsToPersist = pools;
-      // Persist off the hot path — UI already has curated racks.
-      scheduleDetachedWork(() => {
-        void persistAllSlotPools({
-          searchId,
-          userId,
-          pools: poolsToPersist,
+      const survivorsBySlot = new Map(
+        slots.map((s) => [s.slot_id, s.products]),
+      );
+      try {
+        await persistAllSlotPools({
+          searchId: params.searchId,
+          userId: params.userId,
+          pools,
           contexts,
-        }).catch((err) => {
-          logAiChat("warn", "fashion_pool_persist_failed", {
-            traceId,
-            searchId,
-            error: String(err).slice(0, 200),
-          });
+          survivorsBySlot,
         });
-      });
+      } catch (err) {
+        logAiChat("warn", "fashion_pool_persist_failed", {
+          traceId: params.traceId,
+          searchId: params.searchId,
+          error: String(err).slice(0, 200),
+        });
+      }
     }
   } else {
     logAiChat("warn", "fashion_catalog_hydration_skipped", {
@@ -1010,6 +1205,34 @@ export async function searchFashionCatalogPlan(
     curation_fallback: curation?.meta.fallback,
   });
 
+  const search_observability = await assembleCatalogObservability({
+    plan,
+    slots,
+    retrievalBySlot,
+    funnelMid: initialProcessed.funnel_mid,
+    pools,
+    registry: curationRegistry,
+    presentation: curation,
+    latency: {
+      fan_out_ms,
+      normalize_ms: initialProcessed.normalize_ms,
+      hard_drops_ms: initialProcessed.hard_drop_ms,
+      score_ms: initialProcessed.scoring_ms,
+      taste_rerank_ms,
+      hydrate_ms: hydration_ms,
+      stage_a_ms,
+      stage_b_ms,
+      total_to_provisional_ms,
+      total_to_final_ms: Date.now() - started,
+    },
+    userId: params.userId,
+    guestSnapshot: params.guestSnapshot,
+    tasteSignals: params.tasteSignals,
+    traceId: params.traceId,
+    tasteRerank: tasteRerankStats,
+    refinement_mode: effectiveMode,
+  });
+
   return {
     version: 1,
     plan,
@@ -1021,7 +1244,192 @@ export async function searchFashionCatalogPlan(
     budget_tension,
     curation,
     curation_ms,
+    search_observability,
   };
+}
+
+async function assembleCatalogObservability(params: {
+  plan: FashionSearchPlan;
+  slots: FashionSlotCatalogResult[];
+  retrievalBySlot: Map<
+    string,
+    { garment: string; mcp_hits: number; deduped: number }
+  >;
+  funnelMid: Array<{
+    slot_id: string;
+    normalized: number;
+    hard_drop_survivors: number;
+    scored: number;
+  }>;
+  pools?: Map<string, SlotPool>;
+  registry?: import("../curation/types").CurationRefRegistry;
+  presentation?: import("../curation/types").FashionCurationPresentation;
+  latency: Partial<import("../observability/search-observability").SearchStageLatency>;
+  userId?: string;
+  guestSnapshot?: import("../local/store").GuestFashionMemorySnapshot;
+  tasteSignals?: SearchFashionCatalogPlanParams["tasteSignals"];
+  traceId?: string | null;
+  tasteRerank?: {
+    calls: number;
+    aborted: number;
+    rated: number;
+    input_tokens: number;
+    output_tokens: number;
+    cache_hits: number;
+  };
+  refinement_mode?: import("../intake/refinement-mode").RefinementMode;
+}): Promise<SearchObservability> {
+  const midBySlot = new Map(params.funnelMid.map((m) => [m.slot_id, m]));
+  const heroesBySlot = new Map<string, number>();
+  for (const pick of params.presentation?.tiers.picks ?? []) {
+    heroesBySlot.set(pick.slot_id, (heroesBySlot.get(pick.slot_id) ?? 0) + 1);
+  }
+  const imagedBySlot = new Map<string, number>();
+  if (params.registry) {
+    for (const entry of params.registry.values()) {
+      if (!entry.image_shown) continue;
+      imagedBySlot.set(
+        entry.slot_id,
+        (imagedBySlot.get(entry.slot_id) ?? 0) + 1,
+      );
+    }
+  }
+
+  const funnel: SearchFunnelSlotCounts[] = params.slots.map((slot) => {
+    const retrieval = params.retrievalBySlot.get(slot.slot_id);
+    const mid = midBySlot.get(slot.slot_id);
+    return {
+      slot_id: slot.slot_id,
+      garment: slot.garment,
+      mcp_hits: retrieval?.mcp_hits ?? 0,
+      deduped: retrieval?.deduped ?? slot.counts.unique_products,
+      normalized: mid?.normalized ?? retrieval?.deduped ?? 0,
+      hard_drop_survivors: mid?.hard_drop_survivors ?? slot.products.length,
+      scored: mid?.scored ?? slot.products.length,
+      shortlisted: params.pools?.get(slot.slot_id)?.target ?? 0,
+      hydrated_verified: slot.verified_pool?.length ?? 0,
+      imaged: imagedBySlot.get(slot.slot_id) ?? 0,
+      heroes: heroesBySlot.get(slot.slot_id) ?? 0,
+    };
+  });
+
+  recordPipelineEvent({
+    traceId: params.traceId,
+    stage: "search_funnel",
+    payload: { slots: funnel },
+  });
+
+  const signals = params.userId
+    ? await loadRecipientTasteFitSignals({
+        userId: params.userId,
+        recipientPersonId: params.plan.brief.recipient_person_id,
+        guestSnapshot: params.guestSnapshot,
+      })
+    : (params.tasteSignals ?? []).map((s) => ({
+        signal_type: s.attribute_type,
+        value: s.attribute_value,
+        polarity: s.polarity,
+      }));
+
+  const heroRows: Array<{
+    product_id: string;
+    slot_id: string;
+    product: FashionSlotCatalogProduct;
+  }> = [];
+  for (const pick of params.presentation?.tiers.picks ?? []) {
+    const entry = params.registry?.get(pick.ref);
+    const product = entry?.candidate ??
+      params.slots
+        .flatMap((s) => s.verified_pool ?? [])
+        .find((p) => p.id === pick.id);
+    if (!product) continue;
+    heroRows.push({
+      product_id: pick.id,
+      slot_id: pick.slot_id,
+      product,
+    });
+  }
+
+  const taste_fit = tasteFitForHeroes({
+    heroes: heroRows,
+    signals,
+    preference_anchor: params.plan.brief.preference_anchor ?? null,
+  });
+
+  const heroIdsBySlot = new Map<string, Set<string>>();
+  for (const h of heroRows) {
+    const set = heroIdsBySlot.get(h.slot_id) ?? new Set<string>();
+    set.add(h.product_id);
+    heroIdsBySlot.set(h.slot_id, set);
+  }
+  const imagedIdsBySlot = new Map<string, Set<string>>();
+  if (params.registry) {
+    for (const entry of params.registry.values()) {
+      if (!entry.image_shown) continue;
+      const set = imagedIdsBySlot.get(entry.slot_id) ?? new Set<string>();
+      set.add(entry.product_id);
+      imagedIdsBySlot.set(entry.slot_id, set);
+    }
+  }
+  const lanes_by_slot: SearchSlotLaneLog[] = params.slots.map((slot) => {
+    const verified = slot.verified_pool ?? [];
+    const imagedIds = imagedIdsBySlot.get(slot.slot_id);
+    const imaged = imagedIds
+      ? verified.filter((p) => imagedIds.has(p.id))
+      : [];
+    const heroIds = heroIdsBySlot.get(slot.slot_id);
+    const heroes = heroIds
+      ? verified.filter((p) => heroIds.has(p.id))
+      : [];
+    return {
+      slot_id: slot.slot_id,
+      garment: slot.garment,
+      verified: laneMixFromRatings(verified),
+      imaged: laneMixFromRatings(imaged),
+      heroes: laneMixFromRatings(heroes),
+    };
+  });
+
+  recordPipelineEvent({
+    traceId: params.traceId,
+    stage: "taste_fit",
+    payload: {
+      preference_anchor: taste_fit.preference_anchor,
+      mean: taste_fit.mean,
+      heroes: taste_fit.heroes,
+      lanes_by_slot,
+    },
+  });
+
+  const observability: SearchObservability = {
+    version: 1,
+    funnel,
+    latency: emptyStageLatency({
+      fan_out_ms: params.latency.fan_out_ms ?? 0,
+      normalize_ms: params.latency.normalize_ms ?? 0,
+      hard_drops_ms: params.latency.hard_drops_ms ?? 0,
+      score_ms: params.latency.score_ms ?? 0,
+      taste_rerank_ms: params.latency.taste_rerank_ms ?? 0,
+      hydrate_ms: params.latency.hydrate_ms ?? 0,
+      stage_a_ms: params.latency.stage_a_ms ?? 0,
+      stage_b_ms: params.latency.stage_b_ms ?? 0,
+      total_to_provisional_ms: params.latency.total_to_provisional_ms ?? null,
+      total_to_final_ms: params.latency.total_to_final_ms ?? null,
+    }),
+    cost: { usd: 0, by_stage: [] },
+    taste_fit,
+    taste_rerank: params.tasteRerank,
+    lanes_by_slot,
+    refinement_mode: params.refinement_mode ?? "full",
+  };
+
+  recordPipelineEvent({
+    traceId: params.traceId,
+    stage: "search_latency",
+    payload: observability.latency as unknown as Record<string, unknown>,
+  });
+
+  return observability;
 }
 
 export function fashionCatalogSearchToMetadata(
@@ -1057,6 +1465,9 @@ export function fashionCatalogSearchToMetadata(
     curation: result.curation
       ? { version: 1 as const, ...result.curation, trace_id: extras?.trace_id }
       : undefined,
+    search_observability: result.search_observability,
+    brief: result.plan.brief,
+    plan_current_date: result.plan.currentDate,
   };
 }
 

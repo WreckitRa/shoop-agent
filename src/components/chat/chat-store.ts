@@ -14,6 +14,7 @@ import type {
 import type { ComposerReplyContext } from "@/lib/ai-chat/composer-reply-context";
 import { composerReplyFromPick } from "@/lib/ai-chat/composer-reply-context";
 import { applyIntentBranchSplitsToMessages } from "@/lib/ai-chat/intent-branch/apply-splits-to-messages";
+import { clarificationAnswersAreTaps } from "@/lib/fashion-memory/router/pull-sheet";
 import {
   mergeOptionPalettesIntoFashionRouter,
   mergeOptionPreviewsIntoFashionRouter,
@@ -647,9 +648,11 @@ export const useChatStore = create<ChatState>((set, get) => {
             args.mode === "send" &&
             !args.conversationId &&
             get().activeStream?.id === streamId &&
-            prevActive === null
+            prevActive === null &&
+            typeof cid === "string" &&
+            cid.trim()
           ) {
-            get().navigate?.(conversationPath(cid));
+            get().navigate?.(conversationPath(cid.trim()));
           }
         },
         onUserMessage: (mid, payload) => {
@@ -756,7 +759,7 @@ export const useChatStore = create<ChatState>((set, get) => {
             try {
               const userId = guestUserIdFromSessionId(guestId);
               const store = loadGuestFashionStore(guestId);
-              applyFashionMemoryDelta({
+              void applyFashionMemoryDelta({
                 store,
                 userId,
                 delta: {
@@ -791,7 +794,6 @@ export const useChatStore = create<ChatState>((set, get) => {
           scheduleIdleWork(() => {
             try {
               saveGuestFashionSnapshot(snapshot as GuestFashionMemorySnapshot);
-              window.dispatchEvent(new Event("shoop-guest-changed"));
             } catch (error) {
               console.error("[shoop] fashion guest memory snapshot failed", error);
             }
@@ -1843,6 +1845,13 @@ export const useChatStore = create<ChatState>((set, get) => {
         ? readGuestFashionMemoryForUser(guestId)
         : undefined;
       const pendingFashionClarification = get().pendingFashionClarification;
+      const chipTap = clarificationAnswersAreTaps(
+        pendingFashionClarification?.answers,
+      );
+      const userMetadata = {
+        ...(replyContext ? { composerReply: replyContext } : {}),
+        ...(chipTap ? { fashionChipTap: true as const } : {}),
+      };
 
       const optimisticUserId = makeLocalUserId();
       const optimisticAssistantId = makeLocalAssistantId();
@@ -1863,8 +1872,8 @@ export const useChatStore = create<ChatState>((set, get) => {
             status: "completed",
             createdAt: ts,
             updatedAt: ts,
-            ...(replyContext
-              ? { metadata: { composerReply: replyContext } }
+            ...(Object.keys(userMetadata).length
+              ? { metadata: userMetadata }
               : {}),
           },
           {

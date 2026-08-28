@@ -39,6 +39,9 @@ export function defaultShareImages(alt: string) {
   ] as const;
 }
 
+/** Production public origin — publish this form everywhere to avoid authority split. */
+export const CANONICAL_SITE_ORIGIN = "https://www.shoop.world";
+
 /**
  * Canonical site origin for metadataBase, sitemap, robots, and JSON-LD.
  * Prefer HTTPS in production via NEXT_PUBLIC_APP_URL.
@@ -59,7 +62,13 @@ export function getSiteUrl(): URL {
     const trimmed = raw?.trim();
     if (!trimmed) continue;
     try {
-      return new URL(trimmed.endsWith("/") ? trimmed : `${trimmed}/`);
+      const url = new URL(trimmed.endsWith("/") ? trimmed : `${trimmed}/`);
+      // Collapse apex → www when env is mis-set to the non-canonical host.
+      if (url.hostname === "shoop.world") {
+        url.hostname = "www.shoop.world";
+        url.protocol = "https:";
+      }
+      return url;
     } catch {
       /* try next */
     }

@@ -1,10 +1,13 @@
 import { fashionMemoryDb } from "@/lib/fashion-memory/db";
 import {
   getPersonById,
+  ensureSelfPerson,
   resolvePersonIdRef,
 } from "@/lib/fashion-memory/people";
 import type { PersonRow } from "@/lib/fashion-memory/types";
 import { prisma } from "@/lib/ai-chat/db";
+import { trackProductEvent } from "@/lib/analytics/track";
+import { resolveAnalyticsSessionId } from "@/lib/analytics/session";
 import { setTryonEnabledForUser } from "../feature-flags";
 import { runAvatarIntake } from "./intake";
 import {
@@ -60,18 +63,31 @@ export type AvatarDraft = {
   regen_count: number;
 };
 
+async function resolveOwnedPerson(
+  userId: string,
+  personId: string,
+): Promise<PersonRow> {
+  const found = await getPersonById(userId, personId);
+  if (found) return found;
+  return ensureSelfPerson(userId);
+}
+
+async function ownedDraft(userId: string, personId: string) {
+  const person = await resolveOwnedPerson(userId, personId);
+  return { person, draft: await getDraft(userId, person.id) };
+}
+
 export async function startAvatarFlow(params: {
   userId: string;
   personId: string;
 }): Promise<AvatarDraft> {
-  const person = await getPersonById(params.userId, params.personId);
-  if (!person) throw new Error("Person not found");
+  const person = await resolveOwnedPerson(params.userId, params.personId);
 
-  const existing = await getDraft(params.userId, params.personId);
+  const existing = await getDraft(params.userId, person.id);
   if (existing) return existing;
 
   const draft: AvatarDraft = {
-    person_id: params.personId,
+    person_id: person.id,
     step: "upload",
     regen_count: 0,
   };
@@ -85,12 +101,11 @@ export async function uploadAvatarPhoto(params: {
   bytes: Uint8Array;
   contentType: string;
 }): Promise<AvatarDraft> {
-  const person = await getPersonById(params.userId, params.personId);
-  if (!person) throw new Error("Person not found");
+  const person = await resolveOwnedPerson(params.userId, params.personId);
 
   const { path } = await uploadPrivateObject({
     userId: params.userId,
-    personId: params.personId,
+    personId: person.id,
     kind: "source-photo",
     filename: `source-${Date.now()}.jpg`,
     bytes: params.bytes,
@@ -98,7 +113,7 @@ export async function uploadAvatarPhoto(params: {
   });
 
   const draft: AvatarDraft = {
-    person_id: params.personId,
+    person_id: person.id,
     step: "attributes",
     photo_path: path,
     regen_count: 0,
@@ -113,7 +128,7 @@ export async function checkAvatarAttributes(params: {
   statedAttributes?: Partial<AvatarAttributes>;
   traceId?: string;
 }): Promise<AvatarDraft> {
-  const draft = await getDraft(params.userId, params.personId);
+  const { person, draft } = await ownedDraft(params.userId, params.personId);
   if (!draft) throw new Error("Avatar flow not started");
 
   let photoUrl: string | undefined;
@@ -131,9 +146,9 @@ export async function checkAvatarAttributes(params: {
     if (draft.photo_path) {
       await deletePrivateObjects([draft.photo_path]);
     }
-    await deleteDraft(params.personId);
+    await deleteDraft(person.id);
     return {
-      person_id: params.personId,
+      person_id: person.id,
       step: "refused_minor",
       regen_count: 0,
       intake,
@@ -166,13 +181,16 @@ export async function submitAvatarAttributes(params: {
       `Please select: ${missing.map((k) => k.replace(/_/g, " ")).join(", ")}.`,
     );
   }
-  let draft = await getDraft(params.userId, params.personId);
+  const { person: submitPerson, draft: submitExisting } = await ownedDraft(
+    params.userId,
+    params.personId,
+  );
+  let draft = submitExisting;
   if (!draft) {
-    await startAvatarFlow({
+    draft = await startAvatarFlow({
       userId: params.userId,
-      personId: params.personId,
+      personId: submitPerson.id,
     });
-    draft = await getDraft(params.userId, params.personId);
   }
   if (!draft) {
     throw new Error("Avatar flow not started — go back and try again.");
@@ -194,13 +212,16 @@ export async function generateAvatarPreview(params: {
   personId: string;
   attributes?: AvatarAttributes;
 }): Promise<AvatarDraft> {
-  let draft = await getDraft(params.userId, params.personId);
+  const { person: genPerson, draft: genExisting } = await ownedDraft(
+    params.userId,
+    params.personId,
+  );
+  let draft = genExisting;
   if (!draft) {
-    await startAvatarFlow({
+    draft = await startAvatarFlow({
       userId: params.userId,
-      personId: params.personId,
+      personId: genPerson.id,
     });
-    draft = await getDraft(params.userId, params.personId);
   }
   if (!draft) {
     throw new Error("Avatar flow not started — go back and try again.");
@@ -320,6 +341,7 @@ async function runAvatarProviderLeg(params: {
   parentJobId?: string;
 }): Promise<AvatarCompareVariant> {
   const provider = getAvatarProviderByKey(params.providerKey);
+  const sessionId = await resolveAnalyticsSessionId();
   const gen = await createGeneration({
     personId: params.personId,
     userId: params.userId,
@@ -329,12 +351,24 @@ async function runAvatarProviderLeg(params: {
       photo_path: params.photoUrl ?? null,
       attributes: params.attributes,
       provider_key: params.providerKey,
+      ...(sessionId ? { analytics_session_id: sessionId } : {}),
     },
     parentJobId: params.parentJobId,
     skipCapCheck: Boolean(params.parentJobId),
   });
 
   await updateGeneration(gen.id, { status: "processing" });
+  trackProductEvent({
+    name: "twin_render_started",
+    userId: params.userId,
+    sessionId,
+    props: {
+      generation_id: gen.id,
+      person_id: params.personId,
+      provider: provider.name,
+      parent_job_id: params.parentJobId ?? null,
+    },
+  });
   const started = Date.now();
 
   try {
@@ -362,6 +396,17 @@ async function runAvatarProviderLeg(params: {
       ms,
       costEstimate: avatarCostEstimateForProvider(provider.name),
     });
+    trackProductEvent({
+      name: "twin_render_completed",
+      userId: params.userId,
+      sessionId,
+      props: {
+        generation_id: gen.id,
+        person_id: params.personId,
+        provider: provider.name,
+        ms,
+      },
+    });
     return {
       provider_key: params.providerKey,
       provider: provider.name,
@@ -378,6 +423,17 @@ async function runAvatarProviderLeg(params: {
       status: "failed",
       error: message,
       ms: Date.now() - started,
+    });
+    trackProductEvent({
+      name: "twin_render_failed",
+      userId: params.userId,
+      sessionId,
+      props: {
+        generation_id: gen.id,
+        person_id: params.personId,
+        provider: provider.name,
+        error: message.slice(0, 200),
+      },
     });
     return {
       provider_key: params.providerKey,
@@ -594,7 +650,7 @@ export async function approveAvatar(params: {
   personId: string;
   selectedProviderKey?: AvatarProviderKey;
 }): Promise<StoredAvatar> {
-  const draft = await getDraft(params.userId, params.personId);
+  const { person, draft } = await ownedDraft(params.userId, params.personId);
   if (!draft?.attributes) {
     throw new Error("No preview to approve");
   }
@@ -607,9 +663,6 @@ export async function approveAvatar(params: {
   if (!variant?.preview_path) {
     throw new Error("No preview to approve");
   }
-
-  const person = await getPersonById(params.userId, params.personId);
-  if (!person) throw new Error("Person not found");
 
   const freshUrl = await createSignedUrl(variant.preview_path);
   const oldPaths = await collectOldAvatarPaths(person);
@@ -664,6 +717,29 @@ export async function approveAvatar(params: {
   }
 
   return stored;
+}
+
+/** True when a person row has avatar bytes on file — does not sign a URL. */
+export function personHasStoredAvatar(
+  avatar:
+    | { url?: string | null; storage_path?: string | null }
+    | null
+    | undefined,
+): boolean {
+  return Boolean(avatar?.storage_path?.trim() || avatar?.url?.trim());
+}
+
+export async function hasStoredAvatar(
+  userId: string,
+  personId: string,
+): Promise<boolean> {
+  const resolved = await resolvePersonIdRef(userId, personId);
+  if (!resolved) return false;
+  const person = await getPersonById(userId, resolved);
+  if (!person) return false;
+  return personHasStoredAvatar(
+    (person as PersonRow & { avatar?: StoredAvatar | null }).avatar,
+  );
 }
 
 export async function getStoredAvatar(

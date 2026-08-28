@@ -47,10 +47,10 @@ const you = {
 };
 
 describe("firstIncompleteFittingStep", () => {
-  it("starts at photo when Fitting has not started or is complete", () => {
+  it("starts at consent when Fitting has not started, photo when complete", () => {
     assert.equal(
       firstIncompleteFittingStep(status({ started: false })),
-      "photo",
+      "consent",
     );
     assert.equal(
       firstIncompleteFittingStep(status({ completed: true, profile: you })),

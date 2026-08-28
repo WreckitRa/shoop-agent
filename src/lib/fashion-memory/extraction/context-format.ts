@@ -4,9 +4,11 @@ import type {
   FashionFactRow,
   FashionFactSizeValue,
   PersonRow,
+  RequestEventRow,
   StyleSignalRow,
 } from "../types";
 import type { FashionTurnMessage } from "./message-window";
+import { formatRecentPicksLine } from "../router/profile-context-format";
 
 export type FashionExtractionContext = {
   /** Block A — one line per person (#abcd relation (Name)). */
@@ -211,10 +213,11 @@ function formatFactLine(fact: FashionFactRow): string | null {
 function formatSignalToken(signal: StyleSignalRow): string {
   const sign = signal.polarity === -1 ? "-" : "+";
   const conf = signal.confidence.toFixed(1).replace(/\.0$/, "");
+  const canonical = (signal.value_canonical ?? signal.value).trim();
   const value =
     signal.signal_type === "shopping_style"
-      ? `shopping_style:${signal.value}`
-      : signal.value;
+      ? `shopping_style:${canonical}`
+      : canonical;
   return `${sign}${value} [${signal.context}, ${signal.source}, ${conf}]`;
 }
 
@@ -223,6 +226,7 @@ export function formatPersonSnapshot(params: {
   facts: FashionFactRow[];
   signals: StyleSignalRow[];
   shortIds: Record<string, string>;
+  recentRequestEvents?: RequestEventRow[] | null;
 }): string {
   const header = `## ${formatRosterLine(params.person, params.shortIds)}`;
 
@@ -259,6 +263,8 @@ export function formatPersonSnapshot(params: {
   if (topSignals.length) {
     lines.push(`signals: ${topSignals.map(formatSignalToken).join(" | ")}`);
   }
+  const recentPicks = formatRecentPicksLine(params.recentRequestEvents);
+  if (recentPicks) lines.push(recentPicks);
   if (lines.length === 1) {
     lines.push("(no recorded facts or signals yet)");
   }
@@ -341,8 +347,10 @@ export function formatMessageWindowBlock(params: {
     .map((msg) => {
       const tag = isMessageAfterWatermark(msg, watermark) ? "NEW" : "CONTEXT";
       const role = msg.role === "user" ? "user" : "assistant";
+      const tap =
+        msg.role === "user" && msg.metadata?.fashionChipTap ? "[tap] " : "";
       const content = safeTrim(msg.content) || "(empty)";
-      return `[${tag}] ${role}: ${content}`;
+      return `[${tag}] ${tap}${role}: ${content}`;
     })
     .join("\n");
 }

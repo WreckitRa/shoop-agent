@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/ai-chat/cn";
 import {
+  FittingKick,
   FittingNavRow,
   FittingTitle,
   FittingWhisper,
@@ -46,6 +47,7 @@ export function TasteCircleStep({
 
   return (
     <section>
+      <FittingKick>PERSON</FittingKick>
       <FittingTitle
         lines={[
           { text: "Who do you" },
@@ -65,8 +67,8 @@ export function TasteCircleStep({
             <label
               key={SLOT_PLACEHOLDERS[i]}
               className={cn(
-                "flex items-center gap-[13px] rounded-[14px] border-[1.5px] border-dashed border-[#D6D6DE] bg-transparent px-[17px] py-[13px] transition-all duration-150",
-                "focus-within:border-solid focus-within:border-[var(--fitting-ink)] focus-within:bg-white focus-within:shadow-[0_8px_20px_-14px_rgba(14,14,17,0.4)]",
+                "flex items-center gap-[13px] rounded-[14px] border-[1.5px] border-dashed border-[var(--fitting-g3)] bg-transparent px-[17px] py-[13px] transition-all duration-150",
+                "focus-within:border-solid focus-within:border-[var(--fitting-ink)] focus-within:bg-white",
                 filled &&
                   "border-solid border-[var(--fitting-ink)] bg-white",
               )}

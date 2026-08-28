@@ -2,21 +2,25 @@
 
 Every tag, image, and copy string crawlers see when someone pastes a Shoop URL. `{ORIGIN}` is `NEXT_PUBLIC_APP_URL` (then `APP_URL` / `VERCEL_URL` / `RAILWAY_PUBLIC_DOMAIN`, else `http://localhost:3000`).
 
-Machine-readable dump: [`values.json`](./values.json). Copy-paste HTML: [`html/`](./html/).
+**Production canonical origin:** `https://www.shoop.world`  
+**Document title / brand string:** `Shoop — AI Shopping Concierge`
+
+Machine-readable dump: [`values.json`](./values.json). Copy-paste HTML: [`html/`](./html/). Host redirect audit: [`host-canonical.md`](./host-canonical.md).
 
 **Contents**
 
 1. [What gets shared](#what-gets-shared)
 2. [Brand constants](#brand-constants)
-3. [Main link (`/`)](#1-main-link-)
-4. [Look link (`/ask/{token}`)](#2-look-link-asktoken)
-5. [Instagram / WhatsApp / iMessage thumbnail](#instagram--whatsapp--imessage-thumbnail)
-6. [Icons, PWA, viewport](#icons-pwa-viewport)
-7. [JSON-LD](#json-ld)
-8. [Robots + sitemap](#robots--sitemap)
-9. [Other routes](#other-routes)
-10. [Source map](#source-map)
-11. [Gaps](#gaps)
+3. [Host + HTTPS canonical](#host--https-canonical)
+4. [Main link (`/`)](#1-main-link-)
+5. [Look link (`/ask/{token}`)](#2-look-link-asktoken)
+6. [Instagram / WhatsApp / iMessage thumbnail](#instagram--whatsapp--imessage-thumbnail)
+7. [Icons, PWA, viewport](#icons-pwa-viewport)
+8. [JSON-LD](#json-ld)
+9. [Robots + sitemap](#robots--sitemap)
+10. [Other routes](#other-routes)
+11. [Source map](#source-map)
+12. [Gaps](#gaps)
 
 ---
 
@@ -59,6 +63,25 @@ From `src/lib/seo/site.ts`.
 | Default OG path | `/opengraph-image` |
 
 There is no `twitter:site`, `twitter:creator`, or `fb:app_id`.
+
+---
+
+## Host + HTTPS canonical
+
+Full probe log: [`host-canonical.md`](./host-canonical.md). Summary (verified **2026-08-25**, `GET` only — apex `HEAD` returns 405):
+
+| Check | Result |
+|-------|--------|
+| Canonical host | `https://www.shoop.world` (`link rel="canonical"`, `og:url`, `robots` `Host`, `sitemap.xml`) |
+| Apex → www | **301 Moved Permanently** (`https://shoop.world` → `https://www.shoop.world`) |
+| HTTP → HTTPS | **301** on both apex and www (`http://…` → `https://www.shoop.world/`) |
+| Temporary redirects | None observed on the host matrix (no 302/307/308) |
+| HSTS | **Set** on app responses: `max-age=63072000; includeSubDomains; preload` (`next.config.ts`) |
+| App redirects | Middleware 301s `Host: shoop.world` → `www.shoop.world`; apex→www also at DNS/edge (GoDaddy); www HTTP→HTTPS is Railway |
+
+**Authority rule:** publish and set `NEXT_PUBLIC_APP_URL` to `https://www.shoop.world` only. Bare `shoop.world` in prose is fine as a brand mention; crawlable / shareable URLs must use the www HTTPS form so we do not split authority with apex or HTTP variants.
+
+`shoop.ai` is a separate parked GoDaddy domain — not the product origin.
 
 ---
 
@@ -325,6 +348,7 @@ These set `createPageMetadata` but are **not** meant to be shared. All `noindex,
 | Public mark + wordmark | `public/assets/shoop-icon.svg`, `public/assets/shoop-logo.svg` |
 | Manifest | `src/app/manifest.ts` |
 | robots / sitemap | `src/app/robots.ts`, `src/app/sitemap.ts` |
+| Host / HTTPS / published-authority audit | `docs/seo/host-canonical.md` |
 
 Change copy or image size in `site.ts` / `og-image.tsx` — do not fork strings into route files.
 
@@ -332,7 +356,7 @@ Change copy or image size in `site.ts` / `og-image.tsx` — do not fork strings 
 
 ## Gaps
 
-Present in code today; listed so this file stays honest.
+Present in code / ops today; listed so this file stays honest.
 
 - No Instagram-specific 1080×1080 (or 1080×1920 story) thumbnail.
 - No `twitter:site` / `twitter:creator`.
@@ -340,3 +364,5 @@ Present in code today; listed so this file stays honest.
 - Look `og:image` has no width/height/type — some scrapers crop portrait try-ons poorly.
 - Two brand reds: `#E3100F` (icon, PWA) vs `#E42831` (UI, OG card).
 - Viewport `theme-color` is white; PWA `theme_color` is `#E3100F`.
+- Apex forwarder returns **405** on `HEAD` (GET 301 is fine). DNS-level; not app-fixable.
+- Some external bios still say bare `shoop.world` — prefer `https://www.shoop.world` for crawlable links.

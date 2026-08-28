@@ -7,6 +7,7 @@ import {
   WEEK_IS_OPTIONS,
 } from "@/lib/onboarding/form-options";
 import {
+  FittingKick,
   FittingNavRow,
   FittingQlbl,
   FittingTitle,
@@ -39,6 +40,7 @@ function pick(current: string, next: string): string {
 export function TasteLifeStep({ values, onChange, onContinue, busy }: Props) {
   return (
     <section>
+      <FittingKick>LIFE</FittingKick>
       <FittingTitle
         lines={[
           { text: "What does a week" },

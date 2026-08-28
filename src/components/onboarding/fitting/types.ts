@@ -1,4 +1,5 @@
 export type FittingStep =
+  | "consent"
   | "photo"
   | "name"
   | "life"
@@ -12,6 +13,7 @@ export type FittingStep =
   | "verdict";
 
 export const FITTING_STEPS: FittingStep[] = [
+  "consent",
   "photo",
   "name",
   "life",
@@ -27,6 +29,7 @@ export const FITTING_STEPS: FittingStep[] = [
 
 /** Question steps only (excludes verdict). */
 export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
+  "consent",
   "photo",
   "name",
   "life",
@@ -52,100 +55,45 @@ export const STITCH_KNOTS = [
   { id: "mint", label: "The mint", top: "96%", emphasis: true },
 ] as const;
 
+/** Left-rail groups — same knots, sequential, mock tracker chrome. */
+export const TRACKER_GROUPS = [
+  { label: "LOOK", knotIds: ["photo", "name"] },
+  { label: "LIFE", knotIds: ["life"] },
+  { label: "EVIDENCE", knotIds: ["spend", "fit", "worn", "wanted", "nolist"] },
+  { label: "PERSON", knotIds: ["circle"] },
+  { label: "DIRECTION", knotIds: ["mint"] },
+] as const;
+
 /** sewn % per knot index */
 export const SEWN_PCT = [3, 13, 23, 33, 43, 53, 63, 73, 84, 100];
 
 /** progress bar % per question step */
-export const STEP_PROGRESS_PCT = [5, 14, 24, 34, 44, 54, 64, 74, 84, 93];
+export const STEP_PROGRESS_PCT = [3, 10, 18, 26, 34, 44, 54, 64, 74, 84, 93];
 
 export const STEP_META: Record<
   Exclude<FittingStep, "verdict">,
   {
     n: number;
     stage: string;
-    /** Loading-screen headline while leaving this step. */
-    flashCover: string;
-    /** Loading status (red line) — “next up...” */
-    flashNext: string;
-    /** What work is happening on lock-in. */
-    loadingDetail: string;
   }
 > = {
-  photo: {
-    n: 1,
-    stage: "Getting to know you",
-    flashCover: "While that develops...<br><em>who are you?</em>",
-    flashNext: "next up... your name",
-    loadingDetail: "Photo's developing in the background…",
-  },
-  name: {
-    n: 2,
-    stage: "Getting to know you",
-    flashCover: "Your week...<br><em>three taps.</em>",
-    flashNext: "next up... how you live",
-    loadingDetail: "Saving your name and era…",
-  },
-  life: {
-    n: 3,
-    stage: "Getting to know you",
-    flashCover: "Money stuff...<br><em>quick and painless.</em>",
-    flashNext: "next up... how you spend",
-    loadingDetail: "Saving how your week actually looks…",
-  },
-  spend: {
-    n: 4,
-    stage: "Getting to know you",
-    flashCover: "A few numbers...<br><em>never judged.</em>",
-    flashNext: "next up... height and build",
-    loadingDetail: "Saving how you like to spend…",
-  },
-  fit: {
-    n: 5,
-    stage: "Getting to know you",
-    flashCover: "Now the real you...<br><em>hoodie included.</em>",
-    flashNext: "next up... what you actually wore",
-    loadingDetail: "Saving fit stats… starting your twin if a photo is ready…",
-  },
-  worn: {
-    n: 6,
-    stage: "Getting to know you",
-    flashCover: "Okay, now<br><em>dream a little.</em>",
-    flashNext: "next up... the closet you would steal",
-    loadingDetail: "Saving what you actually wore… loading your dream set…",
-  },
-  wanted: {
-    n: 7,
-    stage: "Getting to know you",
-    flashCover: "And the stuff<br>I <em>never</em> show you.",
-    flashNext: "next up... your no-list",
-    loadingDetail: "Saving your steal list…",
-  },
-  nolist: {
-    n: 8,
-    stage: "Getting to know you",
-    flashCover: "Almost done...<br><em>how honest do you want me?</em>",
-    flashNext: "next up... the honesty dial",
-    loadingDetail: "Saving brands, comfort, and vetoes…",
-  },
-  honesty: {
-    n: 9,
-    stage: "Getting to know you",
-    flashCover: "One more...<br>and it is about <em>them</em>, not you.",
-    flashNext: "next up... who you actually ask",
-    loadingDetail: "Locking taste and honesty…",
-  },
-  circle: {
-    n: 10,
-    stage: "Getting to know you",
-    flashCover: "Say hello<br>to <em>you.</em>",
-    flashNext: "next up... your scan",
-    loadingDetail: "Saving your trusted circle… checking your scan…",
-  },
+  consent: { n: 1, stage: "Before we start" },
+  photo: { n: 2, stage: "Getting to know you" },
+  name: { n: 3, stage: "Getting to know you" },
+  life: { n: 4, stage: "Getting to know you" },
+  spend: { n: 5, stage: "Getting to know you" },
+  fit: { n: 6, stage: "Getting to know you" },
+  worn: { n: 7, stage: "Getting to know you" },
+  wanted: { n: 8, stage: "Getting to know you" },
+  nolist: { n: 9, stage: "Getting to know you" },
+  honesty: { n: 10, stage: "Getting to know you" },
+  circle: { n: 11, stage: "Getting to know you" },
 };
 
 /** Knot index highlighted / sewn for each step */
 export function knotNowIndex(step: FittingStep): number {
   switch (step) {
+    case "consent":
     case "photo":
       return 0;
     case "name":
@@ -174,6 +122,7 @@ export function knotNowIndex(step: FittingStep): number {
 
 export function sewnThroughIndex(step: FittingStep): number {
   switch (step) {
+    case "consent":
     case "photo":
       return -1;
     case "name":
@@ -212,8 +161,9 @@ export type MirrorState = {
   brandsLabel: string;
   noListLabel: string;
   circleLabel: string;
+  /** Face photo — silhouette head only until the twin is ready. */
   photoUrl: string | null;
-  /** Real FASHN twin face/url when minted; face photo falls back to photoUrl. */
+  /** FASHN twin (or dressed twin) — full-card fill when twinStatus is ready. */
   twinAvatarUrl: string | null;
   heightCm: number | null;
   build: BuildKey | null;
@@ -229,10 +179,17 @@ export type MirrorState = {
     | null;
   /** Feminine bust band for the silhouette (null when not applicable). */
   bustFullness: "subtle" | "average" | "full" | "very_full" | null;
+  /** Rise vs inseam — visual split only. */
+  legLine: "long_torso" | "even" | "long_leg" | null;
   form: SilhouetteForm;
   developPct: number;
   twinStatus: "idle" | "developing" | "ready" | "error";
   twinError: string | null;
+  /** 0–100 while minting — card overlay, not quiz progress. */
+  twinBuildPct: number;
+  twinBuildLabel: string;
+  /** Elapsed seconds while minting — ticking clock so the card never looks frozen. */
+  twinBuildElapsedSec: number;
   /** FASHN full-look of a worn style on the twin (verdict step). */
   dressStatus: "idle" | "dressing" | "ready" | "error";
   dressError: string | null;
@@ -241,6 +198,9 @@ export type MirrorState = {
   closetImages: string[];
   serial: string;
   foil: boolean;
+  /** Photo analysis / verdict writing — visual lives on this card, not a second photo. */
+  scanActivity: "idle" | "reading" | "review" | "writing";
+  scanNotes: Array<{ label: string; value: string }>;
 };
 
 export const EMPTY_MIRROR: MirrorState = {
@@ -258,16 +218,22 @@ export const EMPTY_MIRROR: MirrorState = {
   muscularity: null,
   bodyShape: null,
   bustFullness: null,
+  legLine: null,
   form: "n",
   developPct: 4,
   twinStatus: "idle",
   twinError: null,
+  twinBuildPct: 0,
+  twinBuildLabel: "",
+  twinBuildElapsedSec: 0,
   dressStatus: "idle",
   dressError: null,
   dressStyleLabel: null,
   closetImages: [],
   serial: "——",
   foil: false,
+  scanActivity: "idle",
+  scanNotes: [],
 };
 
 export function formFromGender(gender: string): SilhouetteForm {

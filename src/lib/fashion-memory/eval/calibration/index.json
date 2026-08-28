@@ -1,0 +1,172 @@
+[
+  {
+    "file": "cal-01-77d834dbfd1a.json",
+    "calibration_id": "cal-01",
+    "persona_id": "77d834dbfd1a7446",
+    "source_run": "2-2026-08-27T08-11-34-446Z",
+    "cell": "outfit×complete",
+    "judge_overall": 2.3,
+    "dims": {
+      "recognized": 2,
+      "asked_right": 3,
+      "not_interrogated": 4,
+      "no_silent_guess": 2,
+      "accuracy": 3,
+      "voice": 1,
+      "would_proceed": 2
+    }
+  },
+  {
+    "file": "cal-02-8b7134c4c782.json",
+    "calibration_id": "cal-02",
+    "persona_id": "8b7134c4c78210f3",
+    "source_run": "2-2026-08-27T08-11-34-446Z",
+    "cell": "capsule×partial",
+    "judge_overall": 2.4,
+    "dims": {
+      "recognized": 2,
+      "asked_right": 3,
+      "not_interrogated": 1,
+      "no_silent_guess": 4,
+      "accuracy": 3,
+      "voice": 2,
+      "would_proceed": 2
+    }
+  },
+  {
+    "file": "cal-03-c6b2f1f55f9b.json",
+    "calibration_id": "cal-03",
+    "persona_id": "c6b2f1f55f9b0bbb",
+    "source_run": "1-2026-08-26T09-18-59-339Z",
+    "cell": "single_item×complete",
+    "judge_overall": 2.9,
+    "dims": {
+      "recognized": 3,
+      "asked_right": 4,
+      "not_interrogated": 5,
+      "no_silent_guess": 2,
+      "accuracy": 4,
+      "voice": 1,
+      "would_proceed": 3
+    }
+  },
+  {
+    "file": "cal-04-03aaaf481cdb.json",
+    "calibration_id": "cal-04",
+    "persona_id": "03aaaf481cdbaaa0",
+    "source_run": "1-2026-08-26T09-18-59-339Z",
+    "cell": "single_item×complete",
+    "judge_overall": 3,
+    "dims": {
+      "recognized": 3,
+      "asked_right": 3,
+      "not_interrogated": 3,
+      "no_silent_guess": 3,
+      "accuracy": 3,
+      "voice": 3,
+      "would_proceed": 3
+    }
+  },
+  {
+    "file": "cal-05-b91c8efa8d68.json",
+    "calibration_id": "cal-05",
+    "persona_id": "b91c8efa8d68b117",
+    "source_run": "1-2026-08-26T09-18-59-339Z",
+    "cell": "capsule×partial",
+    "judge_overall": 3.2,
+    "dims": {
+      "recognized": 2,
+      "asked_right": 3,
+      "not_interrogated": 3,
+      "no_silent_guess": 4,
+      "accuracy": 4,
+      "voice": 3,
+      "would_proceed": 4
+    }
+  },
+  {
+    "file": "cal-06-170eab28707d.json",
+    "calibration_id": "cal-06",
+    "persona_id": "170eab28707d930f",
+    "source_run": "2-2026-08-27T08-11-34-446Z",
+    "cell": "capsule×complete",
+    "judge_overall": 3.5,
+    "dims": {
+      "recognized": 3,
+      "asked_right": 4,
+      "not_interrogated": 5,
+      "no_silent_guess": 4,
+      "accuracy": 4,
+      "voice": 2,
+      "would_proceed": 4
+    }
+  },
+  {
+    "file": "cal-07-346d2347e233.json",
+    "calibration_id": "cal-07",
+    "persona_id": "346d2347e2331cf3",
+    "source_run": "1-2026-08-26T09-18-59-339Z",
+    "cell": "outfit×vague",
+    "judge_overall": 3.8,
+    "dims": {
+      "recognized": 4,
+      "asked_right": 5,
+      "not_interrogated": 4,
+      "no_silent_guess": 4,
+      "accuracy": 3,
+      "voice": 4,
+      "would_proceed": 4
+    }
+  },
+  {
+    "file": "cal-08-25c71b8f28ea.json",
+    "calibration_id": "cal-08",
+    "persona_id": "25c71b8f28eafeb3",
+    "source_run": "1-2026-08-26T09-18-59-339Z",
+    "cell": "outfit×vague",
+    "judge_overall": 4.1,
+    "dims": {
+      "recognized": 4,
+      "asked_right": 5,
+      "not_interrogated": 5,
+      "no_silent_guess": 4,
+      "accuracy": 3,
+      "voice": 4,
+      "would_proceed": 5
+    }
+  },
+  {
+    "file": "cal-09-36b15afdbb3e.json",
+    "calibration_id": "cal-09",
+    "persona_id": "36b15afdbb3e210a",
+    "source_run": "1-2026-08-26T09-18-59-339Z",
+    "cell": "capsule×partial",
+    "judge_overall": 4.4,
+    "dims": {
+      "recognized": 4,
+      "asked_right": 3,
+      "not_interrogated": 5,
+      "no_silent_guess": 4,
+      "accuracy": 5,
+      "voice": 4,
+      "would_proceed": 5
+    }
+  },
+  {
+    "file": "cal-10-b255b8ce6c37.json",
+    "calibration_id": "cal-10",
+    "persona_id": "b255b8ce6c377fbc",
+    "source_run": "1-2026-08-26T09-18-59-339Z",
+    "cell": "outfit×complete",
+    "judge_overall": 4.5,
+    "dims": {
+      "recognized": 4,
+      "asked_right": 5,
+      "not_interrogated": 5,
+      "no_silent_guess": 4,
+      "accuracy": 5,
+      "voice": 3,
+      "would_proceed": 5
+    }
+  }
+]

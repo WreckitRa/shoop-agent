@@ -1,4 +1,8 @@
 import { assertFashionRow, fashionMemoryDb } from "./db";
+import {
+  canonicalizeSignalValue,
+  signalCanonicalKey,
+} from "./normalize/signal-canonical";
 import type {
   RequestEventAttributes,
   RequestEventRow,
@@ -10,6 +14,23 @@ import type {
 
 export function normalizeSignalValue(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function matchCanonical(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function rowMatchesCanonical(
+  row: StyleSignalRow,
+  signalType: StyleSignalType,
+  canonical: string,
+  polarity: -1 | 1,
+): boolean {
+  return (
+    row.signal_type === signalType &&
+    row.polarity === polarity &&
+    matchCanonical(signalCanonicalKey(row), canonical)
+  );
 }
 
 /** Log one episodic request — deterministic, no LLM. Never creates style_signals. */
@@ -61,29 +82,31 @@ export async function upsertStyleSignal(params: {
   status?: StyleSignalStatus;
   sourceQuote?: string | null;
   incrementEvidence?: boolean;
+  valueCanonical?: string | null;
 }): Promise<StyleSignalRow> {
   const db = fashionMemoryDb();
   const context = params.context?.trim() || "general";
   const value = normalizeSignalValue(params.value);
+  const canonical = (
+    params.valueCanonical?.trim() ||
+    (await canonicalizeSignalValue(params.signalType, params.value))
+  );
   const polarity = params.polarity ?? 1;
   const status = params.status ?? (params.source === "stated" ? "active" : "candidate");
 
-  const existing = await db
-    .from("style_signals")
-    .select("*")
-    .eq("user_id", params.userId)
-    .eq("person_id", params.personId)
-    .eq("context", context)
-    .eq("signal_type", params.signalType)
-    .eq("value", value)
-    .eq("polarity", polarity)
-    .in("status", ["active", "candidate"])
-    .maybeSingle();
+  const listed = await listActiveStyleSignals({
+    userId: params.userId,
+    personId: params.personId,
+    context,
+  });
+  const existingRow = listed.find((s) =>
+    rowMatchesCanonical(s, params.signalType, canonical, polarity),
+  );
 
   const now = new Date().toISOString();
 
-  if (existing.data) {
-    const row = existing.data as StyleSignalRow;
+  if (existingRow) {
+    const row = existingRow;
     if (row.source === "stated" && params.source === "inferred") {
       return row;
     }
@@ -113,6 +136,7 @@ export async function upsertStyleSignal(params: {
         evidence_count: nextEvidence,
         last_seen_at: now,
         source_quote: params.sourceQuote ?? row.source_quote,
+        value_canonical: row.value_canonical || canonical,
       })
       .eq("id", row.id)
       .eq("user_id", params.userId)
@@ -134,6 +158,7 @@ export async function upsertStyleSignal(params: {
       context,
       signal_type: params.signalType,
       value,
+      value_canonical: canonical,
       polarity,
       source: params.source,
       confidence: Math.min(0.95, params.confidence ?? (params.source === "stated" ? 0.9 : 0.5)),
@@ -147,21 +172,19 @@ export async function upsertStyleSignal(params: {
     .single();
 
   if (inserted.error?.code === "23505") {
-    const winner = await db
-      .from("style_signals")
-      .select("*")
-      .eq("user_id", params.userId)
-      .eq("person_id", params.personId)
-      .eq("context", context)
-      .eq("signal_type", params.signalType)
-      .eq("value", value)
-      .eq("polarity", polarity)
-      .in("status", ["active", "candidate"])
-      .single();
+    const winnerList = await listActiveStyleSignals({
+      userId: params.userId,
+      personId: params.personId,
+      context,
+    });
+    const winner =
+      winnerList.find((s) =>
+        rowMatchesCanonical(s, params.signalType, canonical, polarity),
+      ) ?? null;
     return assertFashionRow(
       "upsertStyleSignal.concurrent",
-      winner.data as StyleSignalRow | null,
-      winner.error,
+      winner,
+      winner ? null : inserted.error,
     );
   }
 
@@ -212,7 +235,7 @@ export async function findActiveStyleSignal(params: {
   polarity?: -1 | 1;
 }): Promise<StyleSignalRow | null> {
   const context = params.context?.trim() || "general";
-  const value = normalizeSignalValue(params.value);
+  const canonical = await canonicalizeSignalValue(params.signalType, params.value);
   const polarity = params.polarity ?? 1;
   const signals = await listActiveStyleSignals({
     userId: params.userId,
@@ -220,11 +243,8 @@ export async function findActiveStyleSignal(params: {
     context,
   });
   return (
-    signals.find(
-      (s) =>
-        s.signal_type === params.signalType &&
-        s.value === value &&
-        s.polarity === polarity,
+    signals.find((s) =>
+      rowMatchesCanonical(s, params.signalType, canonical, polarity),
     ) ?? null
   );
 }

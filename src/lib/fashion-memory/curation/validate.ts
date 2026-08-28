@@ -1,6 +1,8 @@
 import type { BudgetAssembly } from "../budget/budgetAllocation";
 import type { FashionSearchPlan } from "../search-planner/types";
 import type { FashionSlotBrandStatus } from "../router/types";
+import { garmentSlotFamilyKey } from "../router/garment-family";
+import { recordPipelineEvent } from "../observability/trace";
 import { fromMinorUnits } from "@/lib/money";
 import type {
   CurationRefRegistry,
@@ -451,9 +453,21 @@ function budgetNoteRequired(params: {
 
 const FITTING_ROOM_SUCCESS_RE = /\bfitting room\b/i;
 
-/** Outfit/capsule delivering fewer slots than the brief promised. */
+/** Outfit/capsule missing any brief garment family, or fewer slots than promised. */
+export function missingBriefGarments(plan: FashionSearchPlan): string[] {
+  if (plan.mode !== "outfit" && plan.mode !== "capsule") return [];
+  const have = new Set(
+    plan.slots.map((s) => garmentSlotFamilyKey(s.garment)),
+  );
+  return plan.brief.garments.filter((g) => {
+    const key = garmentSlotFamilyKey(g);
+    return Boolean(key) && !have.has(key);
+  });
+}
+
 export function isDegradedOutfitPlan(plan: FashionSearchPlan): boolean {
   if (plan.mode !== "outfit" && plan.mode !== "capsule") return false;
+  if (missingBriefGarments(plan).length > 0) return true;
   const expected = Math.min(Math.max(plan.brief.garments.length, 1), 5);
   return plan.slots.length < expected;
 }
@@ -634,12 +648,35 @@ export function validateCurationOutput(params: {
   }
 
   if (isDegradedOutfitPlan(params.plan)) {
+    const missing = missingBriefGarments(params.plan);
     const expected = Math.min(Math.max(params.plan.brief.garments.length, 1), 5);
     if (!output.narration.thin_note?.trim()) {
       issues.push({
         code: "missing_thin_note",
-        message: `thin_note required for degraded ${params.plan.mode} plan (${params.plan.slots.length}/${expected} slots)`,
+        message: missing.length
+          ? `thin_note required for missing garment (${missing.join(", ")})`
+          : `thin_note required for degraded ${params.plan.mode} plan (${params.plan.slots.length}/${expected} slots)`,
       });
+    } else if (missing.length) {
+      const note = output.narration.thin_note;
+      const uncovered = missing.filter((g) => {
+        const token = g.toLowerCase().split(/\s+/).pop() ?? "";
+        return token.length > 0 && !note.toLowerCase().includes(token);
+      });
+      if (uncovered.length) {
+        const named = `no ${uncovered[0]} earned the cut — say the word and I'll hunt one`;
+        output = {
+          ...output,
+          narration: {
+            ...output.narration,
+            thin_note: `${named} ${note}`.trim(),
+          },
+        };
+        issues.push({
+          code: "thin_note_missing_garment",
+          message: `thin_note must name missing garment (${uncovered.join(", ")})`,
+        });
+      }
     }
     if (FITTING_ROOM_SUCCESS_RE.test(output.narration.opening)) {
       issues.push({
@@ -963,6 +1000,41 @@ export function validateCurationOutput(params: {
   if (output.narration.budget_note?.trim()) {
     for (let i = issues.length - 1; i >= 0; i -= 1) {
       if (issues[i]?.code === "missing_budget_note") issues.splice(i, 1);
+    }
+  }
+
+  // Thin slot without honesty note — repair, don't fail the rack.
+  if (!output.narration.thin_note?.trim()) {
+    for (const slotOutput of output.slots) {
+      const planSlot = planSlotById.get(slotOutput.slot_id);
+      if (!planSlot || slotOutput.picks.length === 0) continue;
+      const maxPicks = curationPickCap({
+        mode: params.plan.mode,
+        brief: params.plan.brief,
+        optionsWanted: planSlot.options_wanted,
+      });
+      if (slotOutput.picks.length >= maxPicks) continue;
+      const garment = planSlot.garment.trim() || slotOutput.slot_id;
+      const note = `Fewer ${garment} earned it than I'd like.`;
+      output = {
+        ...output,
+        narration: { ...output.narration, thin_note: note },
+      };
+      issues.push({
+        code: "thin_slot_note_repaired",
+        message: note,
+        slot_id: slotOutput.slot_id,
+      });
+      recordPipelineEvent({
+        stage: "curation",
+        payload: {
+          kind: "thin_slot_note_repaired",
+          slot_id: slotOutput.slot_id,
+          delivered: slotOutput.picks.length,
+          agreed: maxPicks,
+        },
+      });
+      break;
     }
   }
 

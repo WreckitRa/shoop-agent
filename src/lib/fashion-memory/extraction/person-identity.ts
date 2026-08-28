@@ -2,9 +2,10 @@
  * Relation beats name: matching / labeling people for prompts and gates.
  */
 import {
+  canonicalizeRelation,
   isUniqueCanonicalRelation,
-  normalizeRelationAlias,
 } from "./relation-aliases";
+import { normalizePersonName } from "../person-name";
 import type { PersonRow } from "../types";
 
 const SKIP_OPTION = "Skip";
@@ -20,17 +21,17 @@ export function findPeopleByName(
   people: PersonRow[],
   name: string,
 ): PersonRow[] {
-  const n = name.trim().toLowerCase();
+  const n = normalizePersonName(name);
   if (!n) return [];
-  return people.filter((p) => (p.name ?? "").trim().toLowerCase() === n);
+  return people.filter((p) => normalizePersonName(p.name) === n);
 }
 
 export function relationsCompatible(
   a: string | null | undefined,
   b: string | null | undefined,
 ): boolean {
-  const ca = normalizeRelationAlias(a ?? "") ?? (a ?? "").trim().toLowerCase();
-  const cb = normalizeRelationAlias(b ?? "") ?? (b ?? "").trim().toLowerCase();
+  const ca = canonicalizeRelation(a);
+  const cb = canonicalizeRelation(b);
   if (!ca || !cb) return false;
   return ca === cb;
 }
@@ -40,14 +41,9 @@ export function findPeopleByRelation(
   people: PersonRow[],
   relation: string,
 ): PersonRow[] {
-  const canonical =
-    normalizeRelationAlias(relation) ?? relation.trim().toLowerCase();
+  const canonical = canonicalizeRelation(relation);
   if (!canonical) return [];
-  return people.filter((p) => {
-    const pCanon =
-      normalizeRelationAlias(p.relation) ?? p.relation.trim().toLowerCase();
-    return pCanon === canonical;
-  });
+  return people.filter((p) => canonicalizeRelation(p.relation) === canonical);
 }
 
 /** Count of roster people sharing a canonical relation. */
@@ -147,8 +143,7 @@ export function ambiguousNameMatches(params: {
 }
 
 function relationMentionAliases(relation: string): string[] {
-  const canonical =
-    normalizeRelationAlias(relation) ?? relation.trim().toLowerCase();
+  const canonical = canonicalizeRelation(relation);
   const aliases: Record<string, string[]> = {
     mother: ["mother", "mom", "mum", "mama"],
     father: ["father", "dad", "daddy", "papa"],

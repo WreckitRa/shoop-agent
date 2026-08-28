@@ -11,6 +11,10 @@ export const cartItemProductSchema = z
     sellerName: z.string().max(200).nullable().optional(),
     sellerDomain: z.string().max(300).nullable().optional(),
     productId: z.string().max(500).nullable().optional(),
+    searchId: z.string().max(80).nullable().optional(),
+    ref: z.string().max(500).nullable().optional(),
+    brand: z.string().max(200).nullable().optional(),
+    color: z.string().max(80).nullable().optional(),
     productUrl: z.string().url().max(4000).nullable().optional(),
   })
   .strict();

@@ -24,10 +24,10 @@ import {
 } from "../router/clarification-defaults";
 import { buildFashionRouterPrompt } from "../router/prompt";
 import {
-  inferKidsDepartmentFromMessage,
   needsIntakeFacts,
   parseDepartmentFromMessage,
 } from "../intake/identity-gate";
+import { departmentForProposedPerson } from "../resolve-person";
 import {
   emptyGuestFashionMemorySnapshot,
   FashionLocalStore,
@@ -108,8 +108,15 @@ describe("son_name_no_roster_options", () => {
         cap.some((e) => e.payload.decision === "roster_name_option_stripped"),
       );
 
-      assert.equal(parseDepartmentFromMessage(SON_ASK), "boys");
-      assert.equal(inferKidsDepartmentFromMessage(SON_ASK), "boys");
+      assert.equal(parseDepartmentFromMessage(SON_ASK), null);
+      assert.equal(
+        departmentForProposedPerson({
+          relation: "son",
+          departmentHint: null,
+          ageHint: 8,
+        }),
+        "boys",
+      );
     } finally {
       setTestPipelineEventCapture(null);
     }
@@ -206,7 +213,7 @@ describe("two_gabriels_coexist", () => {
     );
   });
 
-  it("mom/mama alias still merges (unregressed)", () => {
+  it("unique-slot mother merges on canonical key only", () => {
     const mother = person({
       id: "22222222-2222-4222-8222-222222222222",
       relation: "mother",
@@ -214,10 +221,18 @@ describe("two_gabriels_coexist", () => {
     });
     const dup = findRosterDuplicateForNewPerson({
       people: [mother],
-      relation: "mama",
+      relation: "mother",
       name: null,
     });
     assert.equal(dup?.id, mother.id);
+    assert.equal(
+      findRosterDuplicateForNewPerson({
+        people: [mother],
+        relation: "mama",
+        name: null,
+      }),
+      null,
+    );
   });
 });
 

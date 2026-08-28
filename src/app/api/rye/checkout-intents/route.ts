@@ -1,4 +1,5 @@
 import { getAuthContext } from "@/lib/auth/session";
+import { trackProductEvent } from "@/lib/analytics/track";
 import { checkoutFormToRyeBuyer, isUsRyeCheckoutCountry } from "@/lib/rye/buyer";
 import { getRyeClient, ryePollOptions } from "@/lib/rye/client";
 import {
@@ -41,6 +42,16 @@ export async function POST(req: Request) {
   }
 
   const body = parsed.data;
+
+  trackProductEvent({
+    name: "checkout_start",
+    userId: auth.userId,
+    props: {
+      source: "rye",
+      product_url: body.productUrl,
+      quantity: body.quantity,
+    },
+  });
 
   if (!isUsRyeCheckoutCountry(body.shippingAddress.addressCountry)) {
     return Response.json(

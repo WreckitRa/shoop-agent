@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/ai-chat/db";
 import type { GuestLocalData } from "@/lib/client/guest-storage";
 import { guestUserIdFromSessionId } from "@/lib/auth/guest-session";
+import { fashionOwnerUserId } from "@/lib/fashion-memory/auth";
+import { fashionMemoryDb } from "@/lib/fashion-memory/db";
 import { migrateGuestFashionMemoryToUser } from "@/lib/fashion-memory/migrate-guest";
+import { ensureSelfPerson } from "@/lib/fashion-memory/people";
+import type { PersonRow } from "@/lib/fashion-memory/types";
 import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
 
 async function reassignGuestUserId(guestUserId: string, realUserId: string) {
@@ -59,6 +63,18 @@ async function reassignGuestUserId(guestUserId: string, realUserId: string) {
       data: { userId: realUserId },
     }),
     prisma.userProfile.updateMany({
+      where: { userId: guestUserId },
+      data: { userId: realUserId },
+    }),
+    prisma.productEvent.updateMany({
+      where: { userId: guestUserId },
+      data: { userId: realUserId },
+    }),
+    prisma.biometricConsent.updateMany({
+      where: { userId: guestUserId },
+      data: { userId: realUserId },
+    }),
+    prisma.photoAnalysis.updateMany({
       where: { userId: guestUserId },
       data: { userId: realUserId },
     }),
@@ -121,6 +137,78 @@ async function importLocalGuestData(realUserId: string, data: GuestLocalData) {
   }
 }
 
+/** Move guest-session twin rows onto the signed-in user. */
+async function claimGuestAvatar(guestUserId: string, realUserId: string) {
+  const sessionUuid = fashionOwnerUserId(guestUserId);
+  if (!sessionUuid || sessionUuid === realUserId) return;
+
+  const db = fashionMemoryDb();
+  const guestSelf = await db
+    .from("people")
+    .select("*")
+    .eq("user_id", sessionUuid)
+    .eq("relation", "self")
+    .maybeSingle();
+  const guestRow = guestSelf.data as PersonRow | null;
+  if (!guestRow) return;
+
+  const realSelf = await ensureSelfPerson(realUserId);
+  if (guestRow.id === realSelf.id) {
+    await db.from("people").update({ user_id: realUserId }).eq("id", guestRow.id);
+    await db
+      .from("avatar_drafts")
+      .update({ user_id: realUserId })
+      .eq("user_id", sessionUuid);
+    await prisma.tryonGeneration.updateMany({
+      where: { userId: sessionUuid },
+      data: { userId: realUserId },
+    });
+    return;
+  }
+
+  const g = guestRow as PersonRow & {
+    avatar?: unknown;
+    avatar_source_photo_path?: string | null;
+  };
+  if (g.avatar || g.avatar_source_photo_path) {
+    await db
+      .from("people")
+      .update({
+        avatar: g.avatar ?? null,
+        avatar_source_photo_path: g.avatar_source_photo_path ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", realSelf.id);
+  }
+
+  const draft = await db
+    .from("avatar_drafts")
+    .select("*")
+    .eq("person_id", guestRow.id)
+    .maybeSingle();
+  if (draft.data) {
+    await db.from("avatar_drafts").delete().eq("person_id", realSelf.id);
+    await db.from("avatar_drafts").upsert({
+      ...draft.data,
+      person_id: realSelf.id,
+      user_id: realUserId,
+    });
+    await db.from("avatar_drafts").delete().eq("person_id", guestRow.id);
+  }
+
+  await db
+    .from("fashion_facts")
+    .update({ user_id: realUserId, person_id: realSelf.id })
+    .eq("user_id", sessionUuid);
+
+  await prisma.tryonGeneration.updateMany({
+    where: { userId: sessionUuid },
+    data: { userId: realUserId, personId: realSelf.id },
+  });
+
+  await db.from("people").delete().eq("id", guestRow.id);
+}
+
 export async function migrateGuestDataToUser(params: {
   guestId: string;
   realUserId: string;
@@ -128,6 +216,7 @@ export async function migrateGuestDataToUser(params: {
 }) {
   const guestUserId = guestUserIdFromSessionId(params.guestId);
   await reassignGuestUserId(guestUserId, params.realUserId);
+  await claimGuestAvatar(guestUserId, params.realUserId);
   if (params.localData) {
     await importLocalGuestData(params.realUserId, params.localData);
     if (params.localData.fashionMemory) {

@@ -23,7 +23,7 @@ import {
 } from "./components";
 import { paletteComponentScore, paletteMatch } from "./palette-match";
 import { scoreSlotProducts } from "./orchestrator";
-import { SCORING_COMPONENT_KEYS, SCORING_WEIGHTS, SCORING_WEIGHTS_VERSION } from "./weights";
+import { SCORING_WEIGHTS, scoringComponentKeys, scoringWeights, scoringWeightsVersion } from "./weights";
 
 function fact<T extends FashionFactRow["fact_type"]>(
   fact_type: T,
@@ -333,9 +333,9 @@ describe("commission is not a scoring input", () => {
 
   it("weights, brief, catalog product, and score output have no rate fields", () => {
     assertClean("weights", {
-      weights: SCORING_WEIGHTS,
-      keys: SCORING_COMPONENT_KEYS,
-      version: SCORING_WEIGHTS_VERSION,
+      weights: scoringWeights(),
+      keys: scoringComponentKeys(),
+      version: scoringWeightsVersion(),
     });
     assertClean("brief", briefSizesUnknown);
     assertClean("product", product("p1"));
@@ -375,9 +375,63 @@ describe("scoreProduct integration", () => {
       recipientFacts: [],
       bestRank: 0,
     });
-    assert.equal(score.weights_version, SCORING_WEIGHTS_VERSION);
+    assert.equal(score.weights_version, scoringWeightsVersion());
     assert.ok(score.final >= 0 && score.final <= 1);
     assert.ok(score.components.shopify_rank > 0);
+  });
+
+  it("explore drops corroboration; keep keeps it", () => {
+    const corroborated = product("hi", { matched_by: [0, 1, 2] });
+    const singleton = product("lo", { matched_by: [0] });
+    const keepHi = scoreProduct({
+      product: corroborated,
+      slot: planSlot(),
+      brief: { ...briefSizesUnknown, preference_anchor: "keep" },
+      recipientFacts: [],
+      bestRank: 0,
+    });
+    const keepLo = scoreProduct({
+      product: singleton,
+      slot: planSlot(),
+      brief: { ...briefSizesUnknown, preference_anchor: "keep" },
+      recipientFacts: [],
+      bestRank: 0,
+    });
+    assert.ok(keepHi.final > keepLo.final);
+
+    const exploreHi = scoreProduct({
+      product: corroborated,
+      slot: planSlot(),
+      brief: { ...briefSizesUnknown, preference_anchor: "explore" },
+      recipientFacts: [],
+      bestRank: 0,
+    });
+    const exploreLo = scoreProduct({
+      product: singleton,
+      slot: planSlot(),
+      brief: { ...briefSizesUnknown, preference_anchor: "explore" },
+      recipientFacts: [],
+      bestRank: 0,
+    });
+    assert.equal(exploreHi.active_components.includes("corroboration"), false);
+    assert.ok(exploreHi.active_components.includes("shopify_rank"));
+    assert.ok(Math.abs(exploreHi.final - exploreLo.final) < 1e-9);
+
+    const prev = process.env.SCORING_WEIGHTS_VERSION;
+    process.env.SCORING_WEIGHTS_VERSION = "v3-brand";
+    try {
+      const v3Explore = scoreProduct({
+        product: corroborated,
+        slot: planSlot(),
+        brief: { ...briefSizesUnknown, preference_anchor: "explore" },
+        recipientFacts: [],
+        bestRank: 0,
+      });
+      assert.equal(v3Explore.active_components.includes("corroboration"), true);
+    } finally {
+      if (prev === undefined) delete process.env.SCORING_WEIGHTS_VERSION;
+      else process.env.SCORING_WEIGHTS_VERSION = prev;
+    }
   });
 });
 

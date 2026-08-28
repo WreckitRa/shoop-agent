@@ -3,6 +3,8 @@
 import { BUDGET_OPTIONS } from "@/lib/onboarding/form-options";
 import {
   FittingAddIn,
+  FittingKick,
+  FittingMulti,
   FittingNavRow,
   FittingTitle,
   FittingWhisper,
@@ -45,6 +47,7 @@ export function TasteSpendStep({
 
   return (
     <section>
+      <FittingKick>EVIDENCE</FittingKick>
       <FittingTitle
         lines={[
           { text: "How do you like" },
@@ -55,8 +58,9 @@ export function TasteSpendStep({
         I never rank by cheapest... I find the best match inside how{" "}
         <b>you</b> buy. Deals become a bonus, not the sort order.
       </FittingWhisper>
+      <FittingMulti />
 
-      <div className="flex max-w-[640px] flex-wrap gap-2.5">
+      <div className="mt-4 flex max-w-[640px] flex-wrap gap-2">
         {BUDGET_OPTIONS.map((opt) => (
           <OnboardingChip
             key={opt.value}

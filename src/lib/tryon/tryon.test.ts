@@ -220,10 +220,11 @@ describe("fashn avatar prompt", () => {
     assert.match(prompt ?? "", /athletic build/);
     assert.match(prompt ?? "", /defined musculature/);
     assert.match(prompt ?? "", /tall stature/);
+    assert.match(prompt ?? "", /Do not infer body type from the face/);
     assert.doesNotMatch(prompt ?? "", /skin|hair/i);
     assert.match(prompt ?? "", /neutral standing pose/);
     assert.match(prompt ?? "", /plain fitted white crewneck/i);
-    assert.match(prompt ?? "", /no beautification/);
+    assert.doesNotMatch(prompt ?? "", /no jacket, no coat, no scarf/);
   });
 });
 

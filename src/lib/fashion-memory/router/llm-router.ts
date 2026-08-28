@@ -112,30 +112,54 @@ export async function runFashionRouter(
   params: {
     context: FashionRouterContext;
     signal?: AbortSignal;
+    /**
+     * @deprecated Prefer `gateNote` — full override disables prompt cache.
+     * Kept for tests that inject a stub system string.
+     */
     systemOverride?: string;
+    /**
+     * Instruction-only gate note appended after the uncached context block.
+     * Keeps ROUTER_PROMPT_STATIC on the cache boundary.
+     */
+    gateNote?: string;
     traceId?: string | null;
     stage?: string;
     /** Force Opus-class model for this call (escalation already decided). */
     modelOverride?: string;
+    /**
+     * Override sampling temperature. Line-reuse rewrites use ~0.7 for
+     * prose variety; routing calls leave this unset (env / 0.2 default).
+     */
+    temperature?: number;
   },
   deps: RunFashionRouterDeps = {},
 ): Promise<FashionRouterResult> {
   const createMessage = deps.createMessage ?? tracedLLMCall;
-  const parts = params.systemOverride
-    ? null
-    : buildFashionRouterSystemParts(params.context);
+  const gateNote = params.gateNote?.trim() || "";
+  const parts =
+    params.systemOverride && !gateNote
+      ? null
+      : buildFashionRouterSystemParts(params.context);
+  const noteBlock = gateNote
+    ? `\n\nGATE NOTE (instruction only — never echo this wording to the client):\n${gateNote}`
+    : "";
   const system =
-    params.systemOverride ?? parts?.full ?? buildFashionRouterPrompt(params.context);
-  /** Gate/system overrides stay uncached (dynamic); happy path caches static rules. */
+    params.systemOverride && !gateNote
+      ? params.systemOverride
+      : `${parts?.full ?? buildFashionRouterPrompt(params.context)}${noteBlock}`;
+  /** Static rules cached; ROSTER/PROFILES/DATE + gate notes stay uncached. */
   const systemCachedPrefix = parts?.cachedPrefix;
-  const systemUncachedSuffix = params.systemOverride
-    ? params.systemOverride
-    : parts?.uncachedSuffix;
+  const systemUncachedSuffix = parts
+    ? `${parts.uncachedSuffix}${noteBlock}`
+    : undefined;
   const messages = buildAnthropicMessages(params.context);
   const stage = params.stage ?? "router";
-  const temperature = Number.isFinite(FASHION_ROUTER_TEMPERATURE)
-    ? FASHION_ROUTER_TEMPERATURE
-    : 0.2;
+  const temperature =
+    typeof params.temperature === "number" && Number.isFinite(params.temperature)
+      ? params.temperature
+      : Number.isFinite(FASHION_ROUTER_TEMPERATURE)
+        ? FASHION_ROUTER_TEMPERATURE
+        : 0.2;
 
   const isValidationRetry =
     stage.includes("retry") || stage === "gate_retry";
@@ -165,13 +189,13 @@ export async function runFashionRouter(
         maxTokens: 2048,
         temperature,
         systemPrompt: system,
-        ...(params.systemOverride
-          ? { disablePromptCache: true }
-          : systemCachedPrefix
-            ? {
-                systemCachedPrefix,
-                systemUncachedSuffix: systemUncachedSuffix ?? "",
-              }
+        ...(systemCachedPrefix
+          ? {
+              systemCachedPrefix,
+              systemUncachedSuffix: systemUncachedSuffix ?? "",
+            }
+          : params.systemOverride && !gateNote
+            ? { disablePromptCache: true }
             : {}),
         inputMessages: messages,
         tools: FASHION_ROUTER_TOOLS,

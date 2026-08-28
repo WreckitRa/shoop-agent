@@ -83,7 +83,7 @@ Encryption in transit and at rest. Access limited to staff who need it, logged a
 
 ## 9\. Children
 
-**Shoop is for users 13 and older.** We ask date of birth at signup and do not knowingly collect data from anyone under 13\. If we discover that we have, we delete it, including any biometric data, without waiting for a request. Report a suspected under-13 account to [hello@shoop.email](mailto:hello@shoop.email).
+**Shoop is for users 13 and older.** You confirm you are at least 13 before any photograph is processed. We also record date of birth when you create an account. We do not knowingly collect data from anyone under 13. If we discover that we have, we delete it, including any biometric data, without waiting for a request. Report a suspected under-13 session or account to [hello@shoop.email](mailto:hello@shoop.email).
 
 ## 10\. Where Shoop is available
 

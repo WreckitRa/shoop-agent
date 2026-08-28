@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { tryonPathFromStoredUrl } from "./storage";
+import {
+  isTransientTryonStorageError,
+  tryonPathFromStoredUrl,
+} from "./storage";
 
 describe("tryonPathFromStoredUrl", () => {
   it("strips sign host + bucket from an expired signed url", () => {
@@ -14,5 +17,22 @@ describe("tryonPathFromStoredUrl", () => {
 
   it("returns null for unrelated urls", () => {
     assert.equal(tryonPathFromStoredUrl("https://cdn.example.com/x.jpg"), null);
+  });
+});
+
+describe("isTransientTryonStorageError", () => {
+  it("retries supabase fetch-failed uploads, not permanent errors", () => {
+    assert.equal(
+      isTransientTryonStorageError(new Error("tryon upload failed: fetch failed")),
+      true,
+    );
+    assert.equal(
+      isTransientTryonStorageError(new Error("fetch provider image 503")),
+      true,
+    );
+    assert.equal(
+      isTransientTryonStorageError(new Error("A face photo is required")),
+      false,
+    );
   });
 });

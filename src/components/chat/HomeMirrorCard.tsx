@@ -190,6 +190,24 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
           {ready ? `${rackCount}` : "Start"}
         </span>
       </button>
+
+      {ready ? (
+        <button
+          type="button"
+          onClick={() => {
+            openFittingRoom();
+            window.setTimeout(() => {
+              useTryOnDrawerStore.getState().requestAskShare();
+            }, 400);
+          }}
+          className="mt-2 flex items-center justify-between rounded-[13px] border border-hairline bg-white px-3.5 py-2.5 text-[11.5px] font-bold text-ink transition hover:border-ink/20"
+        >
+          <span>Ask friends</span>
+          <span className="rounded-full bg-brand px-2 py-0.5 text-[9.5px] font-black text-white">
+            1 tap
+          </span>
+        </button>
+      ) : null}
     </aside>
   );
 }

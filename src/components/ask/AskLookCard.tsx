@@ -5,8 +5,10 @@ import Link from "next/link";
 import { ShoopIcon, ShoopLogo } from "@/components/brand/ShoopBrand";
 import { cn } from "@/lib/ai-chat/cn";
 import {
-  ASK_VOTE_CHOICES,
+  ASK_COMPARE_CHOICES,
+  ASK_RATE_CHOICES,
   ASK_VOTE_LABELS,
+  choicesForPollMode,
   type AskVoteChoice,
   type LookAskSharePublic,
 } from "@/lib/ask/types";
@@ -252,13 +254,18 @@ export function AskLookCard({ token, initialShare }: Props) {
   if (!share) return null;
 
   const revealed = share.shoopRevealed;
-  const totalHuman = ASK_VOTE_CHOICES.reduce(
-    (n, c) => n + (share.tallies[c] - (revealed && share.shoopVote === c ? 1 : 0)),
+  const pollChoices = choicesForPollMode(share.pollMode);
+  const isCompare = share.pollMode === "compare" && Boolean(share.altImageUrl);
+  const totalHuman = pollChoices.reduce(
+    (n, c) =>
+      n +
+      (share.tallies[c] -
+        (revealed && share.shoopVote === c ? 1 : 0)),
     0,
   );
-  const juryTotal = ASK_VOTE_CHOICES.reduce((n, c) => n + share.tallies[c], 0);
+  const juryTotal = pollChoices.reduce((n, c) => n + share.tallies[c], 0);
   const avg =
-    juryTotal > 0
+    !isCompare && juryTotal > 0
       ? (share.tallies.no * 1 +
           share.tallies.meh * 2 +
           share.tallies.almost * 3 +
@@ -273,24 +280,50 @@ export function AskLookCard({ token, initialShare }: Props) {
 
   const serial = String(share.serial).padStart(6, "0");
   const asker = share.askerName.toUpperCase();
+  const askerFirst = firstName(share.askerName);
 
   return (
     <div className="shoop-ask-shell">
       <div className="shoop-ask-card">
         <div className="shoop-ask-scroll">
         <div className="shoop-ask-im">
-          <button
-            type="button"
-            className="shoop-ask-imhit"
-            onClick={() => setFullscreen(true)}
-            aria-label="See full look"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={share.imageUrl}
-              alt={`${share.askerName} trying it on`}
-            />
-          </button>
+          {isCompare && share.altImageUrl ? (
+            <div className="grid grid-cols-2 gap-1.5">
+              {(
+                [
+                  ["a", share.imageUrl, "Look A"],
+                  ["b", share.altImageUrl, "Look B"],
+                ] as const
+              ).map(([side, src, label]) => (
+                <button
+                  key={side}
+                  type="button"
+                  className="shoop-ask-imhit relative overflow-hidden rounded-lg"
+                  onClick={() => setFullscreen(true)}
+                  aria-label={`See ${label}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`${share.askerName} — ${label}`} />
+                  <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[9px] font-extrabold tracking-wide text-ink">
+                    {side.toUpperCase()}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="shoop-ask-imhit"
+              onClick={() => setFullscreen(true)}
+              aria-label="See full look"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={share.imageUrl}
+                alt={`${share.askerName} trying it on`}
+              />
+            </button>
+          )}
         </div>
         <div className="shoop-ask-id">
           <b>
@@ -313,8 +346,15 @@ export function AskLookCard({ token, initialShare }: Props) {
 
         <div className="shoop-ask-body">
           <div className="shoop-ask-q">
-            Should {share.askerName.split(" ")[0]} get it?{" "}
-            <b>You first.</b>
+            {isCompare ? (
+              <>
+                Which look for {askerFirst}? <b>You first.</b>
+              </>
+            ) : (
+              <>
+                Should {askerFirst} get it? <b>You first.</b>
+              </>
+            )}
           </div>
 
           {!revealed ? (
@@ -324,31 +364,46 @@ export function AskLookCard({ token, initialShare }: Props) {
                 <div className="s1">SEALED</div>
                 <div className="s2">vote before you peek... no cheating</div>
               </div>
-              <div className="shoop-ask-votes">
-                {ASK_VOTE_CHOICES.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={cn("shoop-ask-vb", c === "love" && "love")}
-                    disabled={busy}
-                    onClick={() => onVoteClick(c)}
-                  >
-                    {ASK_VOTE_LABELS[c]}
-                  </button>
-                ))}
-              </div>
+              {isCompare ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {ASK_COMPARE_CHOICES.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className="shoop-ask-vb"
+                      disabled={busy}
+                      onClick={() => onVoteClick(c)}
+                    >
+                      {c === "a" ? "Look A" : "Look B"}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="shoop-ask-votes">
+                  {ASK_RATE_CHOICES.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={cn("shoop-ask-vb", c === "love" && "love")}
+                      disabled={busy}
+                      onClick={() => onVoteClick(c)}
+                    >
+                      {ASK_VOTE_LABELS[c]}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="shoop-ask-vfoot">
-                no account needed · {totalHuman} voted · Shoop voted too...
-                shows after yours
+                no account needed · Shoop voted too... shows after yours
               </div>
             </div>
           ) : (
             <div className="shoop-ask-reveal">
               <div className="shoop-ask-poll">
                 <div className="shoop-ask-pt">
-                  {asker.split(" ")[0]} ASKED FRIENDS · {totalHuman} VOTED
+                  {askerFirst.toUpperCase()} ASKED FRIENDS · {totalHuman} VOTED
                 </div>
-                {juryTotal > 0 ? (
+                {!isCompare && juryTotal > 0 ? (
                   <div className="shoop-ask-avg">
                     <b>
                       {avg.toFixed(1)}
@@ -357,11 +412,16 @@ export function AskLookCard({ token, initialShare }: Props) {
                     <i>FRIENDS + SHOOP · {avgLab}</i>
                   </div>
                 ) : null}
-                {ASK_VOTE_CHOICES.map((c) => {
+                {pollChoices.map((c) => {
                   const n = share.tallies[c];
                   const pct =
                     juryTotal > 0 ? Math.round((n / juryTotal) * 100) : 0;
                   const voters = share.votes.filter((v) => v.choice === c);
+                  const choiceLabel = isCompare
+                    ? c === "a"
+                      ? "Look A"
+                      : "Look B"
+                    : ASK_VOTE_LABELS[c];
                   return (
                     <div
                       key={c}
@@ -373,11 +433,11 @@ export function AskLookCard({ token, initialShare }: Props) {
                       <span
                         className={cn("pl", c === "love" && "love")}
                       >
-                        {ASK_VOTE_LABELS[c]}
+                        {choiceLabel}
                         {share.ownerVote === c ? (
                           <span className="youtag">
                             {" "}
-                            {firstName(share.askerName).toUpperCase()}
+                            {askerFirst.toUpperCase()}
                           </span>
                         ) : share.myVote === c ? (
                           <span className="youtag"> YOU</span>
@@ -407,8 +467,6 @@ export function AskLookCard({ token, initialShare }: Props) {
                             (isPlaceholderName(v.displayName)
                               ? "Friend"
                               : v.displayName.trim());
-                          // Asker's vote always shows their name — never "YOU",
-                          // including when the asker opens their own shared link.
                           const isSelf =
                             v.voterKey === voterKey && !v.isOwner;
                           const labelName = v.isOwner

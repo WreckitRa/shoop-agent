@@ -135,6 +135,24 @@ describe("assembleExtractionContext helpers", () => {
     assert.match(block, /\[NEW\] user: yeah/);
   });
 
+  it("marks chip taps as [tap] on the NEW line", () => {
+    const t1 = new Date("2026-07-07T10:01:00.000Z");
+    const block = formatMessageWindowBlock({
+      watermarkMessageId: null,
+      watermarkCreatedAt: null,
+      messages: [
+        {
+          id: "m2",
+          role: "user",
+          content: "You decide",
+          metadata: { fashionChipTap: true },
+          createdAt: t1,
+        },
+      ],
+    });
+    assert.match(block, /\[NEW\] \[tap\] user: You decide/);
+  });
+
   it("matches relation aliases like mom → mother", () => {
     const mother = person({ id: "2", relation: "mother", name: "Sarah" });
     assert.equal(personMentionedInText(mother, "gift for mom"), true);

@@ -7,6 +7,11 @@ import { isSupabaseAuthUserId } from "@/lib/fashion-memory/auth";
 import { upsertFashionFact } from "@/lib/fashion-memory/facts";
 import { genderFromUserProfile } from "@/lib/fashion-memory/intake/account-profile-bridge";
 import { parseSizeValue } from "@/lib/fashion-memory/intake/parse-size-value";
+import {
+  classifyNoGo,
+  noGoGarmentKey,
+} from "@/lib/fashion-memory/extraction/normalize-fact-write";
+import { canonicalizeSignalValue } from "@/lib/fashion-memory/normalize/signal-canonical";
 import { ensureSelfPerson, updatePersonName } from "@/lib/fashion-memory/people";
 import { upsertStyleSignal } from "@/lib/fashion-memory/signals";
 import type {
@@ -20,19 +25,6 @@ import {
   loadOnboardingProjectionSnapshot,
   type OnboardingProjectionSnapshot,
 } from "@/lib/onboarding/projection-snapshot";
-
-const MATERIAL_NO_GOS = new Set([
-  "leather",
-  "wool",
-  "fur",
-  "nickel",
-  "silk",
-  "cashmere",
-  "suede",
-  "polyester",
-  "synthetic fragrances",
-  "animal products",
-]);
 
 const COLOR_SIGNAL = new Set([
   "black",
@@ -130,22 +122,14 @@ export function sizeSeedsFromSizing(
   return out;
 }
 
-/** Exported for tests. */
-export function classifyHardAvoid(
+export async function classifyHardAvoid(
   raw: string,
-): { kind: FashionFactNoGoKind; value: string } | null {
-  const value = raw.trim().toLowerCase();
-  if (!value || value.length > 80) return null;
-  if (MATERIAL_NO_GOS.has(value) || /\b(leather|wool|fur|silk|polyester)\b/.test(value)) {
-    return { kind: "material", value };
-  }
-  if (/\b(red|blue|green|yellow|pink|orange|purple|white|black|navy)\b/.test(value)) {
-    return { kind: "color", value };
-  }
-  if (/\b(shorts|skirt|dress|heels?|sandals?|tie|suit)\b/.test(value)) {
-    return { kind: "garment", value };
-  }
-  return { kind: "style", value };
+): Promise<{ kind: FashionFactNoGoKind; value: string } | null> {
+  const base = classifyNoGo(raw);
+  if (!base) return null;
+  if (base.kind === "garment") return base;
+  const canonical = await canonicalizeSignalValue(base.kind, base.value);
+  return { kind: base.kind, value: canonical };
 }
 
 function classifyTasteSignalType(tag: string): StyleSignalType {
@@ -169,15 +153,6 @@ function shouldSeedTasteCategory(category: string | null | undefined): boolean {
     c === "aspirational" ||
     c === "compliment"
   );
-}
-
-function noGoGarmentKey(kind: FashionFactNoGoKind, value: string): string {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 48);
-  return `nogo-${kind}-${slug || "x"}`;
 }
 
 /**
@@ -290,7 +265,7 @@ export async function seedOnboardingIntoFashionMemory(
     }
 
     for (const h of hardNegatives) {
-      const classified = classifyHardAvoid(h.value);
+      const classified = await classifyHardAvoid(h.value);
       if (!classified) continue;
       writes.push(upsertFashionFact({
         userId,

@@ -1,0 +1,273 @@
+{
+  "calibration_id": "cal-08",
+  "source_run": "1-2026-08-26T09-18-59-339Z",
+  "persona_id": "25c71b8f28eafeb3",
+  "persona_name": "Morgan32",
+  "cell": "outfit×vague",
+  "profile_state": "quick_shopper",
+  "judge_overall": 4.1,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 4,
+      "why": "Callback to navy/tailored lane felt known; no re-asks. But blazer already owned never surfaced."
+    },
+    "asked_right": {
+      "score": 5,
+      "why": "Occasion, anchor, depth, and slots—each question would change the rack. Nothing wasted."
+    },
+    "not_interrogated": {
+      "score": 5,
+      "why": "One tight consult round, conversational tone, depth captured. Felt like a stylist, not a form."
+    },
+    "no_silent_guess": {
+      "score": 4,
+      "why": "Push assumption spoken and correctable; but color nudge stated only in brief, not aloud to shopper."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Navy, dressy, 2 looks, push all match. But truth wanted blouse+trousers+blazer; brief dropped blazer she owns."
+    },
+    "voice": {
+      "score": 4,
+      "why": "Warm, specific to her navy/tailored lane; no log-speak. Slightly generic 'smart but not stiff' phrasing."
+    },
+    "would_proceed": {
+      "score": 5,
+      "why": "Quick guided shopper got fast, confident routing that honored push and depth—she'd happily wait for results."
+    }
+  },
+  "human_overall": 3.7,
+  "human_dimensions": null,
+  "human_notes": "Provisional human reader (Claude calibration grades, not a separate human). Overall only.",
+  "agreement": {
+    "overall_within_0_4": true,
+    "opus_minus_reader": 0,
+    "sonnet_minus_reader": -1.1
+  },
+  "truth": {
+    "request_type": "outfit",
+    "garments": [
+      "blouse",
+      "trousers",
+      "blazer"
+    ],
+    "owns": [
+      "blazer"
+    ],
+    "occasion": "baptism with family",
+    "formality": "dressy",
+    "color": "navy",
+    "budget": "no_cap",
+    "depth": {
+      "looks": 2
+    },
+    "anchor": "push"
+  },
+  "opening_message": "need something for soon",
+  "brief": {
+    "recipient_person_id": "c634daba-e699-4c70-bb6c-71f3e3089fa0",
+    "request_type": "outfit",
+    "garments": [
+      "Trousers",
+      "Top"
+    ],
+    "occasion_context": "baptism",
+    "quantity_hint": "2 looks",
+    "must_haves": [],
+    "nice_to_haves": [],
+    "budget_context": {
+      "stated": false
+    },
+    "style_direction": "Smart, tailored separates in a slightly elevated take on your usual navy-and-tailored lane — dressy for a family baptism without tipping into full formalwear, with a bit of a fresh twist since you're pushing beyond the usual.",
+    "department_scope": "mens",
+    "color_direction": {
+      "source": "profile"
+    },
+    "brand_direction": {
+      "source": "none"
+    },
+    "stated_facts": {
+      "person_ref": "c634",
+      "department": "mens",
+      "sizes": {
+        "tops": "L",
+        "bottoms": "US34",
+        "shoes": "US10"
+      }
+    },
+    "depth": {
+      "looks_wanted": 2,
+      "options_per_item": 2,
+      "source": "stated"
+    },
+    "preference_anchor": "unspecified",
+    "consultation": {
+      "confirmed": [
+        "push me a little",
+        "2 looks",
+        "top, trousers"
+      ],
+      "rounds_used": 1
+    },
+    "assumptions": [
+      "I'm nudging past your usual navy with a slightly bolder color or texture.",
+      "Kept it in your usual lane — say the word for something new."
+    ],
+    "knowledge_state": {
+      "department": "mens",
+      "sizes_confirmed": [
+        "Trousers",
+        "Top"
+      ],
+      "sizes_unconfirmed": [
+        "Trousers",
+        "Top"
+      ]
+    }
+  },
+  "question_rounds": 3,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "need something for soon"
+    },
+    {
+      "role": "assistant",
+      "content": "Got you—what's the occasion coming up? That'll help me pull the right thing fast.",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "occasion",
+          "text": "What's it for?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "It's a baptism with family—so I need something dressy but not over the top, you know?"
+    },
+    {
+      "role": "assistant",
+      "content": "Got it — a baptism calls for smart but not stiff. I know you lean navy and tailored for occasions like this, so I've got a good starting point.",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "preference_anchor",
+          "text": "Same navy/tailored lane as usual, or want to push it a bit for this one?"
+        },
+        {
+          "gap": "depth",
+          "text": "How many outfit options would you like to see?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "Push me a little, and 2 looks please."
+    },
+    {
+      "role": "assistant",
+      "content": "What should I pull for this?",
+      "move": "ask_clarification",
+      "questions": [
+        {
+          "gap": "slots",
+          "text": "What should I pull?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "Top, Trousers"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ],
+  "sonnet_grade": {
+    "recognized": {
+      "score": 3,
+      "why": "Referenced usual navy/tailored lane, but ignored that client already owns a blazer."
+    },
+    "asked_right": {
+      "score": 2,
+      "why": "Dropped blazer entirely; brief only has top/trousers, missing key outfit piece."
+    },
+    "not_interrogated": {
+      "score": 3,
+      "why": "Three short rounds, reasonable pace, but final generic 'what should I pull' feels form-like."
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Silently dropped blazer and owns-blazer fact without flagging or confirming."
+    },
+    "accuracy": {
+      "score": 2,
+      "why": "Truth wants full outfit incl. blazer; brief only covers top/trousers, missing garment."
+    },
+    "voice": {
+      "score": 2,
+      "why": "Final question is bland and log-like; earlier lines decent but inconsistent tone."
+    },
+    "would_proceed": {
+      "score": 3,
+      "why": "Would proceed cautiously but concerned blazer was forgotten before search."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.6,
+    "worst_moment": {
+      "quote": "assistant [ask_clarification]: What should I pull for this? Q: slots:What should I pull?",
+      "better": "Since you already have a blazer, want me to pull a matching top and trousers, or fresh blazer too?"
+    },
+    "judge_model": "claude-sonnet-5"
+  },
+  "opus_grade": {
+    "recognized": {
+      "score": 4,
+      "why": "Callback to navy/tailored lane felt known; no re-asks, smooth profile use."
+    },
+    "asked_right": {
+      "score": 4,
+      "why": "Occasion, anchor, depth, slots all rack-changing; tight and purposeful."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "One round, salesman-like flow; final \"what should I pull\" slightly form-ish."
+    },
+    "no_silent_guess": {
+      "score": 4,
+      "why": "Push assumption spoken and correctable; department/mens inferred silently but reasonable."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Missed blazer (owned) and dressy blouse nuance; captured navy, push, 2 looks, baptism."
+    },
+    "voice": {
+      "score": 4,
+      "why": "\"Smart but not stiff\" feels specific; warm, concise, one clear stylist voice."
+    },
+    "would_proceed": {
+      "score": 4,
+      "why": "Quick shopper got fast, on-lane read; would wait for results."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 3.7,
+    "worst_moment": {
+      "quote": "What should I pull for this?",
+      "better": "You've got the navy blazer already—want me to build the blouse and trousers around it?"
+    },
+    "judge_model": "claude-opus-4-8"
+  },
+  "sonnet_offset_vs_opus": -1.1,
+  "sonnet_offset_vs_human": -1.1,
+  "sonnet_dim_agreement_vs_opus_pct": 0,
+  "opus_offset_vs_human": 0
+}

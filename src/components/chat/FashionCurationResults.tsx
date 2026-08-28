@@ -19,7 +19,8 @@ import { TRYON_DISCLAIMER } from "@/lib/tryon/types";
 import { InlineChatProductPanel } from "@/components/chat/InlineChatProductPanel";
 import { useChatMessageProductLink } from "@/components/chat/ChatMessageProductLinkContext";
 import { useChatStore } from "@/components/chat/chat-store";
-import { formatPullSheetRecap } from "@/lib/fashion-memory/router/pull-sheet";
+import { formatPullSheetRecap, formatCountLabel } from "@/lib/fashion-memory/router/pull-sheet";
+import { agreedDepth } from "@/lib/fashion-memory/agreed-depth";
 import {
   isInlineProductExpanded,
   useInlineProductStore,
@@ -353,6 +354,18 @@ export const FashionCurationResults = memo(function FashionCurationResults({
     }
     return null;
   });
+  const looksLabel = useChatStore((s) => {
+    for (let i = s.messages.length - 1; i >= 0; i--) {
+      const brief = s.messages[i]?.metadata?.fashionRouter?.brief;
+      if (!brief) continue;
+      if (brief.request_type !== "outfit" && brief.request_type !== "capsule") {
+        continue;
+      }
+      const n = agreedDepth(brief).looks;
+      return formatCountLabel(n, "look", "looks");
+    }
+    return null;
+  });
 
   if (!render?.tiers.picks.length) return null;
 
@@ -432,7 +445,7 @@ export const FashionCurationResults = memo(function FashionCurationResults({
 
       {isOutfit ? (
         <div className="space-y-5">
-          <h3 className="shoop-lookshead">Three looks</h3>
+          <h3 className="shoop-lookshead">{looksLabel ?? formatCountLabel(render.looks!.length, "look", "looks")}</h3>
           {render.looks!.map((look) => (
             <section
               key={look.name}

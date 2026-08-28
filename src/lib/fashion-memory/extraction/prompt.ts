@@ -41,9 +41,18 @@ Resolve who the statement is about:
   · A name and a relation can be the same person: if the roster has
     brother (Gabriel), then "Gabriel", "my brother", and "him" (when he
     is the active referent) all resolve to that one entry.
-  · NOT ON THE ROSTER? Emit new_person FIRST (relation + name if given),
-    then attach every fact and signal from these messages to that person
-    as person_ref "new:1" ("new:2", ...) in this same output. Never skip
+  · DISTINCT RELATIONS ARE DISTINCT PEOPLE. brother Gabriel is never son
+    Gabriel. Never match_existing across relations.
+  · Mentioned ≠ recipient. "for my sister's 8 year old" is the child
+    (nephew if he/boy, niece if she/girl), not the sister. Canonical
+    relation nephew/niece — never emit relation "sister's child" and
+    never create the sister unless she is the one being shopped for.
+  · NOT ON THE ROSTER? Emit new_person FIRST (relation + name if given)
+    with match_existing: { person_ref, confidence, why } when the mention
+    might be an existing person of the SAME relation (typos, nicknames).
+    Code merges at confidence ≥ 0.85; below that it asks. Then attach
+    every fact and signal from these messages to that person as
+    person_ref "new:1" ("new:2", ...) in this same output. Never skip
     a fact because its person did not exist yet.
   · GENUINELY AMBIGUOUS (two plausible referents, or unsure whether
     "my friend Sam" is the existing colleague Sam)? Record NOTHING for
@@ -59,14 +68,16 @@ Before writing any operation, classify the statement:
     ("I always...", "she never wears...", "I'm an M", "black is my
     color") → fact_add or signal_add.
   · THIS-PURCHASE-ONLY — an attribute of the current request ("black"
-    in "a black shirt", "not flashy this time, it's for a funeral")
-    → record NOTHING.
+    in "a black shirt", "not too flashy this time") → record NOTHING.
 The test: did they make a claim about the person, or only describe the
 item they want right now? Claims are recorded. Item specs are not.
-One asymmetry: DISLIKES expressed while shopping ("I hate big logos",
-"not too flashy") generalize far more reliably than positive picks —
-record them as signal_add polarity=-1, source=stated, UNLESS clearly
-scoped to this one item.
+One asymmetry: DISLIKES expressed while shopping generalize far more
+reliably than positive picks — record them as signal_add polarity=-1,
+source=stated, UNLESS clearly scoped to this one item. A dislike names
+ONE thing; the modifier stays with it. "I hate big logos" → style
+"big logos", polarity −1. Never split into style=flashy AND
+brand=big logos. "not too flashy this time" with no named thing is
+THIS-PURCHASE-ONLY.
 
 ════════════════════════════════════════
 OPERATIONS (via the record_fashion_ops tool)
@@ -82,6 +93,8 @@ OPERATIONS (via the record_fashion_ops tool)
                    to the metric (so waist supersedes prior waist only).
                    Measurements are body data for future size-chart fit —
                    never invent them; only when the user stated a number.
+                   Shoe, top, bottom, dress sizes are size facts, never
+                   measurements.
                    Also fact_type "depth_default" when they state a stable
                    depth ("always show me 5", "I never want more than 2")
                    with value { "count": number, "unit": "looks"|"options" }.
@@ -89,26 +102,41 @@ SHOPPING STYLE (person-level, general): how this person likes to be
 served is a fact about the PERSON.
   · Repeatedly choosing "You decide" / "Just show me", or saying "you
     know me", "just pick" → signal_add category "shopping_style",
-    value "quick", source stated when said in words, inferred when
-    only tapped.
+    value "quick". Source stated when said in words; tapped chips are
+    source inferred, status candidate. Chip taps appear as
+    "[NEW] [tap] user: …" in MESSAGES. Two "You decide" taps →
+    shopping_style quick inferred.
   · Engaging with consult questions, asking to see more, choosing
     specific counts → "guided" (same sourcing rules).
   · A stable depth statement ("always show me 5", "I never want more
     than 2") → fact_add fact_type "depth_default" with the number and
-    unit (looks | options).
+    unit (looks | options). Restating the same depth is noop_confirm,
+    never a second row.
   · preference_anchor answers are THIS-PURCHASE-ONLY ("something new
-    this time") — record nothing, UNLESS phrased as general ("I'm done
-    with navy") → signal_reverse / signal_add as usual.
+    this time") — record nothing. "I'm done with navy" is GENERAL —
+    see signal_reverse. "The usual" tapped three visits running is
+    NOT a signal — the salesman still asks next time. Only words like
+    "always just give me the usual" become shopping_style or a taste
+    signal.
 2. fact_reverse  — a [NEW] message directly contradicts a snapshot fact
                    ("actually I'm an L now"). Include the old value.
 3. signal_add    — a new TASTE signal: like or dislike about color, style,
                    brand, silhouette, aesthetic, material, pattern, or
                    shopping_style (how they like to be served).
 4. signal_reverse — a [NEW] message contradicts a snapshot signal.
-5. context_split — a contradiction that is actually context-dependent
-                   (slim for work, loose for gym). Propose the new context
-                   label; do not reverse the original.
-6. new_person    — a person not on the roster (see STEP 2).
+                   GENERAL, not this-purchase: snapshot navy +1 and
+                   "I'm done with navy" → signal_reverse of that row
+                   AND signal_add navy polarity −1.
+5. context_split — a contradiction that is actually context-dependent.
+                   Emit BOTH ops: context_split (the new context label)
+                   AND signal_add of the new value in that context.
+                   Do not reverse the original.
+                   Example: snapshot fit slim + "for the gym I want
+                   loose" → context_split + signal_add silhouette
+                   "relaxed" context gym. Slim stays.
+6. new_person    — a person not on the roster (see STEP 2). Include
+                   match_existing when a same-relation roster person
+                   might be a typo/nickname.
 7. noop_confirm  — the user restated something already in the snapshot
                    (see STEP 3).
 
@@ -124,7 +152,8 @@ OVERRIDE RULES:
 EVIDENCE AND CONSERVATISM:
 - Every operation must include evidence_quote: the shortest verbatim span
   from a [NEW] message that justifies it. For short answers to assistant
-  questions, the answer itself is the quote.
+  questions, the answer itself is the quote. For [tap] lines, quote the
+  chip label alone ("You decide"), never a gloss.
 - source is "stated" only when the person explicitly said it about
   themselves/the person (including short answers to direct questions).
   Anything you concluded is "inferred".

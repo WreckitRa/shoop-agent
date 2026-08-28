@@ -53,9 +53,8 @@ function hasCategory(
 export function firstIncompleteFittingStep(
   status: ResumeStatus,
 ): FittingStep {
-  if (status.onboarding.completed || !status.onboarding.started) {
-    return "photo";
-  }
+  if (status.onboarding.completed) return "photo";
+  if (!status.onboarding.started) return "consent";
   const profile = status.profile;
   if (!hasYou(profile)) return "name";
   if (!hasLife(profile)) return "life";

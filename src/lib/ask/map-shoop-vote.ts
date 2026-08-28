@@ -1,6 +1,6 @@
 import type { LookScanVerdict } from "@/lib/tryon/look-scan-types";
-import type { AskVoteChoice } from "./types";
-import { isAskVoteChoice } from "./types";
+import type { AskCompareChoice, AskRateChoice, AskVoteChoice } from "./types";
+import { isAskRateChoice } from "./types";
 
 const LOVE_RE =
   /\b(love|yes|get it|buy(?:\s+it)?|keeper|made for|worth it|take (?:it|this) home|pull the trigger|lock it in|keep it|do it|grab (?:it|this)|yes please)\b/;
@@ -12,12 +12,12 @@ const ALMOST_RE =
   /\b(almost|wait|close|fix|size|hem|alter|swap|tweak)\b/;
 
 /**
- * Map Studying Scan verdict → sealed poll choice.
+ * Map Studying Scan verdict → sealed rate-poll choice.
  * Prefer an explicit LLM `vote` when present; otherwise infer from title/body
  * with buy/love language winning over soft words like "fine"/"ok".
  */
-export function mapVerdictToShoopVote(verdict: LookScanVerdict): AskVoteChoice {
-  if (verdict.vote && isAskVoteChoice(verdict.vote)) {
+export function mapVerdictToShoopVote(verdict: LookScanVerdict): AskRateChoice {
+  if (verdict.vote && isAskRateChoice(verdict.vote)) {
     return verdict.vote;
   }
 
@@ -34,22 +34,18 @@ export function mapVerdictToShoopVote(verdict: LookScanVerdict): AskVoteChoice {
   const blobMeh = MEH_RE.test(blob);
   const blobAlmost = ALMOST_RE.test(blob);
 
-  // Hard reject language + veto gate
   if (blobNo && !titleLove) {
     if (checks.nolist === "caution" || checks.fit === "fail") {
       return "no";
     }
   }
 
-  // Buy / love language wins — even if the body says "fine" / "ok" along the way.
-  // Only block love on a hard fit fail (not soft "fine" wording).
   if ((titleLove || blobLove) && checks.fit !== "fail") {
     if (
       checks.fit === "caution" ||
       checks.palette === "caution" ||
       checks.nolist === "caution"
     ) {
-      // Positive headline with a caution → almost, unless title itself is a buy/love cue
       return titleLove ? "love" : "almost";
     }
     return "love";
@@ -62,7 +58,6 @@ export function mapVerdictToShoopVote(verdict: LookScanVerdict): AskVoteChoice {
 
   if (heavyCaution) return "almost";
 
-  // Explicit meh only — do NOT treat "fine"/"ok"/"okay" as meh (too common in praise).
   if (blobMeh && !blobLove) return "meh";
 
   if (
@@ -85,6 +80,14 @@ export function mapVerdictToShoopVote(verdict: LookScanVerdict): AskVoteChoice {
   return "almost";
 }
 
+/** Comparative: Shoop picks this look (a) when the verdict leans buy; else b. */
+export function mapVerdictToCompareVote(
+  verdict: LookScanVerdict,
+): AskCompareChoice {
+  const rate = mapVerdictToShoopVote(verdict);
+  return rate === "love" || rate === "almost" ? "a" : "b";
+}
+
 export function askVoteLabel(choice: AskVoteChoice): string {
   switch (choice) {
     case "no":
@@ -95,5 +98,9 @@ export function askVoteLabel(choice: AskVoteChoice): string {
       return "Almost";
     case "love":
       return "♥ Love";
+    case "a":
+      return "This look";
+    case "b":
+      return "The other";
   }
 }

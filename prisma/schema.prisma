@@ -901,6 +901,7 @@ model FashionStyleSignal {
   evidenceCount Int      @default(1) @map("evidence_count")
   status        String   @default("active")
   sourceQuote   String?  @map("source_quote")
+  valueCanonical String? @map("value_canonical")
   firstSeenAt   DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
   lastSeenAt    DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
 
@@ -1162,9 +1163,14 @@ model LookAskShare {
   conversationId String?
   messageId      String?
   imageUrl       String
+  /// Second look for comparative polls (friends pick A vs B).
+  altImageUrl      String?
+  altGenerationId  String?
+  /// "compare" | "rate" — compare is default when alt look is present.
+  pollMode         String   @default("rate")
   pieces         Json     @default("[]")
   shoopVerdict   Json
-  /// Mapped poll choice: no | meh | almost | love
+  /// Mapped poll choice: no|meh|almost|love (rate) or a|b (compare)
   shoopVote      String
   askerName      String
   serial         Int
@@ -1192,7 +1198,7 @@ model LookAskVote {
   voterKey    String
   displayName String
   userId      String?
-  /// no | meh | almost | love
+  /// no|meh|almost|love (rate) or a|b (compare)
   choice      String
   createdAt   DateTime     @default(now())
 
@@ -1261,14 +1267,34 @@ model PrivacyDeletionEvent {
 
 /// BIPA written release log — one row per accept; withdraw sets withdrawnAt.
 model BiometricConsent {
-  id              String    @id @default(cuid())
-  userId          String
-  documentVersion String
-  acceptedAt      DateTime
-  withdrawnAt     DateTime?
-  createdAt       DateTime  @default(now())
+  id                String    @id @default(cuid())
+  userId            String
+  documentVersion   String
+  acceptedAt        DateTime
+  withdrawnAt       DateTime?
+  ageAttested       Boolean   @default(false)
+  ownPhotoAttested  Boolean   @default(false)
+  abandonDeleteAck  Boolean   @default(false)
+  createdAt         DateTime  @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("biometric_consents")
+  @@schema("public")
+}
+
+/// First-party product analytics — North Star + sales ladder. Not pipeline ops.
+model ProductEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id")
+  sessionId String   @map("session_id")
+  name      String
+  props     Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt(sort: Desc)], map: "product_events_user_created")
+  @@index([userId, name, createdAt(sort: Desc)], map: "product_events_user_name_created")
+  @@index([name, createdAt(sort: Desc)], map: "product_events_name_created")
+  @@index([sessionId, createdAt(sort: Desc)], map: "product_events_session_created")
+  @@map("product_events")
   @@schema("public")
 }

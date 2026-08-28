@@ -14,3 +14,14 @@ export function isSupabaseAuthUserId(userId: string): boolean {
 export function isFashionMemoryGuestUserId(userId: string): boolean {
   return userId.startsWith(GUEST_USER_ID_PREFIX);
 }
+
+/**
+ * UUID owner for people / avatar / try-on columns.
+ * Guest app ids are `guest-{uuid}`; the uuid part is what those tables store.
+ */
+export function fashionOwnerUserId(userId: string): string | null {
+  if (isSupabaseAuthUserId(userId)) return userId;
+  if (!isFashionMemoryGuestUserId(userId)) return null;
+  const rest = userId.slice(GUEST_USER_ID_PREFIX.length);
+  return UUID_RE.test(rest) ? rest : null;
+}

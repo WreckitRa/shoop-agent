@@ -8,6 +8,7 @@ import {
   readVerifyEmailCookie,
 } from "@/lib/auth/email-verification";
 import { prisma } from "@/lib/ai-chat/db";
+import { trackProductEvent } from "@/lib/analytics/track";
 import { LEGAL_DOC_VERSION } from "@/lib/legal/constants";
 import { assertSignupAge } from "@/lib/legal/age-gate";
 import { normalizeAgeRange } from "@/lib/onboarding/form-options";
@@ -88,6 +89,11 @@ export async function POST(req: Request) {
         termsAcceptedAt: new Date(),
         termsVersion: pending?.termsVersion ?? LEGAL_DOC_VERSION,
       },
+    });
+
+    trackProductEvent({
+      name: "signup_completed",
+      userId: result.data.user.id,
     });
 
     return NextResponse.json({

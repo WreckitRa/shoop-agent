@@ -5,11 +5,18 @@ import { checkRateLimit, RATE_LIMIT_TIERS } from "@/lib/rate-limit";
 /** 10 MB photo + multipart envelope. Magic-byte check runs in the route. */
 const PHOTO_UPLOAD_MAX_CONTENT_LENGTH = 12 * 1024 * 1024;
 
-function getRateLimitTier(pathname: string, method: string) {
+function getRateLimitTier(
+  pathname: string,
+  method: string,
+  contentType: string,
+) {
+  // Photo byte uploads only — JSON actions on /api/avatar/upload
+  // (measurements / check / attributes) must not burn this bucket.
   if (
     method === "POST" &&
     (pathname === "/api/onboarding/photo-analysis" ||
-      pathname === "/api/avatar/upload")
+      (pathname === "/api/avatar/upload" &&
+        contentType.includes("multipart/form-data")))
   ) {
     return RATE_LIMIT_TIERS.photoUpload;
   }
@@ -26,9 +33,23 @@ function getRateLimitTier(pathname: string, method: string) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const contentType = request.headers.get("content-type") ?? "";
+
+  // Canonical host: apex → www (301). DNS forwarder usually does this first;
+  // keep the app-level permanent redirect if apex ever points at Railway.
+  const host = (request.headers.get("host") ?? "")
+    .split(":")[0]
+    ?.toLowerCase();
+  if (host === "shoop.world") {
+    const dest = request.nextUrl.clone();
+    dest.protocol = "https:";
+    dest.hostname = "www.shoop.world";
+    dest.port = "";
+    return NextResponse.redirect(dest, 301);
+  }
 
   // Rate limit all API routes before any auth or route handling.
-  const tier = getRateLimitTier(pathname, request.method);
+  const tier = getRateLimitTier(pathname, request.method, contentType);
   if (tier === RATE_LIMIT_TIERS.photoUpload) {
     const len = Number(request.headers.get("content-length"));
     if (Number.isFinite(len) && len > PHOTO_UPLOAD_MAX_CONTENT_LENGTH) {

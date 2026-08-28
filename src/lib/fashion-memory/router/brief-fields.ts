@@ -93,7 +93,7 @@ export function extractStatedColors(mustHaves: string[]): string[] {
 export function profileHasColorSignals(signals: StyleSignalRow[]): boolean {
   return signals.some((signal) => {
     if (signal.polarity !== 1) return false;
-    const value = signal.value.toLowerCase();
+    const value = (signal.value_canonical ?? signal.value).toLowerCase();
     if (PROFILE_COLOR_SIGNAL.test(value)) return true;
     return [...COLOR_WORDS].some((color) => value.includes(color));
   });

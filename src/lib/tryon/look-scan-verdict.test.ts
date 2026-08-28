@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  lookScanDimRows,
+  lookScanWeaknessChip,
   previewScanNotes,
   previewScanWhispers,
   resolveLookScanMode,
+  scoreFromLookScanChecks,
   shortPieceName,
+  weakestLookScanCheck,
 } from "./look-scan-types";
 import { coerceLookScanPayload } from "./look-scan-verdict";
 
@@ -136,5 +140,44 @@ describe("previewScanWhispers", () => {
     ]);
     assert.match(lines[1], /fine wale corduroy chore blazer/i);
     assert.equal(shortPieceName("A | B"), "A");
+  });
+});
+
+describe("scoreFromLookScanChecks", () => {
+  it("weights pass / caution / fail into a /10", () => {
+    const score = scoreFromLookScanChecks({
+      fit: "pass",
+      palette: "fail",
+      nolist: "pass",
+    });
+    assert.ok(score >= 6 && score <= 8);
+  });
+
+  it("flags colour-only weakness", () => {
+    const checks = {
+      fit: "pass" as const,
+      palette: "fail" as const,
+      nolist: "pass" as const,
+    };
+    assert.equal(weakestLookScanCheck(checks), "palette");
+    assert.equal(
+      lookScanWeaknessChip(checks),
+      "COLOUR IS THE ONLY THING WRONG",
+    );
+  });
+
+  it("builds three dim rows from the body", () => {
+    const rows = lookScanDimRows({
+      verdict_title: "Not this one.",
+      verdict_body:
+        "Shoulders sit right. Colour is too close to your skin. Clear of the no-list.",
+      annotations: ["a", "b", "c", "d"],
+      whispers: ["w1", "w2", "w3", "w4"],
+      checks: { fit: "pass", palette: "fail", nolist: "pass" },
+    });
+    assert.equal(rows.length, 3);
+    assert.equal(rows[0]?.label, "FIT");
+    assert.equal(rows[1]?.tone, "fail");
+    assert.match(rows[1]?.why ?? "", /Colour/i);
   });
 });

@@ -23,6 +23,8 @@ export type HydrateCatalogSlotsParams = {
   profile: FashionSearchProfile;
   signal?: AbortSignal;
   abortScope?: AbortScope;
+  /** Already-verified candidates from a prior search (refinement reuse). */
+  reuseVerifiedBySlot?: Map<string, import("./types").HydratedCandidate[]>;
 };
 
 export type HydrateCatalogSlotsResult = {
@@ -186,6 +188,8 @@ export async function hydrateCatalogSlots(
     if (!planSlot) {
       throw new Error(`Missing plan slot for ${slot.slot_id}`);
     }
+    const reused = params.reuseVerifiedBySlot?.get(slot.slot_id);
+    const reusedIds = new Set(reused?.map((c) => c.id) ?? []);
     return createSlotPool({
       slot: planSlot,
       scoredProducts: slot.products,
@@ -196,7 +200,25 @@ export async function hydrateCatalogSlots(
       traceId: params.traceId,
       abortScope,
       concurrencyGate,
+      ...(reused?.length
+        ? {
+            initialState: {
+              verified: reused,
+              reserve: slot.products.filter((p) => !reusedIds.has(p.id)),
+              dead: [],
+              thin: false,
+            },
+          }
+        : {}),
     });
+  }
+
+  async function fillPool(slot: FashionSlotCatalogResult, pool: SlotPoolImpl) {
+    if (params.reuseVerifiedBySlot?.has(slot.slot_id)) {
+      await pool.ensureShortlist();
+    } else {
+      await pool.fillToTarget();
+    }
   }
 
   const mode = params.plan.mode;
@@ -211,7 +233,7 @@ export async function hydrateCatalogSlots(
       if (!slot) continue;
       const started = Date.now();
       const pool = makePool(slot);
-      await pool.fillToTarget();
+      await fillPool(slot, pool);
       pools.set(slot.slot_id, pool);
       const m = buildMetrics(pool, Date.now() - started);
       metrics.push(m);
@@ -233,7 +255,7 @@ export async function hydrateCatalogSlots(
         if (!slot) return;
         const started = Date.now();
         const pool = makePool(slot);
-        await pool.fillToTarget();
+        await fillPool(slot, pool);
         pools.set(slot.slot_id, pool);
         const m = buildMetrics(pool, Date.now() - started);
         metrics.push(m);
@@ -245,7 +267,7 @@ export async function hydrateCatalogSlots(
       params.slots.map(async (slot) => {
         const started = Date.now();
         const pool = makePool(slot);
-        await pool.fillToTarget();
+        await fillPool(slot, pool);
         pools.set(slot.slot_id, pool);
         const m = buildMetrics(pool, Date.now() - started);
         metrics.push(m);

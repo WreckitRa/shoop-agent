@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FittingCta,
   FittingKick,
@@ -18,6 +18,7 @@ import {
 import type { StylePhotoAnalysis } from "@/lib/photo-analysis/result";
 import type { PhotoAnalysisPublic } from "@/lib/photo-analysis/types";
 import type { FittingPhotoValues } from "./FittingPhotoStep";
+import { resolveScanCheckBody } from "./scan-check-body";
 
 const BUILDS: { label: string; value: NonNullable<FittingPhotoValues["build"]> }[] = [
   { label: "Slim", value: "slim" },
@@ -92,6 +93,10 @@ export function AnalysisReviewForm({
   onSkip?: () => void;
 }) {
   const rows = useMemo(() => listConfirmableTraits(result), [result]);
+  const shown = useMemo(
+    () => resolveScanCheckBody(body, result),
+    [body, result],
+  );
   const initialEdits = useMemo(() => {
     const out: Record<string, string> = {};
     for (const row of rows) out[row.path] = row.value ?? "";
@@ -101,6 +106,19 @@ export function AnalysisReviewForm({
   const [edits, setEdits] = useState<Record<string, string>>(initialEdits);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const seeded = useRef(false);
+
+  useEffect(() => {
+    if (seeded.current) return;
+    seeded.current = true;
+    if (body.build !== shown.build) onBodyChange("build", shown.build);
+    if (body.muscularity !== shown.muscularity) {
+      onBodyChange("muscularity", shown.muscularity);
+    }
+    if (shown.bodyShape && body.bodyShape !== shown.bodyShape) {
+      onBodyChange("bodyShape", shown.bodyShape);
+    }
+  }, [body, shown, onBodyChange]);
 
   async function save() {
     if (saving) return;
@@ -112,7 +130,12 @@ export function AnalysisReviewForm({
         edits,
         rejected: [],
         notes: "",
-        confirmedBody: confirmedBodyFromPhoto(body),
+        confirmedBody: confirmedBodyFromPhoto({
+          ...body,
+          build: shown.build,
+          muscularity: shown.muscularity,
+          bodyShape: shown.bodyShape,
+        }),
       });
       const res = await guestFetch("/api/onboarding/photo-analysis", {
         method: "PATCH",
@@ -168,8 +191,8 @@ export function AnalysisReviewForm({
         ]}
       />
       <FittingWhisper>
-        Face reading plus the numbers you already gave me. Fix anything that’s
-        off, then lock it — that’s what the verdict is built on.
+        Face reading plus the numbers you already gave me. The twin on the
+        right is the picture — fix anything that&apos;s off here, then lock it.
       </FittingWhisper>
       {rows.map((row) => (
         <div key={row.path}>
@@ -260,7 +283,7 @@ export function AnalysisReviewForm({
         {BUILDS.map((b) => (
           <OnboardingChip
             key={b.value}
-            selected={body.build === b.value}
+            selected={shown.build === b.value}
             onClick={() => onBodyChange("build", b.value)}
           >
             {b.label}
@@ -273,7 +296,7 @@ export function AnalysisReviewForm({
         {MUSCLE.map((m) => (
           <OnboardingChip
             key={m.value}
-            selected={body.muscularity === m.value}
+            selected={shown.muscularity === m.value}
             onClick={() => onBodyChange("muscularity", m.value)}
           >
             {m.label}
@@ -286,11 +309,11 @@ export function AnalysisReviewForm({
         {SHAPES.map((s) => (
           <OnboardingChip
             key={s.value}
-            selected={body.bodyShape === s.value}
+            selected={shown.bodyShape === s.value}
             onClick={() =>
               onBodyChange(
                 "bodyShape",
-                body.bodyShape === s.value ? null : s.value,
+                shown.bodyShape === s.value ? null : s.value,
               )
             }
           >

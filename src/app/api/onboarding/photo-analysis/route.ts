@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { trackProductEvent } from "@/lib/analytics/track";
 import { getAuthContext } from "@/lib/auth/session";
 import { hashPhoto } from "@/lib/photo-analysis/decode";
 import { inspectPhotoBytes } from "@/lib/photo-analysis/inspect-photo";
@@ -13,6 +14,7 @@ import {
 } from "@/lib/ops/spend-guard";
 import { runPhotoAnalysis } from "@/lib/photo-analysis/run";
 import { assertPhotoProcessingAllowed } from "@/lib/legal/photo-gate";
+import { detectRequestArea } from "@/lib/server/request-area";
 import {
   findByHash,
   findLatestAnalysis,
@@ -71,7 +73,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
-  const gate = await assertPhotoProcessingAllowed(auth);
+  const gate = await assertPhotoProcessingAllowed({
+    ...auth,
+    countryCode: detectRequestArea(req.headers)?.countryCode,
+  });
   if (!gate.ok) {
     return Response.json({ error: gate.error }, { status: gate.status });
   }
@@ -133,6 +138,16 @@ export async function POST(req: Request) {
   }
 
   const row = await upsertRunning(auth.userId, photoHash);
+  trackProductEvent({
+    name: "photo_uploaded",
+    userId: auth.userId,
+    props: {
+      photo_hash: photoHash,
+      target_person: targetPerson,
+      requested_coverage: requestedCoverage ?? null,
+      force,
+    },
+  });
   const run = () =>
     runPhotoAnalysis(row.id, bytes, {
       targetPerson,

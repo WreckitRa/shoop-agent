@@ -1,0 +1,245 @@
+[
+  {
+    "id": "known-keep-elena-01",
+    "name": "Elena",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "some",
+    "specificity": "partial",
+    "profile": {
+      "state": "known_relevant",
+      "department": "womens",
+      "sizes": { "tops": "S", "bottoms": "27", "shoes": "38" },
+      "signals": [
+        "+navy [work, stated, color]",
+        "+tailored [work, stated, silhouette]",
+        "+wool [work, stated, material]",
+        "-loud [work, stated, style]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": ["navy wool blazer", "cream trousers"]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": ["blazer", "trousers"],
+      "owns": ["shoes"],
+      "occasion": "board presentation Monday",
+      "formality": "smart",
+      "color": "navy",
+      "depth": { "looks": 2 },
+      "anchor": "keep"
+    },
+    "opening_message": "need something for a board presentation monday"
+  },
+  {
+    "id": "known-keep-james-02",
+    "name": "James",
+    "language": "en",
+    "patience": "quick",
+    "volunteers": "everything",
+    "specificity": "complete",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": { "tops": "M", "bottoms": "32", "shoes": "10" },
+      "signals": [
+        "+black [casual, stated, color]",
+        "+minimal [casual, stated, aesthetic]",
+        "-logo [casual, stated, pattern]"
+      ],
+      "shopping_style": "quick",
+      "recent_picks": ["black crew tee", "black slim jeans"]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": ["t-shirt"],
+      "owns": [],
+      "occasion": "weekend casual",
+      "color": "black",
+      "budget": { "max": 45, "currency": "USD", "scope": "per_item" },
+      "depth": { "options": 3 },
+      "anchor": "keep"
+    },
+    "opening_message": "plain black tee, no logo, size M, under $45, 3 options"
+  },
+  {
+    "id": "known-keep-priya-03",
+    "name": "Priya",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "specificity": "partial",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "womens",
+      "sizes": { "tops": "M", "bottoms": "8", "dresses": "8", "shoes": "7" },
+      "signals": [
+        "+camel [work, stated, color]",
+        "+cashmere [winter, stated, material]",
+        "+classic [work, stated, aesthetic]"
+      ],
+      "recent_picks": ["camel cashmere sweater", "ivory blouse"]
+    },
+    "truth": {
+      "request_type": "single_item",
+      "garments": ["sweater"],
+      "owns": [],
+      "occasion": "office winter",
+      "formality": "smart casual",
+      "color": "camel",
+      "depth": { "options": 3 },
+      "anchor": "keep"
+    },
+    "opening_message": "need a winter sweater for the office"
+  },
+  {
+    "id": "known-push-marcus-04",
+    "name": "Marcus",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "specificity": "partial",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": { "tops": "L", "bottoms": "34", "shoes": "11" },
+      "signals": [
+        "+navy [work, stated, color]",
+        "+classic [work, stated, aesthetic]",
+        "+tailored [work, stated, silhouette]"
+      ],
+      "recent_picks": ["navy suit", "white oxford"]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": ["blazer", "trousers", "shirt"],
+      "owns": ["shoes"],
+      "occasion": "client dinner Thursday",
+      "formality": "smart",
+      "color": "navy",
+      "depth": { "looks": 2 },
+      "anchor": "push"
+    },
+    "opening_message": "client dinner thursday — same lane but a step up from the usual navy"
+  },
+  {
+    "id": "known-push-hannah-05",
+    "name": "Hannah",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "specificity": "partial",
+    "profile": {
+      "state": "known_relevant",
+      "department": "womens",
+      "sizes": { "tops": "S", "bottoms": "26", "shoes": "37" },
+      "signals": [
+        "+preppy [weekend, stated, aesthetic]",
+        "+stripe [casual, stated, pattern]",
+        "+navy [casual, stated, color]"
+      ],
+      "shopping_style": "guided",
+      "recent_picks": ["navy stripe tee", "white sneakers"]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": ["shirt", "trousers"],
+      "owns": ["shoes"],
+      "occasion": "weekend lunch",
+      "formality": "casual",
+      "depth": { "looks": 2 },
+      "anchor": "push"
+    },
+    "opening_message": "weekend lunch looks — preppy but not the same stripe tee again"
+  },
+  {
+    "id": "known-push-rafael-06",
+    "name": "Rafael",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "little",
+    "specificity": "partial",
+    "profile": {
+      "state": "has_pick_history",
+      "department": "mens",
+      "sizes": { "tops": "M", "bottoms": "31", "shoes": "10" },
+      "signals": [
+        "+olive [casual, stated, color]",
+        "+relaxed [casual, stated, silhouette]",
+        "+linen [summer, stated, material]"
+      ],
+      "recent_picks": ["olive overshirt", "beige chinos"]
+    },
+    "truth": {
+      "request_type": "multi_item",
+      "garments": ["overshirt", "trousers"],
+      "owns": [],
+      "occasion": "Saturday market",
+      "formality": "casual",
+      "color": "olive",
+      "depth": { "options": 2 },
+      "anchor": "push"
+    },
+    "opening_message": "something for saturday market, not another olive overshirt"
+  },
+  {
+    "id": "known-explore-ines-07",
+    "name": "Ines",
+    "language": "en",
+    "patience": "guided",
+    "volunteers": "some",
+    "specificity": "vague",
+    "profile": {
+      "state": "has_depth_default",
+      "department": "womens",
+      "sizes": { "tops": "M", "bottoms": "38", "shoes": "39" },
+      "depth_default": { "count": 3, "unit": "looks" },
+      "signals": [
+        "+linen [summer, stated, material]",
+        "+white [summer, stated, color]",
+        "+relaxed [summer, stated, silhouette]"
+      ]
+    },
+    "truth": {
+      "request_type": "capsule",
+      "garments": ["dress", "sandals", "light jacket"],
+      "owns": [],
+      "occasion": "week in Lisbon",
+      "formality": "resort",
+      "color": "surprise",
+      "depth": "you_decide",
+      "anchor": "explore"
+    },
+    "opening_message": "need looks for a week in Lisbon — surprise me"
+  },
+  {
+    "id": "known-explore-theo-08",
+    "name": "Theo",
+    "language": "en",
+    "patience": "normal",
+    "volunteers": "some",
+    "specificity": "partial",
+    "profile": {
+      "state": "known_relevant",
+      "department": "mens",
+      "sizes": { "tops": "L", "bottoms": "34", "shoes": "10" },
+      "signals": [
+        "+quiet-luxury [work, stated, aesthetic]",
+        "+navy [work, stated, color]",
+        "+wool [work, stated, material]"
+      ],
+      "recent_picks": ["navy merino polo", "charcoal trousers"]
+    },
+    "truth": {
+      "request_type": "outfit",
+      "garments": ["knit", "trousers", "jacket"],
+      "owns": ["shoes"],
+      "occasion": "gallery opening Friday",
+      "formality": "smart casual",
+      "color": "surprise",
+      "depth": { "looks": 2 },
+      "anchor": "explore"
+    },
+    "opening_message": "gallery opening friday — not the usual navy merino"
+  }
+]

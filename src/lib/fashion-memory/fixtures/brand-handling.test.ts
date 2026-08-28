@@ -27,7 +27,7 @@ import {
   scoreBrandMatch,
   scoreProduct,
 } from "../scoring/components";
-import { SCORING_WEIGHTS_VERSION } from "../scoring/weights";
+import { scoringWeightsVersion } from "../scoring/weights";
 
 const aldoDressBrief: FashionSearchBrief = {
   recipient_person_id: "mother",
@@ -250,7 +250,7 @@ describe("nike_shoes_brand_first", () => {
       bestRank: 1,
     });
     assert.ok(nikeScore.final > otherScore.final);
-    assert.equal(nikeScore.weights_version, SCORING_WEIGHTS_VERSION);
+    assert.equal(nikeScore.weights_version, scoringWeightsVersion());
     assert.ok(nikeScore.active_components.includes("brand_match"));
   });
 });

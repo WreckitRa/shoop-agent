@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
-import { assertPhotoProcessingAllowed } from "@/lib/legal/photo-gate";
+import { requireAvatarOwner } from "@/lib/tryon/avatar/request-auth";
 import {
   approveAvatar,
   generateAvatarPreview,
@@ -29,13 +29,8 @@ const bodySchema = z.object({
 export async function POST(req: Request) {
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
-  if (auth.isGuest) {
-    return Response.json({ error: "Sign in required." }, { status: 401 });
-  }
-  const gate = await assertPhotoProcessingAllowed(auth);
-  if (!gate.ok) {
-    return Response.json({ error: gate.error }, { status: gate.status });
-  }
+  const owner = await requireAvatarOwner(req, auth);
+  if (!owner.ok) return owner.response;
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
     return Response.json({ error: "Invalid request." }, { status: 400 });
@@ -43,18 +38,18 @@ export async function POST(req: Request) {
   try {
     if (parsed.data.action === "generate") {
       const draft = await generateAvatarPreview({
-        userId: auth.userId,
+        userId: owner.userId,
         personId: parsed.data.person_id,
         attributes: parsed.data.attributes as import("@/lib/tryon/types").AvatarAttributes | undefined,
       });
       return Response.json({ ok: true, draft });
     }
     const avatar = await approveAvatar({
-      userId: auth.userId,
+      userId: owner.userId,
       personId: parsed.data.person_id,
       selectedProviderKey: parsed.data.selected_provider_key,
     });
-    const fresh = await getStoredAvatar(auth.userId, parsed.data.person_id);
+    const fresh = await getStoredAvatar(owner.userId, parsed.data.person_id);
     return Response.json({
       ok: true,
       avatar: fresh ?? avatar,

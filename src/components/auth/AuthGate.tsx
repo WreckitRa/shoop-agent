@@ -6,6 +6,7 @@ import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { BiometricReconsentGate } from "@/components/legal/BiometricReconsentGate";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import { GuestLeavePrompt } from "@/components/auth/GuestLeavePrompt";
+import { OnboardingLeaveFomo } from "@/components/onboarding/fitting/OnboardingLeaveFomo";
 import { ShoopLogo } from "@/components/brand/ShoopBrand";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
 import { cn } from "@/lib/ai-chat/cn";
@@ -17,6 +18,10 @@ import {
   isGuestSessionActive,
   startGuestSessionAsync,
 } from "@/lib/client/guest-storage";
+import {
+  clearGuestPhotoLive,
+  setGuestClaimInFlight,
+} from "@/lib/client/guest-photo-abandon";
 import { leaveConversationRoute } from "@/lib/client/chat-navigation";
 import { useAppSessionStore } from "@/lib/client/app-session";
 import {
@@ -24,13 +29,14 @@ import {
   useClientIdentityScopeKey,
 } from "@/lib/client/identity-sync";
 import { useGuestHasPersistedData } from "@/hooks/useGuestMode";
+import { guestFetch } from "@/lib/client/guest-fetch";
 
 type AuthUser = { id: string; email: string | null };
 
 type AuthMode = "login" | "signup";
 
 const inputClassName =
-  "w-full border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-2 font-display text-[20px] font-bold text-[var(--fitting-ink)] outline-none placeholder:font-bold placeholder:text-[#D9D9DE] focus:border-[var(--fitting-red)]";
+  "w-full rounded-[13px] border-[1.5px] border-[var(--fitting-g3)] bg-white px-[15px] py-3.5 text-[14px] text-[var(--fitting-ink)] outline-none placeholder:text-[#A8A8B2] focus:border-[var(--fitting-ink)]";
 
 async function fetchSession(): Promise<{
   configured: boolean;
@@ -109,28 +115,40 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const completeAuthenticatedSession = useCallback(
     async (nextUser: AuthUser, migrateGuest: boolean) => {
-      if (migrateGuest) {
-        guestMigrateOnceRef.current = true;
-        await migrateGuestDataAfterAuth();
-      } else if (isGuestSessionActive()) {
-        clearGuestSession();
+      setGuestClaimInFlight(true);
+      try {
+        if (migrateGuest) {
+          guestMigrateOnceRef.current = true;
+          await migrateGuestDataAfterAuth();
+        } else if (isGuestSessionActive()) {
+          clearGuestSession();
+        }
+        refreshGuest();
+        setUser(nextUser);
+        useAppSessionStore.getState().syncFromAuth({
+          authConfigured: true,
+          user: nextUser,
+        });
+        await queueClientIdentityResync("auth", {
+          force: true,
+          // Signup mid-Fitting: keep column + resume key so onboarding continues.
+          preserveOnboarding: migrateGuest,
+        });
+        if (!useInlineFittingStore.getState().columnOpen) {
+          leaveConversationRoute();
+        } else {
+          useInlineFittingStore.getState().setOnboardingActive(true);
+        }
+        setShowAuthModal(false);
+        setPendingEmail(null);
+        setVerifyCode("");
+        setLoginDataLossAcknowledged(false);
+        setPassword("");
+        window.dispatchEvent(new Event("shoop-auth-changed"));
+        clearGuestPhotoLive();
+      } finally {
+        setGuestClaimInFlight(false);
       }
-      refreshGuest();
-      setUser(nextUser);
-      useAppSessionStore.getState().syncFromAuth({
-        authConfigured: true,
-        user: nextUser,
-      });
-      await queueClientIdentityResync("auth", { force: true });
-      if (!useInlineFittingStore.getState().columnOpen) {
-        leaveConversationRoute();
-      }
-      setShowAuthModal(false);
-      setPendingEmail(null);
-      setVerifyCode("");
-      setLoginDataLossAcknowledged(false);
-      setPassword("");
-      window.dispatchEvent(new Event("shoop-auth-changed"));
     },
     [refreshGuest],
   );
@@ -315,7 +333,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch("/api/auth/verify-email", {
+      const res = await guestFetch("/api/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: pendingEmail, token: verifyCode }),
@@ -376,6 +394,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         {!skipFittingChrome ? (
           <OnboardingGate key={`onboarding:${identityScope}`} />
         ) : null}
+        {!skipFittingChrome ? <OnboardingLeaveFomo /> : null}
       </>
     );
   }
@@ -423,6 +442,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <OnboardingGate key={`onboarding:${identityScope}`} />
         ) : null}
         {!skipFittingChrome ? <GuestLeavePrompt /> : null}
+        {!skipFittingChrome ? <OnboardingLeaveFomo /> : null}
         {authForm ? (
           <AuthOverlay
             onDismiss={() => {
@@ -551,18 +571,20 @@ function AuthModal({
       className={
         column
           ? "flex h-full min-h-0 flex-col overflow-y-auto bg-gradient-to-b from-white to-[#F7F7F9]"
-          : "w-full max-w-md overflow-hidden rounded-[22px] border border-[var(--fitting-line)] bg-white shadow-[0_26px_54px_-22px_rgba(14,14,17,0.45)]"
+          : "w-full max-w-md overflow-hidden rounded-[20px] border-2 border-[var(--fitting-ink)] bg-white shadow-[0_0_100px_-40px_rgba(26,26,46,.45)]"
       }
     >
       <div className={cn("border-b border-[var(--fitting-line)]", column ? "px-4 py-4 pr-12" : "px-7 py-6")} >
         <div className={cn("mb-4", column && "mb-3")}>
           <ShoopLogo className={column ? "h-5" : "h-6"} />
         </div>
-        <p className="text-[10.5px] font-extrabold tracking-[0.14em] text-[var(--fitting-red)]">
+        <p className="font-display text-[9.5px] font-extrabold tracking-[0.15em] text-[var(--fitting-red)]">
           {pendingEmail
             ? "THE FITTING · CONFIRM"
             : mode === "signup"
-              ? "THE FITTING · START"
+              ? isGuestBrowsing
+                ? "THE FITTING · SAVE"
+                : "THE FITTING · START"
               : "WELCOME BACK"}
         </p>
         <h2
@@ -570,21 +592,25 @@ function AuthModal({
           className={cn(
             "mt-2 font-display font-extrabold leading-[1.05] tracking-[-0.02em] text-[var(--fitting-ink)]",
             column
-              ? "text-[clamp(24px,3vw,30px)]"
-              : "text-[clamp(28px,4vw,34px)]",
+              ? "text-[clamp(23px,2.9vw,32px)]"
+              : "text-[clamp(26px,4vw,36px)]",
           )}
         >
           {pendingEmail
             ? "Check your inbox."
             : mode === "signup"
-              ? "Claim your print."
+              ? isGuestBrowsing
+                ? "Save your progress."
+                : "Claim your print."
               : "Unlock your print."}
         </h2>
-        <p className="mt-2 font-whisper text-[15px] italic text-[var(--fitting-quiet)]">
+        <p className="mt-2.5 text-[14.5px] leading-[1.62] text-[var(--fitting-quiet)]">
           {pendingEmail
             ? `We sent a code to ${pendingEmail}. The account stays locked until that inbox confirms.`
             : mode === "signup"
-              ? "Seven quick questions. Your twin develops while you answer."
+              ? isGuestBrowsing
+                ? "Keep this fitting, then pick up on any device."
+                : "Seven quick questions. Your twin develops while you answer."
               : "Pick up where you left off — memory, chats, and fit intact."}
         </p>
         {pendingEmail ? null : (
@@ -660,7 +686,7 @@ function AuthModal({
             type="submit"
             disabled={busy || verifyCode.trim().length < 6}
             className={cn(
-              "group inline-flex h-14 w-full items-center justify-center gap-3 rounded-[14px] bg-[var(--fitting-ink)] font-display text-[14.5px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50",
+            "group inline-flex h-[50px] w-full items-center justify-center gap-3 rounded-[13px] bg-[var(--fitting-ink)] font-display text-[13.5px] font-extrabold text-white transition-transform hover:-translate-y-0.5 disabled:bg-[var(--fitting-g3)] disabled:text-[#A8A8B0]",
               column && "h-12",
             )}
           >
@@ -793,7 +819,7 @@ function AuthModal({
           type="submit"
           disabled={busy || loginSubmitBlocked || signupSubmitBlocked}
           className={cn(
-            "group inline-flex h-14 w-full items-center justify-center gap-3 rounded-[14px] bg-[var(--fitting-ink)] font-display text-[14.5px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_26px_-10px_rgba(228,40,49,0.6)] disabled:opacity-50",
+            "group inline-flex h-[50px] w-full items-center justify-center gap-3 rounded-[13px] bg-[var(--fitting-ink)] font-display text-[13.5px] font-extrabold text-white transition-transform hover:-translate-y-0.5 disabled:bg-[var(--fitting-g3)] disabled:text-[#A8A8B0]",
             column && "h-12",
           )}
         >
@@ -829,7 +855,7 @@ function AuthModal({
       ) : (
         <p className={cn("border-t border-[var(--fitting-line)] px-7 py-4 text-center text-[11px] leading-relaxed text-[var(--fitting-quiet)]", column && "px-4 py-3")}>
           {isGuestBrowsing && mode === "signup"
-            ? "Sign up to save your guest session and pick up on any device."
+            ? "Sign up to save your progress and pick up on any device."
             : isGuestBrowsing && mode === "login" && guestHasDataToLose
               ? "Sign up instead if you want to keep this guest session."
               : "Sign in to access your saved chats and preferences."}

@@ -346,8 +346,10 @@ describe("clarification quick_options defaults", () => {
       kind: "consult",
     });
     assert.equal(filled.allow_multiple, true);
-    assert.equal(filled.allow_other, false);
-    assert.deepEqual(filled.quick_options, []);
+    assert.equal(filled.allow_other, true);
+    assert.deepEqual(filled.quick_options, [
+      { id: "other", label: "Add a piece" },
+    ]);
   });
 
 });

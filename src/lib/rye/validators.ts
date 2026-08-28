@@ -13,5 +13,11 @@ export const ryeCheckoutCreateSchema = z
 export const ryeCheckoutConfirmSchema = z
   .object({
     stripeToken: z.string().min(1).max(500),
+    searchId: z.string().max(80).optional(),
+    ref: z.string().max(500).optional(),
+    productId: z.string().max(500).optional(),
+    title: z.string().max(500).optional(),
+    brand: z.string().max(200).optional(),
+    color: z.string().max(80).optional(),
   })
   .strict();

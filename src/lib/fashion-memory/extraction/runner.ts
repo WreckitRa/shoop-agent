@@ -1,7 +1,11 @@
 import { isSupabaseAuthUserId } from "../auth";
 import { ensureSelfPerson, listPeopleForUser } from "../people";
 import type { ExtractionOpResult } from "../types";
-import { applyFashionOps } from "./apply-ops";
+import { applyFashionOpsTraced } from "./apply-ops";
+import {
+  attachParkedOps,
+  mergeAmbiguousSubjects,
+} from "../unresolved";
 import { runRequestEventCorroboration } from "./corroboration";
 import { evaluateFashionExtractionGate } from "./gate";
 import { assembleExtractionContext } from "./assemble-context";
@@ -120,15 +124,14 @@ export async function runFashionExtraction(
 
     const newMessageTexts = newMessageTextsFromContextBlock(context.messages);
 
-    allOps.push(
-      ...(await applyFashionOps({
-        userId: params.userId,
-        ops: extracted.ops,
-        personShortIds: context.personShortIds,
-        people,
-        newMessageTexts,
-      })),
-    );
+    const applied = await applyFashionOpsTraced({
+      userId: params.userId,
+      ops: extracted.ops,
+      personShortIds: context.personShortIds,
+      people,
+      newMessageTexts,
+    });
+    allOps.push(...applied.results);
 
     const self = await ensureSelfPerson(params.userId);
     allOps.push(
@@ -143,7 +146,13 @@ export async function runFashionExtraction(
       runId: run.id,
       status: "done",
       opsApplied: allOps,
-      ambiguousSubjects: extracted.ambiguous_subjects,
+      ambiguousSubjects: attachParkedOps(
+        mergeAmbiguousSubjects(
+          extracted.ambiguous_subjects,
+          applied.unresolvedSubjects,
+        ),
+        applied.parkedOps,
+      ),
     });
 
     return { runId: run.id, ops: allOps };

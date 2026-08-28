@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/ai-chat/db";
 import { qaResetUser } from "@/lib/qa/reset-user";
 import { listPeopleForUser } from "@/lib/fashion-memory/people";
-import { isSupabaseAuthUserId } from "@/lib/fashion-memory/auth";
+import {
+  fashionOwnerUserId,
+  isSupabaseAuthUserId,
+} from "@/lib/fashion-memory/auth";
 import { purgePersonTryonData } from "@/lib/tryon/delete";
 import { withdrawBiometricConsent } from "./consents";
 
@@ -11,14 +14,16 @@ export async function hasBiometricResidue(userId: string): Promise<boolean> {
   `;
   if (photos.length) return true;
 
+  const ownerId = fashionOwnerUserId(userId);
+  if (!ownerId) return false;
+
   const gen = await prisma.tryonGeneration.findFirst({
-    where: { userId },
+    where: { userId: ownerId },
     select: { id: true },
   });
   if (gen) return true;
 
-  if (!isSupabaseAuthUserId(userId)) return false;
-  const people = await listPeopleForUser(userId);
+  const people = await listPeopleForUser(ownerId);
   return people.some((person) => {
     const row = person as typeof person & {
       avatar?: unknown;
@@ -35,14 +40,15 @@ export async function purgeBiometricData(userId: string): Promise<void> {
     DELETE FROM "PhotoAnalysis" WHERE "userId" = ${userId}
   `;
 
-  if (isSupabaseAuthUserId(userId)) {
-    const people = await listPeopleForUser(userId);
-    for (const person of people) {
-      await purgePersonTryonData({ userId, personId: person.id });
-    }
+  const ownerId = fashionOwnerUserId(userId);
+  if (!ownerId) return;
+
+  const people = await listPeopleForUser(ownerId);
+  for (const person of people) {
+    await purgePersonTryonData({ userId: ownerId, personId: person.id });
   }
 
-  await prisma.tryonGeneration.deleteMany({ where: { userId } }).catch(() => undefined);
+  await prisma.tryonGeneration.deleteMany({ where: { userId: ownerId } });
 }
 
 export async function deleteAllUserData(userId: string): Promise<void> {
@@ -51,6 +57,7 @@ export async function deleteAllUserData(userId: string): Promise<void> {
   await prisma.lookAskShare.deleteMany({ where: { ownerUserId: userId } });
   await prisma.productCuration.deleteMany({ where: { userId } });
   await prisma.productInteraction.deleteMany({ where: { userId } });
+  await prisma.productEvent.deleteMany({ where: { userId } });
   await prisma.cartSession.deleteMany({ where: { userId } });
   await prisma.savedAddress.deleteMany({ where: { userId } });
   await prisma.categoryPreference.deleteMany({ where: { userId } });

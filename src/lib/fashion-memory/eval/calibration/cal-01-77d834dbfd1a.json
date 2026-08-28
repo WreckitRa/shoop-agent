@@ -1,0 +1,227 @@
+{
+  "calibration_id": "cal-01",
+  "source_run": "2-2026-08-27T08-11-34-446Z",
+  "persona_id": "77d834dbfd1a7446",
+  "persona_name": "Casey56",
+  "cell": "outfit×complete",
+  "profile_state": "new",
+  "judge_overall": 2.3,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 2,
+      "why": "No known summary spoken back; jumped straight to search with zero acknowledgment of the client."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Client gave everything upfront, so nothing needed asking — but no confirmation of the smart-casual call either."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "No form-feel; zero rounds used, went straight to search. Respected a complete brief."
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Smart-casual and coastal assumptions were made silently; the terse '(ready to search)' spoke none of them."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Garments and occasion match, but brief guessed mens dept and misread 'the sea' as a brand, not the setting."
+    },
+    "voice": {
+      "score": 1,
+      "why": "'(ready to search)' is pure log-speak — no stylist, no person, no words at all."
+    },
+    "would_proceed": {
+      "score": 2,
+      "why": "As a guided new client, a silent '(ready to search)' gives no confidence; I'd hesitate before trusting the pull."
+    }
+  },
+  "human_overall": 3,
+  "human_dimensions": null,
+  "human_notes": "Provisional human reader (Claude calibration grades, not a separate human). Overall only.",
+  "agreement": {
+    "overall_within_0_4": false,
+    "opus_minus_reader": -0.9,
+    "sonnet_minus_reader": -0.9
+  },
+  "truth": {
+    "request_type": "outfit",
+    "garments": [
+      "blouse",
+      "trousers",
+      "blazer"
+    ],
+    "owns": [],
+    "occasion": "week by the sea",
+    "formality": "smart casual",
+    "color": "surprise",
+    "budget": {
+      "max": 120,
+      "currency": "USD",
+      "scope": "per_item"
+    },
+    "depth": {
+      "looks": 2
+    },
+    "anchor": "n/a"
+  },
+  "opening_message": "looking for blouse + trousers + blazer for week by the sea, size M, show me 2",
+  "brief": {
+    "recipient_person_id": "1825e226-55f0-42bb-9224-8d0f682da3ad",
+    "request_type": "outfit",
+    "garments": [
+      "blouse",
+      "trousers",
+      "blazer"
+    ],
+    "occasion_context": "work trip by the sea",
+    "quantity_hint": "2 looks",
+    "must_haves": [],
+    "nice_to_haves": [],
+    "budget_context": {
+      "stated": false
+    },
+    "style_direction": "Smart, breathable workwear pieces — blouse, trousers, and blazer suited to a coastal work trip in late summer.",
+    "department_scope": "mens",
+    "color_direction": {
+      "source": "none"
+    },
+    "brand_direction": {
+      "source": "stated",
+      "brands": [
+        "the sea"
+      ]
+    },
+    "stated_facts": {
+      "person_ref": "self",
+      "sizes": {
+        "tops": "M",
+        "bottoms": "M"
+      }
+    },
+    "depth": {
+      "looks_wanted": 2,
+      "options_per_item": 1,
+      "source": "stated"
+    },
+    "preference_anchor": "unspecified",
+    "consultation": {
+      "confirmed": [
+        "2 looks"
+      ],
+      "rounds_used": 0
+    },
+    "assumptions": [
+      "Assumed smart-casual coastal styling for a week-long work trip."
+    ],
+    "knowledge_state": {
+      "department": "mens",
+      "sizes_confirmed": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ],
+      "sizes_unconfirmed": [
+        "blouse",
+        "trousers",
+        "blazer"
+      ]
+    }
+  },
+  "question_rounds": 0,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "looking for blouse + trousers + blazer for week by the sea, size M, show me 2"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ],
+  "sonnet_grade": {
+    "recognized": {
+      "score": 2,
+      "why": "No acknowledgment of client's specifics; brief misreads department as mens and 'the sea' as a brand."
+    },
+    "asked_right": {
+      "score": 2,
+      "why": "No budget confirmation despite being unstated; no clarification on gender/department, causing likely mismatch."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "No interrogation occurred at all—went straight to search without any questions."
+    },
+    "no_silent_guess": {
+      "score": 1,
+      "why": "Silently assumed mens department and misparsed 'sea' as a brand without confirming with client."
+    },
+    "accuracy": {
+      "score": 2,
+      "why": "Department wrongly set to mens; brand misassigned; budget and color surprise ignored entirely."
+    },
+    "voice": {
+      "score": 0,
+      "why": "n/a — no spoken stylist turn (search progress only)"
+    },
+    "would_proceed": {
+      "score": 2,
+      "why": "Client would likely balk seeing wrong department and unconfirmed budget before results arrive."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.1,
+    "worst_moment": {
+      "quote": "assistant [ready_to_search]: Searching the stores",
+      "better": "\"Got it—blouse, trousers, blazer in M for a week by the sea. Quick check: budget around $120/item okay, and any color preference or surprise me?\""
+    },
+    "judge_model": "claude-sonnet-5"
+  },
+  "opus_grade": {
+    "recognized": {
+      "score": 2,
+      "why": "No summary or callback; request restated back as a bare search line."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Asked nothing; budget and color-surprise wish unexplored but request was fairly complete."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "Zero rounds, no form-feel — but that's absence, not skill."
+    },
+    "no_silent_guess": {
+      "score": 1,
+      "why": "Silently guessed mens department and $120 budget; none spoken or correctable."
+    },
+    "accuracy": {
+      "score": 2,
+      "why": "Wrong department (mens), 'the sea' misread as brand, budget cap ignored, color surprise missed."
+    },
+    "voice": {
+      "score": 0,
+      "why": "n/a — no spoken stylist turn (search progress only)"
+    },
+    "would_proceed": {
+      "score": 2,
+      "why": "Instant search with no acknowledgment; likely to bounce before dept/budget errors surface."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.1,
+    "worst_moment": {
+      "quote": "Searching the stores",
+      "better": "\"A coastal work week — smart, breathable. Any budget per piece, and should I surprise you on color?\""
+    },
+    "judge_model": "claude-opus-4-8"
+  },
+  "sonnet_offset_vs_opus": 0,
+  "sonnet_offset_vs_human": -0.9,
+  "sonnet_dim_agreement_vs_opus_pct": 83.3,
+  "opus_offset_vs_human": -0.9
+}

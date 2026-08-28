@@ -16,7 +16,55 @@ const SHOE_TOKEN_RE =
 
 /** Common free-text singles worth keeping even when not in the accessory list. */
 const SIMPLE_GARMENT_RE =
-  /\b(bracelet|bracelets|watch|watches|belt|belts|bag|bags|shoes?|sneakers?|boots?|shirt|blazer|dress|trousers|pants|jeans|jacket|coat|hoodie|sweater|hat|tie|scarf|swimsuit|swimsuits|swimwear|bikini|bikinis)\b/i;
+  /\b(bracelet|bracelets|watch|watches|belt|belts|bag|bags|shoes?|sneakers?|boots?|shirts?|blazer|dress(?:es)?|trousers|pants|jeans|jackets?|coats?|hoodie|sweater|hat|tie|scarf|swimsuit|swimsuits|swimwear|bikini|bikinis|t-?shirts?|tee|blouse|overshirt|sandals?|skirt|skirts|polo|chinos?|loafers?)\b/i;
+
+const AR_GARMENT_RE =
+  /(جينز|تي\s*شيرت|تيشيرت|فستان|بلوزة|جاكيت|حذاء|صندل|معطف|قميص|بنطلون|بناطيل|حذاء رياضي|شوز|جزمة)/g;
+
+const AR_GARMENT_EN: Record<string, string> = {
+  جينز: "jeans",
+  تيشيرت: "t-shirt",
+  "تي شيرت": "t-shirt",
+  فستان: "dress",
+  بلوزة: "blouse",
+  جاكيت: "jacket",
+  حذاء: "shoes",
+  صندل: "sandals",
+  معطف: "coat",
+  قميص: "shirt",
+  بنطلون: "trousers",
+  بناطيل: "trousers",
+  "حذاء رياضي": "sneakers",
+  شوز: "shoes",
+  جزمة: "boots",
+};
+
+const FR_GARMENT_RE =
+  /\b(jupe|jupes|blouse|blouses|robe|robes|jean|jeans|baskets?|manteau|manteaux|chaussures?|sandales?|veste|blazer|pantalon|chemisier|chemise|baskets)\b/gi;
+
+const FR_GARMENT_EN: Record<string, string> = {
+  jupe: "skirt",
+  jupes: "skirt",
+  blouse: "blouse",
+  blouses: "blouse",
+  robe: "dress",
+  robes: "dress",
+  jean: "jeans",
+  jeans: "jeans",
+  basket: "sneakers",
+  baskets: "sneakers",
+  manteau: "coat",
+  manteaux: "coat",
+  chaussure: "shoes",
+  chaussures: "shoes",
+  sandale: "sandals",
+  sandales: "sandals",
+  veste: "jacket",
+  blazer: "blazer",
+  pantalon: "trousers",
+  chemisier: "blouse",
+  chemise: "shirt",
+};
 
 export function isVagueGarmentLabel(garment: string): boolean {
   return VAGUE_GARMENT_RE.test(garment.trim());
@@ -69,6 +117,18 @@ export function normalizeGarmentClarificationAnswer(
     (o) => o.trim().toLowerCase() === trimmed.toLowerCase(),
   );
   const text = quick ?? trimmed;
+  // Split slash-compound chips ("تيشيرت/قمصان") before token scan
+  const slashParts = trimmed
+    .split(/[/|]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (slashParts.length > 1) {
+    const fromSlash = uniqLower(
+      slashParts.flatMap((p) => normalizeGarmentClarificationAnswer(p, quickOptions)),
+    );
+    if (fromSlash.length) return fromSlash;
+  }
+
   const lower = text.toLowerCase();
 
   // Scope chips are not garment SKUs — leave garments empty; router owns mode.
@@ -97,19 +157,52 @@ export function normalizeGarmentClarificationAnswer(
     if (/\bmix of both\b/.test(lower)) return ["shoes", "accessories"];
   }
 
-  // Free text / partial chip: take the leading clause before size digressions.
+  // Free text: leading clause before size digressions, then full message.
+  // Always scan apparel + shoes + accessories together — never early-return
+  // on shoes alone (that dropped "shirts, trousers, sneakers, overshirt").
   const lead = trimmed.split(/[.!?]/)[0]?.trim() || trimmed;
-  const fromLead = uniqLower([
-    ...collectMatches(lead, ACCESSORY_TOKEN_RE),
-    ...collectMatches(lead, SHOE_TOKEN_RE),
-  ]);
+  const scanGarments = (text: string): string[] =>
+    uniqLower([
+      ...collectMatches(text, ACCESSORY_TOKEN_RE),
+      ...collectMatches(text, SHOE_TOKEN_RE),
+      ...(text.match(new RegExp(SIMPLE_GARMENT_RE.source, "gi")) ?? []).map(
+        (s) => s.toLowerCase(),
+      ),
+      ...[...text.matchAll(AR_GARMENT_RE)].map((m) => {
+        const rawTok = m[0]!.replace(/\s+/g, " ").trim();
+        return (
+          AR_GARMENT_EN[rawTok] ??
+          AR_GARMENT_EN[rawTok.replace(/\s/g, "")] ??
+          rawTok
+        );
+      }),
+      ...[...text.matchAll(FR_GARMENT_RE)].map((m) => {
+        const rawTok = m[0]!.toLowerCase();
+        return FR_GARMENT_EN[rawTok] ?? rawTok;
+      }),
+    ]);
+  const fromLead = scanGarments(lead);
   if (fromLead.length) return fromLead;
+  const fromFull = scanGarments(trimmed);
+  if (fromFull.length) return fromFull;
 
-  const simple = lead.match(SIMPLE_GARMENT_RE)?.[0];
-  if (simple) return [simple.toLowerCase()];
+  // "dressy" / baptism dress-code → dress when no other token found
+  if (/\bdressy\b/i.test(trimmed) || /\btenue de (soirée|cérémonie)\b/i.test(trimmed)) {
+    return ["dress"];
+  }
 
   // Short bare answers ("bracelets", "a watch") — keep as the garment.
-  if (lead.length > 0 && lead.length <= 40 && !/\d/.test(lead)) {
+  // Reject escape / chat fillers that are not garment labels.
+  if (
+    lead.length > 0 &&
+    lead.length <= 40 &&
+    !/\d/.test(lead) &&
+    !/\s/.test(lead.trim()) && // single token only
+    !/^(just show me|you decide|surprise me|thanks?|ok|okay|sure|yes|no)\b/i.test(
+      lead,
+    ) &&
+    !/\b(show me what you'?ve got|montre[- ]moi)\b/i.test(lead)
+  ) {
     return [lead.toLowerCase().replace(/^(a|an|the)\s+/, "")];
   }
 

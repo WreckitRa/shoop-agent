@@ -93,6 +93,28 @@ function stripRosterNamesFromPersonNameQuestion(
   return { ...question, quick_options: kept.slice(0, 1) };
 }
 
+export function rewriteSelfNameInQuestionText(
+  text: string,
+  selfName: string,
+): string {
+  const name = selfName.trim();
+  if (!name || name.length < 2) return text;
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // "Sam17's typical dress size" → "your typical dress size"
+  let out = text.replace(new RegExp(`\\b${esc}'s\\b`, "gi"), "your");
+  // "What size does Sam17 wear" → "What size do you wear"
+  out = out.replace(
+    new RegExp(`\\bdoes\\s+${esc}\\b`, "gi"),
+    "do you",
+  );
+  out = out.replace(new RegExp(`\\bis\\s+${esc}\\b`, "gi"), "are you");
+  // Bare name leftover in a question about self → you
+  out = out.replace(new RegExp(`\\b${esc}\\b`, "gi"), "you");
+  // Cleanup "you you" / "your you"
+  out = out.replace(/\byou\s+you\b/gi, "you").replace(/\byour\s+you\b/gi, "your");
+  return out;
+}
+
 export function sanitizeClarificationQuestions(params: {
   questions: FashionClarificationQuestion[];
   traceId?: string | null;
@@ -100,14 +122,28 @@ export function sanitizeClarificationQuestions(params: {
   rosterNames?: string[];
   /** When true, drop person_name questions (relation unique — name optional). */
   stripPersonNameQuestions?: boolean;
+  /** Self recipient display name — rewrite to you/your in questions. */
+  selfDisplayName?: string | null;
 }): FashionClarificationQuestion[] {
   const seen = new Set<string>();
   const out: FashionClarificationQuestion[] = [];
   const rosterNames = params.rosterNames ?? [];
+  const selfName = params.selfDisplayName?.trim() || "";
 
   for (const q of params.questions) {
-    const text = q.text.trim();
+    let text = q.text.trim();
     if (!text) continue;
+    if (selfName) {
+      const rewritten = rewriteSelfNameInQuestionText(text, selfName);
+      if (rewritten !== text) {
+        logAiChat("info", "self_name_rewritten_in_question", {
+          traceId: params.traceId,
+          from: text.slice(0, 120),
+          to: rewritten.slice(0, 120),
+        });
+        text = rewritten;
+      }
+    }
 
     if (params.stripPersonNameQuestions && q.gap === "person_name") {
       logAiChat("info", "person_name_optional_stripped", {

@@ -1,18 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import {
   FittingAddIn,
+  FittingCounted,
+  FittingKick,
+  FittingMulti,
   FittingNavRow,
+  FittingPromise,
   FittingQlbl,
   FittingTitle,
   FittingWhisper,
   OnboardingChip,
 } from "@/components/onboarding/onboarding-ui";
-import { COMFORT_OPTIONS } from "@/lib/onboarding/form-options";
 import {
   suggestBrandAvoids,
   suggestBrandLikes,
+  suggestComfortLines,
   suggestStyleVetoes,
   type LovesVetoesContext,
 } from "@/lib/onboarding/loves-vetoes-suggest";
@@ -63,6 +66,7 @@ export function TasteLovesVetoesStep({
 }: Props) {
   const brandSuggestions = suggestBrandLikes(context, 8);
   const vetoSuggestions = suggestStyleVetoes(context, 8);
+  const comfortSuggestions = suggestComfortLines(context);
   const avoidBrandSuggestions = suggestBrandAvoids(context, 6).filter(
     (brand) => !hasBrand(brandLikes, brand),
   );
@@ -74,7 +78,7 @@ export function TasteLovesVetoesStep({
     vetoSuggestions.map((v) => v.toLowerCase()),
   );
   const comfortOptionSet = new Set(
-    COMFORT_OPTIONS.map((o) => o.value.toLowerCase()),
+    comfortSuggestions.map((o) => o.value.toLowerCase()),
   );
   const avoidSuggestionSet = new Set(
     avoidBrandSuggestions.map((b) => b.toLowerCase()),
@@ -101,6 +105,7 @@ export function TasteLovesVetoesStep({
 
   return (
     <section>
+      <FittingKick>EVIDENCE · THE NO-LIST</FittingKick>
       <FittingTitle
         lines={[
           { text: "Quick vetoes" },
@@ -109,8 +114,15 @@ export function TasteLovesVetoesStep({
       />
       <FittingWhisper>
         The no-list is sacred... whatever lands here, you&apos;ll never see me
-        suggest it. <b>And it prints in red.</b>
+        suggest it.
       </FittingWhisper>
+      <FittingPromise>
+        <b>This is a promise, not a preference.</b> Whatever lands here I will
+        never show you again and never try to talk you into. Not with a
+        discount, not with a good reason, not ever.{" "}
+        <b>You will not have to say it twice.</b>
+      </FittingPromise>
+      <FittingMulti />
 
       <FittingQlbl>Brands you reach for</FittingQlbl>
       <p className="mb-2.5 -mt-1.5 text-[11px] font-medium text-[var(--fitting-quiet)]">
@@ -145,13 +157,13 @@ export function TasteLovesVetoesStep({
         />
       </div>
 
-      <div className="mt-[46px] border-t border-dashed border-[#E4E4EA] pt-7">
+      <div className="mt-9 border-t border-dashed border-[var(--fitting-g3)] pt-7">
         <FittingQlbl>Comfort lines I won&apos;t cross</FittingQlbl>
         <p className="mb-2.5 -mt-1.5 text-[11px] font-medium text-[var(--fitting-quiet)]">
           hard filters... I never score my way around these
         </p>
         <div className="flex max-w-[660px] flex-wrap gap-2.5">
-          {COMFORT_OPTIONS.map((opt) => (
+          {comfortSuggestions.map((opt) => (
             <OnboardingChip
               key={opt.value}
               variant="no"
@@ -181,7 +193,7 @@ export function TasteLovesVetoesStep({
         </div>
       </div>
 
-      <div className="mt-[46px] border-t border-dashed border-[#E4E4EA] pt-7">
+      <div className="mt-9 border-t border-dashed border-[var(--fitting-g3)] pt-7">
         <FittingQlbl>Never put me in...</FittingQlbl>
         <p className="mb-2.5 -mt-1.5 text-[11px] font-medium text-[var(--fitting-quiet)]">
           suggested from your looks and spend style... edit freely, or type
@@ -254,6 +266,18 @@ export function TasteLovesVetoesStep({
           }}
         />
       </div>
+
+      {hardAvoids.length + comfort.length + brandAvoids.length > 0 ? (
+        <FittingCounted
+          title={`Noted. ${hardAvoids.length + comfort.length + brandAvoids.length} things you will never see.`}
+        >
+          {[...hardAvoids, ...comfort, ...brandAvoids].join(" · ")}
+          <br />
+          <br />
+          They are filters now, not preferences. Nothing from here on can
+          contain any of them, whatever it scores on everything else.
+        </FittingCounted>
+      ) : null}
 
       {onContinue ? (
         <FittingNavRow onNext={onContinue} busy={busy} />

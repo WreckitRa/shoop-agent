@@ -51,9 +51,12 @@ const appointmentBrief = {
 };
 
 describe("repeat_client_fewer_consults", () => {
-  it("prompt skips consult once shopping_style:quick is on the profile", () => {
-    assert.match(ROUTER_PROMPT_STATIC, /shopping_style:quick/);
-    assert.match(ROUTER_PROMPT_STATIC, /skip consultative questions/);
+  it("prompt skips other consults once shopping_style:quick, but still asks preference_anchor", () => {
+    assert.match(ROUTER_PROMPT_STATIC, /shopping_style:\s*quick/);
+    assert.match(
+      ROUTER_PROMPT_STATIC,
+      /skip every consultative\s+question EXCEPT preference_anchor/,
+    );
   });
 
   it("snapshot surfaces shopping_style:quick for the second appointment", () => {

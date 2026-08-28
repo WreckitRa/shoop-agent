@@ -16,10 +16,13 @@ import {
 } from "@/lib/ask/share-client";
 import {
   formatScanEmphasis,
+  lookScanDimRows,
+  lookScanWeaknessChip,
   PREVIEW_SCAN_DIM_LABEL,
   previewScanNotes,
   previewScanWhispers,
   resolveLookScanMode,
+  scoreFromLookScanChecks,
   type LookScanPiece,
   type LookScanVerdict,
   type PreviewScanNote,
@@ -269,6 +272,15 @@ export function StudyingScan({
   const [pendingShareAction, setPendingShareAction] = useState<
     "copy" | "whatsapp" | null
   >(null);
+  const [challengerOpen, setChallengerOpen] = useState(false);
+  const [challengers, setChallengers] = useState<
+    Array<{ generationId: string; imageUrl: string; title: string }>
+  >([]);
+  const [challengerBusy, setChallengerBusy] = useState(false);
+  const [pickedChallenger, setPickedChallenger] = useState<{
+    generationId: string;
+    imageUrl: string;
+  } | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(() => {
     const token = useTryOnDrawerStore.getState().askShareToken;
     if (!token || typeof window === "undefined") return null;
@@ -284,6 +296,7 @@ export function StudyingScan({
   const replayRef = useRef(false);
   const showToast = useToastStore((s) => s.show);
   const jobId = useTryOnDrawerStore((s) => s.jobId);
+  const askShareRequestId = useTryOnDrawerStore((s) => s.askShareRequestId);
   const ownerVerdict = useTryOnDrawerStore((s) => s.ownerVerdict);
   const setOwnerVerdict = useTryOnDrawerStore((s) => s.setOwnerVerdict);
   const setLookScanVerdict = useTryOnDrawerStore((s) => s.setLookScanVerdict);
@@ -468,7 +481,10 @@ export function StudyingScan({
     if (imageUrlRef.current) void fetchVerdict();
   }
 
-  async function ensureAskShareUrl(): Promise<string | null> {
+  async function ensureAskShareUrl(opts?: {
+    altImageUrl?: string;
+    altGenerationId?: string;
+  }): Promise<string | null> {
     if (shareUrl) return shareUrl;
     const existingToken = useTryOnDrawerStore.getState().askShareToken;
     if (existingToken) {
@@ -485,6 +501,9 @@ export function StudyingScan({
         : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
 
       const ownerVote = useTryOnDrawerStore.getState().ownerVerdict;
+      const altImageUrl = opts?.altImageUrl ?? pickedChallenger?.imageUrl;
+      const altGenerationId =
+        opts?.altGenerationId ?? pickedChallenger?.generationId;
 
       const res = await guestFetch("/api/ask", {
         method: "POST",
@@ -496,12 +515,21 @@ export function StudyingScan({
           generationId: jobId,
           conversationId,
           ownerVote,
+          ...(altImageUrl
+            ? {
+                altImageUrl: /^https?:\/\//i.test(altImageUrl)
+                  ? altImageUrl
+                  : `${window.location.origin}${altImageUrl.startsWith("/") ? "" : "/"}${altImageUrl}`,
+                altGenerationId: altGenerationId ?? null,
+              }
+            : {}),
         }),
       });
       const body = (await res.json().catch(() => null)) as {
         error?: string;
         askPath?: string;
         token?: string;
+        pollMode?: string;
       } | null;
       const askPath =
         body?.askPath?.trim() ||
@@ -513,7 +541,6 @@ export function StudyingScan({
       if (body?.token) {
         useTryOnDrawerStore.getState().setAskShareToken(body.token);
       }
-      // Always build from the browser origin — API may return bind-host URLs.
       const url = askShareAbsoluteUrl(askPath);
       setShareUrl(url);
       if (conversationId) {
@@ -527,6 +554,73 @@ export function StudyingScan({
       return null;
     } finally {
       setShareBusy(false);
+    }
+  }
+
+  async function loadChallengers(): Promise<
+    Array<{ generationId: string; imageUrl: string; title: string }>
+  > {
+    const qs = jobId
+      ? `?exclude=${encodeURIComponent(jobId)}&limit=12`
+      : "?limit=12";
+    const res = await guestFetch(`/api/tryon/recent${qs}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as {
+      items?: Array<{ generationId: string; imageUrl: string; title: string }>;
+    };
+    return body.items ?? [];
+  }
+
+  async function beginShare(kind: "copy" | "whatsapp") {
+    if (shareUrl || useTryOnDrawerStore.getState().askShareToken) {
+      if (kind === "whatsapp") await shareAskOnWhatsApp();
+      else await copyAskLink();
+      return;
+    }
+    setChallengerBusy(true);
+    try {
+      const items = await loadChallengers();
+      setChallengers(items);
+      if (items.length > 0) {
+        setPendingShareAction(kind);
+        setChallengerOpen(true);
+        return;
+      }
+      // No second look — rate-mode fallback so Ask still ships.
+      setShareHint("Dress another look to ask comparatively — sharing this one for now.");
+      if (kind === "whatsapp") await shareAskOnWhatsApp();
+      else await copyAskLink();
+    } finally {
+      setChallengerBusy(false);
+    }
+  }
+
+  async function confirmChallenger(item: {
+    generationId: string;
+    imageUrl: string;
+  }) {
+    setPickedChallenger(item);
+    setChallengerOpen(false);
+    const kind = pendingShareAction ?? "whatsapp";
+    setPendingShareAction(null);
+    const url = await ensureAskShareUrl({
+      altImageUrl: item.imageUrl,
+      altGenerationId: item.generationId,
+    });
+    if (!url) return;
+    if (kind === "whatsapp") {
+      const ok = await copyAskShareUrl(url);
+      setShareHint(
+        ok ? "Link copied · opening WhatsApp…" : "Opening WhatsApp…",
+      );
+      openWhatsAppAskShare(url, true);
+      setAsked(true);
+    } else {
+      const ok = await copyAskShareUrl(url);
+      setShareHint(ok ? "Link copied" : url);
+      setAsked(true);
     }
   }
 
@@ -556,8 +650,7 @@ export function StudyingScan({
       setShareConsentOpen(true);
       return;
     }
-    if (kind === "whatsapp") await shareAskOnWhatsApp();
-    else await copyAskLink();
+    await beginShare(kind);
   }
 
   async function copyAskLink() {
@@ -569,6 +662,7 @@ export function StudyingScan({
         ? "Link copied — anyone with it can see this render of you. Expires in 7 days."
         : url,
     );
+    setAsked(true);
   }
 
   async function shareAskOnWhatsApp() {
@@ -578,14 +672,25 @@ export function StudyingScan({
     setShareHint(
       ok ? "Link copied · opening WhatsApp…" : "Opening WhatsApp…",
     );
-    openWhatsAppAskShare(url);
+    openWhatsAppAskShare(url, Boolean(pickedChallenger));
     setAsked(true);
   }
+
+  useEffect(() => {
+    if (askShareRequestId < 1) return;
+    if (!verdict || !imageUrl) {
+      setShareHint("Wait for Shoop’s take — then Ask friends.");
+      return;
+    }
+    void runShare("whatsapp");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askShareRequestId]);
 
   useEffect(() => {
     setShareUrl(null);
     setShareHint(null);
     setAsked(false);
+    setPickedChallenger(null);
     beginBake();
     // One bake per mount — parent keys this on the try-on generation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -631,9 +736,19 @@ export function StudyingScan({
     return "idle";
   }
 
-  const notes = verdict && phase === "done" ? notesFromVerdict(verdict) : [];
   const actionsReady = phase === "done" && Boolean(verdict);
   const onFigure = Boolean(frameEl);
+  const scanScore = verdict ? scoreFromLookScanChecks(verdict.checks) : null;
+  const weaknessChip = verdict ? lookScanWeaknessChip(verdict.checks) : null;
+  const dimRows = verdict && phase === "done" ? lookScanDimRows(verdict) : [];
+  const scoreColor =
+    scanScore == null
+      ? undefined
+      : scanScore >= 7.5
+        ? "#16A34A"
+        : scanScore >= 6
+          ? "#C98A0E"
+          : "#DC2626";
 
   const overlays: ReactNode =
     showOnAvatar && frameEl
@@ -855,26 +970,60 @@ export function StudyingScan({
         </>
       ) : null}
 
-      {verdict && phase === "done" ? (
-        <div className="shoop-sscan__vt">
-          <span className="shoop-sscan__overlay-k">Verdict</span>
-          <h3
-            dangerouslySetInnerHTML={{
-              __html: formatScanEmphasis(verdict.verdict_title),
-            }}
-          />
-        </div>
-      ) : null}
+      {verdict && phase === "done" && scanScore != null ? (
+        <div className="shoop-sscan__vt shoop-sscan__vt--reading">
+          <div className="shoop-mv">
+            <span className="shoop-mv__score" style={{ color: scoreColor }}>
+              {scanScore.toFixed(1)}
+              <i>/10</i>
+            </span>
+            <div className="shoop-mv__say">
+              <b
+                dangerouslySetInnerHTML={{
+                  __html: formatScanEmphasis(verdict.verdict_title),
+                }}
+              />
+              <em
+                dangerouslySetInnerHTML={{
+                  __html: formatScanEmphasis(verdict.verdict_body),
+                }}
+              />
+              {weaknessChip ? (
+                <span className="shoop-mv__chip">{weaknessChip}</span>
+              ) : null}
+            </div>
+          </div>
 
-      {notes.length ? (
-        <ul className="shoop-sscan__notes">
-          {notes.map((n, i) => (
-            <li key={i}>
-              <i style={{ background: toneColor(n.tone) }} aria-hidden />
-              <span dangerouslySetInnerHTML={{ __html: n.html }} />
-            </li>
-          ))}
-        </ul>
+          <ul className="shoop-dims">
+            {dimRows.map((row) => {
+              const col =
+                row.tone === "pass"
+                  ? "#16A34A"
+                  : row.tone === "caution"
+                    ? "#C98A0E"
+                    : "#DC2626";
+              return (
+                <li key={row.key} className="shoop-dim">
+                  <div className="shoop-dim__r">
+                    <span className="shoop-dim__k">{row.label}</span>
+                    <span className="shoop-dim__tr">
+                      <i
+                        style={{
+                          width: `${Math.min(100, row.score * 10)}%`,
+                          background: col,
+                        }}
+                      />
+                    </span>
+                    <span className="shoop-dim__sc" style={{ color: col }}>
+                      {row.score.toFixed(1)}
+                    </span>
+                  </div>
+                  <p className="shoop-dim__wy">{row.why}</p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       ) : null}
 
       {phase === "error" ? (
@@ -888,39 +1037,65 @@ export function StudyingScan({
       ) : null}
 
       {actionsReady ? (
-        <div className="shoop-reacts">
-          <span className="shoop-reacts__q">Your call</span>
-          {(
-            [
-              ["no", "No"],
-              ["meh", "Meh"],
-              ["almost", "Almost"],
-              ["love", "♥ Love it"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={cn("shoop-react", ownerVerdict === id && "is-on")}
-              onClick={() => setOwnerVerdict(id)}
+        <div className="shoop-vote">
+          <div className="shoop-vote__h">
+            <b>YOUR CALL</b>
+            <em>this teaches me faster than anything else</em>
+          </div>
+          <div className="shoop-vote__row">
+            {(
+              [
+                ["no", "No"],
+                ["meh", "Meh"],
+                ["almost", "Almost"],
+                ["love", "♥ Love it"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={cn(
+                  "shoop-vb",
+                  id === "love" && "shoop-vb--love",
+                  ownerVerdict === id && "is-on",
+                )}
+                onClick={() => setOwnerVerdict(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="shoop-ask"
+            disabled={shareBusy}
+            onClick={() => void runShare("whatsapp")}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
             >
-              {label}
-            </button>
-          ))}
+              <path d="M22 2L11 13" />
+              <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+            </svg>
+            {shareBusy
+              ? "Making the card…"
+              : asked
+                ? "Ask sent"
+                : "Ask the girls before you decide"}
+          </button>
         </div>
       ) : null}
 
       {!onFigure ? (
         <div className="shoop-sscan__actions-row">
-          <button
-            type="button"
-            className="shoop-sscan__btn shoop-sscan__btn--primary"
-            disabled={!actionsReady || shareBusy}
-            onClick={() => void runShare("whatsapp")}
-          >
-            <i aria-hidden />
-            {shareBusy ? "Making the card…" : "Share on WhatsApp"}
-          </button>
           <button
             type="button"
             className="shoop-sscan__btn shoop-sscan__btn--ghost"
@@ -998,11 +1173,59 @@ export function StudyingScan({
             setShareConsentOpen(false);
             const next = pendingShareAction;
             setPendingShareAction(null);
-            if (next === "whatsapp") await shareAskOnWhatsApp();
-            else await copyAskLink();
+            if (next) await beginShare(next);
           })();
         }}
       />
+
+      {challengerOpen ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-end justify-center bg-ink/40 p-4 sm:items-center"
+          role="dialog"
+          aria-label="Pick the other look"
+        >
+          <div className="max-h-[80dvh] w-full max-w-md overflow-auto rounded-2xl border border-hairline bg-white p-4 shadow-xl">
+            <h3 className="font-display text-[15px] font-extrabold text-ink">
+              Pick the other look
+            </h3>
+            <p className="mt-1 text-[12px] text-ink-muted">
+              Friends choose between this look and one more — comparative by
+              default.
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {challengers.map((item) => (
+                <button
+                  key={item.generationId}
+                  type="button"
+                  disabled={shareBusy}
+                  onClick={() => void confirmChallenger(item)}
+                  className="overflow-hidden rounded-xl border border-hairline bg-[#F7F7F9] text-left transition hover:border-ink/30"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    className="aspect-[3/4] w-full object-cover object-top"
+                  />
+                  <span className="block truncate px-1.5 py-1 text-[10px] font-bold text-ink">
+                    {item.title}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="mt-3 w-full rounded-xl border border-hairline py-2.5 text-[12px] font-bold text-ink-muted"
+              onClick={() => {
+                setChallengerOpen(false);
+                setPendingShareAction(null);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

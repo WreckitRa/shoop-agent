@@ -74,16 +74,80 @@ export const CLIMATE_OPTIONS = [
   { value: "cold", label: "Cold" },
 ] as const;
 
+/** Who a suggestion is for. Omit = any presentation. */
+export type SuggestionAudience = "masculine" | "feminine";
+
+export type ComfortOption = {
+  value: string;
+  label: string;
+  audience?: SuggestionAudience;
+  /** Rank boosts from earlier quiz answers (spend, life, looks). */
+  signals: readonly string[];
+  antiSignals?: readonly string[];
+};
+
 /** Hard predicates that filter items. Never scores. */
-export const COMFORT_OPTIONS = [
-  { value: "no heels", label: "No heels" },
-  { value: "nothing sleeveless", label: "Nothing sleeveless" },
-  { value: "nothing short", label: "Nothing short" },
-  { value: "no tight fits", label: "No tight fits" },
-  { value: "covered shoulders", label: "Covered shoulders" },
-  { value: "nothing sheer", label: "Nothing sheer" },
-  { value: "no low rise", label: "No low rise" },
-] as const;
+export const COMFORT_OPTIONS: readonly ComfortOption[] = [
+  {
+    value: "no heels",
+    label: "No heels",
+    audience: "feminine",
+    signals: ["classic", "polished", "deep_in_career", "athleisure"],
+  },
+  {
+    value: "nothing sleeveless",
+    label: "Nothing sleeveless",
+    audience: "feminine",
+    signals: ["classic", "deep_in_career", "polished", "tailored"],
+  },
+  {
+    value: "nothing short",
+    label: "Nothing short",
+    audience: "feminine",
+    signals: ["classic", "deep_in_career", "40s", "50s_60s", "polished"],
+  },
+  {
+    value: "no tight fits",
+    label: "No tight fits",
+    signals: ["relaxed", "linen", "classic", "plus", "broad"],
+  },
+  {
+    value: "covered shoulders",
+    label: "Covered shoulders",
+    audience: "feminine",
+    signals: ["classic", "deep_in_career", "polished"],
+  },
+  {
+    value: "nothing sheer",
+    label: "Nothing sheer",
+    audience: "feminine",
+    signals: ["classic", "deep_in_career", "polished", "tailored"],
+  },
+  {
+    value: "no low rise",
+    label: "No low rise",
+    signals: ["classic", "40s", "50s_60s", "deep_in_career", "polished"],
+  },
+  {
+    value: "no skinny jeans",
+    label: "No skinny jeans",
+    audience: "masculine",
+    signals: ["classic", "tailored", "relaxed", "premium", "minimal"],
+  },
+  {
+    value: "no shorts",
+    label: "No shorts",
+    audience: "masculine",
+    signals: ["deep_in_career", "classic", "tailored", "running_the_show"],
+    antiSignals: ["hot_humid", "hot_dry", "campus_life"],
+  },
+  {
+    value: "no sandals",
+    label: "No sandals",
+    audience: "masculine",
+    signals: ["deep_in_career", "classic", "tailored", "running_the_show"],
+  },
+];
 
 export type ClimateValue = (typeof CLIMATE_OPTIONS)[number]["value"];
 

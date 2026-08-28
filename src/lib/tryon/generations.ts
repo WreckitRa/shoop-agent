@@ -527,6 +527,42 @@ export async function findLatestCompletedTryon(
   return row ? prismaRowToGeneration(row) : null;
 }
 
+/** Recent completed looks for Ask comparative challenger picker. */
+export async function listRecentCompletedTryons(
+  userId: string,
+  opts?: { excludeId?: string | null; limit?: number },
+): Promise<GenerationRow[]> {
+  const limit = Math.min(Math.max(opts?.limit ?? 12, 1), 24);
+  const excludeId = opts?.excludeId?.trim() || null;
+
+  if (testGenStore) {
+    const rows = [...testGenStore.values()]
+      .filter(
+        (row) =>
+          row.userId === userId &&
+          row.status === "completed" &&
+          Boolean(row.outputUrl) &&
+          (row.kind === "single" || row.kind === "outfit") &&
+          row.id !== excludeId,
+      )
+      .slice(0, limit);
+    return rows;
+  }
+
+  const rows = await prisma.tryonGeneration.findMany({
+    where: {
+      userId,
+      status: "completed",
+      outputUrl: { not: null },
+      kind: { in: ["single", "outfit"] },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return rows.map(prismaRowToGeneration);
+}
+
 export async function deleteGenerationsForPerson(personId: string): Promise<void> {
   if (testGenStore) {
     for (const [id, row] of testGenStore) {

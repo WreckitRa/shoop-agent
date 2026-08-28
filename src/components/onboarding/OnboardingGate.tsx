@@ -9,7 +9,16 @@ import {
   defaultMuscularityForBuild,
   type FittingPhotoValues,
 } from "@/components/onboarding/fitting/FittingPhotoStep";
-import { FittingAccountRequired } from "@/components/onboarding/fitting/FittingBiometricConsent";
+import { FittingConsentStep } from "@/components/onboarding/fitting/FittingConsentStep";
+import {
+  getPendingFittingPhoto,
+  loadPersistedFittingPhoto,
+  setPendingFittingPhoto,
+} from "@/components/onboarding/fitting/pending-photo";
+import {
+  clearGuestPhotoLive,
+  markGuestPhotoLive,
+} from "@/lib/client/guest-photo-abandon";
 import {
   BIOMETRIC_CONSENT_EVENT,
   BiometricConsentSheet,
@@ -17,7 +26,10 @@ import {
 } from "@/components/legal/BiometricConsentSheet";
 import { FittingShell } from "@/components/onboarding/fitting/FittingShell";
 import { FittingVerdictStep } from "@/components/onboarding/fitting/FittingVerdictStep";
-import { FittingAnalysisPanel } from "@/components/onboarding/fitting/FittingAnalysisPanel";
+import {
+  FittingAnalysisPanel,
+  type ScanUiPayload,
+} from "@/components/onboarding/fitting/FittingAnalysisPanel";
 import type { StylistVerdict } from "@/lib/photo-analysis/verdict";
 import {
   EMPTY_MIRROR,
@@ -34,6 +46,11 @@ import {
   type FittingStep,
   type MirrorState,
 } from "@/components/onboarding/fitting/types";
+import {
+  clearOnboardingUiSession,
+  readOnboardingUiSession,
+  writeOnboardingUiSession,
+} from "@/components/onboarding/fitting/ui-session";
 import { TasteCircleStep } from "@/components/onboarding/TasteCircleStep";
 import { TasteHonestyStep } from "@/components/onboarding/TasteHonestyStep";
 import { TasteLifeStep, type TasteLifeValues } from "@/components/onboarding/TasteLifeStep";
@@ -57,8 +74,15 @@ import { useInlineFittingSlots } from "@/components/onboarding/useInlineFittingS
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { useAppSessionStore } from "@/lib/client/app-session";
 import { useClientIdentityScopeKey } from "@/lib/client/identity-sync";
-import { guestFetch } from "@/lib/client/guest-fetch";
-import { fillPhotoAnalysisForm } from "@/lib/photo-analysis/types";
+import { openAuthModal } from "@/hooks/useGuestMode";
+import {
+  guestFetch,
+  guestFetchWithRetry,
+  isRateLimitedResponse,
+  retryAfterMs,
+} from "@/lib/client/guest-fetch";
+import { fillPhotoAnalysisForm, type PhotoAnalysisPublic } from "@/lib/photo-analysis/types";
+import { photoScanPhase } from "@/lib/photo-analysis/scan-phase";
 import type { PhotoCoverage } from "@/lib/photo-analysis/result";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import {
@@ -94,10 +118,14 @@ import type {
   HeightBand,
 } from "@/lib/tryon/types";
 
+/** Typical FASHN twin generate — bar asymptotes at 92% until approve. */
+const TWIN_PRINT_EXPECTED_MS = 55_000;
+
 type AvatarApiBody = {
   error?: string;
   avatar?: { url?: string };
-  draft?: {
+    draft?: {
+    person_id?: string;
     step?: string;
     preview_url?: string;
     compare?: boolean;
@@ -160,6 +188,36 @@ function buildFittingAvatarAttributes(opts: {
     attrs.bust_fullness = opts.bustFullness;
   }
   return attrs;
+}
+
+function silhouetteMintKey(opts: {
+  heightCm: number;
+  build: BuildBand;
+  muscularity: FittingPhotoValues["muscularity"];
+  bodyShape: FittingPhotoValues["bodyShape"];
+  bustFullness: FittingPhotoValues["bustFullness"];
+  includeBust: boolean;
+}): string {
+  return [
+    opts.heightCm,
+    opts.build,
+    opts.muscularity ?? "",
+    opts.bodyShape ?? "",
+    opts.bustFullness ?? "",
+    opts.includeBust ? "1" : "0",
+  ].join("|");
+}
+
+function userFacingTwinMintError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : "Twin mint failed.";
+  if (
+    /tryon upload failed|fetch failed|signed url|fetch provider image/i.test(
+      raw,
+    )
+  ) {
+    return "Could not save your twin. Print it again.";
+  }
+  return raw;
 }
 
 function mergeLabelLists(a: string[], b: string[]): string[] {
@@ -295,45 +353,6 @@ type OnboardingStatus = {
   tasteTags: Array<{ tag: string; polarity: string; category?: string | null }>;
 };
 
-const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v4";
-
-type OnboardingUiSession = { step: FittingStep };
-
-function isFittingStep(v: unknown): v is FittingStep {
-  return typeof v === "string" && (FITTING_STEPS as string[]).includes(v);
-}
-
-function readOnboardingUiSession(): OnboardingUiSession | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(ONBOARDING_UI_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<OnboardingUiSession>;
-    if (!isFittingStep(parsed.step)) return null;
-    return { step: parsed.step };
-  } catch {
-    return null;
-  }
-}
-
-function writeOnboardingUiSession(pos: OnboardingUiSession) {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(ONBOARDING_UI_SESSION_KEY, JSON.stringify(pos));
-  } catch {
-    /* ignore */
-  }
-}
-
-function clearOnboardingUiSession() {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.removeItem(ONBOARDING_UI_SESSION_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
 function profileYouSaved(profile: OnboardingStatus["profile"]): boolean {
   if (!profile) return false;
   return Boolean(
@@ -357,21 +376,22 @@ function resolveResumeStep(
   status: OnboardingStatus,
   restart = false,
 ): FittingStep {
-  if (restart || status.onboarding.completed) {
+  if (restart) {
     clearOnboardingUiSession();
     return "photo";
   }
-  return resolveFittingResumeStep(
-    status,
-    readOnboardingUiSession()?.step ?? null,
-  );
+  const sessionStep = readOnboardingUiSession()?.step ?? null;
+  if (status.onboarding.completed) {
+    return sessionStep ?? "verdict";
+  }
+  return resolveFittingResumeStep(status, sessionStep);
 }
 
 async function fetchSelfPerson(
   signal?: AbortSignal,
 ): Promise<{ id: string; hasAvatar: boolean; avatarUrl: string | null } | null> {
   try {
-    const res = await fetch("/api/avatar/people", {
+    const res = await guestFetch("/api/avatar/people", {
       cache: "no-store",
       signal,
     });
@@ -400,7 +420,7 @@ async function fetchSelfPerson(
 async function fetchStatus(
   signal?: AbortSignal,
 ): Promise<OnboardingStatus | "unauthorized"> {
-  const res = await fetch("/api/onboarding", { cache: "no-store", signal });
+  const res = await guestFetch("/api/onboarding", { cache: "no-store", signal });
   if (res.status === 401) return "unauthorized";
   if (!res.ok) throw new Error("load");
   return (await res.json()) as OnboardingStatus;
@@ -458,10 +478,9 @@ function leanFromPicks(
   return top && top[1] > 0 ? top[0] : "";
 }
 
-/** Mirror % is only advanced by real persisted milestones. */
 /**
  * Mirror “developing · %” — quiz progress toward a dressed twin.
- * Twin may mint early (after photo); that only advances the body band.
+ * Twin mint starts after fit (height/build); that only advances the body band.
  * 100% is reserved for the final step (verdict / clothes on the avatar).
  */
 function developPctFromFlags(flags: {
@@ -507,16 +526,16 @@ export function OnboardingGate() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<FittingStep>("photo");
+  const [step, setStep] = useState<FittingStep>("consent");
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
   const [holdOpen, setHoldOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const { questions: inlineSlot, card: cardSlot } = useInlineFittingSlots();
-  const closeColumn = useInlineFittingStore((s) => s.closeColumn);
   const replayFitting = useInlineFittingStore((s) => s.replayFitting);
   const accessMode = useAppSessionStore((s) => s.mode);
   const identityScope = useClientIdentityScopeKey();
   const accountReady = accessMode === "authenticated" || accessMode === "local";
+  const canProcessPhotoRef = useRef(false);
   const [biometricAccepted, setBiometricAccepted] = useState<boolean | null>(
     null,
   );
@@ -527,7 +546,6 @@ export function OnboardingGate() {
     (s) => s.setOnboardingActive,
   );
   const [flash, setFlash] = useState<{
-    cover: string;
     status: string;
     detail: string;
   } | null>(null);
@@ -548,15 +566,39 @@ export function OnboardingGate() {
   /** Server accepted photo draft (not just local preview). */
   const photoReadyRef = useRef(false);
   const pendingPhotoFileRef = useRef<File | null>(null);
+  canProcessPhotoRef.current = biometricAccepted === true;
   const [analysisPhotoFile, setAnalysisPhotoFile] = useState<File | null>(null);
   const [finale, setFinale] = useState<"scan" | "card">("scan");
   const [stylistVerdict, setStylistVerdict] = useState<StylistVerdict | null>(
     null,
   );
+  const [scanActivity, setScanActivity] =
+    useState<MirrorState["scanActivity"]>("idle");
+  const [scanNotes, setScanNotes] = useState<MirrorState["scanNotes"]>([]);
+  const handleScanUi = useCallback((ui: ScanUiPayload) => {
+    setScanActivity(ui.activity);
+    setScanNotes((prev) =>
+      JSON.stringify(prev) === JSON.stringify(ui.notes) ? prev : ui.notes,
+    );
+  }, []);
   /** Prevent double FASHN spend. */
   const mintInFlightRef = useRef(false);
   const mintDoneRef = useRef(false);
   const mintAbortRef = useRef(false);
+  const lastMintOptsRef = useRef<{
+    personId: string;
+    heightCm: number;
+    build: BuildBand;
+    muscularity: FittingPhotoValues["muscularity"];
+    bodyShape: FittingPhotoValues["bodyShape"];
+    bustFullness: FittingPhotoValues["bustFullness"];
+    includeBust: boolean;
+  } | null>(null);
+  const twinCreepRef = useRef<number | null>(null);
+  const twinCreepStartedAtRef = useRef(0);
+  const twinPrintStartedAtRef = useRef(0);
+  /** Coalesce concurrent photo attaches (identity save + fit mint). */
+  const attachPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const [preferredName, setPreferredName] = useState("");
   const [genderPresentation, setGenderPresentation] = useState("");
@@ -627,6 +669,9 @@ export function OnboardingGate() {
     "idle",
   );
   const [twinError, setTwinError] = useState<string | null>(null);
+  const [twinBuildPct, setTwinBuildPct] = useState(0);
+  const [twinBuildLabel, setTwinBuildLabel] = useState("");
+  const [twinBuildElapsedSec, setTwinBuildElapsedSec] = useState(0);
   /** FASHN dress of a worn style onto the twin (verdict step). */
   const [dressedAvatarUrl, setDressedAvatarUrl] = useState<string | null>(null);
   const [dressStatus, setDressStatus] = useState<
@@ -659,11 +704,15 @@ export function OnboardingGate() {
   }, [wornPicks]);
 
   useEffect(() => {
-    if (!accountReady) {
-      setBiometricAccepted(false);
-      setNeedsBiometricReconsent(false);
-      return;
-    }
+    return () => {
+      if (twinCreepRef.current != null) {
+        window.clearInterval(twinCreepRef.current);
+        twinCreepRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const apply = (json: {
       accepted?: boolean;
@@ -692,7 +741,38 @@ export function OnboardingGate() {
       cancelled = true;
       window.removeEventListener(BIOMETRIC_CONSENT_EVENT, onConsent);
     };
-  }, [accountReady]);
+  }, [identityScope]);
+
+  useEffect(() => {
+    if (step !== "consent") return;
+    if (biometricAccepted !== true || needsBiometricReconsent) return;
+    setStep("photo");
+  }, [step, biometricAccepted, needsBiometricReconsent]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const file =
+        getPendingFittingPhoto() ?? (await loadPersistedFittingPhoto());
+      if (!file || cancelled) return;
+      pendingPhotoFileRef.current = file;
+      setPendingFittingPhoto(file);
+      setAnalysisPhotoFile(file);
+      const preview = URL.createObjectURL(file);
+      if (cancelled) {
+        URL.revokeObjectURL(preview);
+        return;
+      }
+      setPhotoValues((p) => ({ ...p, photoPreview: preview }));
+      setLocalFacePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return preview;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /** Only when identity context *content* changes — not new array refs from hydrate. */
   const outfitDeckContextKey = [
@@ -1031,6 +1111,21 @@ export function OnboardingGate() {
     [applyPrefill],
   );
 
+  useLayoutEffect(() => {
+    const session = readOnboardingUiSession();
+    if (!session || session.dismissed) return;
+    useInlineFittingStore.getState().resumeColumn();
+    setStep(session.step);
+    if (session.step === "verdict") setHoldOpen(true);
+    if (session.finale === "scan") setFinale("scan");
+    else if (session.finale && session.step !== "verdict") {
+      setFinale(session.finale);
+    }
+    if (session.circleNames?.some((n) => n.trim())) {
+      setCircleNames(session.circleNames);
+    }
+  }, []);
+
   useEffect(() => {
     const ctrl = new AbortController();
     void (async () => {
@@ -1053,10 +1148,24 @@ export function OnboardingGate() {
         const restart =
           useInlineFittingStore.getState().replayFitting &&
           next.onboarding.completed;
+        const session = readOnboardingUiSession();
         const resume = resolveResumeStep(next, restart);
         setStep(resume);
-        if (!next.onboarding.completed) {
-          writeOnboardingUiSession({ step: resume });
+        if (resume === "verdict" && session?.finale === "scan") {
+          setFinale("scan");
+        }
+        if (!session?.dismissed && (session || !next.onboarding.completed)) {
+          writeOnboardingUiSession({
+            step: resume,
+            finale: resume === "verdict" ? session?.finale : undefined,
+          });
+          useInlineFittingStore.getState().resumeColumn();
+          if (next.onboarding.completed || resume === "verdict") {
+            setHoldOpen(true);
+          }
+        }
+        if (session?.circleNames?.some((n) => n.trim())) {
+          setCircleNames(session.circleNames);
         }
         const self = await fetchSelfPerson(ctrl.signal);
         if (self) {
@@ -1065,6 +1174,9 @@ export function OnboardingGate() {
             setTwinAvatarUrl(self.avatarUrl);
             setTwinStatus("ready");
             setTwinError(null);
+            setTwinBuildPct(100);
+            setTwinBuildLabel("");
+            setTwinBuildElapsedSec(0);
             photoReadyRef.current = true;
             mintDoneRef.current = true;
             useSelfAvatarStore.getState().markReady(self.avatarUrl);
@@ -1080,9 +1192,11 @@ export function OnboardingGate() {
   }, [hydrateFromStatus, detectedArea, identityScope]);
 
   useEffect(() => {
-    if (loading || !status || status.onboarding.completed) return;
-    writeOnboardingUiSession({ step });
-  }, [loading, status, step]);
+    if (loading || !status) return;
+    const session = readOnboardingUiSession();
+    if (session?.dismissed) return;
+    writeOnboardingUiSession({ step, circleNames, finale });
+  }, [loading, status, step, circleNames, finale]);
 
   const replayWasOn = useRef(false);
   useEffect(() => {
@@ -1183,7 +1297,11 @@ export function OnboardingGate() {
       value: FittingPhotoValues[K],
     ) => {
       setPhotoValues((prev) => ({ ...prev, [key]: value }));
-      if (key === "photoCoverage" && pendingPhotoFileRef.current) {
+      if (
+        key === "photoCoverage" &&
+        pendingPhotoFileRef.current &&
+        canProcessPhotoRef.current
+      ) {
         kickPhotoAnalysis(pendingPhotoFileRef.current, {
           coverage: value as PhotoCoverage,
         });
@@ -1261,7 +1379,7 @@ export function OnboardingGate() {
             currentDeck.map((c) => c.id).filter(Boolean).join(","),
           );
         }
-        const res = await fetch(`/api/onboarding/taste?${params}`, {
+        const res = await guestFetch(`/api/onboarding/taste?${params}`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("deck");
@@ -1323,7 +1441,11 @@ export function OnboardingGate() {
   );
 
   useEffect(() => {
-    if (step === "worn" && wornDeck.length === 0) {
+    // Prefetch wardrobe grid while still on spend/fit so worn isn't blocked.
+    if (
+      (step === "spend" || step === "fit" || step === "worn") &&
+      wornDeck.length === 0
+    ) {
       void loadOutfitDeck("worn");
     }
   }, [step, wornDeck.length, loadOutfitDeck]);
@@ -1344,7 +1466,7 @@ export function OnboardingGate() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
-      if (step === "verdict" || step === "honesty" || step === "circle") return;
+      if (step === "verdict" || step === "honesty" || step === "circle" || step === "consent") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
       const btn = document.querySelector<HTMLButtonElement>(
@@ -1357,51 +1479,27 @@ export function OnboardingGate() {
   }, [step]);
 
   /**
-   * Black loading screen stays up until `work` finishes (real API / deck).
-   * Minimum hold avoids a jarring 50ms flash on fast saves.
+   * Advance after critical save work. No full-screen blocker — CTA `busy`
+   * and in-step loaders (outfit grids) carry progress. Optional soft pill
+   * only for long finish jobs via showLoading.
    */
   async function runWithLoading(opts: {
-    from: Exclude<FittingStep, "verdict">;
     nextStep: FittingStep;
     work: () => Promise<boolean>;
-    /** Extra status when preloading the next grid deck, etc. */
-    detailExtra?: string;
   }): Promise<boolean> {
-    const meta = STEP_META[opts.from];
     setError(null);
-    setFlash({
-      cover: meta.flashCover,
-      status: meta.flashNext,
-      detail: opts.detailExtra
-        ? `${meta.loadingDetail} ${opts.detailExtra}`
-        : meta.loadingDetail,
-    });
-    const started = Date.now();
     try {
       const ok = await opts.work();
-      if (!ok) {
-        setFlash(null);
-        return false;
-      }
-      const elapsed = Date.now() - started;
-      if (elapsed < 450) {
-        await new Promise((r) => setTimeout(r, 450 - elapsed));
-      }
+      if (!ok) return false;
       setStep(opts.nextStep);
-      setFlash(null);
       return true;
     } catch (e) {
-      setFlash(null);
       setError(e instanceof Error ? e.message : "Something went wrong.");
       return false;
     }
   }
 
-  function showLoading(opts: {
-    cover: string;
-    status: string;
-    detail: string;
-  }) {
+  function showLoading(opts: { status: string; detail: string }) {
     setFlash(opts);
   }
 
@@ -1446,7 +1544,7 @@ export function OnboardingGate() {
         reviewRequestKeyRef.current ??
         (reviewRequestKeyRef.current = crypto.randomUUID());
 
-      const patch = await fetch("/api/onboarding/review", {
+      const patch = await guestFetch("/api/onboarding/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1488,7 +1586,7 @@ export function OnboardingGate() {
       const personId =
         patchJson.selfPerson?.id ?? selfPersonId ?? (await ensurePersonId());
       const pending = pendingPhotoFileRef.current;
-      if (personId && pending) {
+      if (personId && pending && canProcessPhotoRef.current) {
         void attachAvatarPhoto(personId, pending);
       }
       return true;
@@ -1511,7 +1609,7 @@ export function OnboardingGate() {
     setError(null);
     try {
       const derivedTags = lifestyleTagsFromLife({ weekIs, kids });
-      const res = await fetch("/api/onboarding/review", {
+      const res = await guestFetch("/api/onboarding/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1551,8 +1649,8 @@ export function OnboardingGate() {
     return null;
   }
 
-  async function startAvatarIfNeeded(personId: string) {
-    if (avatarStartedRef.current) return;
+  async function startAvatarIfNeeded(personId: string): Promise<string | null> {
+    if (avatarStartedRef.current) return personId;
     avatarStartedRef.current = true;
     try {
       const res = await guestFetch("/api/avatar/start", {
@@ -1560,9 +1658,17 @@ export function OnboardingGate() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ person_id: personId }),
       });
-      if (!res.ok) avatarStartedRef.current = false;
+      const body = await readAvatarJson(res);
+      if (!res.ok || body.error) {
+        avatarStartedRef.current = false;
+        return null;
+      }
+      const resolved = body.draft?.person_id ?? personId;
+      if (resolved !== personId) setSelfPersonId(resolved);
+      return resolved;
     } catch {
       avatarStartedRef.current = false;
+      return null;
     }
   }
 
@@ -1597,29 +1703,81 @@ export function OnboardingGate() {
     return pollAvatarJob(personId, jobId, startedAt);
   }
 
+  function stopTwinCreep() {
+    if (twinCreepRef.current != null) {
+      window.clearInterval(twinCreepRef.current);
+      twinCreepRef.current = null;
+    }
+    twinPrintStartedAtRef.current = 0;
+  }
+
+  function setTwinStage(pct: number, label: string) {
+    setTwinBuildPct((p) => Math.max(p, pct));
+    setTwinBuildLabel(label);
+  }
+
+  /** Ticking clock from mint start; print-phase bar asymptotes at 92%. */
+  function ensureTwinClock() {
+    if (twinCreepRef.current != null) return;
+    twinCreepStartedAtRef.current = Date.now();
+    twinCreepRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - twinCreepStartedAtRef.current;
+      setTwinBuildElapsedSec(Math.floor(elapsed / 1000));
+      const printAt = twinPrintStartedAtRef.current;
+      if (!printAt) return;
+      const printElapsed = Date.now() - printAt;
+      const t = printElapsed / TWIN_PRINT_EXPECTED_MS;
+      const curved = Math.min(
+        92,
+        Math.round(52 + (1 - Math.exp(-1.4 * t)) * 40),
+      );
+      setTwinBuildPct((p) => Math.max(p, curved));
+      setTwinBuildLabel(
+        printElapsed > 40_000
+          ? "almost there — still printing"
+          : printElapsed > 18_000
+            ? "rendering your twin"
+            : "printing — about a minute",
+      );
+    }, 450);
+  }
+
+  function startTwinPrintCreep() {
+    ensureTwinClock();
+    twinPrintStartedAtRef.current = Date.now();
+  }
+
   /**
    * Start the FASHN twin during the quiz, fire-and-forget:
    * measurements → check (intake merge) → attributes → FASHN generate → poll → approve.
    * Sends every body-related AvatarAttributes field we have so the prompt is complete.
    */
-  async function kickBackgroundMint(opts: {
-    personId: string;
-    heightCm: number;
-    build: BuildBand;
-    muscularity: FittingPhotoValues["muscularity"];
-    bodyShape: FittingPhotoValues["bodyShape"];
-    bustFullness: FittingPhotoValues["bustFullness"];
-    includeBust: boolean;
-  }) {
+  async function kickBackgroundMint(
+    opts: {
+      personId: string;
+      heightCm: number;
+      build: BuildBand;
+      muscularity: FittingPhotoValues["muscularity"];
+      bodyShape: FittingPhotoValues["bodyShape"];
+      bustFullness: FittingPhotoValues["bustFullness"];
+      includeBust: boolean;
+    },
+    retryPass = 0,
+  ) {
+    lastMintOptsRef.current = opts;
     if (mintDoneRef.current || mintInFlightRef.current) return;
     if (!photoReadyRef.current) return;
 
     mintInFlightRef.current = true;
     setTwinStatus("developing");
     setTwinError(null);
+    ensureTwinClock();
+    setTwinStage(14, "reading your photo");
 
     try {
-      await startAvatarIfNeeded(opts.personId);
+      const personId =
+        (await startAvatarIfNeeded(opts.personId)) ?? opts.personId;
+      setTwinStage(22, "sketching your silhouette");
 
       let attrs = buildFittingAvatarAttributes({
         heightCm: opts.heightCm,
@@ -1630,28 +1788,38 @@ export function OnboardingGate() {
         includeBust: opts.includeBust,
       });
 
-      const measRes = await guestFetch("/api/avatar/upload", {
+      const measRes = await guestFetchWithRetry("/api/avatar/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "measurements",
-          person_id: opts.personId,
+          person_id: personId,
           measurements: [
             { metric: "height", value: opts.heightCm, unit: "cm" },
           ],
         }),
       });
-      if (!measRes.ok) {
-        throw new Error("Could not save your height.");
+      const measBody = await readAvatarJson(measRes);
+      if (!measRes.ok || measBody.error) {
+        if (isRateLimitedResponse(measRes, measBody.error)) {
+          throw Object.assign(
+            new Error(
+              measBody.error ?? "Too many requests. Please slow down.",
+            ),
+            { rateLimited: true as const, response: measRes },
+          );
+        }
+        throw new Error(measBody.error ?? "Could not save your height.");
       }
+      setTwinStage(30, "sketching your silhouette");
 
       // Re-check merges photo intake suggestions (e.g. body_shape) under stated attrs.
-      const checkRes = await guestFetch("/api/avatar/upload", {
+      const checkRes = await guestFetchWithRetry("/api/avatar/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "check",
-          person_id: opts.personId,
+          person_id: personId,
           attributes: attrs,
         }),
       });
@@ -1679,39 +1847,57 @@ export function OnboardingGate() {
           delete attrs.bust_fullness;
         }
       }
+      setTwinStage(38, "locking your shape");
 
-      const attrRes = await guestFetch("/api/avatar/upload", {
+      const attrRes = await guestFetchWithRetry("/api/avatar/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "attributes",
-          person_id: opts.personId,
+          person_id: personId,
           attributes: attrs,
         }),
       });
       const attrBody = await readAvatarJson(attrRes);
       if (!attrRes.ok || attrBody.error) {
+        if (isRateLimitedResponse(attrRes, attrBody.error)) {
+          throw Object.assign(
+            new Error(
+              attrBody.error ?? "Too many requests. Please slow down.",
+            ),
+            { rateLimited: true as const, response: attrRes },
+          );
+        }
         throw new Error(attrBody.error ?? "Could not save your measurements.");
       }
+      setTwinStage(48, "locking your shape");
 
-      const genRes = await guestFetch("/api/avatar/generate", {
+      setTwinStage(52, "printing — about a minute");
+      startTwinPrintCreep();
+      const genRes = await guestFetchWithRetry("/api/avatar/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          person_id: opts.personId,
+          person_id: personId,
           action: "generate",
           attributes: attrs,
         }),
       });
       const genBody = await readAvatarJson(genRes);
       if (!genRes.ok || genBody.error) {
+        if (isRateLimitedResponse(genRes, genBody.error)) {
+          throw Object.assign(
+            new Error(genBody.error ?? "Too many requests. Please slow down."),
+            { rateLimited: true as const, response: genRes },
+          );
+        }
         throw new Error(genBody.error ?? "Twin generation failed.");
       }
 
       let preview: string | null = genBody.draft?.preview_url ?? null;
       if (genBody.draft?.compare && genBody.draft.compare_job_id) {
         preview = await pollAvatarJob(
-          opts.personId,
+          personId,
           genBody.draft.compare_job_id,
           Date.now(),
         );
@@ -1721,11 +1907,14 @@ export function OnboardingGate() {
         throw new Error("Twin mint produced no preview image.");
       }
 
-      const approveRes = await guestFetch("/api/avatar/generate", {
+      stopTwinCreep();
+      setTwinStage(94, "finishing");
+
+      const approveRes = await guestFetchWithRetry("/api/avatar/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          person_id: opts.personId,
+          person_id: personId,
           action: "approve",
         }),
       });
@@ -1745,20 +1934,65 @@ export function OnboardingGate() {
 
       const finalUrl = savedUrl ?? preview;
       mintDoneRef.current = true;
+      stopTwinCreep();
+      setTwinBuildPct(100);
+      setTwinBuildLabel("");
       setTwinAvatarUrl(finalUrl);
       setTwinStatus("ready");
       setTwinError(null);
       useSelfAvatarStore.getState().markReady(finalUrl);
       void useSelfAvatarStore.getState().refresh();
     } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : "Twin mint failed.";
+      const rateLimited =
+        e instanceof Error &&
+        "rateLimited" in e &&
+        (e as { rateLimited?: boolean }).rateLimited === true;
+      const res =
+        e instanceof Error && "response" in e
+          ? (e as { response?: Response }).response
+          : undefined;
+
+      if (rateLimited && retryPass < 1) {
+        const wait = res ? retryAfterMs(res, retryPass) : 5_000;
+        twinPrintStartedAtRef.current = 0;
+        setTwinBuildLabel("waiting to retry");
+        setTwinError("Busy building your twin — retrying in a moment…");
+        setTwinStatus("developing");
+        window.setTimeout(() => {
+          void kickBackgroundMint(opts, retryPass + 1);
+        }, wait);
+        return;
+      }
+
+      const msg = rateLimited
+        ? "Too many photo requests just now — finish the quiz and we'll retry from Mirror."
+        : userFacingTwinMintError(e);
       console.error("[shoop] background twin mint failed", e);
+      stopTwinCreep();
       setTwinError(msg);
       setTwinStatus("error");
     } finally {
       mintInFlightRef.current = false;
     }
+  }
+
+  function retryTwinMint() {
+    if (mintInFlightRef.current) return;
+    mintDoneRef.current = false;
+    mintAbortRef.current = false;
+    const stored = lastMintOptsRef.current;
+    const personId = stored?.personId ?? selfPersonId;
+    const heightCm = stored?.heightCm ?? heightCmFromPhoto(photoValues);
+    if (!personId || heightCm == null) return;
+    void kickBackgroundMint({
+      personId,
+      heightCm,
+      build: (photoValues.build ?? stored?.build ?? "average") as BuildBand,
+      muscularity: photoValues.muscularity ?? stored?.muscularity ?? null,
+      bodyShape: photoValues.bodyShape ?? stored?.bodyShape ?? null,
+      bustFullness: photoValues.bustFullness ?? stored?.bustFullness ?? null,
+      includeBust: normalizeGender(genderPresentation) === "feminine",
+    });
   }
 
   function buildDeclaredStyleContext(): Record<string, unknown> {
@@ -1812,59 +2046,69 @@ export function OnboardingGate() {
   }
 
   async function attachAvatarPhoto(personId: string, file: File): Promise<boolean> {
-    await startAvatarIfNeeded(personId);
-    try {
-      const form = new FormData();
-      form.append("person_id", personId);
-      form.append("photo", file);
-      const res = await guestFetch("/api/avatar/upload", {
-        method: "POST",
-        body: form,
-      });
-      const body = await readAvatarJson(res);
-      if (!res.ok || body.error) {
-        setError(body.error ?? "Could not upload photo. Try another.");
-        return false;
-      }
-      if (body.draft?.step === "refused_minor") {
-        setError(
-          body.draft.intake?.refusal_message ?? "We can't use this photo.",
-        );
-        photoReadyRef.current = false;
-        return false;
-      }
+    if (photoReadyRef.current) return true;
+    if (attachPromiseRef.current) return attachPromiseRef.current;
 
-      const checkRes = await guestFetch("/api/avatar/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "check", person_id: personId }),
-      });
-      const checkBody = await readAvatarJson(checkRes);
-      if (checkBody.draft?.step === "refused_minor") {
-        setError(
-          checkBody.draft.intake?.refusal_message ??
-            "We can't use this photo.",
-        );
-        photoReadyRef.current = false;
+    const run = (async (): Promise<boolean> => {
+      const resolvedId = (await startAvatarIfNeeded(personId)) ?? personId;
+      try {
+        const form = new FormData();
+        form.append("person_id", resolvedId);
+        form.append("photo", file);
+        const res = await guestFetch("/api/avatar/upload", {
+          method: "POST",
+          body: form,
+        });
+        const body = await readAvatarJson(res);
+        if (!res.ok || body.error) {
+          setError(body.error ?? "Could not upload photo. Try another.");
+          return false;
+        }
+        if (body.draft?.step === "refused_minor") {
+          setError(
+            body.draft.intake?.refusal_message ?? "We can't use this photo.",
+          );
+          photoReadyRef.current = false;
+          return false;
+        }
+
+        const checkRes = await guestFetchWithRetry("/api/avatar/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "check", person_id: resolvedId }),
+        });
+        const checkBody = await readAvatarJson(checkRes);
+        if (checkBody.draft?.step === "refused_minor") {
+          setError(
+            checkBody.draft.intake?.refusal_message ??
+              "We can't use this photo.",
+          );
+          photoReadyRef.current = false;
+          return false;
+        }
+
+        const suggestedShape =
+          checkBody.draft?.intake?.clear?.body_shape ??
+          checkBody.draft?.attributes?.body_shape;
+        if (suggestedShape) {
+          setPhotoValues((p) =>
+            p.bodyShape ? p : { ...p, bodyShape: suggestedShape },
+          );
+        }
+
+        photoReadyRef.current = true;
+        setError(null);
+        return true;
+      } catch {
+        setError("Upload failed — try another photo.");
         return false;
+      } finally {
+        attachPromiseRef.current = null;
       }
+    })();
 
-      const suggestedShape =
-        checkBody.draft?.intake?.clear?.body_shape ??
-        checkBody.draft?.attributes?.body_shape;
-      if (suggestedShape) {
-        setPhotoValues((p) =>
-          p.bodyShape ? p : { ...p, bodyShape: suggestedShape },
-        );
-      }
-
-      photoReadyRef.current = true;
-      setError(null);
-      return true;
-    } catch {
-      setError("Upload failed — try another photo.");
-      return false;
-    }
+    attachPromiseRef.current = run;
+    return run;
   }
 
   async function uploadPhoto(file: File) {
@@ -1876,19 +2120,27 @@ export function OnboardingGate() {
     });
     setTwinStatus("idle");
     setTwinError(null);
+    stopTwinCreep();
+    setTwinBuildPct(0);
+    setTwinBuildLabel("");
+    setTwinBuildElapsedSec(0);
     photoReadyRef.current = false;
     mintDoneRef.current = false;
     pendingPhotoFileRef.current = file;
+    setPendingFittingPhoto(file);
     setAnalysisPhotoFile(file);
-    kickPhotoAnalysis(file);
-
-    void (async () => {
-      const personId = await ensurePersonId();
-      if (!personId) return;
-      await attachAvatarPhoto(personId, file);
-    })();
+    if (canProcessPhotoRef.current) {
+      kickPhotoAnalysis(file);
+    }
     void advanceFrom("photo");
   }
+
+  useEffect(() => {
+    if (!canProcessPhotoRef.current) return;
+    const file = pendingPhotoFileRef.current ?? getPendingFittingPhoto();
+    if (!file || photoReadyRef.current) return;
+    kickPhotoAnalysis(file);
+  }, [accountReady, biometricAccepted]);
 
   async function saveSpend(): Promise<boolean> {
     if (!valuePhilosophyWire) {
@@ -1900,7 +2152,7 @@ export function OnboardingGate() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/onboarding/review", {
+      const res = await guestFetch("/api/onboarding/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1939,7 +2191,7 @@ export function OnboardingGate() {
       };
       if (weightKg != null) sizing.weightKg = weightKg;
 
-      const patch = await fetch("/api/onboarding/review", {
+      const patch = await guestFetch("/api/onboarding/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1974,21 +2226,50 @@ export function OnboardingGate() {
       const personId =
         json.selfPerson?.id ?? selfPersonId ?? (await ensurePersonId());
 
+      // Start twin mint as soon as fit numbers land — never block the quiz on
+      // photo attach or FASHN. Mirror shows developing immediately.
       const pending = pendingPhotoFileRef.current;
-      if (personId && pending && !photoReadyRef.current) {
-        await attachAvatarPhoto(personId, pending);
+      const mintOpts = {
+        personId,
+        heightCm,
+        build,
+        muscularity: photoValues.muscularity,
+        bodyShape: photoValues.bodyShape,
+        bustFullness: photoValues.bustFullness,
+        includeBust: normalizeGender(genderPresentation) === "feminine",
+      };
+      const prevMint = lastMintOptsRef.current;
+      const silhouetteChanged =
+        prevMint != null &&
+        silhouetteMintKey(prevMint) !== silhouetteMintKey(mintOpts);
+      if (silhouetteChanged) {
+        mintDoneRef.current = false;
+        setTwinAvatarUrl(null);
       }
-
-      if (personId && photoReadyRef.current) {
-        void kickBackgroundMint({
-          personId,
-          heightCm,
-          build,
-          muscularity: photoValues.muscularity,
-          bodyShape: photoValues.bodyShape,
-          bustFullness: photoValues.bustFullness,
-          includeBust: normalizeGender(genderPresentation) === "feminine",
-        });
+      const canMint =
+        canProcessPhotoRef.current &&
+        Boolean(personId) &&
+        (photoReadyRef.current || Boolean(pending)) &&
+        !mintDoneRef.current;
+      if (canMint && personId) {
+        setTwinStatus("developing");
+        setTwinError(null);
+        ensureTwinClock();
+        setTwinStage(8, "uploading your photo");
+        void (async () => {
+          if (!photoReadyRef.current && pending) {
+            const attached = await attachAvatarPhoto(personId, pending);
+            if (!attached && !photoReadyRef.current) {
+              stopTwinCreep();
+              setTwinStatus("error");
+              setTwinError("Could not upload your photo for the twin.");
+              return;
+            }
+          }
+          if (photoReadyRef.current) {
+            void kickBackgroundMint({ ...mintOpts, personId });
+          }
+        })();
       }
 
       return true;
@@ -2012,7 +2293,7 @@ export function OnboardingGate() {
         bodyType: photoValues.build ?? "average",
       };
       if (weightKg != null) sizing.weightKg = weightKg;
-      const res = await fetch("/api/onboarding/review", {
+      const res = await guestFetch("/api/onboarding/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2035,7 +2316,7 @@ export function OnboardingGate() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/onboarding/taste", {
+      const res = await guestFetch("/api/onboarding/taste", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2109,7 +2390,11 @@ export function OnboardingGate() {
     setError(null);
     try {
       const names = circleNames.map((n) => n.trim()).filter(Boolean);
-      const res = await fetch("/api/onboarding/circle", {
+      if (!accountReady) {
+        setPersistedFlags((f) => ({ ...f, circleSaved: true }));
+        return true;
+      }
+      const res = await guestFetch("/api/onboarding/circle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ names }),
@@ -2155,11 +2440,10 @@ export function OnboardingGate() {
     setBusy(true);
     setError(null);
     showLoading({
-      cover: "Opening<br><em>the Mirror.</em>",
       status: "finishing your print…",
       detail: mintInFlightRef.current
-        ? "Waiting for your twin mint, then marking onboarding complete…"
-        : "Saving final state and starting your projection jobs…",
+        ? "Waiting on your twin, then wrapping up…"
+        : "Saving final state…",
     });
     try {
       // Brief wait if FASHN is still minting — do not fake "ready".
@@ -2175,7 +2459,16 @@ export function OnboardingGate() {
         throw new Error("Could not save final taste before complete.");
       }
 
-      const res = await fetch("/api/onboarding", { method: "POST" });
+      if (accountReady && circleNames.some((n) => n.trim())) {
+        submissionLockRef.current = false;
+        const circleOk = await saveCircle();
+        submissionLockRef.current = true;
+        if (!circleOk) {
+          throw new Error("Could not save your trusted circle.");
+        }
+      }
+
+      const res = await guestFetch("/api/onboarding", { method: "POST" });
       const next = (await res.json()) as OnboardingStatus & { error?: string };
       useInlineFittingStore.getState().clearReplay();
       if (!res.ok) {
@@ -2191,8 +2484,9 @@ export function OnboardingGate() {
       useUserProfileStore.getState().setOnboardingCompleted(true);
       void useUserProfileStore.getState().hydrate({ force: true });
       void useSelfAvatarStore.getState().refresh();
-      clearOnboardingUiSession();
-      setHoldOpen(false);
+      writeOnboardingUiSession({ step: "verdict", finale: "card" });
+      clearGuestPhotoLive();
+      setHoldOpen(true);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not finish onboarding.",
@@ -2206,17 +2500,16 @@ export function OnboardingGate() {
 
   async function advanceFrom(current: FittingStep) {
     setError(null);
+    if (current === "consent") {
+      setStep("photo");
+      return;
+    }
     if (current === "photo") {
-      await runWithLoading({
-        from: "photo",
-        nextStep: "name",
-        work: async () => true,
-      });
+      setStep("name");
       return;
     }
     if (current === "name") {
       await runWithLoading({
-        from: "name",
         nextStep: "life",
         work: () => saveIdentity(),
       });
@@ -2224,7 +2517,6 @@ export function OnboardingGate() {
     }
     if (current === "life") {
       await runWithLoading({
-        from: "life",
         nextStep: "spend",
         work: () => saveLife(),
       });
@@ -2232,7 +2524,6 @@ export function OnboardingGate() {
     }
     if (current === "spend") {
       await runWithLoading({
-        from: "spend",
         nextStep: "fit",
         work: () => saveSpend(),
       });
@@ -2240,35 +2531,31 @@ export function OnboardingGate() {
     }
     if (current === "fit") {
       await runWithLoading({
-        from: "fit",
         nextStep: "worn",
         work: async () => {
           const ok = await savePhotoAndAttrs();
           if (!ok) return false;
-          await loadOutfitDeck("worn");
+          // Deck loads on the worn step (and may already be prefetching).
+          void loadOutfitDeck("worn");
           return true;
         },
-        detailExtra: "Loading your wardrobe grid…",
       });
       return;
     }
     if (current === "worn") {
       await runWithLoading({
-        from: "worn",
         nextStep: "wanted",
         work: async () => {
           const ok = await saveTaste(false, "worn");
           if (!ok) return false;
-          await loadOutfitDeck("aspirational");
+          void loadOutfitDeck("aspirational");
           return true;
         },
-        detailExtra: "Loading steal-closet looks…",
       });
       return;
     }
     if (current === "wanted") {
       await runWithLoading({
-        from: "wanted",
         nextStep: "nolist",
         work: () => saveTaste(false, "wanted"),
       });
@@ -2276,7 +2563,6 @@ export function OnboardingGate() {
     }
     if (current === "nolist") {
       await runWithLoading({
-        from: "nolist",
         nextStep: "honesty",
         work: () => saveTaste(false, "nolist"),
       });
@@ -2284,7 +2570,6 @@ export function OnboardingGate() {
     }
     if (current === "honesty") {
       await runWithLoading({
-        from: "honesty",
         nextStep: "circle",
         work: async () => {
           const ok = await saveTaste(false, "final");
@@ -2296,7 +2581,6 @@ export function OnboardingGate() {
     }
     if (current === "circle") {
       await runWithLoading({
-        from: "circle",
         nextStep: "verdict",
         work: async () => {
           const ok = await saveCircle();
@@ -2330,7 +2614,7 @@ export function OnboardingGate() {
     setTellBusy(true);
     setTellFeedback("Reading that…");
     try {
-      const res = await fetch("/api/onboarding/fitting-tell", {
+      const res = await guestFetch("/api/onboarding/fitting-tell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2487,13 +2771,53 @@ export function OnboardingGate() {
   });
 
   /**
-   * On the verdict step: scan review first (if we have a photo), then the card.
+   * Verdict scan vs card follows the server job, not a first-paint photo URL.
+   * A running verdict keeps the scan UI after reload; only a finished verdict
+   * (or a skipped scan) locks the card.
    */
   useEffect(() => {
     if (step !== "verdict") return;
-    setFinale(photoValues.photoPreview && !stylistVerdict ? "scan" : "card");
-    // Only when entering the verdict step.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await guestFetch("/api/onboarding/photo-analysis", {
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as {
+          analysis: PhotoAnalysisPublic | null;
+        };
+        if (cancelled) return;
+        if (!json.analysis) {
+          setFinale("card");
+          return;
+        }
+        const phase = photoScanPhase(json.analysis);
+        if (phase === "done" && json.analysis?.verdict) {
+          setStylistVerdict(json.analysis.verdict);
+          setFinale("card");
+          writeOnboardingUiSession({ step: "verdict", finale: "card" });
+          return;
+        }
+        if (
+          phase === "writing" ||
+          phase === "reading" ||
+          phase === "review"
+        ) {
+          setFinale("scan");
+          writeOnboardingUiSession({ step: "verdict", finale: "scan" });
+          return;
+        }
+        setFinale("card");
+      } catch {
+        if (!cancelled) setFinale("scan");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [step]);
 
   /**
@@ -2533,7 +2857,7 @@ export function OnboardingGate() {
         const absolute = /^https?:\/\//i.test(imageUrl)
           ? imageUrl
           : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
-        const res = await fetch("/api/tryon/fitting-room", {
+        const res = await guestFetch("/api/tryon/fitting-room", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2557,7 +2881,7 @@ export function OnboardingGate() {
         const startedAt = Date.now();
         let finalUrl: string | null = null;
         while (Date.now() - startedAt <= TRYON_CLIENT_POLL_MAX_MS) {
-          const pollRes = await fetch(
+          const pollRes = await guestFetch(
             `/api/tryon/fitting-room/${body.jobId}`,
           );
           const pollBody = (await pollRes.json()) as {
@@ -2669,10 +2993,14 @@ export function OnboardingGate() {
         normalizeGender(genderPresentation) === "feminine"
           ? photoValues.bustFullness
           : null,
+      legLine: photoValues.legLine,
       form: formFromGender(genderPresentation),
       developPct,
       twinStatus,
       twinError,
+      twinBuildPct,
+      twinBuildLabel,
+      twinBuildElapsedSec,
       dressStatus,
       dressError,
       dressStyleLabel,
@@ -2682,6 +3010,8 @@ export function OnboardingGate() {
         step === "verdict" &&
         twinStatus === "ready" &&
         dressStatus === "ready",
+      scanActivity,
+      scanNotes,
     };
   }, [
     preferredName,
@@ -2702,12 +3032,17 @@ export function OnboardingGate() {
     developPct,
     twinStatus,
     twinError,
+    twinBuildPct,
+    twinBuildLabel,
+    twinBuildElapsedSec,
     dressStatus,
     dressError,
     dressStyleLabel,
     closetImages,
     selfPersonId,
     step,
+    scanActivity,
+    scanNotes,
   ]);
 
   const incomplete =
@@ -2718,9 +3053,7 @@ export function OnboardingGate() {
   useLayoutEffect(() => {
     if (loading) return;
     setOnboardingActive(incomplete);
-    if (!incomplete) closeColumn();
-    return () => setOnboardingActive(false);
-  }, [closeColumn, incomplete, loading, setOnboardingActive]);
+  }, [incomplete, loading, setOnboardingActive]);
 
   const progressPct =
     step === "verdict"
@@ -2739,6 +3072,14 @@ export function OnboardingGate() {
       ? { n: FITTING_Q_STEPS.length, stage: "THE FITTING" }
       : STEP_META[step];
 
+  const pickFacePhoto =
+    step === "photo"
+      ? (file: File) => {
+          photoOnChange("photoCoverage", "face");
+          void uploadPhoto(file);
+        }
+      : undefined;
+
   const mirrorPane = (
     <FittingMirror
       layout="column"
@@ -2746,6 +3087,11 @@ export function OnboardingGate() {
       onTell={step === "verdict" ? undefined : handleTell}
       tellFeedback={tellFeedback}
       tellBusy={tellBusy}
+      onPickPhoto={pickFacePhoto}
+      photoPickLocked={biometricAccepted !== true}
+      onRetryTwin={
+        twinStatus === "error" ? retryTwinMint : undefined
+      }
     />
   );
 
@@ -2755,13 +3101,18 @@ export function OnboardingGate() {
     return (
       <>
         {createPortal(
-          <FittingFlash
-            show
-            layout="column"
-            coverHtml="Opening<br><em>The Fitting.</em>"
-            statusLabel="loading your print…"
-            detail="Fetching your profile…"
-          />,
+          <div className="relative flex h-full min-h-[280px] flex-col px-1 py-5">
+            <div className="mb-8 h-2.5 w-20 animate-pulse rounded-full bg-[#E9E9EE]" />
+            <div className="mb-3 h-9 max-w-[16rem] animate-pulse rounded-lg bg-[#E9E9EE]" />
+            <div className="mb-2 h-9 max-w-[12rem] animate-pulse rounded-lg bg-[#E9E9EE]" />
+            <div className="mt-4 h-3 max-w-[18rem] animate-pulse rounded-full bg-[#F0F0F3]" />
+            <FittingFlash
+              show
+              layout="column"
+              statusLabel="loading your print…"
+              detail="Fetching your profile…"
+            />
+          </div>,
           inlineSlot,
         )}
         {cardSlot ? createPortal(mirrorPane, cardSlot) : null}
@@ -2778,11 +3129,10 @@ export function OnboardingGate() {
   }
 
   const fitting = (
-    <>
+    <div className="relative h-full min-h-0">
       <FittingFlash
         show={Boolean(flash)}
         layout="column"
-        coverHtml={flash?.cover ?? ""}
         statusLabel={flash?.status ?? ""}
         detail={flash?.detail ?? null}
       />
@@ -2802,77 +3152,117 @@ export function OnboardingGate() {
         onTell={handleTell}
         tellFeedback={tellFeedback}
         tellBusy={tellBusy}
+        onPickPhoto={pickFacePhoto}
+        photoPickLocked={biometricAccepted !== true}
+        onRetryTwin={
+          twinStatus === "error" ? retryTwinMint : undefined
+        }
       >
-        {step !== "photo" && (step !== "verdict" || finale === "scan") ? (
+        {step !== "consent" && step !== "photo" && (step !== "verdict" || finale === "scan") ? (
           <FittingBackLink onClick={goBack} />
         ) : null}
         {step !== "verdict" ? (
           <FittingCount n={stepMeta.n} total={FITTING_Q_STEPS.length} />
         ) : null}
 
-        {step === "photo" ? (
-          !accountReady ? (
-            <FittingAccountRequired
-              onSkip={() => {
-                photoReadyRef.current = false;
-                void advanceFrom("photo");
-              }}
-            />
-          ) : (
-          <>
-            <FittingPhotoStep
-              mode="scan"
-              values={photoValues}
-              onChange={photoOnChange}
-              photoLocked={biometricAccepted !== true}
-              onPhotoFile={(f) => {
-                photoOnChange("photoCoverage", "face");
-                void uploadPhoto(f);
-              }}
-              onSkipPhoto={() => {
-                photoReadyRef.current = false;
-                void advanceFrom("photo");
-              }}
-              onContinue={() => void advanceFrom("photo")}
-              busy={busy}
-              showContinue
-            />
-            {biometricAccepted === false && !needsBiometricReconsent ? (
-              <BiometricConsentSheet
-                busy={biometricBusy}
-                error={biometricError}
-                skipLabel="skip... continue without a photo"
-                onSkip={() => {
-                  photoReadyRef.current = false;
-                  void advanceFrom("photo");
-                }}
-                onAccept={async () => {
-                  setBiometricBusy(true);
-                  setBiometricError(null);
-                  try {
-                    const res = await guestFetch(
-                      "/api/privacy/biometric-consent",
-                      {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "accept" }),
-                      },
-                    );
-                    const json = (await res.json()) as { error?: string };
-                    if (!res.ok) {
-                      setBiometricError(json.error ?? "Could not save consent.");
-                      return;
-                    }
-                    setBiometricAccepted(true);
-                    notifyBiometricConsent(true);
-                  } finally {
-                    setBiometricBusy(false);
+        {step === "consent" ? (
+          <FittingConsentStep
+            guest={!accountReady}
+            busy={biometricBusy}
+            error={biometricError}
+            onContinue={(ticks) => {
+              void (async () => {
+                setBiometricBusy(true);
+                setBiometricError(null);
+                try {
+                  const res = await guestFetch(
+                    "/api/privacy/biometric-consent",
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "accept",
+                        ...ticks,
+                      }),
+                    },
+                  );
+                  const json = (await res.json()) as { error?: string };
+                  if (!res.ok) {
+                    setBiometricError(json.error ?? "Could not save consent.");
+                    return;
                   }
-                }}
-              />
-            ) : null}
-          </>
-          )
+                  setBiometricAccepted(true);
+                  notifyBiometricConsent(true);
+                  if (!accountReady) markGuestPhotoLive();
+                  void advanceFrom("consent");
+                } finally {
+                  setBiometricBusy(false);
+                }
+              })();
+            }}
+          />
+        ) : null}
+
+        {step === "photo" ? (
+          <FittingPhotoStep
+            mode="scan"
+            values={photoValues}
+            onChange={photoOnChange}
+            onPhotoFile={(f) => {
+              photoOnChange("photoCoverage", "face");
+              void uploadPhoto(f);
+            }}
+            onSkipPhoto={() => {
+              photoReadyRef.current = false;
+              pendingPhotoFileRef.current = null;
+              setPendingFittingPhoto(null);
+              setAnalysisPhotoFile(null);
+              void advanceFrom("photo");
+            }}
+            onContinue={() => void advanceFrom("photo")}
+            busy={busy}
+            showContinue
+          />
+        ) : null}
+
+        {needsBiometricReconsent &&
+        biometricAccepted === false &&
+        (step === "photo" || Boolean(photoValues.photoPreview)) ? (
+          <BiometricConsentSheet
+            busy={biometricBusy}
+            error={biometricError}
+            skipLabel="skip... continue without a photo"
+            onSkip={() => {
+              photoReadyRef.current = false;
+              pendingPhotoFileRef.current = null;
+              setPendingFittingPhoto(null);
+              setAnalysisPhotoFile(null);
+              if (step === "photo") void advanceFrom("photo");
+            }}
+            onAccept={async () => {
+              setBiometricBusy(true);
+              setBiometricError(null);
+              try {
+                const res = await guestFetch(
+                  "/api/privacy/biometric-consent",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "accept" }),
+                  },
+                );
+                const json = (await res.json()) as { error?: string };
+                if (!res.ok) {
+                  setBiometricError(json.error ?? "Could not save consent.");
+                  return;
+                }
+                setBiometricAccepted(true);
+                notifyBiometricConsent(true);
+              } finally {
+                setBiometricBusy(false);
+              }
+            }}
+          />
         ) : null}
 
         {step === "name" ? (
@@ -2968,6 +3358,8 @@ export function OnboardingGate() {
               lifestyleTags,
               valuePhilosophy: valuePhilosophyWire ?? "",
               shippingCountry,
+              climate,
+              build: photoValues.build ?? undefined,
               wornLabels: wornPicks.map((p) => p.label),
               aspirationalLabels: aspirationalPicks.map((p) => p.label),
               wornTasteTags: wornPicks.flatMap((p) => p.tasteTags ?? []),
@@ -3006,16 +3398,20 @@ export function OnboardingGate() {
               void (async () => {
                 setCircleNames(["", "", ""]);
                 await runWithLoading({
-                  from: "circle",
                   nextStep: "verdict",
                   work: async () => {
+                    if (!accountReady) {
+                      setPersistedFlags((f) => ({ ...f, circleSaved: true }));
+                      setHoldOpen(true);
+                      return true;
+                    }
                     // Persist empty circle (skip) without racing setState.
                     if (submissionLockRef.current) return false;
                     submissionLockRef.current = true;
                     setBusy(true);
                     setError(null);
                     try {
-                      const res = await fetch("/api/onboarding/circle", {
+                      const res = await guestFetch("/api/onboarding/circle", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ names: [] }),
@@ -3048,7 +3444,9 @@ export function OnboardingGate() {
           />
         ) : null}
 
-        {step === "verdict" && finale === "scan" && photoValues.photoPreview ? (
+        {step === "verdict" &&
+        finale === "scan" &&
+        biometricAccepted === true ? (
           <FittingAnalysisPanel
             enabled
             photoFile={analysisPhotoFile}
@@ -3057,16 +3455,23 @@ export function OnboardingGate() {
             body={photoValues}
             onBodyChange={photoOnChange}
             onPersistBody={() => persistScanBody()}
+            onScanUi={handleScanUi}
             onComplete={(row) => {
               setStylistVerdict(row.verdict);
               setFinale("card");
+              writeOnboardingUiSession({ step: "verdict", finale: "card" });
+              handleScanUi({ activity: "idle", notes: [] });
             }}
-            onSkip={() => setFinale("card")}
+            onSkip={() => {
+              setFinale("card");
+              writeOnboardingUiSession({ step: "verdict", finale: "card" });
+              handleScanUi({ activity: "idle", notes: [] });
+            }}
           />
         ) : null}
 
         {step === "verdict" &&
-        (finale === "card" || !photoValues.photoPreview) ? (
+        (finale === "card" || biometricAccepted !== true) ? (
           <FittingVerdictStep
             preferredName={preferredName}
             wornLabels={wornPicks.map((p) => p.label)}
@@ -3076,12 +3481,22 @@ export function OnboardingGate() {
             build={photoValues.build}
             vetoCount={hardAvoids.length + brandAvoids.length + comfort.length}
             verdict={stylistVerdict}
+            styleMix={styleMix}
             developPct={mirror.developPct}
             circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
             dressStatus={dressStatus}
             dressStyleLabel={dressStyleLabel}
             busy={busy}
-            onMeetTwin={() => void completeOnboarding()}
+            ctaLabel={
+              accountReady ? undefined : "Save your progress and log in"
+            }
+            onMeetTwin={() => {
+              if (!accountReady) {
+                openAuthModal("signup");
+                return;
+              }
+              void completeOnboarding();
+            }}
             shareCopied={shareCopied}
             onShare={(selectedCircle) => {
               const circleBit = selectedCircle.length
@@ -3089,8 +3504,8 @@ export function OnboardingGate() {
                 : "";
               const face = stylistVerdict?.user_facing_verdict;
               const text = face?.opening
-                ? `${face.title ? `${face.title}. ` : ""}${face.opening} shoop.world`
-                : `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} shoop.world`;
+                ? `${face.title ? `${face.title}. ` : ""}${face.opening} www.shoop.world`
+                : `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} www.shoop.world`;
               void navigator.clipboard?.writeText(text).then(() => {
                 setShareCopied(true);
                 setTimeout(() => setShareCopied(false), 2000);
@@ -3117,7 +3532,7 @@ export function OnboardingGate() {
           </button>
         ) : null}
       </FittingShell>
-    </>
+    </div>
   );
 
   return (

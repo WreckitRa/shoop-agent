@@ -1,6 +1,7 @@
 import { getAuthContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/ai-chat/db";
 import { resolveFreshTryonImageUrl } from "@/lib/tryon/storage";
+import { respondWithSignedImageSrc } from "@/lib/tryon/signed-image-response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,19 +47,5 @@ export async function GET(
     return Response.json({ error: "Image unavailable." }, { status: 404 });
   }
 
-  if (signed.startsWith("data:")) {
-    const match = signed.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-      return Response.json({ error: "Image unavailable." }, { status: 404 });
-    }
-    return new Response(Buffer.from(match[2], "base64"), {
-      status: 200,
-      headers: {
-        "Content-Type": match[1] || "image/jpeg",
-        "Cache-Control": "private, max-age=60",
-      },
-    });
-  }
-
-  return Response.redirect(signed, 302);
+  return respondWithSignedImageSrc(signed);
 }

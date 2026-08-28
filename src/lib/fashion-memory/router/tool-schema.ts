@@ -226,6 +226,8 @@ export const askClarificationInputSchema = z.object({
 
 export const readyToSearchInputSchema = z.object({
   brief: fashionSearchBriefSchema,
+  /** ≤20 words: client ask restated + one stylist touch. Progress line. */
+  pull_line: z.string().min(1).max(160).optional(),
   known_summary: z.string().min(1).max(240).optional(),
 });
 
@@ -578,8 +580,18 @@ export const READY_TO_SEARCH_TOOL = {
           "style_direction",
         ],
       },
+      pull_line: {
+        type: "string",
+        description:
+          "Required ≤20 words. Restate the ask in the client's words plus one stylist touch. Example: 'Dress for the interview, size L, two options — shopping that now.' This is the progress line; never a bare garment list.",
+      },
+      known_summary: {
+        type: "string",
+        description:
+          "Only when a concrete profile fact exists — warm one-liner. Omit otherwise.",
+      },
     },
-    required: ["brief"],
+    required: ["brief", "pull_line"],
   },
 };
 
@@ -744,6 +756,8 @@ function coerceRouterToolRaw(toolName: string, raw: unknown): unknown {
     if (briefRaw && typeof briefRaw === "object") {
       obj.brief = coerceBriefFields(briefRaw);
     }
+    obj.pull_line = clampStr(obj.pull_line, 160);
+    obj.known_summary = clampStr(obj.known_summary, 240);
     return obj;
   }
 
@@ -834,6 +848,9 @@ export function parseFashionRouterToolInput(
     return {
       move: "ready_to_search",
       brief: parsed.data.brief as FashionSearchBrief,
+      ...(parsed.data.pull_line?.trim()
+        ? { pull_line: parsed.data.pull_line.trim() }
+        : {}),
       ...(parsed.data.known_summary
         ? { known_summary: parsed.data.known_summary.trim() }
         : {}),

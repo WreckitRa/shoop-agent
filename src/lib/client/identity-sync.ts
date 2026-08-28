@@ -7,6 +7,7 @@ import {
 } from "@/components/chat/chat-store";
 import { useCartStore } from "@/components/cart/cart-store";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
+import { clearPendingFittingPhoto } from "@/components/onboarding/fitting/pending-photo";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
@@ -20,11 +21,11 @@ import { clearGuestSession, getGuestSessionId } from "@/lib/client/guest-storage
 import { clearPendingCheckout } from "@/lib/client/pending-checkout";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import { clearChatFocusReturn } from "@/lib/shared/chatFocus";
+import { clearOnboardingUiSession } from "@/components/onboarding/fitting/ui-session";
 
 /** Ensures the next sign-in always re-syncs even after `prepareClientForSignedOut`. */
 const SIGNED_OUT_SCOPE_KEY = "__signed_out__";
 
-const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v4";
 const LIKENESS_CONSENT_KEY = "shoop.share-likeness-consent";
 
 type AuthSessionPayload = {
@@ -81,11 +82,7 @@ export function resetChatForNewIdentity() {
 
 export function clearIdentityScopedBrowserStorage() {
   if (typeof window === "undefined") return;
-  try {
-    sessionStorage.removeItem(ONBOARDING_UI_SESSION_KEY);
-  } catch {
-    /* ignore */
-  }
+  clearOnboardingUiSession();
   try {
     localStorage.removeItem(LIKENESS_CONSENT_KEY);
   } catch {
@@ -98,21 +95,47 @@ export function clearIdentityScopedBrowserStorage() {
 /**
  * Zero every client store that belongs to a person — chats, twin, looks, cart,
  * onboarding chrome — before hydrating the next identity.
+ *
+ * `preserveOnboarding`: guest → account during Fitting. Keep the column open
+ * and the UI resume key so onboarding continues in place after signup.
  */
-export function resetUserScopedClientState() {
+export function resetUserScopedClientState(opts?: {
+  preserveOnboarding?: boolean;
+}) {
+  const preserve = opts?.preserveOnboarding === true;
+  const fitting = useInlineFittingStore.getState();
+  const keepFittingOpen =
+    preserve && (fitting.columnOpen || fitting.onboardingActive);
+
   resetClientUserPresentation();
   resetChatForNewIdentity();
   useCartStore.getState().resetForIdentityChange();
   useSelfAvatarStore.getState().resetForIdentityChange();
   useTryOnDrawerStore.getState().resetForIdentityChange();
+  useInlineProductStore.getState().collapse();
+
+  if (preserve) {
+    useInlineFittingStore.setState({
+      columnOpen: keepFittingOpen,
+      onboardingActive: keepFittingOpen,
+      columnDismissed: false,
+      replayFitting: keepFittingOpen,
+      pendingLeave: false,
+    });
+    clearPendingCheckout();
+    clearChatFocusReturn();
+    return;
+  }
+
   useInlineFittingStore.setState({
     columnOpen: false,
     onboardingActive: false,
     columnDismissed: false,
     replayFitting: false,
+    pendingLeave: false,
   });
-  useInlineProductStore.getState().collapse();
   clearIdentityScopedBrowserStorage();
+  clearPendingFittingPhoto();
 }
 
 function scopeKeyForSession(session: AuthSessionPayload): string {
@@ -163,48 +186,83 @@ export function useClientIdentityScopeKey(): string {
 let resyncQueue: Promise<void> = Promise.resolve();
 let lastSyncedScopeKey: string | null = null;
 
+/** Wipe live stores only when the person actually changed — never on a same-guest ping. */
+export function shouldWipeClientIdentity(opts: {
+  previousScopeKey: string | null;
+  scopeKey: string;
+}): boolean {
+  return (
+    opts.previousScopeKey !== null && opts.previousScopeKey !== opts.scopeKey
+  );
+}
+
 /** Serialize identity transitions so fetches never run with stale cookies/mode. */
 export function queueClientIdentityResync(
   _reason: "auth" | "guest" = "auth",
-  opts?: { force?: boolean },
+  opts?: { force?: boolean; preserveOnboarding?: boolean },
 ) {
   resyncQueue = resyncQueue
-    .then(() => resyncClientAfterIdentityChange(opts?.force === true))
+    .then(() =>
+      resyncClientAfterIdentityChange(
+        opts?.force === true,
+        opts?.preserveOnboarding === true,
+      ),
+    )
     .catch(() => {
       /* swallow — individual steps set UI errors when needed */
     });
   return resyncQueue;
 }
 
-async function resyncClientAfterIdentityChange(force = false): Promise<void> {
+async function resyncClientAfterIdentityChange(
+  force = false,
+  preserveOnboarding = false,
+): Promise<void> {
   const previousScopeKey = lastSyncedScopeKey;
   const session = await fetchAuthSession();
   applyAuthSession(session);
 
   const scopeKey = scopeKeyForSession(session);
-  const scopeChanged =
-    previousScopeKey !== null && scopeKey !== previousScopeKey;
+  const scopeChanged = shouldWipeClientIdentity({
+    previousScopeKey,
+    scopeKey,
+  });
   const isFirstHydration = previousScopeKey === null;
+  const sameIdentity = previousScopeKey === scopeKey;
 
-  if (!force && !scopeChanged && previousScopeKey === scopeKey) {
+  if (sameIdentity && previousScopeKey !== null) {
+    lastSyncedScopeKey = scopeKey;
     const chat = useChatStore.getState();
     const mode = useAppSessionStore.getState().mode;
+    if (!canFetchUserScopedData(mode)) return;
     if (
-      chat.conversations.length > 0 ||
-      chat.loadingList ||
-      !canFetchUserScopedData(mode)
+      !force &&
+      (chat.conversations.length > 0 || chat.loadingList)
     ) {
       return;
     }
-    await useChatStore.getState().fetchConversations({ background: false });
+    await useChatStore.getState().fetchConversations({
+      background: !force && chat.conversations.length > 0,
+    });
+    if (force) {
+      void useCartStore.getState().refresh();
+      void useSelfAvatarStore.getState().refresh();
+    }
     return;
   }
 
-  if (scopeChanged || force) {
-    resetUserScopedClientState();
-  }
   if (scopeChanged) {
+    resetUserScopedClientState({ preserveOnboarding });
+  }
+  if (scopeChanged && !preserveOnboarding) {
     leaveConversationRoute();
+  }
+  if (preserveOnboarding) {
+    const fitting = useInlineFittingStore.getState();
+    if (fitting.columnOpen || fitting.onboardingActive) {
+      useInlineFittingStore.getState().openColumn();
+      useInlineFittingStore.getState().setOnboardingActive(true);
+    }
   }
 
   lastSyncedScopeKey = scopeKey;

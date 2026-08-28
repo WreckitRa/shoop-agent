@@ -7,6 +7,7 @@ import {
 } from "@/lib/onboarding/status";
 import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
 import { ensureSelfPerson } from "@/lib/fashion-memory/people";
+import { fashionOwnerUserId } from "@/lib/fashion-memory/auth";
 import { minorClosedResponse } from "@/lib/legal/close-account";
 
 export const runtime = "nodejs";
@@ -42,12 +43,15 @@ export async function POST(req: Request) {
         requestKey: parsed.data.requestKey,
       },
     );
-    const selfPerson = await ensureSelfPerson(auth.userId)
-      .then((person) => ({
-        id: person.id,
-        hasAvatar: Boolean(person.avatar),
-      }))
-      .catch(() => null);
+    const ownerId = fashionOwnerUserId(auth.userId);
+    const selfPerson = ownerId
+      ? await ensureSelfPerson(ownerId)
+          .then((person) => ({
+            id: person.id,
+            hasAvatar: Boolean(person.avatar),
+          }))
+          .catch(() => null)
+      : null;
 
     after(kickOnboardingJobWorker);
     return Response.json({ ...status, selfPerson });

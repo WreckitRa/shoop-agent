@@ -14,13 +14,13 @@ import type { ProductSuspicion } from "../hard-drops/types";
 import type { FashionSearchBrief } from "../router/types";
 import type { FashionSearchPlanSlot } from "../search-planner/types";
 import type { FashionFactRow } from "../types";
-import { statedBrands } from "../brand/brand-handling";
 import { paletteComponentScore } from "./palette-match";
 import {
-  SCORING_COMPONENT_KEYS,
+  isTasteScoringEnabled,
+  scoringComponentKeys,
   SCORING_CONFIG,
   SCORING_WEIGHTS,
-  SCORING_WEIGHTS_VERSION,
+  scoringWeightsVersion,
   type ScoringComponentKey,
 } from "./weights";
 import type { ProductScore, ScoreComponents } from "./types";
@@ -105,15 +105,22 @@ export function isDepartmentComponentActive(brief: FashionSearchBrief): boolean 
 }
 
 /**
- * Active only for stated brands. Deactivates (weight redistributes) when the
- * slot translated with zero confirmed brand hits.
+ * Active when a brand was requested. v3: stated only. v4: any source
+ * other than "none". Deactivates when the slot translated with zero
+ * confirmed brand hits.
  */
 export function isBrandComponentActive(
   brief: FashionSearchBrief,
   slot: FashionSearchPlanSlot,
 ): boolean {
-  if (brief.brand_direction?.source !== "stated") return false;
-  if (!statedBrands(brief).length) return false;
+  const source = brief.brand_direction?.source;
+  if (source == null) return false;
+  if (isTasteScoringEnabled()) {
+    if (source === "none") return false;
+  } else if (source !== "stated") {
+    return false;
+  }
+  if (!(brief.brand_direction?.brands ?? []).length) return false;
   if (
     slot.brand_status === "translated" &&
     (slot.brand_confirmed_count ?? 0) === 0
@@ -234,15 +241,25 @@ export function scoreProduct(params: {
   const paletteActive = isPaletteComponentActive(params.slot);
   const departmentActive = isDepartmentComponentActive(params.brief);
   const brandActive = isBrandComponentActive(params.brief, params.slot);
-  const active: ScoringComponentKey[] = SCORING_COMPONENT_KEYS.filter((key) => {
+  const rawTaste = params.product.taste_rating?.taste_fit;
+  const tasteActive = rawTaste != null && Number.isFinite(rawTaste);
+  const active: ScoringComponentKey[] = scoringComponentKeys().filter((key) => {
+    if (key === "taste_fit") return tasteActive;
     if (key === "size_confirmed") return sizeActive;
     if (key === "palette") return paletteActive;
     if (key === "department_confirmed") return departmentActive;
     if (key === "brand_match") return brandActive;
+    if (key === "corroboration") {
+      return !(
+        isTasteScoringEnabled() &&
+        params.brief.preference_anchor === "explore"
+      );
+    }
     return true;
   });
 
   const components: ScoreComponents = {
+    taste_fit: tasteActive ? clamp01(rawTaste ?? 0) : 0,
     shopify_rank: scoreShopifyRank(params.bestRank),
     corroboration: scoreCorroboration({
       variantCount: params.product.matched_by.length,
@@ -291,6 +308,6 @@ export function scoreProduct(params: {
     components,
     active_components: active,
     penalties_applied: penalties,
-    weights_version: SCORING_WEIGHTS_VERSION,
+    weights_version: scoringWeightsVersion(),
   };
 }

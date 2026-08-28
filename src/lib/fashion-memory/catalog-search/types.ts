@@ -75,6 +75,11 @@ export type FashionSlotCatalogProduct = {
    * merchant_id, shop_domain, or Brand/vendor catalog attribute.
    */
   brand_confirmed?: boolean;
+  /** Haiku taste rerank (S1). Null / absent = fail-open, weight redistributes. */
+  taste_rating?: {
+    taste_fit: number;
+    lane: "usual" | "adjacent" | "new";
+  };
 };
 
 export type FashionSlotCatalogResult = {
@@ -140,6 +145,7 @@ export type FashionCatalogSearchResult = {
   curation_ms?: number;
   /** Stop before hydrate/curation — ask user to raise budget. */
   budget_raise_ask?: import("../budget/budget-raise-ask").BudgetRaiseAsk;
+  search_observability?: import("../observability/search-observability").SearchObservability;
 };
 
 /** Chat/admin metadata — scored catalog + query logs omitted from client payload. */
@@ -177,6 +183,10 @@ export type MessageFashionCatalogSearchMetaV1 = {
   render?: import("../types/render-contract").RenderContract;
   /** True while hydration rack is shown before final curation upgrades it. */
   provisional?: boolean;
+  search_observability?: import("../observability/search-observability").SearchObservability;
+  /** Brief that produced this search — used to classify the next refinement. */
+  brief?: import("../router/types").FashionSearchBrief;
+  plan_current_date?: string;
 };
 
 import type { AbortScope } from "@/lib/ai-chat/abort-scope";
@@ -249,4 +259,12 @@ export type SearchFashionCatalogPlanParams = {
   ref_aligned_curation?: boolean;
   /** Skip budget-raise gate (user chose continue-anyway / declined budget gap). */
   skipBudgetRaiseAsk?: boolean;
+  /**
+   * Follow-up search against an on-screen result. rescore-only skips MCP
+   * fan-out; partial re-queries only the changed family.
+   */
+  refinement?: {
+    mode: import("../intake/refinement-mode").RefinementMode;
+    previousSearchId: string;
+  };
 };

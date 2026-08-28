@@ -1,11 +1,12 @@
 "use client";
 
 import { HONESTY_OPTIONS } from "@/lib/onboarding/form-options";
-import { cn } from "@/lib/ai-chat/cn";
 import {
+  FittingKick,
   FittingNavRow,
   FittingTitle,
   FittingWhisper,
+  OnboardingTile,
 } from "@/components/onboarding/onboarding-ui";
 
 type Props = {
@@ -23,6 +24,7 @@ export function TasteHonestyStep({
 }: Props) {
   return (
     <section>
+      <FittingKick>PERSON</FittingKick>
       <FittingTitle
         lines={[
           { text: "How honest" },
@@ -35,31 +37,15 @@ export function TasteHonestyStep({
         <b>yes that gets you the same look.</b>
       </FittingWhisper>
 
-      <div className="flex max-w-[680px] flex-col gap-3 sm:flex-row">
+      <div className="grid max-w-[680px] grid-cols-1 gap-2.5 sm:grid-cols-3">
         {HONESTY_OPTIONS.map((opt) => (
-          <button
+          <OnboardingTile
             key={opt.value}
-            type="button"
+            selected={value === opt.value}
             onClick={() => onChange(opt.value)}
-            className={cn(
-              "flex-1 rounded-[14px] border border-[#D6D6DE] bg-white p-[18px_16px] text-left transition-all duration-150",
-              "hover:-translate-y-0.5 hover:shadow-[0_12px_24px_-12px_rgba(14,14,17,0.35)]",
-              value === opt.value &&
-                "border-[var(--fitting-red)] bg-[var(--fitting-mist)] shadow-[inset_0_3px_4px_-1px_rgba(14,14,17,0.22)]",
-            )}
-          >
-            <b
-              className={cn(
-                "mb-2 block font-display text-[15px] font-extrabold",
-                value === opt.value && "text-[var(--fitting-red)]",
-              )}
-            >
-              {opt.label}
-            </b>
-            <i className="block font-whisper text-[12.5px] not-italic italic leading-[1.55] text-[var(--fitting-quiet)]">
-              &ldquo;{opt.quote}&rdquo;
-            </i>
-          </button>
+            title={opt.label}
+            hint={`“${opt.quote}”`}
+          />
         ))}
       </div>
 

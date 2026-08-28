@@ -33,6 +33,8 @@ function isSurpriseOption(option: FashionClarificationOption): boolean {
 
 const OTHER = "Other";
 const OTHER_ID = "other";
+/** Free-text row on slots checklists (UI + parse). */
+export const SLOTS_ADD_PIECE_LABEL = "Add a piece";
 
 const GENERIC_STYLE_LABELS = [
   "Minimal",
@@ -151,6 +153,7 @@ export function personalizeClarificationOptions(params: {
 
   const questions = params.questions.map((q) => {
     if (q.gap === "occasion") return q;
+    if (q.gap === "preference_anchor") return q;
     // Color/tone before style — "pant vibe (charcoal, taupe)" is not a style quiz.
     if (clarificationLooksLikeColorQuiz(q) && colorOpts) {
       return { ...q, quick_options: colorOpts };
@@ -177,7 +180,7 @@ export function personalizeClarificationOptions(params: {
 export function defaultQuickOptionsForGap(
   gap: FashionClarificationGap,
   garmentType?: string,
-): string[] {
+): Array<string | FashionClarificationOption> {
   const bucket = garmentType?.trim().toLowerCase() ?? "";
   switch (gap) {
     case "department":
@@ -208,7 +211,11 @@ export function defaultQuickOptionsForGap(
     case "depth":
       return ["2 looks", "3 looks", "5 looks", "You decide"];
     case "preference_anchor":
-      return ["Keep it me", "Push me a little", "Something new", "You decide"];
+      return [
+        { id: "the_usual", label: "The usual", preselected: true },
+        "Push me a little",
+        "Something new",
+      ];
     case "style_lane":
       return ["Classic", "Relaxed", "Sharp", "You decide"];
     case "color":
@@ -241,11 +248,13 @@ export function isOtherOption(
   option: string | FashionClarificationOption,
 ): boolean {
   if (typeof option === "string") {
-    return option.trim().toLowerCase() === OTHER.toLowerCase();
+    const t = option.trim().toLowerCase();
+    return t === OTHER.toLowerCase() || t === "add a piece";
   }
   return (
     option.id === OTHER_ID ||
-    option.label.trim().toLowerCase() === OTHER.toLowerCase()
+    option.label.trim().toLowerCase() === OTHER.toLowerCase() ||
+    option.label.trim().toLowerCase() === "add a piece"
   );
 }
 
@@ -331,9 +340,15 @@ export function defaultAllowMultipleForGap(gap: FashionClarificationGap): boolea
 
 function gapAllowsOther(question: FashionClarificationQuestion): boolean {
   if (question.gap === "person_name") return false;
-  if (question.gap === "slots") return question.allow_other === true;
+  // Slots always offer "Add a piece" unless explicitly disabled.
+  if (question.gap === "slots") return question.allow_other !== false;
   if (question.allow_other === false) return false;
   return true;
+}
+
+export function isSlotsAddPieceLabel(label: string): boolean {
+  const t = label.trim().toLowerCase();
+  return t === OTHER.toLowerCase() || t === OTHER_ID || t === "add a piece";
 }
 
 /**
@@ -356,13 +371,27 @@ export function ensureClarificationQuickOptions(
     };
   }
 
+  // Never let LLM/style personalization replace the three anchor chips.
+  if (question.gap === "preference_anchor") {
+    return {
+      ...question,
+      allow_multiple: false,
+      allow_other: false,
+      quick_options: asNormalizedOptions([
+        { id: "the_usual", label: "The usual", preselected: true },
+        "Push me a little",
+        "Something new",
+      ]),
+    };
+  }
+
   if (question.gap === "slots") {
     const existing = asNormalizedOptions(question.quick_options).filter(
-      (o) => !isOtherOption(o),
+      (o) => !isOtherOption(o) && !isSlotsAddPieceLabel(o.label),
     );
     const capped = existing.slice(0, 8);
     const withOther = gapAllowsOther(question)
-      ? [...capped, { id: OTHER_ID, label: OTHER }]
+      ? [...capped, { id: OTHER_ID, label: SLOTS_ADD_PIECE_LABEL }]
       : capped;
     return {
       ...question,

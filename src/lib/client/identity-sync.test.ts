@@ -12,7 +12,13 @@ import {
   clearIdentityScopedBrowserStorage,
   prepareClientForSignedOut,
   resetUserScopedClientState,
+  shouldWipeClientIdentity,
 } from "@/lib/client/identity-sync";
+import {
+  getPendingFittingPhoto,
+  setPendingFittingPhoto,
+} from "@/components/onboarding/fitting/pending-photo";
+import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 
 class MemoryStorage {
   #map = new Map<string, string>();
@@ -120,6 +126,10 @@ describe("identity reset", () => {
       "shoop.onboarding.ui.v4",
       JSON.stringify({ step: "verdict" }),
     );
+    localStorage.setItem(
+      "shoop.onboarding.ui.v4",
+      JSON.stringify({ step: "verdict" }),
+    );
     localStorage.setItem("shoop.share-likeness-consent", "1");
     localStorage.setItem(
       GUEST_SESSION_KEY,
@@ -132,10 +142,82 @@ describe("identity reset", () => {
 
     clearIdentityScopedBrowserStorage();
     assert.equal(sessionStorage.getItem("shoop.onboarding.ui.v4"), null);
+    assert.equal(localStorage.getItem("shoop.onboarding.ui.v4"), null);
     assert.equal(localStorage.getItem("shoop.share-likeness-consent"), null);
 
     await prepareClientForSignedOut();
     assert.equal(localStorage.getItem(GUEST_SESSION_KEY), null);
     assert.equal(localStorage.getItem(GUEST_DATA_KEY), null);
+  });
+
+  it("preserves Fitting column and resume key across guest→user signup", () => {
+    const { sessionStorage } = installBrowserStorage();
+    sessionStorage.setItem(
+      "shoop.onboarding.ui.v4",
+      JSON.stringify({ step: "photo" }),
+    );
+    useInlineFittingStore.setState({
+      columnOpen: true,
+      onboardingActive: true,
+      columnDismissed: false,
+      replayFitting: true,
+    });
+
+    resetUserScopedClientState({ preserveOnboarding: true });
+
+    assert.equal(
+      sessionStorage.getItem("shoop.onboarding.ui.v4"),
+      JSON.stringify({ step: "photo" }),
+    );
+    const fitting = useInlineFittingStore.getState();
+    assert.equal(fitting.columnOpen, true);
+    assert.equal(fitting.onboardingActive, true);
+    assert.equal(fitting.columnDismissed, false);
+  });
+
+  it("keeps a held fitting photo across guest→user signup, and drops it otherwise", () => {
+    const file = new File(["x"], "face.jpg", { type: "image/jpeg" });
+    setPendingFittingPhoto(file);
+    resetUserScopedClientState({ preserveOnboarding: true });
+    assert.equal(getPendingFittingPhoto(), file);
+
+    resetUserScopedClientState();
+    assert.equal(getPendingFittingPhoto(), null);
+  });
+});
+
+describe("shouldWipeClientIdentity", () => {
+  it("does not wipe on first hydration or the same guest", () => {
+    assert.equal(
+      shouldWipeClientIdentity({
+        previousScopeKey: null,
+        scopeKey: "guest:abc",
+      }),
+      false,
+    );
+    assert.equal(
+      shouldWipeClientIdentity({
+        previousScopeKey: "guest:abc",
+        scopeKey: "guest:abc",
+      }),
+      false,
+    );
+  });
+
+  it("wipes only when the person actually changed", () => {
+    assert.equal(
+      shouldWipeClientIdentity({
+        previousScopeKey: "guest:abc",
+        scopeKey: "user:1",
+      }),
+      true,
+    );
+    assert.equal(
+      shouldWipeClientIdentity({
+        previousScopeKey: "__signed_out__",
+        scopeKey: "guest:abc",
+      }),
+      true,
+    );
   });
 });

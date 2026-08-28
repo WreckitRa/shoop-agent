@@ -17,6 +17,7 @@ import { useCartStore } from "@/components/cart/cart-store";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
 import { accessNeedsAccountForMirror } from "@/components/tryon/mirror-entry";
 import { useAppSessionStore } from "@/lib/client/app-session";
+import { guestFetch } from "@/lib/client/guest-fetch";
 import {
   findActiveSlotConflict,
   fittingRoomGarmentType,
@@ -66,6 +67,8 @@ type TryOnDrawerState = {
   previewLookTitle: string | null;
   /** Ask-your-friends share token for the current try-on generation (if shared). */
   askShareToken: string | null;
+  /** Bumped when Mirror requests one-tap Ask share (StudyingScan listens). */
+  askShareRequestId: number;
   /** Owner's No / Meh / Almost / Love strip vote for the current look. */
   ownerVerdict: "no" | "meh" | "almost" | "love" | null;
   /** Studying Scan for the current job — reuse instead of re-running the LLM. */
@@ -103,6 +106,8 @@ type TryOnDrawerState = {
   close: () => void;
   sendFeedback: (rating: 1 | -1, generationId?: string) => void;
   setAskShareToken: (token: string | null) => void;
+  /** One-tap Ask from The Mirror — StudyingScan opens the share flow. */
+  requestAskShare: () => void;
   /**
    * Persist the owner's strip vote locally and upsert onto the Ask share when
    * one exists for this try-on.
@@ -137,7 +142,7 @@ function clearPollTimer() {
 async function fetchSelfAvatarUrl(): Promise<string | null> {
   try {
     // Prefer tryon/latest — same source the hanger button uses.
-    const latestRes = await fetch("/api/tryon/latest", { cache: "no-store" });
+    const latestRes = await guestFetch("/api/tryon/latest", { cache: "no-store" });
     if (latestRes.ok) {
       const latest = (await latestRes.json()) as {
         avatar_url?: string | null;
@@ -146,7 +151,7 @@ async function fetchSelfAvatarUrl(): Promise<string | null> {
       if (latest.avatar_url) return latest.avatar_url;
     }
 
-    const res = await fetch("/api/avatar/people", { cache: "no-store" });
+    const res = await guestFetch("/api/avatar/people", { cache: "no-store" });
     if (!res.ok) return null;
     const body = (await res.json()) as {
       people?: Array<{
@@ -241,7 +246,7 @@ async function pollOnce(
       pollSource === "look"
         ? `/api/tryon/look/${jobId}`
         : `/api/tryon/fitting-room/${jobId}`;
-    const res = await fetch(pollPath);
+    const res = await guestFetch(pollPath);
     const body = await res.json();
     if (useTryOnDrawerStore.getState().renderGeneration !== generation) return;
     if (!body.tryon_look) {
@@ -375,7 +380,7 @@ async function startActiveOutfitRender(generation: number) {
   });
 
   try {
-    const res = await fetch("/api/tryon/fitting-room", {
+    const res = await guestFetch("/api/tryon/fitting-room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -451,7 +456,7 @@ async function startLookTryonJob(
   });
 
   try {
-    const res = await fetch("/api/tryon/look", {
+    const res = await guestFetch("/api/tryon/look", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -529,6 +534,20 @@ function denyGuestDrawer(): boolean {
   return true;
 }
 
+function hasTwinForDress(): boolean {
+  if (useTryOnDrawerStore.getState().avatarUrl) return true;
+  const self = useSelfAvatarStore.getState();
+  return self.status === "ready" && Boolean(self.avatarUrl);
+}
+
+/** Open The Fitting instead of hitting try-on APIs that 404/500 without a twin. */
+function requireTwinOrCreateFlow(): boolean {
+  if (denyGuestDrawer()) return false;
+  if (hasTwinForDress()) return true;
+  useSelfAvatarStore.getState().openCreateFlow();
+  return false;
+}
+
 export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   open: false,
   itemsById: {},
@@ -547,6 +566,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   previewLookId: null,
   previewLookTitle: null,
   askShareToken: null,
+  askShareRequestId: 0,
   ownerVerdict: null,
   lookScanVerdict: null,
 
@@ -570,6 +590,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
       previewLookId: null,
       previewLookTitle: null,
       askShareToken: null,
+      askShareRequestId: 0,
       ownerVerdict: null,
       lookScanVerdict: null,
     }));
@@ -636,7 +657,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   },
 
   tryOnItem: (id, opts) => {
-    if (denyGuestDrawer()) return;
+    if (!requireTwinOrCreateFlow()) return;
     const state = get();
     const item = state.itemsById[id];
     if (!item) return;
@@ -704,7 +725,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
   },
 
   openLookTryOn: (params) => {
-    if (denyGuestDrawer()) return;
+    if (!requireTwinOrCreateFlow()) return;
     clearPollTimer();
     const generation = get().renderGeneration + 1;
     syncChromeForTryOnDrawer(true);
@@ -743,14 +764,22 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
       lookSteps: [],
       partialNote: null,
     });
-    void ensureAvatarLoaded(generation).then(() => {
+    void ensureAvatarLoaded(generation).then((url) => {
       if (get().renderGeneration !== generation) return;
+      if (!url) {
+        useSelfAvatarStore.getState().openCreateFlow();
+        set({
+          status: "failed",
+          error: "Finish The Fitting to see yourself here.",
+        });
+        return;
+      }
       void startLookTryonJob(generation, params);
     });
   },
 
   openAndDressItems: (params) => {
-    if (denyGuestDrawer()) return;
+    if (!requireTwinOrCreateFlow()) return;
     clearPollTimer();
     const generation = get().renderGeneration + 1;
     syncChromeForTryOnDrawer(true);
@@ -799,8 +828,16 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
       partialNote: null,
     });
 
-    void ensureAvatarLoaded(generation).then(() => {
+    void ensureAvatarLoaded(generation).then((url) => {
       if (get().renderGeneration !== generation) return;
+      if (!url) {
+        useSelfAvatarStore.getState().openCreateFlow();
+        set({
+          status: "failed",
+          error: "Finish The Fitting to see yourself here.",
+        });
+        return;
+      }
       if (!get().activeIds.length) {
         set({
           status: get().avatarUrl ? "idle" : "failed",
@@ -886,7 +923,7 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
     void useSelfAvatarStore.getState().refresh();
 
     try {
-      const res = await fetch("/api/tryon/latest", { cache: "no-store" });
+      const res = await guestFetch("/api/tryon/latest", { cache: "no-store" });
       if (get().renderGeneration !== generation) return;
 
       if (res.status === 401) {
@@ -994,6 +1031,10 @@ export const useTryOnDrawerStore = create<TryOnDrawerState>((set, get) => ({
 
   setAskShareToken: (token) => {
     set({ askShareToken: token });
+  },
+
+  requestAskShare: () => {
+    set((s) => ({ askShareRequestId: s.askShareRequestId + 1 }));
   },
 
   setLookScanVerdict: (verdict) => {

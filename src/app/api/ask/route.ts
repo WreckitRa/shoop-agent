@@ -20,7 +20,21 @@ const bodySchema = z
     generationId: z.string().max(80).optional().nullable(),
     conversationId: z.string().max(80).optional().nullable(),
     killCount: z.number().int().min(0).max(9999).optional().nullable(),
-    ownerVote: z.enum(["no", "meh", "almost", "love"]).optional().nullable(),
+    ownerVote: z
+      .enum(["no", "meh", "almost", "love", "a", "b"])
+      .optional()
+      .nullable(),
+    altImageUrl: z
+      .string()
+      .min(1)
+      .max(2000)
+      .refine(
+        (u) => /^https?:\/\//i.test(u) || u.startsWith("/"),
+        "altImageUrl must be http(s) or absolute path",
+      )
+      .optional()
+      .nullable(),
+    altGenerationId: z.string().max(80).optional().nullable(),
     pieces: z
       .array(
         z
@@ -77,6 +91,10 @@ export async function POST(req: Request) {
     // Never use req.url origin — on Railway that is http://0.0.0.0:8080.
     imageUrl = `${publicOrigin}${imageUrl}`;
   }
+  let altImageUrl = parsed.data.altImageUrl?.trim() || null;
+  if (altImageUrl?.startsWith("/")) {
+    altImageUrl = `${publicOrigin}${altImageUrl}`;
+  }
 
   try {
     const share = await createLookAskShare({
@@ -102,6 +120,8 @@ export async function POST(req: Request) {
       conversationId: parsed.data.conversationId,
       killCount: parsed.data.killCount,
       ownerVote: parsed.data.ownerVote,
+      altImageUrl,
+      altGenerationId: parsed.data.altGenerationId,
     });
 
     const askPath = `/ask/${share.token}`;
@@ -113,6 +133,7 @@ export async function POST(req: Request) {
       url: `${publicOrigin}${askPath}`,
       serial: share.serial,
       messageId: share.messageId,
+      pollMode: share.pollMode,
     });
   } catch (error) {
     console.error("[ask] create failed", error);

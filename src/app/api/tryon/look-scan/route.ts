@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { trackProductEvent } from "@/lib/analytics/track";
 import { getAuthContext } from "@/lib/auth/session";
 import { getSiteUrl } from "@/lib/seo/site";
 import type { LookScanPiece } from "@/lib/tryon/look-scan-types";
@@ -60,6 +61,15 @@ export async function POST(req: Request) {
       generationId: parsed.data.generationId,
     });
     if (cached) {
+      trackProductEvent({
+        name: "look_viewed",
+        userId: auth.userId,
+        props: {
+          generation_id: parsed.data.generationId,
+          look_mode: lookMode,
+          cached: true,
+        },
+      });
       return Response.json({
         ok: true,
         verdict: cached,
@@ -97,6 +107,16 @@ export async function POST(req: Request) {
       verdict,
     }).catch(() => false);
   }
+
+  trackProductEvent({
+    name: "look_viewed",
+    userId: auth.userId,
+    props: {
+      generation_id: parsed.data.generationId ?? null,
+      look_mode: lookMode,
+      cached: false,
+    },
+  });
 
   return Response.json({ ok: true, verdict, lookMode });
 }

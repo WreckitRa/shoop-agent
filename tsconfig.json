@@ -33,6 +33,11 @@
   "exclude": [
     "node_modules",
     "src/**/*.test.ts",
-    "src/**/*.test.tsx"
+    "src/**/*.test.tsx",
+    "e2e",
+    "test",
+    "scripts",
+    "src/lib/fashion-memory/eval",
+    "src/lib/fashion-memory/eval-memory"
   ]
 }

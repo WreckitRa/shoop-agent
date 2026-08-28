@@ -1,16 +1,21 @@
 import { randomBytes } from "node:crypto";
-import type { AskVoteChoice, LookAskSharePublic } from "./types";
-import { ASK_VOTE_CHOICES } from "./types";
+import type {
+  AskPollMode,
+  AskVoteChoice,
+  LookAskSharePublic,
+} from "./types";
+import {
+  ASK_VOTE_CHOICES,
+  choicesForPollMode,
+  emptyTallies,
+  isAskVoteChoice,
+} from "./types";
 import type { LookScanVerdict } from "@/lib/tryon/look-scan-types";
 import { ownerVoterKey } from "./owner-vote";
 import { publicAskImagePath } from "./ask-image";
 
 export function generateAskToken(): string {
   return randomBytes(18).toString("base64url");
-}
-
-export function emptyTallies(): Record<AskVoteChoice, number> {
-  return { no: 0, meh: 0, almost: 0, love: 0 };
 }
 
 export function tallyVotes(
@@ -31,6 +36,9 @@ type ShareRow = {
   askerName: string;
   serial: number;
   imageUrl: string;
+  altImageUrl?: string | null;
+  altGenerationId?: string | null;
+  pollMode?: string | null;
   pieces: unknown;
   killCount: number | null;
   shoopVote: string;
@@ -51,6 +59,16 @@ type ShareRow = {
   }>;
 };
 
+function resolvePollMode(share: ShareRow): AskPollMode {
+  if (share.pollMode === "compare" && share.altImageUrl?.trim()) {
+    return "compare";
+  }
+  if (share.altImageUrl?.trim() && share.pollMode !== "rate") {
+    return "compare";
+  }
+  return "rate";
+}
+
 export function buildLookAskPublic(params: {
   share: ShareRow;
   viewerUserId: string | null;
@@ -59,6 +77,8 @@ export function buildLookAskPublic(params: {
   const { share, viewerUserId, viewerVoterKey } = params;
   const isOwner =
     Boolean(viewerUserId) && viewerUserId === share.ownerUserId;
+  const pollMode = resolvePollMode(share);
+  const allowed = new Set(choicesForPollMode(pollMode));
 
   const ownerKey = ownerVoterKey(share.ownerUserId);
   const myVoteRow =
@@ -66,27 +86,58 @@ export function buildLookAskPublic(params: {
       share.votes.find((v) => v.voterKey === viewerVoterKey)
     : undefined;
   const myVote =
-    myVoteRow &&
-    (ASK_VOTE_CHOICES as readonly string[]).includes(myVoteRow.choice) ?
-      (myVoteRow.choice as AskVoteChoice)
-    : null;
+    myVoteRow && isAskVoteChoice(myVoteRow.choice) && allowed.has(myVoteRow.choice)
+      ? myVoteRow.choice
+      : null;
+
+  const shoopRevealed = isOwner || Boolean(myVote);
+
+  // Sealed: no tallies, no vote rows, no notes — friends must not peek.
+  if (!shoopRevealed) {
+    return {
+      token: share.token,
+      askerName: share.askerName,
+      serial: share.serial,
+      pollMode,
+      imageUrl: publicAskImagePath(share.token),
+      altImageUrl:
+        pollMode === "compare" ?
+          `${publicAskImagePath(share.token)}?side=alt`
+        : null,
+      pieces: (Array.isArray(share.pieces) ? share.pieces : []) as LookAskSharePublic["pieces"],
+      killCount: share.killCount,
+      shoopRevealed: false,
+      shoopVote: null,
+      shoopVerdict: null,
+      myVote: null,
+      ownerVote: null,
+      isOwner,
+      votes: [],
+      tallies: emptyTallies(),
+      notes: [],
+      createdAt: share.createdAt.toISOString(),
+      expiresAt: (share.expiresAt ?? null)
+        ? share.expiresAt!.toISOString()
+        : null,
+      revoked: Boolean(share.revokedAt),
+    };
+  }
 
   const ownerVoteRow = share.votes.find((v) => v.voterKey === ownerKey);
   const ownerVote =
     ownerVoteRow &&
-    (ASK_VOTE_CHOICES as readonly string[]).includes(ownerVoteRow.choice) ?
-      (ownerVoteRow.choice as AskVoteChoice)
-    : null;
+    isAskVoteChoice(ownerVoteRow.choice) &&
+    allowed.has(ownerVoteRow.choice)
+      ? ownerVoteRow.choice
+      : null;
 
-  const shoopRevealed = isOwner || Boolean(myVote);
-  const tallies = tallyVotes(share.votes);
+  const modeVotes = share.votes.filter(
+    (v) => isAskVoteChoice(v.choice) && allowed.has(v.choice),
+  );
+  const tallies = tallyVotes(modeVotes);
 
-  // Include Shoop in revealed tallies for the poll bars.
-  if (
-    shoopRevealed &&
-    (ASK_VOTE_CHOICES as readonly string[]).includes(share.shoopVote)
-  ) {
-    tallies[share.shoopVote as AskVoteChoice] += 1;
+  if (isAskVoteChoice(share.shoopVote) && allowed.has(share.shoopVote)) {
+    tallies[share.shoopVote] += 1;
   }
 
   const pieces = Array.isArray(share.pieces) ? share.pieces : [];
@@ -95,29 +146,25 @@ export function buildLookAskPublic(params: {
       (share.shoopVerdict as LookScanVerdict)
     : null;
 
-  const votes: LookAskSharePublic["votes"] = share.votes
-    .filter((v) =>
-      (ASK_VOTE_CHOICES as readonly string[]).includes(v.choice),
-    )
-    .map((v) => {
-      const isOwnerVote = v.voterKey === ownerKey;
-      const rawName = v.displayName.trim();
-      const displayName =
-        isOwnerVote ?
-          share.askerName.trim() ||
-          (rawName && rawName.toLowerCase() !== "you" ? rawName : "Friend")
-        : rawName || "Friend";
-      return {
-        choice: v.choice as AskVoteChoice,
-        displayName,
-        voterKey: v.voterKey,
-        isOwner: isOwnerVote,
-      };
-    });
+  const votes: LookAskSharePublic["votes"] = modeVotes.map((v) => {
+    const isOwnerVote = v.voterKey === ownerKey;
+    const rawName = v.displayName.trim();
+    const displayName =
+      isOwnerVote ?
+        share.askerName.trim() ||
+        (rawName && rawName.toLowerCase() !== "you" ? rawName : "Friend")
+      : rawName || "Friend";
+    return {
+      choice: v.choice as AskVoteChoice,
+      displayName,
+      voterKey: v.voterKey,
+      isOwner: isOwnerVote,
+    };
+  });
 
-  if (shoopRevealed) {
+  if (isAskVoteChoice(share.shoopVote) && allowed.has(share.shoopVote)) {
     votes.push({
-      choice: share.shoopVote as AskVoteChoice,
+      choice: share.shoopVote,
       displayName: "Shoop",
       voterKey: "shoop",
       isShoop: true,
@@ -128,16 +175,19 @@ export function buildLookAskPublic(params: {
     token: share.token,
     askerName: share.askerName,
     serial: share.serial,
-    // Always same-origin durable route — DB may hold expired signed URLs.
+    pollMode,
     imageUrl: publicAskImagePath(share.token),
+    altImageUrl:
+      pollMode === "compare" ?
+        `${publicAskImagePath(share.token)}?side=alt`
+      : null,
     pieces: pieces as LookAskSharePublic["pieces"],
     killCount: share.killCount,
-    shoopRevealed,
-    shoopVote:
-      shoopRevealed ? (share.shoopVote as AskVoteChoice) : null,
-    shoopVerdict: shoopRevealed ? verdict : null,
+    shoopRevealed: true,
+    shoopVote: isAskVoteChoice(share.shoopVote) ? share.shoopVote : null,
+    shoopVerdict: verdict,
     myVote,
-    ownerVote: shoopRevealed ? ownerVote : null,
+    ownerVote,
     isOwner,
     votes,
     tallies,

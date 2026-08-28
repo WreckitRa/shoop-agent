@@ -205,6 +205,10 @@ function applyOptimisticAdd(
     sellerName: input.product?.sellerName ?? null,
     sellerDomain: shopDomain,
     productId: input.product?.productId ?? null,
+    searchId: input.product?.searchId ?? null,
+    ref: input.product?.ref ?? input.product?.productId ?? null,
+    brand: input.product?.brand ?? null,
+    color: input.product?.color ?? null,
     productUrl: input.product?.productUrl ?? null,
   };
 

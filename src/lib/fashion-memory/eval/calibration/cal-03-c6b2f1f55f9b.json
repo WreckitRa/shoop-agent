@@ -1,0 +1,208 @@
+{
+  "calibration_id": "cal-03",
+  "source_run": "1-2026-08-26T09-18-59-339Z",
+  "persona_id": "c6b2f1f55f9b0bbb",
+  "persona_name": "Casey56",
+  "cell": "single_item×complete",
+  "profile_state": "new",
+  "judge_overall": 2.9,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 3,
+      "why": "Brief captured self/womens/size M, but no warmth or acknowledgment — purely mechanical routing."
+    },
+    "asked_right": {
+      "score": 4,
+      "why": "Nothing needless asked; shopper front-loaded everything, so router correctly proceeded without extra questions."
+    },
+    "not_interrogated": {
+      "score": 5,
+      "why": "Zero interrogation — went straight to search with stated depth honored."
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Depth read as 2 options but assumptions list empty and nothing spoken aloud to shopper."
+    },
+    "accuracy": {
+      "score": 4,
+      "why": "Brief matches truth: sneakers, date night, 2 looks, womens. Budget $120 unstated but not contradicted."
+    },
+    "voice": {
+      "score": 1,
+      "why": "'(ready to search)' is pure log-speak — no stylist voice, no words spoken to shopper at all."
+    },
+    "would_proceed": {
+      "score": 3,
+      "why": "Guided shopper gave crisp brief; likely waits, but silent handoff gives no reason to stay engaged."
+    }
+  },
+  "human_overall": 3.8,
+  "human_dimensions": null,
+  "human_notes": "Provisional human reader (Claude calibration grades, not a separate human). Overall only.",
+  "agreement": {
+    "overall_within_0_4": false,
+    "opus_minus_reader": -1.2,
+    "sonnet_minus_reader": -1.2
+  },
+  "truth": {
+    "request_type": "single_item",
+    "garments": [
+      "sneakers"
+    ],
+    "owns": [],
+    "occasion": "date night",
+    "formality": "smart casual",
+    "color": "surprise",
+    "budget": {
+      "max": 120,
+      "currency": "USD",
+      "scope": "per_item"
+    },
+    "depth": {
+      "options": 3
+    },
+    "anchor": "n/a"
+  },
+  "opening_message": "looking for sneakers for date night, size M, show me 2",
+  "brief": {
+    "recipient_person_id": "4f8150cb-5eb0-4e9b-b8b4-f0e5a3f8ba83",
+    "request_type": "single_item",
+    "garments": [
+      "sneakers"
+    ],
+    "occasion_context": "date night",
+    "quantity_hint": "2 looks",
+    "must_haves": [],
+    "nice_to_haves": [],
+    "budget_context": {
+      "stated": false
+    },
+    "style_direction": "Fun, stylish sneakers with a date-night edge for a women's look",
+    "department_scope": "womens",
+    "color_direction": {
+      "source": "none"
+    },
+    "brand_direction": {
+      "source": "none"
+    },
+    "stated_facts": {
+      "person_ref": "self",
+      "department": "womens",
+      "sizes": {
+        "shoes": "M"
+      }
+    },
+    "depth": {
+      "looks_wanted": 2,
+      "options_per_item": 2,
+      "source": "stated"
+    },
+    "preference_anchor": "unspecified",
+    "assumptions": [],
+    "knowledge_state": {
+      "department": "womens",
+      "sizes_confirmed": [
+        "sneakers"
+      ],
+      "sizes_unconfirmed": [
+        "sneakers"
+      ]
+    }
+  },
+  "question_rounds": 0,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "looking for sneakers for date night, size M, show me 2"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ],
+  "sonnet_grade": {
+    "recognized": {
+      "score": 2,
+      "why": "New client, no acknowledgment of preferences; brief was processed, not personalized."
+    },
+    "asked_right": {
+      "score": 2,
+      "why": "No budget or color confirmation asked; ignored stated 'surprise' color and $120 cap."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "No interrogation occurred, but only because no dialogue happened at all."
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Budget and depth (2 vs 3 options) silently assumed without confirmation to client."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Matches sneakers/date-night/smart casual but depth mismatched (2 vs 3 options) and budget unconfirmed."
+    },
+    "voice": {
+      "score": 0,
+      "why": "n/a — no spoken stylist turn (search progress only)"
+    },
+    "would_proceed": {
+      "score": 3,
+      "why": "Request understood broadly, but missing budget/color confirmation makes results feel like a guess."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.6,
+    "worst_moment": {
+      "quote": "assistant [ready_to_search]: Searching the stores",
+      "better": "\"Got it—size M sneakers for date night! Want to keep it under $120 and open to any bold color?\""
+    },
+    "judge_model": "claude-sonnet-5"
+  },
+  "opus_grade": {
+    "recognized": {
+      "score": 2,
+      "why": "New client, no known summary; brief captured basics but no sense of being personally known."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Asked nothing; shopper gave enough to search, but budget and color surprise left unconfirmed."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "No form-like grilling; went straight to search, respecting the shopper's brevity."
+    },
+    "no_silent_guess": {
+      "score": 1,
+      "why": "Silently assumed depth (2 vs 3 wanted), formality, and skipped budget—nothing spoken or correctable."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Sneakers/date-night right; missed $120 budget, smart-casual, surprise color, and wanted 3 options not 2."
+    },
+    "voice": {
+      "score": 0,
+      "why": "n/a — no spoken stylist turn (search progress only)"
+    },
+    "would_proceed": {
+      "score": 3,
+      "why": "Fast response is fine, but no confirmation or warmth; shopper might wait but unimpressed."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.6,
+    "worst_moment": {
+      "quote": "Searching the stores",
+      "better": "On it—any budget in mind? I'll pull a few smart-casual pairs with a fun surprise color for date night."
+    },
+    "judge_model": "claude-opus-4-8"
+  },
+  "sonnet_offset_vs_opus": 0,
+  "sonnet_offset_vs_human": -1.2,
+  "sonnet_dim_agreement_vs_opus_pct": 66.7,
+  "opus_offset_vs_human": -1.2
+}

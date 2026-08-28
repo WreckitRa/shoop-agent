@@ -6,6 +6,7 @@ import { logAiChat } from "@/lib/ai-chat/observability";
 import { fashionMemoryDb } from "../db";
 import { hashSystemPrompt, upsertPromptVersion } from "./prompt-hash";
 import { recordPromptCacheUsage } from "./prompt-cache-metrics";
+import { recordTurnLlmCall } from "./search-observability";
 
 export type AnthropicSystemBlock = {
   type: "text";
@@ -189,6 +190,14 @@ export async function withTracedLlmCall<T>(params: {
       });
     }
     if (isTraceId(params.traceId)) {
+      recordTurnLlmCall(params.traceId, {
+        stage: params.stage,
+        model: params.model,
+        inputTokens: inputTokens ?? 0,
+        outputTokens: outputTokens ?? 0,
+        cacheReadInputTokens,
+        cacheCreationInputTokens,
+      });
       persistLlmCall({
         traceId: params.traceId,
         stage: params.stage,

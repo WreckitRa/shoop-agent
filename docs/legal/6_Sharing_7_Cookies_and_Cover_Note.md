@@ -73,7 +73,7 @@ Nabil — every open question in the August 17 pack now has a company position d
 
 3/ **Architecture truth: server-side, process-and-delete.** The in-browser processing claims are removed because they weren't true. Photo deleted post-extraction within \[24h — engineering to confirm\]. (Privacy §3, Biometric §4.)
 
-4/ **BIPA §15:** dedicated consent screen before upload, electronic release via unticked box (E-SIGN/UETA), tick logged with timestamp/version/id. (Biometric preamble.)
+4/ **BIPA §15:** dedicated first fitting screen before upload (may precede email), three ticks (age, own photograph including measurement, delete-if-you-leave), electronic release via unticked boxes (E-SIGN/UETA), ticks logged with timestamp/version/session or user id. Leave-without-signup deletes that session's photograph and measurements. (Biometric preamble.)
 
 5/ **BIPA retention:** the \[24 months\] placeholder is replaced by the statutory outer bound — purpose satisfied or 3 years from last interaction, whichever first — with earlier triggers stated; the Biometric page itself is the publicly available schedule, linked in the footer. (Biometric §6.)
 

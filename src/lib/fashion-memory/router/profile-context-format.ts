@@ -20,6 +20,8 @@ import type {
   StyleSignalRow,
 } from "../types";
 import { filterSignalsByEffectiveConfidence } from "../signal-confidence";
+import { signalCanonicalKey } from "../normalize/signal-canonical";
+import { garmentSlotFamilyKey } from "./garment-family";
 
 const OCCASION_FAMILIES: Array<{
   family: string;
@@ -57,6 +59,11 @@ const OCCASION_FAMILIES: Array<{
     signalContexts: ["campus", "casual", "general"],
   },
 ];
+
+export const KNOWN_SIGNAL_CONTEXTS: ReadonlySet<string> = new Set([
+  "general",
+  ...OCCASION_FAMILIES.flatMap((f) => [f.family, ...f.signalContexts]),
+]);
 
 export function inferOccasionFamilyHint(text: string | undefined): string | null {
   if (!text?.trim()) return null;
@@ -308,7 +315,7 @@ export function rankSignalsForRouter(params: {
     params.signals,
     undefined,
     params.now,
-  );
+  ).filter((s) => s.status === "active");
   const family = params.occasionHint
     ? OCCASION_FAMILIES.find((f) => f.family === params.occasionHint)
     : null;
@@ -322,14 +329,89 @@ export function rankSignalsForRouter(params: {
     return { signal, score };
   });
 
-  return scored
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        b.signal.last_seen_at.localeCompare(a.signal.last_seen_at),
-    )
-    .slice(0, limit)
-    .map((s) => s.signal);
+  const ranked = scored.sort(
+    (a, b) =>
+      b.score - a.score ||
+      b.signal.last_seen_at.localeCompare(a.signal.last_seen_at),
+  );
+  const seen = new Set<string>();
+  const out: StyleSignalRow[] = [];
+  for (const row of ranked) {
+    const key = `${row.signal.signal_type}:${signalCanonicalKey(row.signal).toLowerCase()}:${row.signal.polarity}:${row.signal.context}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row.signal);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+export function formatRecentPicksLine(
+  events: RequestEventRow[] | null | undefined,
+): string | null {
+  if (!events?.length) return null;
+  const sorted = [...events].sort((a, b) => {
+    const ap = a.attributes.kind === "purchase" ? 0 : 1;
+    const bp = b.attributes.kind === "purchase" ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    return Date.parse(b.created_at) - Date.parse(a.created_at);
+  });
+  const byFamily = new Map<string, { label: string; date: string }>();
+  for (const event of sorted) {
+    const garment = event.attributes.garment?.trim();
+    if (!garment) continue;
+    const primary = garment.split(",")[0]?.trim() ?? garment;
+    const family = primary.toLowerCase().replace(/s$/, "") || primary.toLowerCase();
+    if (byFamily.has(family)) continue;
+    const day = event.created_at.slice(0, 10);
+    const bought = event.attributes.kind === "purchase";
+    if (bought) {
+      const brand = event.attributes.brand?.trim();
+      const color = event.attributes.color?.trim();
+      const detail = [brand, color].filter(Boolean).join(", ");
+      const label = detail
+        ? `${primary} — ${detail} (bought ${day})`
+        : `${primary} (bought ${day})`;
+      byFamily.set(family, { label, date: day });
+    } else {
+      const bits = [
+        event.attributes.color?.trim(),
+        event.attributes.brand?.trim(),
+        event.attributes.style?.trim(),
+      ].filter(Boolean);
+      const title =
+        bits.length > 0
+          ? bits
+              .map((b) => b!.charAt(0).toUpperCase() + b!.slice(1))
+              .join(" ")
+          : primary;
+      byFamily.set(family, { label: `"${title}"`, date: day });
+    }
+    if (byFamily.size >= 3) break;
+  }
+  if (!byFamily.size) return null;
+  const parts = [...byFamily.entries()].map(([family, row]) =>
+    row.label.includes("(bought ")
+      ? row.label
+      : `${family} → ${row.label} (${row.date})`,
+  );
+  return `recent_picks: ${parts.join("; ")}`;
+}
+
+/** Garment families the client already bought or searched — named for the unnamed gate. */
+export function garmentFamiliesFromRequestEvents(
+  events: RequestEventRow[] | null | undefined,
+): Set<string> {
+  const named = new Set<string>();
+  for (const event of events ?? []) {
+    const raw = event.attributes.garment?.trim();
+    if (!raw) continue;
+    for (const part of raw.split(",")) {
+      const k = garmentSlotFamilyKey(part.trim());
+      if (k) named.add(k);
+    }
+  }
+  return named;
 }
 
 export function formatLastSearchLine(params: {

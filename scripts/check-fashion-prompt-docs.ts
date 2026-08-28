@@ -116,6 +116,12 @@ CURRENT DATE: {DATE}`;
     extract: (s) =>
       extractBetween(s, /const CLASSIFY_LABELS_SYSTEM_PROMPT = `/, "`;\n\nexport"),
   },
+  {
+    doc: "docs/fashion/taste_rerank.md",
+    source: "src/lib/fashion-memory/scoring/taste-rerank.ts",
+    extract: (s) =>
+      extractBetween(s, /export const TASTE_RERANK_PROMPT = `/, "`;\n\nexport const TASTE_RERANK_TOP_N"),
+  },
 ];
 
 let failed = 0;

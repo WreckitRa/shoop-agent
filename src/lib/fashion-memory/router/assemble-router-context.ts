@@ -7,6 +7,8 @@ import {
   ensureMentionedPeople,
   ensureMentionedPeopleLocal,
 } from "../people-from-mentions";
+import { unresolvedContextLines } from "../unresolved";
+import type { AmbiguousSubject } from "../extraction/tool-schema";
 import { logRequestEvent } from "../signals";
 import type { GuestFashionMemorySnapshot } from "../local/store";
 import { FashionLocalStore } from "../local/store";
@@ -70,14 +72,16 @@ async function resolveStickyRecipientPersonIds(params: {
   return personId ? [personId] : [];
 }
 
-async function loadLatestRequestEventsByPerson(params: {
+async function loadRecentRequestEventsByPerson(params: {
   userId: string;
   personIds: string[];
   guestSnapshot?: GuestFashionMemorySnapshot;
   now?: Date;
-}): Promise<Map<string, RequestEventRow>> {
-  const out = new Map<string, RequestEventRow>();
+  perPersonLimit?: number;
+}): Promise<Map<string, RequestEventRow[]>> {
+  const out = new Map<string, RequestEventRow[]>();
   if (!params.personIds.length) return out;
+  const limit = params.perPersonLimit ?? 6;
   const cutoff = new Date(
     (params.now ?? new Date()).getTime() - 14 * 24 * 60 * 60 * 1000,
   ).toISOString();
@@ -92,7 +96,10 @@ async function loadLatestRequestEventsByPerson(params: {
       )
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
     for (const e of events) {
-      if (!out.has(e.person_id)) out.set(e.person_id, e);
+      const list = out.get(e.person_id) ?? [];
+      if (list.length >= limit) continue;
+      list.push(e);
+      out.set(e.person_id, list);
     }
     return out;
   }
@@ -107,7 +114,7 @@ async function loadLatestRequestEventsByPerson(params: {
     .in("person_id", params.personIds)
     .gte("created_at", cutoff)
     .order("created_at", { ascending: false })
-    .limit(Math.max(24, params.personIds.length * 3));
+    .limit(Math.max(24, params.personIds.length * limit));
 
   if (row.error) {
     logAiChat("warn", "fashion_last_request_events_load_failed", {
@@ -116,7 +123,10 @@ async function loadLatestRequestEventsByPerson(params: {
     return out;
   }
   for (const e of (row.data ?? []) as RequestEventRow[]) {
-    if (!out.has(e.person_id)) out.set(e.person_id, e);
+    const list = out.get(e.person_id) ?? [];
+    if (list.length >= limit) continue;
+    list.push(e);
+    out.set(e.person_id, list);
   }
   return out;
 }
@@ -290,17 +300,20 @@ export async function assembleRouterContext(params: {
   // Gift recipients must exist on the roster BEFORE the router runs —
   // otherwise recipient_person_id / intake target fall back to self and
   // sizes for "my mother" land on the shopper.
+  let unresolvedSubjects: AmbiguousSubject[] = [];
   if (isAuth) {
-    await ensureMentionedPeople({
+    const mentioned = await ensureMentionedPeople({
       userId: params.userId,
       messages: conversationForMentions,
     });
+    unresolvedSubjects = mentioned.ambiguous;
   } else if (params.guestSnapshot) {
-    ensureMentionedPeopleLocal({
+    const mentioned = await ensureMentionedPeopleLocal({
       userId: params.userId,
       store: new FashionLocalStore(params.guestSnapshot),
       messages: conversationForMentions,
     });
+    unresolvedSubjects = mentioned.ambiguous;
   }
 
   const memory =
@@ -312,6 +325,11 @@ export async function assembleRouterContext(params: {
       : await loadAuthMemory({ userId: params.userId });
 
   const personShortIds = buildPersonShortIdMap(memory.people);
+  const unresolvedLines = unresolvedContextLines(
+    unresolvedSubjects,
+    memory.people,
+    personShortIds,
+  );
 
   const stickyPersonIds = normalizeStickyPersonIds(
     stickyRaw,
@@ -326,12 +344,16 @@ export async function assembleRouterContext(params: {
     ]),
   ];
 
-  const lastRequestEventByPersonId = await loadLatestRequestEventsByPerson({
+  const recentRequestEventsByPersonId = await loadRecentRequestEventsByPerson({
     userId: params.userId,
     personIds: profileCandidateIds,
     guestSnapshot: params.guestSnapshot,
     now: params.now,
   });
+  const lastRequestEventByPersonId = new Map<string, RequestEventRow>();
+  for (const [personId, events] of recentRequestEventsByPersonId) {
+    if (events[0]) lastRequestEventByPersonId.set(personId, events[0]);
+  }
 
   const context = buildRouterContextFromData({
     people: memory.people,
@@ -359,6 +381,7 @@ export async function assembleRouterContext(params: {
         }
       : null,
     lastRequestEventByPersonId,
+    recentRequestEventsByPersonId,
   });
 
   logAiChat("info", "fashion_assemble_router_context", {
@@ -394,6 +417,8 @@ export async function assembleRouterContext(params: {
     factsByPersonId: memory.factsByPersonId,
     signalsByPersonId: memory.signalsByPersonId,
     profileHints: accountHints,
+    unresolvedSubjects,
+    unresolvedLines,
   };
 }
 

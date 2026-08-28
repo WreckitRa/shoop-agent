@@ -4,6 +4,7 @@ import {
   CONSULTATION_BUDGET_SPENT_NOTE,
   JUST_SHOW_ME_LABEL,
   YOU_DECIDE_LABEL,
+  coerceMislabelledPreferenceAnchor,
   defaultKindForGap,
   ensureYouDecideOption,
   isEscapeOrYouDecideMessage,
@@ -76,6 +77,10 @@ describe("consultation helpers", () => {
     assert.equal(isEscapeOrYouDecideMessage(YOU_DECIDE_LABEL), true);
     assert.equal(isEscapeOrYouDecideMessage(JUST_SHOW_ME_LABEL), true);
     assert.equal(isEscapeOrYouDecideMessage("whatever else"), false);
+    assert.equal(
+      isEscapeOrYouDecideMessage("Ooh, let me see what you've got!"),
+      true,
+    );
   });
 
   it("caps consult rounds at 2 and resets on a new garment set", () => {
@@ -85,10 +90,16 @@ describe("consultation helpers", () => {
       questions: [consultQ("depth")],
     });
     assert.equal(first, 1);
-    const second = nextConsultRoundsUsed({
+    const anchorOnly = nextConsultRoundsUsed({
       pending: pending(["shirt"], 1),
       brief: brief(["shirt"]),
       questions: [consultQ("preference_anchor")],
+    });
+    assert.equal(anchorOnly, 1);
+    const second = nextConsultRoundsUsed({
+      pending: pending(["shirt"], 1),
+      brief: brief(["shirt"]),
+      questions: [consultQ("preference_anchor"), consultQ("depth")],
     });
     assert.equal(second, 2);
     const reset = nextConsultRoundsUsed({
@@ -99,6 +110,41 @@ describe("consultation helpers", () => {
     assert.equal(reset, 1);
     assert.equal(
       questionsHaveConsult([{ gap: "size", kind: "blocking" }]),
+      false,
+    );
+  });
+
+  it("does not append You decide on preference_anchor", () => {
+    const q = ensureYouDecideOption(consultQ("preference_anchor"));
+    assert.equal(
+      q.quick_options?.some((o) =>
+        typeof o === "string"
+          ? o === YOU_DECIDE_LABEL
+          : o.label === YOU_DECIDE_LABEL,
+      ),
+      false,
+    );
+  });
+
+  it("relabels The usual / Push me chips as preference_anchor", () => {
+    const q = coerceMislabelledPreferenceAnchor({
+      text: "Same navy Percival lane, or something new?",
+      gap: "occasion",
+      kind: "consult",
+      quick_options: [
+        { id: "the_usual", label: "The usual", preselected: true },
+        { id: "push_me_a_little", label: "Push me a little" },
+        { id: "something_new", label: "Something new" },
+        { id: "you_decide", label: YOU_DECIDE_LABEL },
+      ],
+    });
+    assert.equal(q.gap, "preference_anchor");
+    assert.equal(
+      q.quick_options?.some((o) =>
+        typeof o === "string"
+          ? o === YOU_DECIDE_LABEL
+          : o.label === YOU_DECIDE_LABEL,
+      ),
       false,
     );
   });

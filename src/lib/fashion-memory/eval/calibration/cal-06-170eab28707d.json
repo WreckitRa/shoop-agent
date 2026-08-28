@@ -1,0 +1,224 @@
+{
+  "calibration_id": "cal-06",
+  "source_run": "2-2026-08-27T08-11-34-446Z",
+  "persona_id": "170eab28707d930f",
+  "persona_name": "Jordan3",
+  "cell": "capsule×complete",
+  "profile_state": "new",
+  "judge_overall": 3.5,
+  "judge_dimensions": {
+    "recognized": {
+      "score": 3,
+      "why": "Known summary and sizes captured cleanly, no re-asks — but nothing personal beyond echoing the request back."
+    },
+    "asked_right": {
+      "score": 4,
+      "why": "Fully-specified brief needed no questions; stylist correctly went straight to search. No wasted asks."
+    },
+    "not_interrogated": {
+      "score": 5,
+      "why": "Zero consult rounds, no form-feel. Depth stated, moved to rack immediately."
+    },
+    "no_silent_guess": {
+      "score": 4,
+      "why": "Sandal/jacket size assumption spoken aloud and correctable; budget not surfaced though."
+    },
+    "accuracy": {
+      "score": 4,
+      "why": "Garments, occasion, 2 looks all match truth. Missed navy color pref and $120/item budget."
+    },
+    "voice": {
+      "score": 2,
+      "why": "'(ready to search)' is pure log-speak — no stylist voice, no warmth, reads like a system flag."
+    },
+    "would_proceed": {
+      "score": 4,
+      "why": "Fast, no friction, brief captured — persona would wait for results; near-silent handoff slightly cold."
+    }
+  },
+  "human_overall": 4,
+  "human_dimensions": null,
+  "human_notes": "Provisional human reader (Claude calibration grades, not a separate human). Overall only.",
+  "agreement": {
+    "overall_within_0_4": false,
+    "opus_minus_reader": -1,
+    "sonnet_minus_reader": -1.7
+  },
+  "truth": {
+    "request_type": "capsule",
+    "garments": [
+      "dress",
+      "sandals",
+      "light jacket"
+    ],
+    "owns": [],
+    "occasion": "weekend brunch",
+    "formality": "smart casual",
+    "color": "navy",
+    "budget": {
+      "max": 120,
+      "currency": "USD",
+      "scope": "per_item"
+    },
+    "depth": {
+      "looks": 2
+    },
+    "anchor": "n/a"
+  },
+  "opening_message": "looking for dress + sandals + light jacket for weekend brunch, size M, show me 2",
+  "brief": {
+    "recipient_person_id": "6faf230b-b27c-4585-88ca-6cf0c87a4224",
+    "request_type": "outfit",
+    "garments": [
+      "dress",
+      "sandals",
+      "light jacket"
+    ],
+    "occasion_context": "weekend brunch",
+    "quantity_hint": "2 looks",
+    "must_haves": [],
+    "nice_to_haves": [],
+    "budget_context": {
+      "stated": false
+    },
+    "style_direction": "Relaxed, warm-weather brunch look — easy dress with a light layer and sandals, casual-chic for a late-summer weekend.",
+    "department_scope": "womens",
+    "color_direction": {
+      "source": "none"
+    },
+    "brand_direction": {
+      "source": "none"
+    },
+    "stated_facts": {
+      "person_ref": "self",
+      "department": "womens",
+      "sizes": {
+        "tops": "M",
+        "dresses": "M"
+      }
+    },
+    "depth": {
+      "looks_wanted": 2,
+      "options_per_item": 1,
+      "source": "stated"
+    },
+    "preference_anchor": "unspecified",
+    "consultation": {
+      "confirmed": [
+        "2 looks"
+      ],
+      "rounds_used": 0
+    },
+    "assumptions": [
+      "Assumed sandal and jacket size follow your M, standard fit."
+    ],
+    "knowledge_state": {
+      "department": "womens",
+      "sizes_confirmed": [
+        "dress",
+        "light jacket"
+      ],
+      "sizes_unconfirmed": [
+        "dress",
+        "sandals",
+        "light jacket"
+      ]
+    }
+  },
+  "question_rounds": 0,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "looking for dress + sandals + light jacket for weekend brunch, size M, show me 2"
+    },
+    {
+      "role": "assistant",
+      "content": "(ready to search)",
+      "move": "ready_to_search"
+    }
+  ],
+  "sonnet_grade": {
+    "recognized": {
+      "score": 2,
+      "why": "No acknowledgment of navy preference or budget; felt processed, not known."
+    },
+    "asked_right": {
+      "score": 2,
+      "why": "Never asked about color or budget, both would change garment picks."
+    },
+    "not_interrogated": {
+      "score": 4,
+      "why": "No interrogation occurred, but also no useful dialogue at all."
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Silently assumed sizes and skipped color/budget without flagging for correction."
+    },
+    "accuracy": {
+      "score": 2,
+      "why": "Missing navy color and $120 budget cap means brief likely mismatches true request."
+    },
+    "voice": {
+      "score": 0,
+      "why": "n/a — no spoken stylist turn (search progress only)"
+    },
+    "would_proceed": {
+      "score": 2,
+      "why": "Would hesitate seeing no confirmation of navy color or budget before results."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 2.3,
+    "worst_moment": {
+      "quote": "assistant [ready_to_search]: Searching the stores",
+      "better": "Quick check—navy tone and budget around $120/item, sandals and jacket in M too?"
+    },
+    "judge_model": "claude-sonnet-5"
+  },
+  "opus_grade": {
+    "recognized": {
+      "score": 3,
+      "why": "Captured garments, size, occasion, 2 looks; no re-asks, but no personal warmth or callback."
+    },
+    "asked_right": {
+      "score": 3,
+      "why": "Asked nothing; shopper front-loaded enough to proceed, though color/budget went unconfirmed."
+    },
+    "not_interrogated": {
+      "score": 5,
+      "why": "Zero rounds, no form-feel; went straight to search."
+    },
+    "no_silent_guess": {
+      "score": 2,
+      "why": "Sandal/jacket-size and formality assumptions logged silently, not spoken to shopper for correction."
+    },
+    "accuracy": {
+      "score": 3,
+      "why": "Garments, occasion, depth match; missed navy color and $120/item budget entirely."
+    },
+    "voice": {
+      "score": 0,
+      "why": "n/a — no spoken stylist turn (search progress only)"
+    },
+    "would_proceed": {
+      "score": 3,
+      "why": "Fast start is fine, but no color/budget check risks off-target rack; I'd wait warily."
+    },
+    "would_buy": {
+      "score": 0,
+      "why": "n/a router stage"
+    },
+    "overall": 3,
+    "worst_moment": {
+      "quote": "Searching the stores",
+      "better": "\"On it — quick check: any color you're leaning toward, and a rough per-item budget?\""
+    },
+    "judge_model": "claude-opus-4-8"
+  },
+  "sonnet_offset_vs_opus": -0.7,
+  "sonnet_offset_vs_human": -1.7,
+  "sonnet_dim_agreement_vs_opus_pct": 16.7,
+  "opus_offset_vs_human": -1
+}

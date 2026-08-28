@@ -523,6 +523,16 @@
   }
 }
 
+/* Onboarding split: stay inside the chat pane — full-bleed covers The Fitting. */
+[data-fitting-column] .shoop-inline-product-bleed {
+  position: relative;
+  left: auto;
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  transform: none;
+}
+
 /* Hero home — Archivo display + Fraunces whisper (Fitting look) */
 .shoop-greeting-h1 {
   font-family: var(--font-archivo), system-ui, sans-serif;
@@ -564,7 +574,7 @@
   font-style: italic;
 }
 
-/* Home hero squeezed into the 40/40/20 onboarding chat pane */
+/* Home hero squeezed into the onboarding chat pane */
 .shoop-onboard-home .shoop-greeting-h1 {
   font-size: clamp(1.35rem, 2.1vw, 1.75rem);
   line-height: 1.08;
@@ -2867,6 +2877,160 @@
   gap: 4px;
 }
 
+.shoop-sscan__vt--reading {
+  gap: 14px;
+  padding-top: 2px;
+}
+
+.shoop-mv {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.shoop-mv__score {
+  flex: none;
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  font-weight: 900;
+  font-size: 40px;
+  letter-spacing: -0.05em;
+  line-height: 0.84;
+  color: var(--ink);
+}
+
+.shoop-mv__score i {
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--ink-muted, #8a8a93);
+}
+
+.shoop-mv__say {
+  flex: 1;
+  min-width: 0;
+}
+
+.shoop-mv__say > b {
+  display: block;
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  color: var(--ink);
+  font-style: normal;
+}
+
+.shoop-mv__say > em {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-muted, #8a8a93);
+}
+
+.shoop-mv__say > em b {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: inherit;
+  color: var(--ink);
+  font-style: normal;
+}
+
+.shoop-mv__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  border-radius: 99px;
+  padding: 5px 11px;
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  background: rgba(220, 38, 38, 0.09);
+  color: #dc2626;
+}
+
+.shoop-mv__chip::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #dc2626;
+}
+
+.shoop-dims {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shoop-dim {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hairline, #e8e8ec);
+}
+
+.shoop-dim:last-child {
+  border-bottom: none;
+}
+
+.shoop-dim__r {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shoop-dim__k {
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted, #8a8a93);
+  min-width: 64px;
+}
+
+.shoop-dim__tr {
+  flex: 1;
+  height: 7px;
+  background: #ededee;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.shoop-dim__tr i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.shoop-dim__sc {
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  font-weight: 900;
+  font-size: 13px;
+  min-width: 28px;
+  text-align: right;
+}
+
+.shoop-dim__wy {
+  margin: 5px 0 0;
+  padding-left: 74px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-muted, #8a8a93);
+}
+
+@media (max-width: 560px) {
+  .shoop-dim__wy {
+    padding-left: 0;
+  }
+}
+
 .shoop-sscan__vt h3 {
   font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
   font-weight: 900;
@@ -3885,12 +4049,14 @@
 
 /* ─── The Fitting (onboarding + auth) ─── */
 :root {
-  --fitting-ink: #0e0e11;
+  --fitting-ink: #1a1a2e;
   --fitting-red: #e42831;
   --fitting-paper: #ffffff;
-  --fitting-mist: #f4f4f6;
+  --fitting-mist: #f4f4f5;
   --fitting-quiet: #8a8a93;
-  --fitting-line: #e8e8ec;
+  --fitting-line: #eaeaec;
+  --fitting-g2: #f4f4f5;
+  --fitting-g3: #e6e6e8;
   --fitting-good: #16a34a;
   --fitting-watch: #c98a0e;
 }
@@ -6266,6 +6432,108 @@
   border-color: var(--ink);
 }
 
+.shoop-vote {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding-top: 4px;
+}
+
+.shoop-vote__h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shoop-vote__h b {
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  color: var(--ink-muted, #8a8a93);
+  font-style: normal;
+}
+
+.shoop-vote__h em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: #b2b2b8;
+  text-align: right;
+}
+
+.shoop-vote__row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.shoop-vb {
+  border: 1px solid #d4d4d7;
+  background: #fff;
+  border-radius: 12px;
+  height: 44px;
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition:
+    border-color 0.16s,
+    background 0.16s,
+    color 0.16s,
+    transform 0.16s,
+    box-shadow 0.16s;
+}
+
+.shoop-vb:hover {
+  border-color: var(--ink);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px -10px rgba(26, 26, 46, 0.4);
+}
+
+.shoop-vb.is-on {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.shoop-vb--love.is-on {
+  background: #e42831;
+  border-color: #e42831;
+}
+
+.shoop-ask {
+  width: 100%;
+  height: 46px;
+  border-radius: 12px;
+  border: 1.5px solid var(--ink);
+  background: #fff;
+  font-family: var(--font-archivo), Archivo, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 12.5px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition:
+    background 0.16s,
+    color 0.16s;
+}
+
+.shoop-ask:hover:not(:disabled) {
+  background: var(--ink);
+  color: #fff;
+}
+
+.shoop-ask:disabled {
+  opacity: 0.55;
+}
+
 .shoop-sscan__copy-link {
   align-self: flex-start;
   font-size: 11px;
@@ -6281,7 +6549,7 @@
 }
 
 .shoop-stage-col--mirror .shoop-croom__readout {
-  max-height: min(22vh, 176px);
+  max-height: min(42vh, 360px);
   overflow-y: auto;
 }
 

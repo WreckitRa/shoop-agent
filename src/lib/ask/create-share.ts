@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/ai-chat/db";
+import { trackProductEvent } from "@/lib/analytics/track";
 import { getOnboardingStatus } from "@/lib/onboarding/status";
 import type {
   LookScanPiece,
@@ -8,11 +9,18 @@ import {
   durableAskImageStorageRef,
   publicAskImagePath,
 } from "./ask-image";
-import { mapVerdictToShoopVote } from "./map-shoop-vote";
+import {
+  mapVerdictToCompareVote,
+  mapVerdictToShoopVote,
+} from "./map-shoop-vote";
 import { upsertOwnerAskVote } from "./owner-vote";
 import { generateAskToken } from "./public-payload";
 import { isShareLive, shareExpiresAt } from "@/lib/legal/share-lifetime";
-import { isAskVoteChoice, type AskVoteChoice } from "./types";
+import {
+  isAskCompareChoice,
+  isAskRateChoice,
+  type AskVoteChoice,
+} from "./types";
 
 export type CreateLookAskInput = {
   userId: string;
@@ -24,10 +32,18 @@ export type CreateLookAskInput = {
   killCount?: number | null;
   /** Owner's strip vote to seed on the shared card. */
   ownerVote?: AskVoteChoice | null;
+  /** Challenger look — when set, poll is comparative (A vs B) by default. */
+  altImageUrl?: string | null;
+  altGenerationId?: string | null;
 };
 
 export async function createLookAskShare(input: CreateLookAskInput) {
-  const shoopVote = mapVerdictToShoopVote(input.verdict);
+  const hasAlt = Boolean(input.altImageUrl?.trim());
+  const pollMode = hasAlt ? "compare" : "rate";
+  const shoopVote =
+    pollMode === "compare"
+      ? mapVerdictToCompareVote(input.verdict)
+      : mapVerdictToShoopVote(input.verdict);
   const status = await getOnboardingStatus(input.userId);
   const askerName = status.profile?.preferredName?.trim() || "A friend";
 
@@ -52,6 +68,14 @@ export async function createLookAskShare(input: CreateLookAskInput) {
     generationId: input.generationId,
     fallbackImageUrl: input.imageUrl,
   });
+  const altStorageRef =
+    hasAlt && input.altImageUrl
+      ? await durableAskImageStorageRef({
+          userId: input.userId,
+          generationId: input.altGenerationId,
+          fallbackImageUrl: input.altImageUrl,
+        })
+      : null;
 
   let messageId: string | null = null;
   const conversationId = input.conversationId?.trim() || null;
@@ -70,7 +94,9 @@ export async function createLookAskShare(input: CreateLookAskInput) {
         `**Verdict: ${title}**`,
         body,
         ``,
-        `Ask your friends — share the card and let them vote before they peek at mine.`,
+        pollMode === "compare"
+          ? `Ask your friends — which look? They pick before they peek at mine.`
+          : `Ask your friends — share the card and let them vote before they peek at mine.`,
       ].join("\n");
 
       const msg = await prisma.message.create({
@@ -86,6 +112,7 @@ export async function createLookAskShare(input: CreateLookAskInput) {
               verdictTitle: title,
               askPath: `/ask/${token}`,
               shoopVote,
+              pollMode,
             },
           },
         },
@@ -105,8 +132,10 @@ export async function createLookAskShare(input: CreateLookAskInput) {
       generationId: input.generationId ?? null,
       conversationId,
       messageId,
-      // Durable private path (or legacy URL) — clients always get publicAskImagePath.
       imageUrl: storageRef,
+      altImageUrl: altStorageRef,
+      altGenerationId: input.altGenerationId?.trim() || null,
+      pollMode,
       pieces: input.pieces,
       shoopVerdict: input.verdict,
       shoopVote,
@@ -120,10 +149,29 @@ export async function createLookAskShare(input: CreateLookAskInput) {
     },
   });
 
-  const ownerVote =
-    input.ownerVote && isAskVoteChoice(input.ownerVote) ?
-      input.ownerVote
-    : null;
+  trackProductEvent({
+    name: "friend_ask_sent",
+    userId: input.userId,
+    props: {
+      share_id: share.id,
+      token: share.token,
+      generation_id: share.generationId,
+      piece_count: Array.isArray(input.pieces) ? input.pieces.length : 0,
+      poll_mode: pollMode,
+    },
+  });
+
+  const ownerVoteRaw = input.ownerVote;
+  let ownerVote: AskVoteChoice | null = null;
+  if (pollMode === "compare") {
+    if (isAskCompareChoice(ownerVoteRaw)) ownerVote = ownerVoteRaw;
+    else if (isAskRateChoice(ownerVoteRaw)) {
+      ownerVote =
+        ownerVoteRaw === "love" || ownerVoteRaw === "almost" ? "a" : "b";
+    }
+  } else if (isAskRateChoice(ownerVoteRaw)) {
+    ownerVote = ownerVoteRaw;
+  }
   if (ownerVote) {
     await upsertOwnerAskVote({
       shareId: share.id,

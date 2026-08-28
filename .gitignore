@@ -13,6 +13,14 @@
 # testing
 /coverage
 
+# Generated eval reports (harness source stays; these are local run output)
+src/lib/fashion-memory/eval/runs/
+src/lib/fashion-memory/eval-memory/runs/**
+!src/lib/fashion-memory/eval-memory/runs/.gitkeep
+
+# Local scratch
+scripts/tmp-*
+
 # next.js
 /.next/
 /out/

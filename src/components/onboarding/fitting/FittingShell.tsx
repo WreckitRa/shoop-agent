@@ -1,17 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { ShoopLogo } from "@/components/brand/ShoopBrand";
 import { cn } from "@/lib/ai-chat/cn";
 import { FittingMirror } from "./FittingMirror";
-import {
-  SEWN_PCT,
-  STITCH_KNOTS,
-  type FittingStep,
-  type MirrorState,
-  knotNowIndex,
-  sewnThroughIndex,
-} from "./types";
+import { FittingTracker } from "./FittingTracker";
+import { type FittingStep, type MirrorState } from "./types";
 
 type Props = {
   step: FittingStep;
@@ -25,6 +19,9 @@ type Props = {
   tellBusy?: boolean;
   /** Page = full-screen Fitting. Column = Mirror-rail host on chat/home. */
   layout?: "page" | "column";
+  onPickPhoto?: (file: File) => void;
+  photoPickLocked?: boolean;
+  onRetryTwin?: () => void;
 };
 
 export function FittingShell({
@@ -38,150 +35,87 @@ export function FittingShell({
   tellFeedback,
   tellBusy,
   layout = "page",
+  onPickPhoto,
+  photoPickLocked,
+  onRetryTwin,
 }: Props) {
-  const nowIdx = knotNowIndex(step);
-  const sewnIdx = sewnThroughIndex(step);
-  const sewnHeight =
-    sewnIdx < 0
-      ? SEWN_PCT[nowIdx] ?? 3
-      : SEWN_PCT[Math.max(sewnIdx, nowIdx)] ?? 3;
   const column = layout === "column";
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+  }, [step]);
 
   return (
     <div
       className={
         column
-          ? "relative flex h-full min-h-0 flex-col overflow-hidden bg-gradient-to-b from-white to-[#F7F7F9] text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white"
-          : "fixed inset-0 z-[110] overflow-x-hidden overflow-y-auto bg-gradient-to-b from-white to-[#F7F7F9] text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white"
+          ? "relative flex h-full min-h-0 flex-col overflow-hidden bg-white text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white"
+          : "fixed inset-0 z-[110] overflow-x-hidden overflow-y-auto bg-white text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white"
       }
     >
-      <div
-        className={cn(
-          "relative z-[5] flex items-center justify-between",
-          column ? "px-4 py-3 pr-12" : "px-6 py-[22px] sm:px-10",
-        )}
-      >
-        <ShoopLogo className={column ? "h-5" : "h-[22px]"} />
-        <div className="flex items-center gap-3.5 text-xs font-semibold tracking-[0.02em] text-[var(--fitting-quiet)]">
-          {stageLabel} ·{" "}
-          <b className="text-[var(--fitting-ink)]">{stepCountLabel}</b>
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "relative",
-          column
-            ? "mx-4 mb-1 h-7"
-            : "mx-6 mb-1.5 h-1.5 sm:mx-10",
-        )}
-      >
-        <span
-          className={cn(
-            "fitting-motion absolute z-[3] whitespace-nowrap font-display font-black text-[var(--fitting-red)] transition-[left] duration-700",
-            column
-              ? "top-0 -translate-x-1/2 text-[11px] leading-none"
-              : "top-[-24px] -translate-x-full text-base",
-          )}
-          style={{
-            left: `${Math.max(column ? 10 : 8, progressPct)}%`,
-            transitionTimingFunction: "cubic-bezier(.6,0,.2,1)",
-          }}
-        >
-          {progressPct}%
-        </span>
-        <div
-          className={cn(
-            "overflow-hidden rounded-full bg-[var(--fitting-line)]",
-            column
-              ? "absolute bottom-0 left-0 right-0 h-1.5"
-              : "absolute inset-0",
-          )}
-        >
-          <i
-            className="fitting-motion absolute bottom-0 left-0 top-0 rounded-full bg-gradient-to-r from-[var(--fitting-red)] to-[#FF5A62] transition-[width] duration-700"
-            style={{
-              width: `${progressPct}%`,
-              transitionTimingFunction: "cubic-bezier(.6,0,.2,1)",
-            }}
-          />
-        </div>
-      </div>
-
       {column ? (
-        <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-5 pt-3 [&_.fitting-count]:hidden [&_.fitting-whisper]:mb-4 [&_.fitting-whisper]:mt-2.5 [&_.fitting-whisper]:text-[15px] [&_h1]:text-[clamp(22px,6.4vw,28px)]">
-          {children}
+        <div className="flex min-h-0 flex-1">
+          <aside className="hidden min-h-0 w-[156px] shrink-0 border-r border-[var(--fitting-line)] xl:flex xl:flex-col">
+            <FittingTracker
+              step={step}
+              mirror={mirror}
+              progressPct={progressPct}
+            />
+          </aside>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex items-center justify-between px-4 py-3 pr-12 xl:hidden">
+              <ShoopLogo className="h-[15px]" />
+              <div className="text-[11px] font-semibold tracking-[0.02em] text-[var(--fitting-quiet)]">
+                {stageLabel} ·{" "}
+                <b className="text-[var(--fitting-ink)]">{stepCountLabel}</b>
+              </div>
+            </div>
+            <div className="mx-4 mb-0 h-1 xl:hidden">
+              <div className="h-1 overflow-hidden rounded-full bg-[var(--fitting-g3)]">
+                <i
+                  className="fitting-motion block h-full rounded-full bg-[var(--fitting-red)]"
+                  style={{
+                    width: `${progressPct}%`,
+                    transition: "width 0.7s cubic-bezier(.4,0,.2,1)",
+                  }}
+                />
+              </div>
+            </div>
+            <div
+              ref={scrollRef}
+              className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 pb-6 pt-4 pr-12 lg:pr-6 [&_.fitting-count]:hidden"
+            >
+              {children}
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="mx-auto grid min-h-[calc(100dvh-90px)] max-w-[1280px] grid-cols-1 gap-0 px-4 pb-12 pt-2 md:grid-cols-[48px_1fr] md:gap-x-4 md:px-6 lg:grid-cols-[64px_minmax(0,1fr)_minmax(300px,372px)] lg:gap-x-8 lg:px-10">
-          {/* stitch rail */}
-          <div className="relative hidden md:block">
-            <div
-              className="absolute bottom-0 left-[31px] top-0 w-0.5"
-              style={{
-                background:
-                  "repeating-linear-gradient(180deg,transparent 0 6px,var(--fitting-line) 6px 14px)",
-              }}
+        <div className="mx-auto grid min-h-[100dvh] max-w-[1400px] grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)_minmax(260px,300px)]">
+          <aside className="hidden min-h-0 border-r border-[var(--fitting-line)] lg:block">
+            <FittingTracker
+              step={step}
+              mirror={mirror}
+              progressPct={progressPct}
             />
-            <div
-              className="fitting-motion absolute left-[31px] top-0 w-0.5 transition-[height] duration-[900ms]"
-              style={{
-                height: `${sewnHeight}%`,
-                background:
-                  "repeating-linear-gradient(180deg,var(--fitting-red) 0 9px,transparent 9px 14px)",
-                transitionTimingFunction: "cubic-bezier(.6,0,.2,1)",
-              }}
-            />
-            {STITCH_KNOTS.map((knot, i) => {
-              const tied = sewnIdx >= i;
-              const now = nowIdx === i && !tied;
-              return (
-                <div
-                  key={knot.id}
-                  className={cn(
-                    "fitting-motion absolute left-6 h-4 w-4 rounded-full border-[2.5px] border-[var(--fitting-line)] bg-white transition-all duration-300",
-                    tied &&
-                      "border-[var(--fitting-red)] bg-[var(--fitting-red)] shadow-[0_0_0_5px_rgba(228,40,49,0.12)]",
-                    now &&
-                      "animate-[fitting-kpulse_1.6s_ease_infinite] !border-[3px] !border-[var(--fitting-red)] !bg-white",
-                  )}
-                  style={{ top: knot.top }}
-                >
-                  <span
-                    className={cn(
-                      "absolute left-[26px] top-[-2px] whitespace-nowrap text-[10px] font-bold tracking-[0.02em] text-[#C9C9CF] transition-colors",
-                      (tied || now) && "text-[var(--fitting-ink)]",
-                      now && "font-extrabold",
-                      "emphasis" in knot &&
-                        knot.emphasis &&
-                        "text-[var(--fitting-red)]",
-                    )}
-                  >
-                    {"emphasis" in knot && knot.emphasis ? (
-                      <em className="not-italic text-[var(--fitting-red)]">
-                        {knot.label}
-                      </em>
-                    ) : (
-                      knot.label
-                    )}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* question stage */}
-          <div className="relative min-w-0 px-2 pb-8 pt-4 md:px-8 md:pl-12 lg:px-10 lg:pl-14 lg:pt-[30px]">
+          </aside>
+          <div
+            ref={scrollRef}
+            className="relative min-w-0 px-5 pb-8 pt-6 sm:px-8 lg:px-10 lg:pt-8"
+          >
             {children}
           </div>
-
-          {/* mirror */}
-          <div className="hidden min-w-0 lg:block lg:pl-2">
+          <div className="hidden min-w-0 lg:block">
             <FittingMirror
               mirror={mirror}
               onTell={step === "verdict" ? undefined : onTell}
               tellFeedback={tellFeedback}
               tellBusy={tellBusy}
+              onPickPhoto={onPickPhoto}
+              photoPickLocked={photoPickLocked}
+              onRetryTwin={onRetryTwin}
             />
           </div>
         </div>

@@ -4,6 +4,7 @@ import {
   FITTING_Q_STEPS,
   FITTING_STEPS,
   STITCH_KNOTS,
+  TRACKER_GROUPS,
   circleMirrorLabel,
   knotNowIndex,
   sewnThroughIndex,
@@ -12,8 +13,9 @@ import {
 import { backfillFittingTellFromText } from "@/lib/onboarding/fitting-tell";
 
 describe("fitting circle step model", () => {
-  it("places photo first, then name/life/spend, fit after spend", () => {
-    assert.deepEqual(FITTING_Q_STEPS.slice(0, 5), [
+  it("places consent first, then photo, then name/life/spend", () => {
+    assert.deepEqual(FITTING_Q_STEPS.slice(0, 6), [
+      "consent",
       "photo",
       "name",
       "life",
@@ -27,15 +29,22 @@ describe("fitting circle step model", () => {
     assert.ok(STITCH_KNOTS.some((k) => k.id === "fit"));
     assert.ok(STITCH_KNOTS.some((k) => k.id === "circle"));
     assert.equal(STITCH_KNOTS.at(-1)?.id, "mint");
+    const grouped = TRACKER_GROUPS.flatMap((g) => [...g.knotIds]);
+    assert.deepEqual(
+      grouped,
+      STITCH_KNOTS.map((k) => k.id),
+    );
   });
 
   it("maps honesty/circle to the Circle knot and verdict to mint", () => {
+    assert.equal(knotNowIndex("consent"), 0);
     assert.equal(knotNowIndex("photo"), 0);
     assert.equal(knotNowIndex("life"), 2);
     assert.equal(knotNowIndex("fit"), 4);
     assert.equal(knotNowIndex("honesty"), 8);
     assert.equal(knotNowIndex("circle"), 8);
     assert.equal(knotNowIndex("verdict"), 9);
+    assert.equal(sewnThroughIndex("consent"), -1);
     assert.equal(sewnThroughIndex("photo"), -1);
     assert.equal(sewnThroughIndex("name"), 0);
     assert.equal(sewnThroughIndex("life"), 1);

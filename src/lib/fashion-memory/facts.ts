@@ -42,8 +42,7 @@ export async function upsertFashionFact<T extends FashionFactType>(params: {
   const activeRow = active.data as FashionFactRow<T> | null;
   if (
     activeRow &&
-    fashionFactValuesEqual(activeRow.value, params.value) &&
-    (activeRow.source_quote ?? null) === (params.sourceQuote ?? null)
+    fashionFactValuesEqual(activeRow.value, params.value)
   ) {
     return activeRow;
   }

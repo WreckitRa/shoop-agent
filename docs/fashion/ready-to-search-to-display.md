@@ -1,5 +1,8 @@
 # Fashion flow: `ready_to_search` → finds on screen
 
+> **Superseded for agent briefing.** Cutoffs, Stage A rungs, and several counts in this file are stale (captured 2026-07-30). Share [`search-pipeline-agent.md`](./search-pipeline-agent.md) instead — it covers ready-to-search gates **and** search → display, current as of 2026-08-28.  
+> Keep this file only as historical Find Pipeline v1.1 notes.
+>
 > **Audience:** another AI / engineer reviewing this system for improvements.  
 > **Architecture:** **Find Pipeline v1.1** (shipped 2026-07-30) — pocket budgets, never-skip Stage A, provisional rack, Stage A Sonnet + Stage B Haiku voice.  
 > **Scope:** fashion-memory chat pipeline **after** the router emits `ready_to_search`, through catalog retrieval, curation, and UI render.  
@@ -362,7 +365,7 @@ Dropped product thumbs → `droppedImages` on narration (loader “kills”).
 | `department_confirmed` | 0.08 |
 | suspicion penalty | 0.03 / flag, cap 0.08 |
 
-Version tag: `SCORING_WEIGHTS_VERSION = "20260709-v3-brand"`.
+Version tag: default `v4-taste` (`20260828-v4-taste`); set `SCORING_WEIGHTS_VERSION=v3-brand` for pre-S1 ranking.
 
 Shortlist for hydration is score-ordered; curation sees verified pool + overflow.
 

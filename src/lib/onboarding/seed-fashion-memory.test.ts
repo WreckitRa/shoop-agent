@@ -23,6 +23,7 @@ describe("mapOnboardingGender", () => {
 describe("parseSizeValue (onboarding)", () => {
   it("parses alpha and 3XL", () => {
     assert.deepEqual(parseSizeValue("M"), { system: "alpha", value: "M" });
+    assert.deepEqual(parseSizeValue("Medium"), { system: "alpha", value: "M" });
     assert.deepEqual(parseSizeValue("3XL"), { system: "alpha", value: "XXXL" });
   });
 
@@ -56,16 +57,16 @@ describe("sizeSeedsFromSizing", () => {
 });
 
 describe("classifyHardAvoid", () => {
-  it("classifies materials vs style", () => {
-    assert.deepEqual(classifyHardAvoid("leather"), {
+  it("classifies materials vs style", async () => {
+    assert.deepEqual(await classifyHardAvoid("leather"), {
       kind: "material",
       value: "leather",
     });
-    assert.deepEqual(classifyHardAvoid("logo-heavy"), {
+    assert.deepEqual(await classifyHardAvoid("logo-heavy"), {
       kind: "style",
-      value: "logo-heavy",
+      value: "logos",
     });
-    assert.deepEqual(classifyHardAvoid("no heels"), {
+    assert.deepEqual(await classifyHardAvoid("no heels"), {
       kind: "garment",
       value: "no heels",
     });

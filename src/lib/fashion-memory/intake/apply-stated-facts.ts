@@ -12,6 +12,7 @@ import {
 import { FashionLocalStore } from "../local/store";
 import type { GuestFashionMemorySnapshot } from "../local/store";
 import { resolvePerson } from "../people";
+import { AMBIGUOUS_PERSON_ERROR } from "../resolve-person";
 import { recordPipelineEvent } from "../observability/trace";
 import type { FashionStatedFacts } from "../router/types";
 import type {
@@ -146,18 +147,36 @@ export async function applyStatedFacts(params: {
     const name = params.stated.new_person?.name?.trim();
     const relation = inferRelation(params.stated.new_person?.relation);
     if (isSupabaseAuthUserId(params.userId)) {
-      person = await resolvePerson({
-        userId: params.userId,
-        relation,
-        name: name || null,
-      });
+      try {
+        person = await resolvePerson({
+          userId: params.userId,
+          relation,
+          name: name || null,
+        });
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          error.message !== AMBIGUOUS_PERSON_ERROR
+        ) {
+          throw error;
+        }
+      }
     } else if (params.guestSnapshot) {
       const store = new FashionLocalStore(params.guestSnapshot);
-      person = store.resolvePerson({
-        userId: params.userId,
-        relation,
-        name: name || null,
-      });
+      try {
+        person = store.resolvePerson({
+          userId: params.userId,
+          relation,
+          name: name || null,
+        });
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          error.message !== AMBIGUOUS_PERSON_ERROR
+        ) {
+          throw error;
+        }
+      }
     }
   } else if (ref === "self") {
     if (isSupabaseAuthUserId(params.userId)) {

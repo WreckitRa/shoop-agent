@@ -221,6 +221,10 @@ function buildLineItemsFromCart(
       sellerName: meta?.sellerName ?? null,
       sellerDomain: meta?.sellerDomain ?? shopDomain,
       productId: meta?.productId ?? null,
+      searchId: meta?.searchId ?? null,
+      ref: meta?.ref ?? meta?.productId ?? null,
+      brand: meta?.brand ?? null,
+      color: meta?.color ?? null,
       productUrl: meta?.productUrl ?? null,
     });
   }
@@ -264,6 +268,10 @@ function metadataFallbackLine(
     sellerName: meta?.sellerName ?? null,
     sellerDomain: meta?.sellerDomain ?? shopDomain,
     productId: meta?.productId ?? null,
+    searchId: meta?.searchId ?? null,
+    ref: meta?.ref ?? meta?.productId ?? null,
+    brand: meta?.brand ?? null,
+    color: meta?.color ?? null,
     productUrl: meta?.productUrl ?? null,
   };
 }

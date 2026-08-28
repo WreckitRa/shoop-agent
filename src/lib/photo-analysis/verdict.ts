@@ -198,7 +198,9 @@ export async function generateStylistVerdict({
   return withPhotoGptLock(async () => {
     const raw = await callPhotoJsonSchema({
       model: stylistVerdictModel(),
-      reasoning: { effort: "high" },
+      // medium: high was routinely 90–180s for this schema; medium keeps
+      // structured quality without the dead-air wait on the Fitting screen.
+      reasoning: { effort: "medium" },
       instructions: STYLIST_VERDICT_INSTRUCTIONS,
       userContent: [
         { type: "input_text", text: JSON.stringify(profilePayload) },

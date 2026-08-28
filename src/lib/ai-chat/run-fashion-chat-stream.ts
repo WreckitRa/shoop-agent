@@ -33,6 +33,7 @@ import {
   planSearchFromBrief,
 } from "@/lib/fashion-memory/search-planner/plan-from-brief";
 import { resolveFashionRouterTurn } from "@/lib/fashion-memory/intake/post-router";
+import { clarificationAnswersAreTaps } from "@/lib/fashion-memory/router/pull-sheet";
 import { isGapDeclined } from "@/lib/fashion-memory/intake/dodge-counter";
 import {
   collectFashionPaletteRequests,
@@ -62,6 +63,7 @@ import {
   beginTurnPipelineBuffer,
   drainTurnPipelineBuffer,
   recordPipelineEvent,
+  drainTurnLlmCostBuffer,
 } from "@/lib/fashion-memory/observability";
 import {
   clearQaFaultsForConversation,
@@ -405,6 +407,11 @@ export function createFashionChatSseStream(params: {
               content: rawQuery,
               status: "completed",
               branchId: activeBranchId,
+              ...(clarificationAnswersAreTaps(
+                params.body.fashionClarificationAnswers,
+              )
+                ? { metadata: { fashionChipTap: true } }
+                : {}),
             },
           });
           void anchorBootstrapBranchIfNeeded(conv.id, userRow.id);
@@ -520,7 +527,10 @@ export function createFashionChatSseStream(params: {
           }
 
           if (resolvedRecipientId) {
-            const attributes = requestAttributesFromBrief(routerResult.brief);
+            const attributes = {
+              ...requestAttributesFromBrief(routerResult.brief),
+              search_id: assistantRow.id,
+            };
             scheduleDetachedWork(() => {
               void writeRequestEventFromBrief({
                 userId,
@@ -548,8 +558,20 @@ export function createFashionChatSseStream(params: {
               );
             }
 
+            const skipPlanner =
+              resolved.refinement?.mode === "rescore-only" &&
+              resolved.refinement.previousPlan != null;
             const [planned, catalogProfile, catalogToken] = await Promise.all([
-              planSearchFromBrief({
+              skipPlanner
+                ? Promise.resolve({
+                    plan: {
+                      ...resolved.refinement!.previousPlan!,
+                      brief: routerResult.brief,
+                    },
+                    planner_ms: 0,
+                    recipientProfile: "",
+                  })
+                : planSearchFromBrief({
                 brief: routerResult.brief,
                 userId,
                 recipientPersonId: resolvedRecipientId,
@@ -610,6 +632,16 @@ export function createFashionChatSseStream(params: {
               userId,
               guestSnapshot: guestFashionSnapshot,
               skipBudgetRaiseAsk,
+              ...(resolved.refinement?.mode &&
+              resolved.refinement.mode !== "full" &&
+              resolved.refinement.previousSearchId
+                ? {
+                    refinement: {
+                      mode: resolved.refinement.mode,
+                      previousSearchId: resolved.refinement.previousSearchId,
+                    },
+                  }
+                : {}),
               onPhase: (phase) =>
                 narrateFashion(
                   phase.line ?? null,
@@ -658,9 +690,20 @@ export function createFashionChatSseStream(params: {
             let catalogMeta = fashionCatalogSearchToMetadata(catalogSearch, {
               trace_id: traceId ?? undefined,
             });
+            if (catalogMeta.search_observability) {
+              catalogMeta.search_observability.latency.planner_ms =
+                planned.planner_ms;
+              const prov =
+                catalogMeta.search_observability.latency.total_to_provisional_ms;
+              if (prov != null) {
+                catalogMeta.search_observability.latency.total_to_provisional_ms =
+                  prov + planned.planner_ms;
+              }
+            }
             // Ship curated rack immediately; try-on upgrades in parallel with reply text.
             let tryonUpgrade: Promise<void> | null = null;
             if (catalogSearch.curation) {
+              const renderStarted = Date.now();
               catalogMeta = {
                 ...catalogMeta,
                 render: buildRenderContract({
@@ -668,6 +711,10 @@ export function createFashionChatSseStream(params: {
                   plan: searchPlan,
                 }),
               };
+              if (catalogMeta.search_observability) {
+                catalogMeta.search_observability.latency.render_ms =
+                  Date.now() - renderStarted;
+              }
               metadata.fashionCatalogSearch = catalogMeta;
               push(
                 formatSse("fashion_catalog_search", {
@@ -843,7 +890,14 @@ export function createFashionChatSseStream(params: {
           }),
         );
 
-        drainTurnPipelineBuffer(traceId);
+        const pipelineEvents = drainTurnPipelineBuffer(traceId);
+        const searchCost = drainTurnLlmCostBuffer(traceId);
+        metadata.fashionPipelineEvents = pipelineEvents;
+        if (metadata.fashionCatalogSearch?.search_observability) {
+          metadata.fashionCatalogSearch.search_observability.cost = searchCost;
+          metadata.searchObservability =
+            metadata.fashionCatalogSearch.search_observability;
+        }
 
         await persistAssistantFinal({
           messageId: assistantRow.id,

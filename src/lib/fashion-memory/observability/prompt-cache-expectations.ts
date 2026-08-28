@@ -65,6 +65,13 @@ export const PROMPT_CACHE_STAGE_EXPECTATIONS: Record<
     expected_cacheable: true,
     why: "CURATION_PROMPT_SKELETON clears Sonnet 5's 1024-token floor (plus tools).",
   },
+  taste_rerank: {
+    model: "claude-haiku-4-5 (FASHION_TASTE_RERANK_MODEL)",
+    min_cacheable_tokens: 4096,
+    static_prefix_tokens_approx: 270,
+    expected_cacheable: false,
+    why: "TASTE_RERANK_PROMPT is tiny. Marker present; Anthropic silently skips cache. Do not pad.",
+  },
   curation_voice: {
     model: "claude-haiku-4-5 (FASHION_CURATION_VOICE_MODEL)",
     min_cacheable_tokens: 4096,

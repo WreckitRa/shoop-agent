@@ -1,6 +1,6 @@
 import type { ProductCard } from "@/lib/ai-chat/types";
 import type { StyleSignalType } from "../types";
-import { ensureSelfPerson } from "../people";
+import { ensureSelfPerson, listPeopleForUser } from "../people";
 import { isGuestUserId } from "@/lib/auth/guest-session";
 import { isSupabaseAuthUserId } from "../auth";
 import { upsertStyleSignal, logRequestEvent } from "../signals";
@@ -119,6 +119,42 @@ export function setTestSignalCapture(
   testSignalCapture = cap;
 }
 
+/** Gift-search rejections land on the recipient at 0.3 candidate; else unchanged. */
+export function giftRejectionTarget(params: {
+  selfPersonId: string;
+  recipient: { personId: string; isSelf: boolean } | null;
+}): { personId: string; confidence: number; status: "candidate" } | null {
+  if (!params.recipient || params.recipient.isSelf) return null;
+  return {
+    personId: params.recipient.personId,
+    confidence: 0.3,
+    status: "candidate",
+  };
+}
+
+async function lookupSearchRecipient(
+  userId: string,
+  searchId: string,
+): Promise<{ personId: string; isSelf: boolean } | null> {
+  const { data, error } = await fashionMemoryDb()
+    .from("request_events")
+    .select("person_id, attributes")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error || !data?.length) return null;
+  const hit = (
+    data as Array<{ person_id: string; attributes: Record<string, unknown> | null }>
+  ).find((row) => row.attributes?.search_id === searchId);
+  if (!hit) return null;
+  const people = await listPeopleForUser(userId);
+  const person = people.find((p) => p.id === hit.person_id);
+  return {
+    personId: hit.person_id,
+    isSelf: person?.relation === "self",
+  };
+}
+
 async function writeSignals(params: {
   userId: string;
   searchId: string;
@@ -138,30 +174,45 @@ async function writeSignals(params: {
   if (isGuestUserId(params.userId)) return;
   if (!isSupabaseAuthUserId(params.userId) && !testSignalCapture) return;
 
-  const person = testSignalCapture
+  const selfId = testSignalCapture
     ? "test-person"
     : (await ensureSelfPerson(params.userId)).id;
+  let personId = selfId;
+  let confidence = params.confidence;
+  let status: "active" | "candidate" =
+    params.source === "rejection" ? "active" : "candidate";
+  if (params.source === "rejection" && !testSignalCapture) {
+    const gift = giftRejectionTarget({
+      selfPersonId: selfId,
+      recipient: await lookupSearchRecipient(params.userId, params.searchId),
+    });
+    if (gift) {
+      personId = gift.personId;
+      confidence = gift.confidence;
+      status = gift.status;
+    }
+  }
   for (const { signalType, value } of params.attributes) {
     if (testSignalCapture) {
       testSignalCapture.push({
         interaction: params.interaction,
         ref: params.ref,
         polarity: params.polarity,
-        confidence: params.confidence,
+        confidence,
         source: params.source,
       });
       continue;
     }
     await upsertStyleSignal({
       userId: params.userId,
-      personId: person,
+      personId,
       context: params.context,
       signalType,
       value,
       polarity: params.polarity,
       source: params.source,
-      confidence: params.confidence,
-      status: params.source === "rejection" ? "active" : "candidate",
+      confidence,
+      status,
     });
     // CHOKE POINT: announce every successful style_signals write from this map.
     recordPipelineEvent({
@@ -173,7 +224,7 @@ async function writeSignals(params: {
         polarity: params.polarity,
         source: params.source,
         interaction_kind: params.interaction,
-        person_id: person,
+        person_id: personId,
         search_id: params.searchId,
         ref: params.ref,
       },

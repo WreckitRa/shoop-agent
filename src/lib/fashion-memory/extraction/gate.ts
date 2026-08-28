@@ -54,6 +54,9 @@ export function evaluateFashionExtractionGate(params: {
   }
 
   const newestUser = params.newUserMessages[params.newUserMessages.length - 1]!;
+  if (newestUser.metadata?.fashionChipTap) {
+    return { proceed: true };
+  }
   if (!isShortAckMessage(newestUser.content)) {
     return { proceed: true };
   }

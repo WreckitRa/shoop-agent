@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS public.avatar_drafts (
 
 CREATE INDEX IF NOT EXISTS avatar_drafts_user_id ON public.avatar_drafts(user_id);
 
+GRANT ALL ON TABLE public.avatar_drafts TO postgres, service_role, anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
 
 -- >>> supabase/migrations/20260721170000_onboarding_projection_safety.sql
 -- Keep one active fact per person/fact/garment slot. Normalize NULL garment
@@ -133,12 +137,20 @@ CREATE TABLE IF NOT EXISTS "biometric_consents" (
   "documentVersion" TEXT NOT NULL,
   "acceptedAt" TIMESTAMP(3) NOT NULL,
   "withdrawnAt" TIMESTAMP(3),
+  "ageAttested" BOOLEAN NOT NULL DEFAULT false,
+  "ownPhotoAttested" BOOLEAN NOT NULL DEFAULT false,
+  "abandonDeleteAck" BOOLEAN NOT NULL DEFAULT false,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "biometric_consents_pkey" PRIMARY KEY ("id")
 );
 
 CREATE INDEX IF NOT EXISTS "biometric_consents_userId_createdAt_idx"
   ON "biometric_consents" ("userId", "createdAt" DESC);
+
+ALTER TABLE "biometric_consents"
+  ADD COLUMN IF NOT EXISTS "ageAttested" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "ownPhotoAttested" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "abandonDeleteAck" BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS "privacy_deletion_events" (
   "id" TEXT NOT NULL,
@@ -156,4 +168,8 @@ CREATE INDEX IF NOT EXISTS "privacy_deletion_events_userId_completedAt_idx"
 
 CREATE INDEX IF NOT EXISTS "privacy_deletion_events_kind_completedAt_idx"
   ON "privacy_deletion_events" ("kind", "completedAt");
+
+-- Canonical matching key for style_signals. Raw phrase stays in value.
+ALTER TABLE public.style_signals
+  ADD COLUMN IF NOT EXISTS value_canonical TEXT;
 

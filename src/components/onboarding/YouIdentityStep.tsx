@@ -12,6 +12,8 @@ import {
 } from "@/lib/onboarding/form-options";
 import {
   FittingField,
+  FittingKick,
+  FittingMulti,
   FittingNavRow,
   FittingQlbl,
   FittingTitle,
@@ -122,6 +124,7 @@ export function YouIdentityStep({
 
   return (
     <section>
+      <FittingKick>LOOK · YOU</FittingKick>
       <FittingTitle
         lines={[
           { text: "What do we put" },
@@ -130,7 +133,7 @@ export function YouIdentityStep({
       />
       <FittingWhisper>
         Your name claims it. Everything after develops it...{" "}
-        <b>watch the print on the right.</b>
+        <b>watch the twin on the right.</b>
       </FittingWhisper>
 
       <FittingField
@@ -165,7 +168,7 @@ export function YouIdentityStep({
           max={MAX_BIRTH_DATE}
           disabled={values.birthDateSkipped}
           onChange={(e) => onBirthdayChange(e.target.value)}
-          className="min-w-[200px] rounded-xl border border-[#D6D6DE] bg-white px-3.5 py-2.5 font-display text-[15px] font-bold text-[var(--fitting-ink)] outline-none focus:border-[var(--fitting-red)] disabled:opacity-50"
+          className="min-w-[200px] rounded-[13px] border-[1.5px] border-[var(--fitting-g3)] bg-white px-3.5 py-2.5 font-display text-[15px] font-bold text-[var(--fitting-ink)] outline-none focus:border-[var(--fitting-ink)] disabled:opacity-50"
         />
         <OnboardingChip
           selected={values.birthDateSkipped}
@@ -197,7 +200,8 @@ export function YouIdentityStep({
       >
         Which era is your style living in?
       </FittingQlbl>
-      <div className="flex max-w-[620px] flex-wrap gap-2.5">
+      <FittingMulti>PICK AS MANY AS ARE TRUE</FittingMulti>
+      <div className="mt-3 flex max-w-[620px] flex-wrap gap-2">
         {eraOptions.map((era) => (
           <OnboardingChip
             key={era.value}
