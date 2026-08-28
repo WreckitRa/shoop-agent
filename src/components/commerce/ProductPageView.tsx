@@ -1287,8 +1287,6 @@ function ProductVariantOptionsPanel({
     ...optionGroups.other,
   ];
 
-  if (!allOptions.length) return null;
-
   const colorLabels = useMemo(() => {
     const labels = new Set<string>();
     for (const opt of optionGroups.color) {
@@ -1299,8 +1297,10 @@ function ProductVariantOptionsPanel({
   const { colors: swatchColors, isResolving: swatchColorsResolving } =
     useSwatchColors(colorLabels, {
       productId,
-      enabled: resolveSwatchColors,
+      enabled: resolveSwatchColors && allOptions.length > 0,
     });
+
+  if (!allOptions.length) return null;
 
   return (
     <div className="flex min-w-0 flex-col gap-5">

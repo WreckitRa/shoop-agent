@@ -43,6 +43,7 @@ export function FittingRoomAction({
   const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
   const avatarStatus = useSelfAvatarStore((s) => s.status);
   const accessMode = useAppSessionStore((s) => s.mode);
+  const showToast = useToastStore((s) => s.show);
   const needsAccount = accessNeedsAccountForMirror(accessMode);
 
   const cta = resolveTryonCta({
@@ -130,7 +131,6 @@ export function FittingRoomAction({
   }
 
   const blockedFull = rackFull && !isInRack;
-  const showToast = useToastStore((s) => s.show);
 
   const overlayLabel = isActive
     ? "ON YOU"
