@@ -122,7 +122,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         if (migrateGuest) {
           guestMigrateOnceRef.current = true;
           await migrateGuestDataAfterAuth();
-        } else if (isGuestSessionActive()) {
+        }
+        if (isGuestSessionActive()) {
           clearGuestSession();
         }
         refreshGuest();
@@ -235,10 +236,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const prev = previousUserIdRef.current;
     previousUserIdRef.current = user?.id ?? null;
-    if (user) {
-      askGuestBootRef.current = false;
-      return;
-    }
+    if (user) return;
     if (prev) {
       askGuestBootRef.current = false;
       guestMigrateOnceRef.current = false;
@@ -248,6 +246,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // Logged-out visitors land in guest mode — auth modal only via Sign in.
   useEffect(() => {
     if (user || guestActive || loading) return;
+    if (useAppSessionStore.getState().mode === "authenticated") return;
     if (askGuestBootRef.current) return;
     askGuestBootRef.current = true;
     useAppSessionStore.getState().setGuest();

@@ -26,6 +26,11 @@ export function canFetchUserScopedData(mode: AppAccessMode): boolean {
   return mode === "authenticated" || mode === "guest" || mode === "local";
 }
 
+/** Guest chrome (banner, Sign in). A signed-in account is never a guest. */
+export function isGuestAccess(mode: AppAccessMode): boolean {
+  return mode === "guest";
+}
+
 type AppSessionState = {
   mode: AppAccessMode;
   authConfigured: boolean;

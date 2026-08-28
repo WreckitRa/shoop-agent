@@ -3,30 +3,27 @@
 import { useCallback, useEffect, useState } from "react";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
 import {
+  isGuestAccess,
+  useAppSessionStore,
+} from "@/lib/client/app-session";
+import {
   guestHasPersistedData,
   isGuestSessionActive,
   startGuestSessionAsync,
 } from "@/lib/client/guest-storage";
 
 export function useGuestMode() {
-  const [active, setActive] = useState(false);
-
-  const refresh = useCallback(() => {
-    setActive(isGuestSessionActive());
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    const onGuestChanged = () => refresh();
-    window.addEventListener("shoop-guest-changed", onGuestChanged);
-    return () => window.removeEventListener("shoop-guest-changed", onGuestChanged);
-  }, [refresh]);
+  const mode = useAppSessionStore((s) => s.mode);
 
   const continueAsGuest = useCallback(() => {
-    void startGuestSessionAsync().then(() => refresh());
-  }, [refresh]);
+    useAppSessionStore.getState().setGuest();
+    void startGuestSessionAsync();
+  }, []);
 
-  return { isGuest: active, continueAsGuest, refresh };
+  return {
+    isGuest: isGuestAccess(mode),
+    continueAsGuest,
+  };
 }
 
 export function openAuthModal(mode: "login" | "signup" = "signup") {
