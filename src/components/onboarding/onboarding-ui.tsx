@@ -265,7 +265,7 @@ export function OnboardingChip({
           "border-[var(--fitting-red)] bg-[var(--fitting-red)] text-white",
         selected &&
           variant !== "no" &&
-          "border-[var(--fitting-ink)] bg-[var(--fitting-ink)] text-white",
+          "translate-y-px border-[var(--fitting-ink)] bg-[#F4F4F6] text-[var(--fitting-ink)] shadow-[inset_0_2px_4px_rgba(14,14,17,0.18)]",
         disabled && "opacity-50",
       )}
     >
@@ -296,7 +296,8 @@ export function OnboardingTile({
       className={cn(
         "relative overflow-hidden rounded-2xl border-2 border-[var(--fitting-line)] bg-white p-[16px_15px] text-left transition-all duration-150",
         "hover:-translate-y-[3px] hover:shadow-[0_16px_30px_-20px_rgba(26,26,46,0.4)]",
-        selected && "border-[var(--fitting-ink)] bg-[var(--fitting-ink)] text-white",
+        selected &&
+          "translate-y-px border-[var(--fitting-ink)] bg-[#F4F4F6] text-[var(--fitting-ink)] shadow-[inset_0_2px_4px_rgba(14,14,17,0.18)]",
       )}
     >
       <span
@@ -308,20 +309,12 @@ export function OnboardingTile({
         ✓
       </span>
       <span
-        className={cn(
-          "mb-1 block font-display text-[14.5px] font-black tracking-[-0.02em] leading-[1.15]",
-          selected && "text-white",
-        )}
+        className="mb-1 block font-display text-[14.5px] font-black tracking-[-0.02em] leading-[1.15]"
       >
         {title}
       </span>
       {hint ? (
-        <span
-          className={cn(
-            "mt-1.5 block text-[11.5px] leading-[1.4] text-[var(--fitting-quiet)]",
-            selected && "text-white/70",
-          )}
-        >
+        <span className="mt-1.5 block text-[11.5px] leading-[1.4] text-[var(--fitting-quiet)]">
           {hint}
         </span>
       ) : null}

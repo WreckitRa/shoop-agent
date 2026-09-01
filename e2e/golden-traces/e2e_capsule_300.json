@@ -1,6 +1,8 @@
 {
   "stages": [
     "brief_persisted",
+    "gate",
+    "router",
     "budget_allocation",
     "ucp_query",
     "ucp_query",
@@ -40,17 +42,28 @@
     "scoring",
     "scoring",
     "scoring",
+    "taste_rerank_failed",
+    "taste_rerank_failed",
+    "taste_rerank_failed",
+    "taste_rerank",
+    "taste_rerank",
+    "taste_rerank",
     "hydration",
-    "hydration_anchor_complete",
     "hydration",
     "hydration",
     "turn_budget",
+    "curation",
     "invariant_warning",
     "curation",
-    "curation"
+    "curation",
+    "search_funnel",
+    "taste_fit",
+    "search_latency"
   ],
   "eventCounts": {
     "brief_persisted": 1,
+    "gate": 1,
+    "router": 1,
     "budget_allocation": 1,
     "ucp_query": 24,
     "ucp_coverage": 3,
@@ -58,9 +71,13 @@
     "hard_drops": 3,
     "invariant_warning": 5,
     "scoring": 3,
+    "taste_rerank_failed": 3,
+    "taste_rerank": 3,
     "hydration": 3,
-    "hydration_anchor_complete": 1,
     "turn_budget": 1,
-    "curation": 2
+    "curation": 3,
+    "search_funnel": 1,
+    "taste_fit": 1,
+    "search_latency": 1
   }
 }

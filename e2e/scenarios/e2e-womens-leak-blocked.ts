@@ -19,6 +19,7 @@ const mensBrief = {
     sizes_confirmed: ["shirt", "trousers"],
     sizes_unconfirmed: [] as string[],
   },
+  depth: { looks_wanted: 1, source: "stated" as const },
 };
 
 export const e2eWomensLeakBlocked: E2eScenario = {

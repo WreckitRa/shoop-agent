@@ -63,30 +63,43 @@ export async function POST(req: Request) {
     const pending = readVerifyEmailCookie(jar.get(VERIFY_EMAIL_COOKIE)?.value);
     const age =
       pending?.birthDate ? assertSignupAge(pending.birthDate) : null;
-    if (!age?.ok) {
+    if (age && !age.ok) {
+      return NextResponse.json({ error: age.error }, { status: 403 });
+    }
+    const ageAttested = pending?.ageAttested === true || Boolean(age?.ok);
+    if (!ageAttested) {
       return NextResponse.json(
         {
           error:
-            age && !age.ok
-              ? age.error
-              : "Sign up again so we have your date of birth.",
+            "Sign up again so we can confirm you are at least 13.",
         },
         { status: 403 },
       );
     }
+    const now = new Date();
     await prisma.userProfile.upsert({
       where: { userId: result.data.user.id },
       create: {
         userId: result.data.user.id,
-        birthDate: new Date(`${age.birthDate}T00:00:00.000Z`),
-        ageRange: normalizeAgeRange(String(age.ageYears)),
-        termsAcceptedAt: new Date(),
+        ...(age?.ok
+          ? {
+              birthDate: new Date(`${age.birthDate}T00:00:00.000Z`),
+              ageRange: normalizeAgeRange(String(age.ageYears)),
+            }
+          : {}),
+        ageAttestedAt: now,
+        termsAcceptedAt: now,
         termsVersion: pending?.termsVersion ?? LEGAL_DOC_VERSION,
       },
       update: {
-        birthDate: new Date(`${age.birthDate}T00:00:00.000Z`),
-        ageRange: normalizeAgeRange(String(age.ageYears)),
-        termsAcceptedAt: new Date(),
+        ...(age?.ok
+          ? {
+              birthDate: new Date(`${age.birthDate}T00:00:00.000Z`),
+              ageRange: normalizeAgeRange(String(age.ageYears)),
+            }
+          : {}),
+        ageAttestedAt: now,
+        termsAcceptedAt: now,
         termsVersion: pending?.termsVersion ?? LEGAL_DOC_VERSION,
       },
     });

@@ -102,7 +102,7 @@ describe("context_line_renders", () => {
     assert.ok(context?.includes("context:"));
     assert.ok(context?.includes("deep in career"));
     assert.ok(context?.includes("quiet-luxury") || context?.includes("spender"));
-    assert.equal(honestyToneLine("straight"), 'tone: honesty balanced ("tell me straight")');
+    assert.equal(honestyToneLine("straight"), 'tone: honesty balanced ("give it to me straight")');
     assert.ok(composeAspiresLine(meta!)?.includes("effortless"));
 
     const profile = formatRouterPersonProfile({
@@ -311,7 +311,7 @@ describe("personalized_clarification_options", () => {
 describe("voice_context_threads", () => {
   it("maps honesty modes and omits philosophy for gift recipient semantics", () => {
     assert.equal(mapHonestyToVoice("no_mercy"), "blunt");
-    assert.equal(mapHonestyToVoice("gentle"), "balanced");
+    assert.equal(mapHonestyToVoice("gentle"), "gentle");
     assert.equal(mapHonestyToVoice("straight"), "balanced");
     const blunt = voiceToneAppendix({ honesty: "blunt" });
     const gentle = voiceToneAppendix({ honesty: "gentle" });

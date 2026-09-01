@@ -10,7 +10,18 @@ import {
 export function leaveConversationRoute(): void {
   if (typeof window === "undefined") return;
   if (!parseConversationIdFromPath(window.location.pathname)) return;
+  goHome();
+}
 
+/** Logout always lands on `/`, from any route. */
+export function resetToRoot(): void {
+  if (typeof window === "undefined") return;
+  const path = window.location.pathname;
+  if (path === NEW_CHAT_PATH) return;
+  goHome();
+}
+
+function goHome(): void {
   const { navigate, syncRouteConversationId } = useChatStore.getState();
   useChatStore.setState({ error: null });
   syncRouteConversationId(undefined);

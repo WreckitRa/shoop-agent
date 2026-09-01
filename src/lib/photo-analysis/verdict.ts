@@ -2,17 +2,18 @@ import { createHash } from "node:crypto";
 import { PHOTO_ERROR } from "./errors";
 import { callPhotoJsonSchema, withPhotoGptLock } from "./openai";
 import {
+  STYLIST_READING_INSTRUCTIONS,
+  STYLIST_READING_SCHEMA,
   STYLIST_VERDICT_INSTRUCTIONS,
-  STYLIST_VERDICT_SCHEMA,
   STYLIST_VERDICT_SCHEMA_DESCRIPTION,
   STYLIST_VERDICT_SCHEMA_NAME,
 } from "./verdict-prompt";
 
 export const DEFAULT_STYLIST_VERDICT_MODEL = "gpt-5.6-sol";
-/** Client + after() budget. Reasoning tokens count against max_output_tokens. */
-export const VERDICT_TIMEOUT_MS = 180_000;
+/** Hang-safety for the reading-card call. Not a quality budget. */
+export const VERDICT_TIMEOUT_MS = 90_000;
 export const VERDICT_STALE_MS = VERDICT_TIMEOUT_MS + 20_000;
-const VERDICT_MAX_OUTPUT_TOKENS = 32_000;
+const VERDICT_MAX_OUTPUT_TOKENS = 16_000;
 
 export function stylistVerdictModel(): string {
   const override = process.env.OPENAI_STYLIST_VERDICT_MODEL?.trim();
@@ -75,8 +76,9 @@ export type StylistVerdict = {
 };
 
 export function parseStylistVerdict(raw: unknown): StylistVerdict | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
+  const hydrated = hydrateStylistVerdict(raw);
+  if (!hydrated || typeof hydrated !== "object") return null;
+  const o = hydrated as Record<string, unknown>;
   for (const key of STYLIST_VERDICT_ROOT_KEYS) {
     if (!(key in o)) return null;
   }
@@ -96,7 +98,18 @@ export function parseStylistVerdict(raw: unknown): StylistVerdict | null {
   const exec = o.executive_verdict;
   if (!exec || typeof exec !== "object") return null;
   if (typeof (exec as { headline?: unknown }).headline !== "string") return null;
-  return raw as StylistVerdict;
+  return hydrated as StylistVerdict;
+}
+
+/** Fill unused shopping-engine roots so a reading-card payload still parses. */
+export function hydrateStylistVerdict(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const out: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+  for (const key of STYLIST_VERDICT_ROOT_KEYS) {
+    if (key in out) continue;
+    out[key] = key === "garment_playbook" || key === "outfit_formulas" ? [] : {};
+  }
+  return out;
 }
 
 function isFilledRecord(v: unknown): v is Record<string, unknown> {
@@ -203,17 +216,17 @@ export async function generateStylistVerdict({
     if (remaining < 8_000) throw new Error(PHOTO_ERROR.timeout);
     const raw = await callPhotoJsonSchema({
       model: stylistVerdictModel(),
-      // low: medium + this schema routinely burned the 16k cap (incomplete)
-      // and sat on the Fitting screen past five minutes.
+      // low: medium + the full catalog schema burned the 16k cap and sat
+      // on the Fitting screen past five minutes. Reading-card schema only.
       reasoning: { effort: "low" },
-      instructions: STYLIST_VERDICT_INSTRUCTIONS,
+      instructions: `${STYLIST_VERDICT_INSTRUCTIONS}\n${STYLIST_READING_INSTRUCTIONS}`,
       userContent: [
         { type: "input_text", text: JSON.stringify(profilePayload) },
       ],
       format: {
         name: STYLIST_VERDICT_SCHEMA_NAME,
         description: STYLIST_VERDICT_SCHEMA_DESCRIPTION,
-        schema: STYLIST_VERDICT_SCHEMA,
+        schema: STYLIST_READING_SCHEMA,
       },
       maxOutputTokens: VERDICT_MAX_OUTPUT_TOKENS,
       timeoutMs: remaining,

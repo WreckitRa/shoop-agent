@@ -50,7 +50,7 @@ describe("buildPatchFromTastePicks", () => {
       ),
     );
     assert.deepEqual(patch.sizing?.sensitivities, ["no heels"]);
-    assert.equal(patch.profile?.honestyPreference, "straight");
+    assert.equal(patch.profile?.honestyPreference, "3");
     assert.equal(patch.profile?.valuePhilosophy, "premium");
     assert.ok(patch.profile?.styleMix);
     assert.equal(patch.profile?.complimentPreferences?.length, 2);
@@ -58,10 +58,10 @@ describe("buildPatchFromTastePicks", () => {
     assert.ok(axisLabels.includes("Sporty") || axisLabels.includes("Minimal"));
   });
 
-  it("maps legacy gentle honesty onto straight", () => {
+  it("maps legacy gentle honesty onto 1", () => {
     const patch = buildPatchFromTastePicks({
       honestyPreference: "gentle",
     });
-    assert.equal(patch.profile?.honestyPreference, "straight");
+    assert.equal(patch.profile?.honestyPreference, "1");
   });
 });

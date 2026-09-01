@@ -157,6 +157,15 @@ QUALITY STANDARD
   outfit_formulas at most 5. Short strings. Do not pad fields to fill the schema.
 `;
 
+/** Fitting-card sections only. Shopping-engine catalogs are generated later. */
+export const STYLIST_READING_INSTRUCTIONS = String.raw`
+ONBOARDING READING CARD
+This call's schema is the Fitting card: status, executive, identity, colour,
+proportion, fit, fabric, outfit formulas, and user-facing rules.
+Do not emit shopping-engine, wardrobe-plan, garment-playbook, or grooming catalogs.
+At most 4 items per array. Colour lists at most 4. Short strings.
+`;
+
 export const STYLIST_VERDICT_SCHEMA_NAME = "canonical_personal_stylist_verdict";
 
 export const STYLIST_VERDICT_SCHEMA_DESCRIPTION =
@@ -845,4 +854,69 @@ export const STYLIST_VERDICT_SCHEMA = {
       additionalProperties: false,
     },
   },
+} as const;
+
+/** Sections the Fitting card and reading-looks search actually read. */
+export const STYLIST_READING_ROOT_KEYS = [
+  "verdict_status",
+  "executive_verdict",
+  "style_identity",
+  "color_system",
+  "proportion_and_silhouette",
+  "size_and_fit",
+  "fabrics_patterns_and_climate",
+  "outfit_formulas",
+  "user_facing_verdict",
+] as const;
+
+const COLOR_READING_KEYS = [
+  "confidence",
+  "seasonal_label",
+  "temperature",
+  "depth",
+  "chroma",
+  "contrast_level",
+  "analysis_basis",
+  "best_neutrals",
+  "core_colors",
+  "accent_colors",
+  "near_face_colors",
+  "use_carefully",
+  "color_shopping_rules",
+] as const;
+
+function pickProperties(
+  properties: Record<string, unknown>,
+  keys: readonly string[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (key in properties) out[key] = properties[key];
+  }
+  return out;
+}
+
+const fullProperties = STYLIST_VERDICT_SCHEMA.properties as unknown as Record<
+  string,
+  unknown
+>;
+const colorSystemSchema = STYLIST_VERDICT_SCHEMA.properties.color_system;
+
+export const STYLIST_READING_SCHEMA = {
+  type: "object",
+  properties: {
+    ...pickProperties(fullProperties, STYLIST_READING_ROOT_KEYS),
+    color_system: {
+      type: "object",
+      properties: pickProperties(
+        colorSystemSchema.properties as unknown as Record<string, unknown>,
+        COLOR_READING_KEYS,
+      ),
+      required: [...COLOR_READING_KEYS],
+      additionalProperties: false,
+    },
+  },
+  required: [...STYLIST_READING_ROOT_KEYS],
+  additionalProperties: false,
+  $defs: STYLIST_VERDICT_SCHEMA.$defs,
 } as const;

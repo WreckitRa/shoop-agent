@@ -25,6 +25,7 @@ const spreadBrief = {
     sizes_confirmed: ["shirt", "trousers"],
     sizes_unconfirmed: [] as string[],
   },
+  depth: { looks_wanted: 1, source: "stated" as const },
 };
 
 const profileBrief = {
@@ -60,14 +61,14 @@ export const e2eMemoryLoop: E2eScenario = {
   },
   steps: [
     {
-      user: "casual weekend outfit",
+      user: "casual weekend outfit — shirt and trousers",
       expect: { route: { move: "ready_to_search" } },
     },
     {
       interact: { kind: "reject", slotId: "shirt" },
     },
     {
-      user: "another casual outfit like last time",
+      user: "another casual outfit like last time — shirt and trousers",
       expect: {
         route: { move: "ready_to_search" },
         plan: { paletteSource: "profile" },

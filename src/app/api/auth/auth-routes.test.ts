@@ -117,7 +117,6 @@ describe("auth API edges", () => {
         jsonRequest("http://local/api/auth/signup", {
           email: "a@b.com",
           password: "password1",
-          birthDate: "1990-01-15",
           acceptTerms: true,
         }),
       );
@@ -173,7 +172,6 @@ describe("auth API edges", () => {
           {
             email: "a@b.com",
             password: "password1",
-            birthDate: "1990-01-15",
             acceptTerms: true,
           },
           { "cf-ray": "test", "cf-ipcountry": "GB" },
@@ -189,7 +187,6 @@ describe("auth API edges", () => {
         jsonRequest("http://local/api/auth/signup", {
           email: "a@b.com",
           password: "password1",
-          birthDate: "1990-01-15",
           acceptTerms: false,
         }),
       );
@@ -197,20 +194,24 @@ describe("auth API edges", () => {
     });
   });
 
-  it("POST /api/auth/signup returns 403 for underage birth dates", async () => {
-    await withDummyAuthEnv(async () => {
-      const recent = new Date();
-      recent.setUTCFullYear(recent.getUTCFullYear() - 10);
-      const res = await signupPOST(
-        jsonRequest("http://local/api/auth/signup", {
-          email: "a@b.com",
-          password: "password1",
-          birthDate: recent.toISOString().slice(0, 10),
-          acceptTerms: true,
-        }),
-      );
-      assert.equal(res.status, 403);
-    });
+  it("sign-up schema accepts terms without a birth date", () => {
+    assert.equal(
+      signUpBodySchema.safeParse({
+        email: "a@b.com",
+        password: "password1",
+        acceptTerms: true,
+      }).success,
+      true,
+    );
+    assert.equal(
+      signUpBodySchema.safeParse({
+        email: "a@b.com",
+        password: "password1",
+        birthDate: "1990-01-15",
+        acceptTerms: true,
+      }).success,
+      true,
+    );
   });
 
   it("sign-up and delete-account schemas reject incomplete payloads", () => {
@@ -218,7 +219,6 @@ describe("auth API edges", () => {
       signUpBodySchema.safeParse({
         email: "a@b.com",
         password: "password1",
-        birthDate: "1990-01-15",
         acceptTerms: false,
       }).success,
       false,
@@ -227,7 +227,6 @@ describe("auth API edges", () => {
       signUpBodySchema.safeParse({
         email: "a@b.com",
         password: "password1",
-        birthDate: "1990-01-15",
         acceptTerms: true,
       }).success,
       true,

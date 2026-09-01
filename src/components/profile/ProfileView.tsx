@@ -24,13 +24,23 @@ import {
   COUNTRY_OPTIONS,
   CURRENCY_OPTIONS,
   GENDER_OPTIONS,
+  HONESTY_OPTIONS,
+  WEEKEND_OPTIONS,
+  WEEK_IS_OPTIONS,
+  csvHas,
   currencyHintForCountry,
+  normalizeGender,
+  normalizeHonestyPreference,
+  toggleCsvValue,
 } from "@/lib/onboarding/form-options";
 
 type ProfileData = {
   preferredName?: string | null;
   genderPresentation?: string | null;
   ageRange?: string | null;
+  weekIs?: string | null;
+  weekendsAre?: string | null;
+  honestyPreference?: string | null;
   shippingCountry?: string | null;
   country?: string | null;
   currency?: string | null;
@@ -40,6 +50,9 @@ type ProfileForm = {
   preferredName: string;
   genderPresentation: string;
   ageRange: string;
+  weekIs: string;
+  weekendsAre: string;
+  honestyPreference: string;
   shippingCountry: string;
   currency: string;
 };
@@ -47,8 +60,16 @@ type ProfileForm = {
 function toForm(profile: ProfileData | null): ProfileForm {
   return {
     preferredName: profile?.preferredName?.trim() ?? "",
-    genderPresentation: profile?.genderPresentation?.trim() ?? "",
+    genderPresentation: normalizeGender(
+      profile?.genderPresentation?.trim() ?? "",
+    ),
     ageRange: profile?.ageRange?.trim() ?? "",
+    weekIs: profile?.weekIs?.trim() ?? "",
+    weekendsAre: profile?.weekendsAre?.trim() ?? "",
+    honestyPreference:
+      normalizeHonestyPreference(profile?.honestyPreference) ||
+      profile?.honestyPreference?.trim() ||
+      "",
     shippingCountry:
       profile?.shippingCountry?.trim() ??
       profile?.country?.trim() ??
@@ -62,6 +83,9 @@ function formsEqual(a: ProfileForm, b: ProfileForm): boolean {
     a.preferredName === b.preferredName &&
     a.genderPresentation === b.genderPresentation &&
     a.ageRange === b.ageRange &&
+    a.weekIs === b.weekIs &&
+    a.weekendsAre === b.weekendsAre &&
+    a.honestyPreference === b.honestyPreference &&
     a.shippingCountry === b.shippingCountry &&
     a.currency === b.currency
   );
@@ -71,7 +95,10 @@ function personalDirty(a: ProfileForm, b: ProfileForm): boolean {
   return (
     a.preferredName !== b.preferredName ||
     a.genderPresentation !== b.genderPresentation ||
-    a.ageRange !== b.ageRange
+    a.ageRange !== b.ageRange ||
+    a.weekIs !== b.weekIs ||
+    a.weekendsAre !== b.weekendsAre ||
+    a.honestyPreference !== b.honestyPreference
   );
 }
 
@@ -159,6 +186,9 @@ export function ProfileView() {
         payload.preferredName = form.preferredName.trim();
         payload.genderPresentation = form.genderPresentation.trim();
         payload.ageRange = form.ageRange.trim();
+        payload.weekIs = form.weekIs.trim();
+        payload.weekendsAre = form.weekendsAre.trim();
+        payload.honestyPreference = form.honestyPreference.trim();
       }
       if (localeChanged) {
         payload.shippingCountry = form.shippingCountry.trim();
@@ -281,14 +311,88 @@ export function ProfileView() {
                 <SettingsDivider />
 
                 <SettingsField
-                  label="Shopping style"
+                  label="Which type of clothings do you shop for?"
                   hint="Helps us surface clothing and sizing that fit how you shop."
                 >
                   <ProfileOptionChips
-                    label="Shopping style"
+                    label="Clothing type"
                     value={form.genderPresentation}
                     onChange={(v) => updateForm("genderPresentation", v)}
                     options={GENDER_OPTIONS}
+                  />
+                </SettingsField>
+
+                <SettingsDivider />
+
+                <SettingsField label="Your week days are:">
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Week days">
+                    {WEEK_IS_OPTIONS.map((opt) => {
+                      const active = csvHas(form.weekIs, opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() =>
+                            updateForm(
+                              "weekIs",
+                              toggleCsvValue(form.weekIs, opt.value),
+                            )
+                          }
+                          className={
+                            active
+                              ? "rounded-full bg-ink px-3.5 py-1.5 text-sm font-medium text-white"
+                              : "rounded-full bg-surface-tint px-3.5 py-1.5 text-sm text-ink-soft"
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </SettingsField>
+
+                <SettingsDivider />
+
+                <SettingsField label="Your week ends are:">
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Weekends">
+                    {WEEKEND_OPTIONS.map((opt) => {
+                      const active = csvHas(form.weekendsAre, opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() =>
+                            updateForm(
+                              "weekendsAre",
+                              toggleCsvValue(form.weekendsAre, opt.value),
+                            )
+                          }
+                          className={
+                            active
+                              ? "rounded-full bg-ink px-3.5 py-1.5 text-sm font-medium text-white"
+                              : "rounded-full bg-surface-tint px-3.5 py-1.5 text-sm text-ink-soft"
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </SettingsField>
+
+                <SettingsDivider />
+
+                <SettingsField label="How honest should Shoop be?">
+                  <ProfileOptionChips
+                    label="Honesty"
+                    value={form.honestyPreference}
+                    onChange={(v) => updateForm("honestyPreference", v)}
+                    options={HONESTY_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: `${o.value} · ${o.label}`,
+                    }))}
                   />
                 </SettingsField>
 

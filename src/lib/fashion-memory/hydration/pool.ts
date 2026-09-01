@@ -19,6 +19,7 @@ import {
 } from "../pipeline-cutoffs";
 import type { ConcurrencyGate } from "./concurrency-gate";
 import { hydrateCandidate, type HydrateCandidateParams } from "./hydrate-candidate";
+import { prefetchCurationImageUrls } from "../curation/curation-images";
 import type {
   HydratedCandidate,
   HydrationDeathCause,
@@ -164,6 +165,11 @@ class SlotPoolImpl implements SlotPool {
       this.hydratedIds.add(product.id);
       if (result.outcome === "verified") {
         this.verified.push(result.candidate);
+        const url =
+          result.candidate.media_urls?.[0] ?? result.candidate.image_urls?.[0];
+        if (url) {
+          prefetchCurationImageUrls([url], this.params.abortScope?.fork());
+        }
       } else {
         this.dead.push(result.death);
       }

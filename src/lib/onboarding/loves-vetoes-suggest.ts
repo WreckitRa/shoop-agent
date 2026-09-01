@@ -5,7 +5,7 @@
 
 import {
   COMFORT_OPTIONS,
-  normalizeGender,
+  genderPresentationBucket,
   type ComfortOption,
   type SuggestionAudience,
 } from "@/lib/onboarding/form-options";
@@ -156,10 +156,10 @@ function contextTokens(ctx: LovesVetoesContext): Set<string> {
   }
   if (vpSet.has("design_first")) tokens.add("design_first");
 
-  const g = normalizeGender(ctx.genderPresentation);
-  if (g === "masculine") tokens.add("masculine");
-  if (g === "feminine") tokens.add("feminine");
-  if (g === "androgynous" || g === "nonbinary") {
+  const bucket = genderPresentationBucket(ctx.genderPresentation);
+  if (bucket === "masculine") tokens.add("masculine");
+  if (bucket === "feminine") tokens.add("feminine");
+  if (bucket === "androgynous") {
     tokens.add("minimal");
   }
   if (ctx.build === "plus" || ctx.build === "broad") {
@@ -173,9 +173,9 @@ function contextTokens(ctx: LovesVetoesContext): Set<string> {
 function suggestionAudience(
   ctx: LovesVetoesContext,
 ): SuggestionAudience | "any" {
-  const g = normalizeGender(ctx.genderPresentation);
-  if (g === "masculine") return "masculine";
-  if (g === "feminine") return "feminine";
+  const bucket = genderPresentationBucket(ctx.genderPresentation);
+  if (bucket === "masculine") return "masculine";
+  if (bucket === "feminine") return "feminine";
   return "any";
 }
 

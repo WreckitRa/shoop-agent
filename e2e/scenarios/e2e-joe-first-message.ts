@@ -19,7 +19,7 @@ export const e2eJoeFirstMessage: E2eScenario = {
   },
   steps: [
     {
-      user: "full formal outfit for Joe, under $100, Men's, M tops, 33 bottoms, shoes 10, business event",
+      user: "full formal outfit for Joe — shirt, trousers, and shoes, under $100, Men's, M tops, 33 bottoms, shoes 10, business event",
       expect: {
         route: { move: "ready_to_search" },
         plan: { slotCountMin: 3, mode: "outfit" },

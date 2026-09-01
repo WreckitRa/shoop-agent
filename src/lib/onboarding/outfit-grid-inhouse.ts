@@ -5,6 +5,7 @@
  */
 
 import { logAiChat } from "@/lib/ai-chat/observability";
+import { genderPresentationBucket } from "@/lib/onboarding/form-options";
 import {
   buildCastingMatrix,
   slotOverlapsWornPicks,
@@ -63,16 +64,7 @@ type GenderBucket = "feminine" | "masculine" | "androgynous";
 export function genderBucketFromPresentation(
   gender?: string,
 ): GenderBucket {
-  const g = gender?.trim().toLowerCase() ?? "";
-  if (g === "masculine") return "masculine";
-  if (
-    g === "androgynous" ||
-    g === "nonbinary" ||
-    g === "prefer not to say"
-  ) {
-    return "androgynous";
-  }
-  return "feminine";
+  return genderPresentationBucket(gender) || "feminine";
 }
 
 function splitCsv(raw?: string): string[] {

@@ -52,6 +52,7 @@ const GARMENT_TAXONOMY: Record<string, GarmentTaxonomyEntry> = {
   trouser: { id: `${TAXONOMY_PREFIX}aa-1-12-11`, label: "Trousers" },
   pants: { id: `${TAXONOMY_PREFIX}aa-1-12-11`, label: "Trousers" },
   chinos: { id: `${TAXONOMY_PREFIX}aa-1-12-11`, label: "Trousers" },
+  chino: { id: `${TAXONOMY_PREFIX}aa-1-12-11`, label: "Trousers" },
   shorts: { id: `${TAXONOMY_PREFIX}aa-1-12-7`, label: "Shorts" },
   short: { id: `${TAXONOMY_PREFIX}aa-1-12-7`, label: "Shorts" },
   jeans: { id: `${TAXONOMY_PREFIX}aa-1-12-4`, label: "Jeans" },
@@ -78,6 +79,21 @@ const GARMENT_TAXONOMY: Record<string, GarmentTaxonomyEntry> = {
   knitwear: { id: `${TAXONOMY_PREFIX}aa-1-13-12`, label: "Sweaters" },
   jumper: { id: `${TAXONOMY_PREFIX}aa-1-13-12`, label: "Sweaters" },
   hoodie: { id: `${TAXONOMY_PREFIX}aa-1-1-7-2`, label: "Hoodies" },
+  hoodies: { id: `${TAXONOMY_PREFIX}aa-1-1-7-2`, label: "Hoodies" },
+  overshirt: { id: `${TAXONOMY_PREFIX}aa-1-13-7`, label: "Shirts" },
+  overshirts: { id: `${TAXONOMY_PREFIX}aa-1-13-7`, label: "Shirts" },
+  puffer: { id: `${TAXONOMY_PREFIX}aa-1-10-2`, label: "Coats & Jackets" },
+  puffers: { id: `${TAXONOMY_PREFIX}aa-1-10-2`, label: "Coats & Jackets" },
+  "puffer jacket": {
+    id: `${TAXONOMY_PREFIX}aa-1-10-2`,
+    label: "Coats & Jackets",
+  },
+  sundress: { id: `${TAXONOMY_PREFIX}aa-1-4`, label: "Dresses" },
+  sundresses: { id: `${TAXONOMY_PREFIX}aa-1-4`, label: "Dresses" },
+  sweats: { id: `${TAXONOMY_PREFIX}aa-1-12-11`, label: "Trousers" },
+  sweatpants: { id: `${TAXONOMY_PREFIX}aa-1-12-11`, label: "Trousers" },
+  sweatshirt: { id: `${TAXONOMY_PREFIX}aa-1-1-7-2`, label: "Hoodies" },
+  sweatshirts: { id: `${TAXONOMY_PREFIX}aa-1-1-7-2`, label: "Hoodies" },
   suit: { id: `${TAXONOMY_PREFIX}aa-1-10-2-18`, label: "Blazers" },
 
   // --- Swimwear (verified GIDs under aa-1-20) ---
@@ -291,6 +307,29 @@ function normalizeGarmentKey(garment: string): string {
   return garment.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Exact key or simple English plural — not substring. Used for provenance. */
+export function lookupTaxonomyEntryStrict(
+  garment: string,
+): GarmentTaxonomyEntry | null {
+  const key = normalizeGarmentKey(garment).replace(/^(a|an|the)\s+/, "");
+  if (!key) return null;
+  const direct = GARMENT_TAXONOMY[key];
+  if (direct) return direct;
+  if (key.endsWith("ies")) {
+    const stem = `${key.slice(0, -3)}y`;
+    if (GARMENT_TAXONOMY[stem]) return GARMENT_TAXONOMY[stem]!;
+  }
+  if (key.endsWith("es") && GARMENT_TAXONOMY[key.slice(0, -2)]) {
+    return GARMENT_TAXONOMY[key.slice(0, -2)]!;
+  }
+  if (key.endsWith("s") && GARMENT_TAXONOMY[key.slice(0, -1)]) {
+    return GARMENT_TAXONOMY[key.slice(0, -1)]!;
+  }
+  if (GARMENT_TAXONOMY[`${key}s`]) return GARMENT_TAXONOMY[`${key}s`]!;
+  if (GARMENT_TAXONOMY[`${key}es`]) return GARMENT_TAXONOMY[`${key}es`]!;
+  return null;
+}
+
 function lookupEntry(garment: string): GarmentTaxonomyEntry | null {
   const key = normalizeGarmentKey(garment);
   if (!key) return null;
@@ -321,6 +360,53 @@ export function taxonomyCategoriesForGarment(garment: string): string[] {
 
 export function hasGarmentTaxonomyMapping(garment: string): boolean {
   return taxonomyCategoriesForGarment(garment).length > 0;
+}
+
+/** Stable family id (taxonomy GID, else normalized label) for provenance compares. */
+export function garmentFamilyId(garment: string): string {
+  const strict = lookupTaxonomyEntryStrict(garment);
+  if (strict) return strict.id;
+  const words = garment.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= 3) {
+    const loose = lookupEntry(garment);
+    if (loose) return loose.id;
+  }
+  return normalizeGarmentKey(garment);
+}
+
+function mentionCandidates(text: string): string[] {
+  const tokens = text
+    .toLowerCase()
+    .split(/[^a-z0-9+]+/)
+    .filter((t) => t && t !== "a" && t !== "an" && t !== "the");
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    out.push(tokens[i]!);
+    if (i + 1 < tokens.length) out.push(`${tokens[i]} ${tokens[i + 1]}`);
+  }
+  return out;
+}
+
+/** Taxonomy families the client named in free text — table lookup, not a noun regex. */
+export function familyIdsMentionedInText(text: string): Set<string> {
+  const named = new Set<string>();
+  for (const cand of mentionCandidates(text)) {
+    const entry = lookupTaxonomyEntryStrict(cand);
+    if (entry) named.add(entry.id);
+  }
+  return named;
+}
+
+/** Matched utterance tokens for clarification apply (chip / free-text). */
+export function garmentTokensMentionedInText(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const cand of mentionCandidates(text)) {
+    if (!lookupTaxonomyEntryStrict(cand) || seen.has(cand)) continue;
+    seen.add(cand);
+    out.push(cand);
+  }
+  return out;
 }
 
 /** Size gate mode for a garment string — accessories skip or use simple facts. */

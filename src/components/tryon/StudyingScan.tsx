@@ -42,6 +42,9 @@ const FALLBACK_WHISPERS = [
   "one more angle...",
 ] as const;
 
+/** Let her see the dressed look before the scan fog. */
+const SCAN_SETTLE_MS = 700;
+
 type Phase = "idle" | "scanning" | "done" | "error";
 
 type CheckKey = "fit" | "palette" | "nolist";
@@ -56,7 +59,7 @@ type RailNote = {
 
 type Props = {
   imageUrl?: string | null;
-  /** True while Fashn is dressing — keep scanning chrome, don't reveal yet. */
+  /** True while Fashn is still dressing — don't start the scan yet. */
   dressing?: boolean;
   pieces: LookScanPiece[];
   className?: string;
@@ -294,6 +297,7 @@ export function StudyingScan({
   const dressingRef = useRef(dressing);
   const imageUrlRef = useRef(imageUrl);
   const replayRef = useRef(false);
+  const bakeStartedRef = useRef(false);
   const showToast = useToastStore((s) => s.show);
   const jobId = useTryOnDrawerStore((s) => s.jobId);
   const askShareRequestId = useTryOnDrawerStore((s) => s.askShareRequestId);
@@ -301,7 +305,6 @@ export function StudyingScan({
   const setOwnerVerdict = useTryOnDrawerStore((s) => s.setOwnerVerdict);
   const setLookScanVerdict = useTryOnDrawerStore((s) => s.setLookScanVerdict);
   const conversationId = useChatStore((s) => s.activeConversationId);
-  const loadConversation = useChatStore((s) => s.loadConversation);
 
   function clearTimers() {
     for (const id of timersRef.current) window.clearTimeout(id);
@@ -474,6 +477,7 @@ export function StudyingScan({
   function startScan(replay = false) {
     abortRef.current?.abort();
     replayRef.current = replay;
+    bakeStartedRef.current = true;
     verdictReadyRef.current = replay
       ? useTryOnDrawerStore.getState().lookScanVerdict
       : null;
@@ -485,9 +489,10 @@ export function StudyingScan({
     altImageUrl?: string;
     altGenerationId?: string;
   }): Promise<string | null> {
-    if (shareUrl) return shareUrl;
+    const compare = Boolean(opts?.altImageUrl);
+    if (shareUrl && !compare) return shareUrl;
     const existingToken = useTryOnDrawerStore.getState().askShareToken;
-    if (existingToken) {
+    if (existingToken && !compare) {
       const url = askShareAbsoluteUrl(`/ask/${existingToken}`);
       setShareUrl(url);
       return url;
@@ -543,9 +548,6 @@ export function StudyingScan({
       }
       const url = askShareAbsoluteUrl(askPath);
       setShareUrl(url);
-      if (conversationId) {
-        void loadConversation(conversationId);
-      }
       return url;
     } catch (err) {
       setShareHint(
@@ -574,22 +576,15 @@ export function StudyingScan({
   }
 
   async function beginShare(kind: "copy" | "whatsapp") {
-    if (shareUrl || useTryOnDrawerStore.getState().askShareToken) {
-      if (kind === "whatsapp") await shareAskOnWhatsApp();
-      else await copyAskLink();
-      return;
-    }
     setChallengerBusy(true);
     try {
       const items = await loadChallengers();
       setChallengers(items);
-      if (items.length > 0) {
+      if (items.length > 0 && !pickedChallenger && !shareUrl) {
         setPendingShareAction(kind);
         setChallengerOpen(true);
         return;
       }
-      // No second look — rate-mode fallback so Ask still ships.
-      setShareHint("Dress another look to ask comparatively — sharing this one for now.");
       if (kind === "whatsapp") await shareAskOnWhatsApp();
       else await copyAskLink();
     } finally {
@@ -691,16 +686,21 @@ export function StudyingScan({
     setShareHint(null);
     setAsked(false);
     setPickedChallenger(null);
-    beginBake();
-    // One bake per mount — parent keys this on the try-on generation.
+    // Scan waits until the dressed look is on the twin — parent keys this
+    // on the try-on generation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!imageUrl) return;
-    void fetchVerdict();
+    if (dressing || !imageUrl || bakeStartedRef.current) return;
+    const delay = prefersReducedMotion() ? 0 : SCAN_SETTLE_MS;
+    const id = window.setTimeout(() => {
+      if (bakeStartedRef.current) return;
+      startScan();
+    }, delay);
+    return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl]);
+  }, [dressing, imageUrl]);
 
   useEffect(() => {
     tryReveal();
@@ -954,8 +954,9 @@ export function StudyingScan({
 
       {phase === "idle" ? (
         <p className="shoop-sscan__empty">
-          Tap a look on the left, or drag a piece from the fitting room. I'll
-          tell you what I like and what I don't.
+          {imageUrl
+            ? "It's on you."
+            : "Tap a look on the left, or drag a piece from the fitting room. I'll tell you what I like and what I don't."}
         </p>
       ) : null}
 
@@ -1089,7 +1090,7 @@ export function StudyingScan({
               ? "Making the card…"
               : asked
                 ? "Ask sent"
-                : "Ask the girls before you decide"}
+                : "Ask friends"}
           </button>
         </div>
       ) : null}
@@ -1215,10 +1216,28 @@ export function StudyingScan({
             </div>
             <button
               type="button"
-              className="mt-3 w-full rounded-xl border border-hairline py-2.5 text-[12px] font-bold text-ink-muted"
+              className="mt-3 w-full rounded-xl bg-ink py-2.5 text-[12px] font-bold text-white"
               onClick={() => {
                 setChallengerOpen(false);
+                const kind = pendingShareAction ?? "whatsapp";
                 setPendingShareAction(null);
+                void (kind === "whatsapp"
+                  ? shareAskOnWhatsApp()
+                  : copyAskLink());
+              }}
+            >
+              Share this look only
+            </button>
+            <button
+              type="button"
+              className="mt-2 w-full rounded-xl border border-hairline py-2.5 text-[12px] font-bold text-ink-muted"
+              onClick={() => {
+                setChallengerOpen(false);
+                const kind = pendingShareAction ?? "whatsapp";
+                setPendingShareAction(null);
+                void (kind === "whatsapp"
+                  ? shareAskOnWhatsApp()
+                  : copyAskLink());
               }}
             >
               Cancel

@@ -27,18 +27,20 @@ Everything else is skippable.
 
 ## 2. Flow overview
 
-**Live UI** (`OnboardingGate` + fitting steps): name → spend → photo/body → worn grid → wanted grid → loves/vetoes → honesty → **trusted circle** → verdict/card.
+**Live UI** (`OnboardingGate` + fitting steps): consent → photo → fit → name → life → spend → worn → nolist → honesty → **verdict** → circle.
 
 | Step | Screen |
 |------|--------|
-| `name` | `YouIdentityStep` |
+| `photo` | `FittingPhotoStep` (scan) |
+| `fit` | `FittingPhotoStep` (body) |
+| `name` | `YouIdentityStep` — clothing type Menswear / Womenswear / Both |
+| `life` | `TasteLifeStep` — week days + week ends (not dating) |
 | `spend` | `TasteSpendStep` |
-| `photo` | `FittingPhotoStep` |
-| `worn` / `wanted` | `TasteOutfitGridStep` |
+| `worn` | `TasteOutfitGridStep` |
 | `nolist` | `TasteLovesVetoesStep` |
-| `honesty` | `TasteHonestyStep` |
-| `circle` | `TasteCircleStep` (up to 3 first names → `FashionPerson` friends) |
+| `honesty` | `TasteHonestyStep` (1–5) |
 | `verdict` | `FittingVerdictStep` |
+| `circle` | `TasteCircleStep` (up to 3 first names → `FashionPerson` friends) |
 
 Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v2`.
 

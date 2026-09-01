@@ -4,11 +4,9 @@ import { MIN_ACCOUNT_AGE } from "@/lib/legal/constants";
 export const AGE_RANGES = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"] as const;
 
 export const GENDER_OPTIONS = [
-  { value: "masculine", label: "Masculine" },
-  { value: "feminine", label: "Feminine" },
-  { value: "androgynous", label: "Androgynous" },
-  { value: "nonbinary", label: "Non-binary" },
-  { value: "prefer not to say", label: "Prefer not to say" },
+  { value: "menswear", label: "Menswear" },
+  { value: "womenswear", label: "Womenswear" },
+  { value: "both", label: "Both" },
 ] as const;
 
 export const BUDGET_OPTIONS = [
@@ -61,9 +59,20 @@ export const DRESSING_FOR_OPTIONS = [
 ] as const;
 
 export const KIDS_OPTIONS = [
-  { value: "young", label: "Young kids" },
-  { value: "older", label: "Older kids" },
   { value: "none", label: "No kids" },
+  { value: "older", label: "Older kids" },
+  { value: "young", label: "Young kids" },
+] as const;
+
+/** What weekends look like — replaces dating / dressing-for. */
+export const WEEKEND_OPTIONS = [
+  { value: "home", label: "Home and rest" },
+  { value: "friends", label: "Out with friends" },
+  { value: "family", label: "Family time" },
+  { value: "outdoors", label: "Outdoors / sport" },
+  { value: "errands", label: "Errands" },
+  { value: "nightlife", label: "Nightlife" },
+  { value: "travel", label: "Traveling" },
 ] as const;
 
 export const CLIMATE_OPTIONS = [
@@ -76,6 +85,9 @@ export const CLIMATE_OPTIONS = [
 
 /** Who a suggestion is for. Omit = any presentation. */
 export type SuggestionAudience = "masculine" | "feminine";
+
+/** Quiz stores menswear/womenswear; older rows and tests still send masculine/feminine. */
+export type GenderPresentationBucket = "masculine" | "feminine" | "androgynous";
 
 export type ComfortOption = {
   value: string;
@@ -166,35 +178,37 @@ const CLIMATE_ALIASES: Record<string, ClimateValue> = {
   "cold": "cold",
 };
 
-/** Map the three life answers onto existing lifestyleTags so the outfit grid keeps working. */
+/** Map the life answers onto existing lifestyleTags so the outfit grid keeps working. */
 export function lifestyleTagsFromLife(input: {
   weekIs?: string | null;
   kids?: string | null;
 }): string[] {
   const tags = new Set<string>();
-  switch (input.weekIs) {
-    case "studying":
-      tags.add("campus_life");
-      break;
-    case "working_onsite":
-    case "working_home":
-    case "working_mixed":
-      tags.add("deep_in_career");
-      break;
-    case "own_thing":
-      tags.add("running_the_show");
-      break;
-    case "home_with_kids":
-      tags.add("kids_in_the_mix");
-      break;
-    case "retired":
-      tags.add("time_is_mine");
-      break;
-    default:
-      break;
+  for (const week of parseCsvValues(input.weekIs)) {
+    switch (week) {
+      case "studying":
+        tags.add("campus_life");
+        break;
+      case "working_onsite":
+      case "working_home":
+      case "working_mixed":
+        tags.add("deep_in_career");
+        break;
+      case "own_thing":
+        tags.add("running_the_show");
+        break;
+      case "home_with_kids":
+        tags.add("kids_in_the_mix");
+        break;
+      case "retired":
+        tags.add("time_is_mine");
+        break;
+      default:
+        break;
+    }
   }
-  if (input.kids === "young" || input.kids === "older") {
-    tags.add("kids_in_the_mix");
+  for (const kid of parseCsvValues(input.kids)) {
+    if (kid === "young" || kid === "older") tags.add("kids_in_the_mix");
   }
   return [...tags];
 }
@@ -216,13 +230,28 @@ export function isComfortConstraint(raw: string | null | undefined): boolean {
 
 export const HONESTY_OPTIONS = [
   {
-    value: "straight",
-    label: "Straight with me",
-    quote:
-      "Talk to me like a good friend. Nudge me when you need to — if it doesn't work on me, say so... and show me what does.",
+    value: "1",
+    label: "Hit me easy",
+    quote: "Keep it kind. Nudge me if it doesn't work — and show me what does.",
   },
   {
-    value: "no_mercy",
+    value: "2",
+    label: "Kind but honest",
+    quote: "Be a good friend. Soften the blow, but don't hide the truth.",
+  },
+  {
+    value: "3",
+    label: "Give it to me straight",
+    quote:
+      "Talk to me like a good friend. If it doesn't work on me, say so... and show me what does.",
+  },
+  {
+    value: "4",
+    label: "Don't sugarcoat it",
+    quote: "Skip the cushion. Tell me what works, what doesn't, and the swap.",
+  },
+  {
+    value: "5",
     label: "No mercy",
     quote:
       "Full stylist mode. Tell me exactly what works, what doesn't, and why. I can take it.",
@@ -231,25 +260,31 @@ export const HONESTY_OPTIONS = [
 
 export type HonestyPreference = (typeof HONESTY_OPTIONS)[number]["value"];
 
-/** Map UI + legacy stored values (`gentle`) onto the two live tones. */
+/** Map UI + legacy stored values onto the 1–5 scale. */
 export function normalizeHonestyPreference(
   value: string | null | undefined,
 ): HonestyPreference | "" {
   const v = value?.trim().toLowerCase().replace(/\s+/g, "_") ?? "";
   if (!v) return "";
-  if (v === "no_mercy" || v.includes("mercy") || v.includes("brutal")) {
-    return "no_mercy";
-  }
+  if (v === "1" || v === "gentle" || v.includes("easy")) return "1";
+  if (v === "2" || v.includes("kind")) return "2";
   if (
+    v === "3" ||
     v === "straight" ||
-    v === "gentle" ||
-    v.includes("soft") ||
-    v.includes("kind") ||
     v.includes("friend") ||
     v.includes("direct") ||
     v.includes("honest")
   ) {
-    return "straight";
+    return "3";
+  }
+  if (v === "4" || v.includes("sugar")) return "4";
+  if (
+    v === "5" ||
+    v === "no_mercy" ||
+    v.includes("mercy") ||
+    v.includes("brutal")
+  ) {
+    return "5";
   }
   return "";
 }
@@ -309,17 +344,53 @@ export function normalizeGender(raw: string | null | undefined): string {
   const t = raw.trim().toLowerCase();
   if (GENDER_OPTIONS.some((g) => g.value === t)) return t;
   const aliases: Record<string, (typeof GENDER_OPTIONS)[number]["value"]> = {
-    male: "masculine",
-    man: "masculine",
-    m: "masculine",
-    female: "feminine",
-    woman: "feminine",
-    f: "feminine",
-    "non-binary": "nonbinary",
-    nonbinary: "nonbinary",
-    nb: "nonbinary",
+    masculine: "menswear",
+    male: "menswear",
+    man: "menswear",
+    m: "menswear",
+    mens: "menswear",
+    feminine: "womenswear",
+    female: "womenswear",
+    woman: "womenswear",
+    f: "womenswear",
+    womens: "womenswear",
+    androgynous: "both",
+    mixed: "both",
+    "non-binary": "both",
+    nonbinary: "both",
+    nb: "both",
+    "prefer not to say": "both",
   };
   return aliases[t] ?? raw.trim();
+}
+
+export function genderPresentationBucket(
+  raw: string | null | undefined,
+): GenderPresentationBucket | "" {
+  const g = normalizeGender(raw) || raw?.trim().toLowerCase() || "";
+  if (
+    g === "menswear" ||
+    g === "masculine" ||
+    g === "mens"
+  ) {
+    return "masculine";
+  }
+  if (
+    g === "womenswear" ||
+    g === "feminine" ||
+    g === "womens"
+  ) {
+    return "feminine";
+  }
+  if (
+    g === "both" ||
+    g === "androgynous" ||
+    g === "nonbinary" ||
+    g === "prefer not to say"
+  ) {
+    return "androgynous";
+  }
+  return "";
 }
 
 export function normalizeAgeRange(raw: string | null | undefined): string {
@@ -350,6 +421,18 @@ export function parseCsvValues(raw: string | null | undefined): string[] {
 
 export function joinCsvValues(values: readonly string[]): string {
   return values.map((v) => v.trim()).filter(Boolean).join(",");
+}
+
+export function toggleCsvValue(csv: string, value: string): string {
+  const parts = parseCsvValues(csv);
+  const i = parts.indexOf(value);
+  if (i >= 0) parts.splice(i, 1);
+  else parts.push(value);
+  return joinCsvValues(parts);
+}
+
+export function csvHas(csv: string, value: string): boolean {
+  return parseCsvValues(csv).includes(value);
 }
 
 export function styleEraToAgeRange(era: string | null | undefined): string {

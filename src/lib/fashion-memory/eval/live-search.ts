@@ -101,6 +101,7 @@ export async function runLiveCatalogSearch(params: {
       userId: params.userId,
       traceId: params.traceId,
       searchId: params.searchId,
+      onProvisional: () => undefined,
       ...(mode !== "full" && params.previous
         ? {
             refinement: {

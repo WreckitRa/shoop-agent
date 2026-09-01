@@ -56,19 +56,18 @@ export function firstIncompleteFittingStep(
   if (status.onboarding.completed) return "photo";
   if (!status.onboarding.started) return "consent";
   const profile = status.profile;
+  if (!status.sizing?.heightCm && !status.sizing?.bodyType) return "fit";
   if (!hasYou(profile)) return "name";
   if (!hasLife(profile)) return "life";
   if (!profile?.valuePhilosophy?.trim()) return "spend";
-  if (!status.sizing?.heightCm && !status.sizing?.bodyType) return "fit";
   if (!hasCategory(status.tasteTags, "worn")) return "worn";
-  if (!hasCategory(status.tasteTags, "aspirational")) return "wanted";
   if (!profile?.honestyPreference?.trim()) {
     return status.brandPreferences.length > 0 ||
       status.hardNegatives.length > 0
       ? "honesty"
       : "nolist";
   }
-  return "circle";
+  return "verdict";
 }
 
 /**

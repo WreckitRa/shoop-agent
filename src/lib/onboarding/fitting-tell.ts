@@ -27,6 +27,7 @@ import {
   normalizeAgeRange,
   normalizeClimate,
   normalizeGender,
+  normalizeHonestyPreference,
   styleEraFromAge,
   styleEraToAgeRange,
 } from "@/lib/onboarding/form-options";
@@ -186,9 +187,11 @@ export function backfillFittingTellFromText(
 
   if (out.honestyPreference == null) {
     if (/\bno[-\s]?mercy|don'?t sugarcoat|brutal|harsh\b/i.test(t))
-      out.honestyPreference = "no_mercy";
-    else if (/\bgentle|soft nudge|straight with me|be (straight|direct|honest)\b/i.test(t))
-      out.honestyPreference = "straight";
+      out.honestyPreference = "5";
+    else if (/\bhit me easy|gentle|soft nudge\b/i.test(t))
+      out.honestyPreference = "1";
+    else if (/\bstraight with me|be (straight|direct|honest)\b/i.test(t))
+      out.honestyPreference = "3";
   }
 
   if (
@@ -288,23 +291,9 @@ export function normalizeFittingTellRaw(raw: unknown): unknown {
   }
 
   if (typeof o.honestyPreference === "string") {
-    const h = o.honestyPreference.trim().toLowerCase().replace(/\s+/g, "_");
-    if (h.includes("mercy") || h.includes("brutal") || h.includes("harsh")) {
-      o.honestyPreference = "no_mercy";
-    } else if (
-      h.includes("gentle") ||
-      h.includes("soft") ||
-      h.includes("kind") ||
-      h.includes("straight") ||
-      h.includes("honest") ||
-      h.includes("direct")
-    ) {
-      o.honestyPreference = "straight";
-    } else if (!(HONESTY_OPTIONS as readonly { value: string }[]).some((x) => x.value === h)) {
-      delete o.honestyPreference;
-    } else {
-      o.honestyPreference = h;
-    }
+    const mapped = normalizeHonestyPreference(o.honestyPreference);
+    if (mapped) o.honestyPreference = mapped;
+    else delete o.honestyPreference;
   }
 
   {
@@ -480,7 +469,7 @@ RULES
 - kids: young | older | none
 - climate: hot_humid | hot_dry | four_seasons | mild_wet | cold
 - styleLikes / styleAvoids: style descriptors (minimal, Parisian, preppy…)
-- honestyPreference: straight | no_mercy (only if they request feedback tone)
+- honestyPreference: 1 | 2 | 3 | 4 | 5 (only if they request feedback tone)
 - circleNames: up to 3 first names of people they ask for style opinions
   ("I ask Maya and Jordan" → ["Maya","Jordan"])
 - summary: warm 1-sentence confirmation. If some facts belong to later steps, say so plainly

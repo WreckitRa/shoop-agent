@@ -308,7 +308,7 @@ eligibleCount ≤ 2 → “Only N true {label} came back. Showing what matches �
 
 User message: `CURRENT DATE` + `BRIEF (JSON)` + recipient-only `RECIPIENT PROFILE`.
 
-Failure or hang (`PLANNER_HARD_MS` default **45s**) → `buildFallbackPlan`. **No second planner LLM call.** Outfit/capsule slot underflow → **deterministic expand** (`expandOutfitSlots` / `buildSlotsFromGarments`).
+Failure or hang (`PLANNER_HARD_MS` default **15s**) → `buildFallbackPlan`. **No second planner LLM call.** Outfit/capsule slot underflow → **deterministic expand** (`expandOutfitSlots` / `buildSlotsFromGarments`).
 
 ### 6.2 Per-slot plan fields
 
@@ -433,7 +433,7 @@ No budget stated → collapse to A + C (two queries). No taxonomy mapping → ev
 
 ### 8.2 Normalize
 
-Merchant color/size/department/attire labels → structured attributes. Cache + deterministic + fuzzy first; Haiku (`FASHION_NORMALIZE_MODEL`) on miss. Hang-safety `NORMALIZE_HARD_MS` default **45s**, fail-open (proceed without waiting forever).
+Merchant color/size/department/attire labels → structured attributes. Cache + deterministic + fuzzy first; Haiku (`FASHION_NORMALIZE_MODEL`) on miss. Hang-safety `NORMALIZE_HARD_MS` default **15s**, fail-open (proceed without waiting forever).
 
 ### 8.3 Hard drops (L3, final)
 
@@ -490,7 +490,12 @@ If survivors are too thin vs allocation:
 3. Re-run normalize → hard-drop → score for that slot.
 4. Narrate widening.
 
-If tension says the stated budget cannot produce a viable set **and** the user has not declined the budget gap: return `budget_raise_ask` with clarification questions. The stream **rewrites** the turn to `ask_clarification` — **no hydration, no curation, no find UI**. Declined twice → stop blocking (`skipBudgetRaiseAsk`).
+If a **required slot has zero verified items** after lift+hydrate and the
+gap is budget (infeasible tension or min-viable above the ceiling): return
+`budget_raise_ask`. The stream **rewrites** the turn to `ask_clarification`
+— **no curation, no find UI**. A non-empty verified set always proceeds
+(`budget_note` + **Loosen the budget** chip), even when tension is tight.
+Declined twice → stop blocking (`skipBudgetRaiseAsk`).
 
 ### 8.6 Hydration (L4)
 
@@ -632,8 +637,8 @@ Persisted on the assistant message:
 |-------|---------------|-------------|
 | Router | Sonnet `claude-sonnet-5` (`FASHION_ROUTER_MODEL`) | — |
 | Router escalation | Opus (`FASHION_ROUTER_ESCALATION_MODEL`) when invariants trip | — |
-| Planner | Haiku | 45s → deterministic plan |
-| Normalize | Haiku | 45s fail-open |
+| Planner | Haiku | 15s → deterministic plan |
+| Normalize | Haiku | 15s fail-open |
 | Brand translate | Haiku | (parallel with fan-out) |
 | Catalog query | MCP (no LLM) | hedge 3s / hard 20s |
 | Hydration wave | MCP | 60s |

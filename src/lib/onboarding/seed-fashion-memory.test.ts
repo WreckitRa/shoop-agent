@@ -8,12 +8,15 @@ import {
 } from "./seed-fashion-memory";
 
 describe("mapOnboardingGender", () => {
-  it("maps masculine/feminine to mens/womens", () => {
+  it("maps menswear/womenswear to mens/womens", () => {
+    assert.equal(mapOnboardingGender("menswear"), "mens");
+    assert.equal(mapOnboardingGender("womenswear"), "womens");
     assert.equal(mapOnboardingGender("masculine"), "mens");
     assert.equal(mapOnboardingGender("feminine"), "womens");
   });
 
-  it("maps androgynous / nonbinary / prefer-not-to-say to mixed", () => {
+  it("maps both / androgynous / nonbinary / prefer-not-to-say to mixed", () => {
+    assert.equal(mapOnboardingGender("both"), "mixed");
     assert.equal(mapOnboardingGender("androgynous"), "mixed");
     assert.equal(mapOnboardingGender("nonbinary"), "mixed");
     assert.equal(mapOnboardingGender("prefer not to say"), "mixed");

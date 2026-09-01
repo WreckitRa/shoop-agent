@@ -31,16 +31,17 @@ You are simulating, reviewing, extracting, or filling Shoop onboarding. Follow t
 |---|--------|--------|--------------------|
 | 1 | `consent` | Three yeses before a photo | All visible checkboxes |
 | 2 | `photo` | Face photograph | No — skip allowed |
-| 3 | `name` | Identity print | Name + clothing presentation + ≥1 style era |
-| 4 | `life` | Week / dressing / kids / climate | No |
-| 5 | `spend` | How you buy | No |
-| 6 | `fit` | Height / weight / build / shape | No (defaults apply later) |
+| 3 | `fit` | Height / weight / build / shape | No (defaults apply later) |
+| 4 | `name` | Identity print | Name + clothing type + ≥1 style era |
+| 5 | `life` | Week days / week ends / kids / climate | No |
+| 6 | `spend` | How you buy | No |
 | 7 | `worn` | Looks you actually wear | No — max 3 |
-| 8 | `wanted` | Looks you’d steal | No — max 2 |
-| 9 | `nolist` | Brand loves, comfort lines, vetoes | No |
-| 10 | `honesty` | Stylist tone | No |
-| 11 | `circle` | Who you ask | No — skip CTA |
-| 12 | `verdict` | Scan-check (if photo) then the card | Finish / save |
+| 8 | `nolist` | Brand loves, comfort lines, vetoes | No |
+| 9 | `honesty` | 1–5 honesty slider. **Lock it in** starts the verdict. | No |
+| 10 | `verdict` | Scan-check (if photo) then the card | Continue to circle |
+| 11 | `circle` | Who you actually ask | No — skip CTA |
+
+Clothing type chips: **Menswear · Womenswear · Both** (`menswear` / `womenswear` / `both`). Honesty stores `1`–`5` (legacy `gentle`→1, `straight`→3, `no_mercy`→5).
 
 Server complete still requires `preferredName`, `genderPresentation`, `ageRange` (`ageRange` is derived from birthday or style era — never asked as its own chip).
 

@@ -143,7 +143,7 @@ export type FashionCatalogSearchResult = {
   budget_tension?: import("../budget/budgetTension").BudgetTension;
   curation?: import("../curation/types").FashionCurationPresentation;
   curation_ms?: number;
-  /** Stop before hydrate/curation — ask user to raise budget. */
+  /** Stop before curation when a required slot has zero verified items. */
   budget_raise_ask?: import("../budget/budget-raise-ask").BudgetRaiseAsk;
   search_observability?: import("../observability/search-observability").SearchObservability;
 };

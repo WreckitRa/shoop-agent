@@ -259,6 +259,7 @@ type OnboardingPrefill = {
   comfort?: string;
   weekIs?: string;
   dressingFor?: string;
+  weekendsAre?: string;
   kids?: string;
   climate?: string;
   honestyPreference?: string;
@@ -296,6 +297,7 @@ function mergePrefillLatch(
     comfort: mergeCsvLabels(prev.comfort, next.comfort) ?? prev.comfort,
     weekIs: next.weekIs?.trim() || prev.weekIs,
     dressingFor: next.dressingFor?.trim() || prev.dressingFor,
+    weekendsAre: next.weekendsAre?.trim() || prev.weekendsAre,
     kids: next.kids?.trim() || prev.kids,
     climate: next.climate?.trim() || prev.climate,
     honestyPreference:
@@ -335,6 +337,7 @@ type OnboardingStatus = {
     climate: string | null;
     weekIs: string | null;
     dressingFor: string | null;
+    weekendsAre: string | null;
     kids: string | null;
     styleMix: StyleMix | null;
   } | null;
@@ -370,7 +373,7 @@ function profileLifeSaved(profile: OnboardingStatus["profile"]): boolean {
   if (!profile) return false;
   return Boolean(
     profile.weekIs?.trim() ||
-      profile.dressingFor?.trim() ||
+      profile.weekendsAre?.trim() ||
       profile.kids?.trim() ||
       profile.climate?.trim(),
   );
@@ -611,7 +614,7 @@ export function OnboardingGate() {
   const [styleEras, setStyleEras] = useState<string[]>([]);
   const [storedLifestyleTags, setStoredLifestyleTags] = useState<string[]>([]);
   const [weekIs, setWeekIs] = useState("");
-  const [dressingFor, setDressingFor] = useState("");
+  const [weekendsAre, setWeekendsAre] = useState("");
   const [kids, setKids] = useState("");
   const [climate, setClimate] = useState("");
   const detectedArea = useUserProfileStore((s) => s.detectedArea);
@@ -870,7 +873,7 @@ export function OnboardingGate() {
       );
     }
     if (prefill.weekIs) setWeekIs(prefill.weekIs);
-    if (prefill.dressingFor) setDressingFor(prefill.dressingFor);
+    if (prefill.weekendsAre) setWeekendsAre(prefill.weekendsAre);
     if (prefill.kids) setKids(prefill.kids);
     if (prefill.climate) {
       setClimate(normalizeClimate(prefill.climate) || prefill.climate);
@@ -948,7 +951,7 @@ export function OnboardingGate() {
         f.life ||
         Boolean(
           prefill.weekIs?.trim() ||
-            prefill.dressingFor?.trim() ||
+            prefill.weekendsAre?.trim() ||
             prefill.kids?.trim() ||
             prefill.climate?.trim(),
         ),
@@ -1043,8 +1046,8 @@ export function OnboardingGate() {
         );
       }
       if (next.profile?.weekIs?.trim()) setWeekIs(next.profile.weekIs.trim());
-      if (next.profile?.dressingFor?.trim()) {
-        setDressingFor(next.profile.dressingFor.trim());
+      if (next.profile?.weekendsAre?.trim()) {
+        setWeekendsAre(next.profile.weekendsAre.trim());
       }
       if (next.profile?.kids?.trim()) setKids(next.profile.kids.trim());
       if (next.profile?.climate?.trim()) {
@@ -1280,8 +1283,8 @@ export function OnboardingGate() {
   );
 
   const lifeValues = useMemo<TasteLifeValues>(
-    () => ({ weekIs, dressingFor, kids, climate }),
-    [weekIs, dressingFor, kids, climate],
+    () => ({ weekIs, weekendsAre, kids, climate }),
+    [weekIs, weekendsAre, kids, climate],
   );
 
   const lifeOnChange = useCallback(
@@ -1290,8 +1293,8 @@ export function OnboardingGate() {
         case "weekIs":
           setWeekIs(value);
           break;
-        case "dressingFor":
-          setDressingFor(value);
+        case "weekendsAre":
+          setWeekendsAre(value);
           break;
         case "kids":
           setKids(value);
@@ -1464,12 +1467,6 @@ export function OnboardingGate() {
   }, [step, wornDeck.length, loadOutfitDeck]);
 
   useEffect(() => {
-    if (step === "wanted" && aspirationalDeck.length === 0) {
-      void loadOutfitDeck("aspirational");
-    }
-  }, [step, aspirationalDeck.length, loadOutfitDeck]);
-
-  useEffect(() => {
     return () => {
       mintAbortRef.current = true;
     };
@@ -1613,7 +1610,7 @@ export function OnboardingGate() {
   }
 
   async function saveLife(): Promise<boolean> {
-    if (!weekIs && !dressingFor && !kids && !climate) {
+    if (!weekIs && !weekendsAre && !kids && !climate) {
       return true;
     }
     if (submissionLockRef.current) return false;
@@ -1629,7 +1626,7 @@ export function OnboardingGate() {
           patch: {
             profile: {
               weekIs: weekIs || null,
-              dressingFor: dressingFor || null,
+              weekendsAre: weekendsAre || null,
               kids: kids || null,
               climate: climate || null,
               lifestyleTags: derivedTags,
@@ -2004,7 +2001,7 @@ export function OnboardingGate() {
       muscularity: photoValues.muscularity ?? stored?.muscularity ?? null,
       bodyShape: photoValues.bodyShape ?? stored?.bodyShape ?? null,
       bustFullness: photoValues.bustFullness ?? stored?.bustFullness ?? null,
-      includeBust: normalizeGender(genderPresentation) === "feminine",
+      includeBust: normalizeGender(genderPresentation) === "womenswear",
     });
   }
 
@@ -2028,8 +2025,8 @@ export function OnboardingGate() {
     if (weightKg != null) ctx.weight_kg = weightKg;
     if (photoValues.legLine) ctx.torso_to_leg = photoValues.legLine;
     ctx.requested_coverage = photoValues.photoCoverage;
-    if (dressingFor.trim()) ctx.goal = dressingFor.trim();
     if (weekIs.trim()) ctx.week_is = weekIs.trim();
+    if (weekendsAre.trim()) ctx.weekends_are = weekendsAre.trim();
     if (climate.trim()) ctx.climate = climate.trim();
     return ctx;
   }
@@ -2257,7 +2254,7 @@ export function OnboardingGate() {
           muscularity: photoValues.muscularity,
           bodyShape: photoValues.bodyShape,
           bustFullness: photoValues.bustFullness,
-          includeBust: normalizeGender(genderPresentation) === "feminine",
+          includeBust: normalizeGender(genderPresentation) === "womenswear",
         };
         const prevMint = lastMintOptsRef.current;
         const silhouetteChanged =
@@ -2357,7 +2354,7 @@ export function OnboardingGate() {
           comfort,
           compliments: [],
           honestyPreference:
-            normalizeHonestyPreference(honestyPreference) || null,
+            normalizeHonestyPreference(honestyPreference) || "3",
           valuePhilosophy: valuePhilosophyWire,
           complete,
         }),
@@ -2523,7 +2520,18 @@ export function OnboardingGate() {
       return;
     }
     if (current === "photo") {
-      setStep("name");
+      setStep("fit");
+      return;
+    }
+    if (current === "fit") {
+      await runWithLoading({
+        nextStep: "name",
+        work: async () => {
+          const ok = await savePhotoAndAttrs();
+          if (!ok) return false;
+          return true;
+        },
+      });
       return;
     }
     if (current === "name") {
@@ -2542,18 +2550,10 @@ export function OnboardingGate() {
     }
     if (current === "spend") {
       await runWithLoading({
-        nextStep: "fit",
-        work: () => saveSpend(),
-      });
-      return;
-    }
-    if (current === "fit") {
-      await runWithLoading({
         nextStep: "worn",
         work: async () => {
-          const ok = await savePhotoAndAttrs();
+          const ok = await saveSpend();
           if (!ok) return false;
-          // Deck loads on the worn step (and may already be prefetching).
           void loadOutfitDeck("worn");
           return true;
         },
@@ -2562,20 +2562,8 @@ export function OnboardingGate() {
     }
     if (current === "worn") {
       await runWithLoading({
-        nextStep: "wanted",
-        work: async () => {
-          const ok = await saveTaste(false, "worn");
-          if (!ok) return false;
-          void loadOutfitDeck("aspirational");
-          return true;
-        },
-      });
-      return;
-    }
-    if (current === "wanted") {
-      await runWithLoading({
         nextStep: "nolist",
-        work: () => saveTaste(false, "wanted"),
+        work: () => saveTaste(false, "worn"),
       });
       return;
     }
@@ -2588,25 +2576,25 @@ export function OnboardingGate() {
     }
     if (current === "honesty") {
       await runWithLoading({
-        nextStep: "circle",
+        nextStep: "verdict",
         work: async () => {
           const ok = await saveTaste(false, "final");
           if (!ok) return false;
+          setHoldOpen(true);
+          useInlineFittingStore.getState().setComposerLocked(true);
           return true;
         },
       });
       return;
     }
+    if (current === "verdict") {
+      setStep("circle");
+      return;
+    }
     if (current === "circle") {
-      await runWithLoading({
-        nextStep: "verdict",
-        work: async () => {
-          const ok = await saveCircle();
-          if (!ok) return false;
-          setHoldOpen(true);
-          return true;
-        },
-      });
+      const ok = await saveCircle();
+      if (!ok) return;
+      await completeOnboarding();
     }
   }
 
@@ -2649,7 +2637,7 @@ export function OnboardingGate() {
             hardAvoids: hardAvoids.length ? hardAvoids : undefined,
             comfort: comfort.length ? comfort : undefined,
             weekIs: weekIs || undefined,
-            dressingFor: dressingFor || undefined,
+            weekendsAre: weekendsAre || undefined,
             kids: kids || undefined,
             climate: climate || undefined,
             honestyPreference: honestyPreference || undefined,
@@ -2683,7 +2671,7 @@ export function OnboardingGate() {
           hardAvoids?: string[];
           comfort?: string[];
           weekIs?: string;
-          dressingFor?: string;
+          weekendsAre?: string;
           kids?: string;
           climate?: string;
           honestyPreference?: string;
@@ -2733,7 +2721,8 @@ export function OnboardingGate() {
         comfort:
           json.extraction?.comfort?.join(", ") ?? json.prefill?.comfort,
         weekIs: json.extraction?.weekIs ?? json.prefill?.weekIs,
-        dressingFor: json.extraction?.dressingFor ?? json.prefill?.dressingFor,
+        weekendsAre:
+          json.extraction?.weekendsAre ?? json.prefill?.weekendsAre,
         kids: json.extraction?.kids ?? json.prefill?.kids,
         climate: json.extraction?.climate ?? json.prefill?.climate,
         budgetPhilosophy:
@@ -2843,7 +2832,7 @@ export function OnboardingGate() {
    * Uses image provenance (in-house style photo, not Shopify).
    */
   useEffect(() => {
-    if (step !== "verdict") return;
+    if (step !== "verdict" || finale !== "card") return;
     if (dressKickRef.current) return;
     if (twinStatus !== "ready" || !twinAvatarUrl) return;
     if (dressStatus === "ready" || dressStatus === "dressing") return;
@@ -2957,6 +2946,7 @@ export function OnboardingGate() {
     })();
   }, [
     step,
+    finale,
     twinStatus,
     twinAvatarUrl,
     wornPicks,
@@ -3008,7 +2998,7 @@ export function OnboardingGate() {
       muscularity: photoValues.muscularity,
       bodyShape: photoValues.bodyShape,
       bustFullness:
-        normalizeGender(genderPresentation) === "feminine"
+        normalizeGender(genderPresentation) === "womenswear"
           ? photoValues.bustFullness
           : null,
       legLine: photoValues.legLine,
@@ -3078,9 +3068,10 @@ export function OnboardingGate() {
     const wasGuest = wasGuestRef.current;
     wasGuestRef.current = accessMode === "guest";
     if (!wasGuest || accessMode !== "authenticated") return;
-    if (step !== "verdict") return;
-    void completeOnboarding();
-  }, [accessMode, step]);
+    if (step === "verdict" && finale === "card") {
+      setStep("circle");
+    }
+  }, [accessMode, step, finale]);
 
   const progressPct =
     step === "verdict"
@@ -3333,7 +3324,7 @@ export function OnboardingGate() {
             onContinue={() => void advanceFrom("fit")}
             busy={busy}
             showContinue
-            showBust={normalizeGender(genderPresentation) === "feminine"}
+            showBust={normalizeGender(genderPresentation) === "womenswear"}
           />
         ) : null}
 
@@ -3352,27 +3343,6 @@ export function OnboardingGate() {
             }
             why="Your real wardrobe is my starting point. The dream comes next."
             onContinue={() => void advanceFrom("worn")}
-            busy={busy}
-          />
-        ) : null}
-
-        {step === "wanted" ? (
-          <TasteOutfitGridStep
-            mode="aspirational"
-            cards={aspirationalDeck}
-            selectedIds={aspirationalPicks.map((p) => p.id)}
-            maxPicks={2}
-            loading={aspirationalLoading}
-            loadingMore={aspirationalLoadingMore}
-            hasMore={aspirationalHasMore}
-            onSeeMore={() =>
-              void loadOutfitDeck("aspirational", { more: true })
-            }
-            onToggle={(card) =>
-              setAspirationalPicks((prev) => togglePick(prev, card, 2))
-            }
-            why="Where you're headed matters as much as where you are. I dress both."
-            onContinue={() => void advanceFrom("wanted")}
             busy={busy}
           />
         ) : null}
@@ -3424,47 +3394,9 @@ export function OnboardingGate() {
             onSkip={() => {
               void (async () => {
                 setCircleNames(["", "", ""]);
-                await runWithLoading({
-                  nextStep: "verdict",
-                  work: async () => {
-                    if (!accountReady) {
-                      setPersistedFlags((f) => ({ ...f, circleSaved: true }));
-                      setHoldOpen(true);
-                      return true;
-                    }
-                    // Persist empty circle (skip) without racing setState.
-                    if (submissionLockRef.current) return false;
-                    submissionLockRef.current = true;
-                    setBusy(true);
-                    setError(null);
-                    try {
-                      const res = await guestFetch("/api/onboarding/circle", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ names: [] }),
-                      });
-                      if (!res.ok) {
-                        const json = (await res.json()) as { error?: string };
-                        throw new Error(
-                          json.error ?? "Could not skip trusted circle.",
-                        );
-                      }
-                      setPersistedFlags((f) => ({ ...f, circleSaved: true }));
-                      setHoldOpen(true);
-                      return true;
-                    } catch (e) {
-                      setError(
-                        e instanceof Error
-                          ? e.message
-                          : "Could not skip trusted circle.",
-                      );
-                      return false;
-                    } finally {
-                      submissionLockRef.current = false;
-                      setBusy(false);
-                    }
-                  },
-                });
+                const ok = await saveCircle();
+                if (!ok) return;
+                await completeOnboarding();
               })();
             }}
             busy={busy}
@@ -3513,16 +3445,19 @@ export function OnboardingGate() {
             circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
             dressStatus={dressStatus}
             dressStyleLabel={dressStyleLabel}
+            dressedLookUrl={
+              dressStatus === "ready" ? dressedAvatarUrl : null
+            }
             busy={busy}
             ctaLabel={
-              accountReady ? undefined : "Save your progress and log in"
+              accountReady ? "Who do you actually ask?" : "Save your progress and log in"
             }
             onMeetTwin={() => {
               if (!accountReady) {
                 openAuthModal("signup");
                 return;
               }
-              void completeOnboarding();
+              void advanceFrom("verdict");
             }}
             shareCopied={shareCopied}
             onShare={(selectedCircle) => {

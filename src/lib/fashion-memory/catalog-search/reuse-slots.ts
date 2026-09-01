@@ -44,6 +44,10 @@ export type ReusedSlot = {
   family: string;
   slot: FashionSlotCatalogResult;
   verified: HydratedCandidate[];
+  prepared_images?: Record<
+    string,
+    import("../curation/curation-images").CurationImageBlock
+  >;
 };
 
 export function indexPoolsByFamily(rows: SearchPoolRow[]): Map<string, ReusedSlot> {
@@ -54,9 +58,51 @@ export function indexPoolsByFamily(rows: SearchPoolRow[]): Map<string, ReusedSlo
       family,
       slot: slotFromPoolRow(row),
       verified: row.state.verified,
+      prepared_images: row.state.prepared_images,
     });
   }
   return out;
+}
+
+/** True when every plan slot already has a persisted verified bench. */
+export function reusedBenchIsAssembled(params: {
+  mode: "rescore-only" | "partial" | "full";
+  reusedByFamily: Map<string, ReusedSlot>;
+  planSlots: Array<{ garment: string }>;
+}): boolean {
+  if (params.mode !== "rescore-only") return false;
+  if (params.reusedByFamily.size === 0) return false;
+  return params.planSlots.every((s) =>
+    params.reusedByFamily.has(familyKeyForSlot(s.garment)),
+  );
+}
+
+/** Keep hydrated rows that survived rescore; copy new scores/taste onto them. */
+export function attachReusedVerified(params: {
+  slots: FashionSlotCatalogResult[];
+  reuseVerifiedBySlot: Map<string, HydratedCandidate[]>;
+}): FashionSlotCatalogResult[] {
+  return params.slots.map((slot) => {
+    const reused = params.reuseVerifiedBySlot.get(slot.slot_id) ?? [];
+    if (!reused.length) return slot;
+    const scoreById = new Map(slot.products.map((p) => [p.id, p]));
+    const survivorIds = new Set(slot.products.map((p) => p.id));
+    const verified = reused
+      .filter((c) => survivorIds.size === 0 || survivorIds.has(c.id))
+      .map((c) => {
+        const scored = scoreById.get(c.id);
+        if (!scored) return c;
+        return {
+          ...c,
+          score: scored.score ?? c.score,
+          taste_rating: scored.taste_rating ?? c.taste_rating,
+        };
+      });
+    return {
+      ...slot,
+      verified_pool: verified.length ? verified : reused,
+    };
+  });
 }
 
 /** Bind a persisted bench onto a (possibly new) plan slot id. */

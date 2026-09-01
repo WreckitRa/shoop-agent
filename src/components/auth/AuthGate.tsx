@@ -13,7 +13,6 @@ import { ShoopLogo } from "@/components/brand/ShoopBrand";
 import { flushGuestChatStateForMigration } from "@/components/chat/chat-store";
 import { cn } from "@/lib/ai-chat/cn";
 import { LEGAL_PATHS, MIN_ACCOUNT_AGE } from "@/lib/legal/constants";
-import { maxBirthDateIso } from "@/lib/onboarding/form-options";
 import {
   clearGuestSession,
   exportGuestDataForMigration,
@@ -94,7 +93,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [birthDate, setBirthDate] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
@@ -291,7 +289,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
       const body =
         mode === "signup"
-          ? { email, password, birthDate, acceptTerms }
+          ? { email, password, acceptTerms }
           : { email, password };
 
       const res = await fetch(endpoint, {
@@ -409,11 +407,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         onModeChange={handleAuthModeChange}
         email={email}
         password={password}
-        birthDate={birthDate}
         acceptTerms={acceptTerms}
         onEmailChange={setEmail}
         onPasswordChange={setPassword}
-        onBirthDateChange={setBirthDate}
         onAcceptTermsChange={setAcceptTerms}
         error={error}
         busy={busy}
@@ -505,11 +501,9 @@ type AuthModalProps = {
   onModeChange: (mode: AuthMode) => void;
   email: string;
   password: string;
-  birthDate: string;
   acceptTerms: boolean;
   onEmailChange: (v: string) => void;
   onPasswordChange: (v: string) => void;
-  onBirthDateChange: (v: string) => void;
   onAcceptTermsChange: (v: boolean) => void;
   error: string | null;
   busy: boolean;
@@ -534,11 +528,9 @@ function AuthModal({
   onModeChange,
   email,
   password,
-  birthDate,
   acceptTerms,
   onEmailChange,
   onPasswordChange,
-  onBirthDateChange,
   onAcceptTermsChange,
   error,
   busy,
@@ -562,7 +554,7 @@ function AuthModal({
   const loginSubmitBlocked =
     showLoginDataLossGuard && !loginDataLossAcknowledged;
   const signupSubmitBlocked =
-    mode === "signup" && (!birthDate || !acceptTerms);
+    mode === "signup" && !acceptTerms;
   const column = layout === "column";
 
   return (
@@ -747,25 +739,7 @@ function AuthModal({
           />
         </label>
         {mode === "signup" ? (
-          <>
-            <label className="block space-y-2">
-              <span className="text-[12.5px] font-extrabold text-[var(--fitting-ink)]">
-                Date of birth
-              </span>
-              <input
-                type="date"
-                required
-                max={maxBirthDateIso(MIN_ACCOUNT_AGE)}
-                value={birthDate}
-                onChange={(e) => onBirthDateChange(e.target.value)}
-                className={inputClassName}
-              />
-              <span className="block text-[11px] font-semibold text-[var(--fitting-quiet)]">
-                You must be at least {MIN_ACCOUNT_AGE}. We don&apos;t create
-                accounts for anyone younger.
-              </span>
-            </label>
-            <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-snug text-[var(--fitting-quiet)]">
+          <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-snug text-[var(--fitting-quiet)]">
               <input
                 type="checkbox"
                 checked={acceptTerms}
@@ -791,10 +765,9 @@ function AuthModal({
                 >
                   Privacy Policy
                 </a>
-                . United States only.
+                , and I am at least {MIN_ACCOUNT_AGE}. United States only.
               </span>
             </label>
-          </>
         ) : null}
         {showLoginDataLossGuard ? (
           <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/60 px-3.5 py-3 text-sm leading-snug text-amber-950">

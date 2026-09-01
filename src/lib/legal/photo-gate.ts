@@ -9,6 +9,20 @@ export type PhotoProcessGate =
   | { ok: true }
   | { ok: false; status: 401 | 403; error: string };
 
+/** Signup checkbox or a stored birthday that is at least 13. Underage DOB always fails. */
+export function signedInPhotoAgeOk(profile: {
+  birthDate: Date | string | null | undefined;
+  ageAttestedAt: Date | string | null | undefined;
+}): boolean {
+  if (profile.birthDate && !isAtLeastAge(profile.birthDate, MIN_ACCOUNT_AGE)) {
+    return false;
+  }
+  if (profile.ageAttestedAt) return true;
+  return Boolean(
+    profile.birthDate && isAtLeastAge(profile.birthDate, MIN_ACCOUNT_AGE),
+  );
+}
+
 export async function assertPhotoProcessingAllowed(params: {
   userId: string;
   isGuest: boolean;
@@ -33,13 +47,16 @@ export async function assertPhotoProcessingAllowed(params: {
 
   const profile = await prisma.userProfile.findUnique({
     where: { userId: params.userId },
-    select: { birthDate: true },
+    select: { birthDate: true, ageAttestedAt: true },
   });
-  if (!profile?.birthDate || !isAtLeastAge(profile.birthDate, MIN_ACCOUNT_AGE)) {
+  if (!signedInPhotoAgeOk({
+    birthDate: profile?.birthDate ?? null,
+    ageAttestedAt: profile?.ageAttestedAt ?? null,
+  })) {
     return {
       ok: false,
       status: 403,
-      error: `We need your date of birth, and you must be at least ${MIN_ACCOUNT_AGE}, before any photograph is processed.`,
+      error: `Confirm you are at least ${MIN_ACCOUNT_AGE} before any photograph is processed.`,
     };
   }
 

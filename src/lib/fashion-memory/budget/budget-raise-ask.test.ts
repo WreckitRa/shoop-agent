@@ -7,7 +7,9 @@ import {
   BUDGET_RAISE_CONTINUE_OPTION,
   buildBudgetRaiseAskFromContext,
   buildBudgetRaiseClarification,
+  ensureLoosenBudgetChip,
   estimateMinViableSetTotal,
+  LOOSEN_BUDGET_CHIP,
   parseBudgetRaiseAnswer,
   shouldAskBudgetRaise,
   suggestRaisedBudgets,
@@ -108,34 +110,99 @@ describe("estimateMinViableSetTotal", () => {
 });
 
 describe("shouldAskBudgetRaise", () => {
-  it("asks on infeasible tension", () => {
+  it("asks when a required slot has zero verified and tension is infeasible", () => {
     const plan = outfitPlan(300);
     assert.equal(
       shouldAskBudgetRaise({
         plan,
         tension: { severity: "infeasible", slots: [] },
         slots: [
-          { slot_id: "blazer", market_prices: { min_viable: 80 } },
-          { slot_id: "dress_shirt", market_prices: { min_viable: 30 } },
+          { slot_id: "blazer", market_prices: { min_viable: 80 }, verified_count: 2 },
+          {
+            slot_id: "dress_shirt",
+            market_prices: { min_viable: 30 },
+            verified_count: 0,
+          },
+          {
+            slot_id: "dress_pants",
+            market_prices: { min_viable: 40 },
+            verified_count: 3,
+          },
         ],
       }),
       true,
     );
   });
 
-  it("asks when outfit min-viable sum exceeds ceiling", () => {
+  it("does not ask when infeasible but every required slot has verified (proceed + note)", () => {
+    const plan = outfitPlan(100);
+    assert.equal(
+      shouldAskBudgetRaise({
+        plan,
+        tension: { severity: "infeasible", slots: [] },
+        slots: [
+          { slot_id: "blazer", market_prices: { min_viable: 90 }, verified_count: 1 },
+          {
+            slot_id: "dress_shirt",
+            market_prices: { min_viable: 35 },
+            verified_count: 2,
+          },
+          {
+            slot_id: "dress_pants",
+            market_prices: { min_viable: 40 },
+            verified_count: 1,
+          },
+        ],
+      }),
+      false,
+    );
+  });
+
+  it("asks when outfit min-viable exceeds ceiling and a required slot is empty", () => {
     const plan = outfitPlan(100);
     assert.equal(
       shouldAskBudgetRaise({
         plan,
         tension: { severity: "tight", slots: [] },
         slots: [
-          { slot_id: "blazer", market_prices: { min_viable: 90 } },
-          { slot_id: "dress_shirt", market_prices: { min_viable: 35 } },
-          { slot_id: "dress_pants", market_prices: { min_viable: 40 } },
+          { slot_id: "blazer", market_prices: { min_viable: 90 }, verified_count: 0 },
+          {
+            slot_id: "dress_shirt",
+            market_prices: { min_viable: 35 },
+            verified_count: 2,
+          },
+          {
+            slot_id: "dress_pants",
+            market_prices: { min_viable: 40 },
+            verified_count: 1,
+          },
         ],
       }),
       true,
+    );
+  });
+
+  it("does not ask when min-viable exceeds ceiling but every slot has verified", () => {
+    const plan = outfitPlan(100);
+    assert.equal(
+      shouldAskBudgetRaise({
+        plan,
+        tension: { severity: "tight", slots: [] },
+        slots: [
+          { slot_id: "blazer", market_prices: { min_viable: 90 }, verified_count: 1 },
+          {
+            slot_id: "dress_shirt",
+            market_prices: { min_viable: 35 },
+            verified_count: 1,
+          },
+          {
+            slot_id: "dress_pants",
+            market_prices: { min_viable: 40 },
+            verified_count: 1,
+          },
+        ],
+      }),
+      false,
     );
   });
 
@@ -146,9 +213,17 @@ describe("shouldAskBudgetRaise", () => {
         plan,
         tension: { severity: "tight", slots: [] },
         slots: [
-          { slot_id: "blazer", market_prices: { min_viable: 80 } },
-          { slot_id: "dress_shirt", market_prices: { min_viable: 35 } },
-          { slot_id: "dress_pants", market_prices: { min_viable: 40 } },
+          { slot_id: "blazer", market_prices: { min_viable: 80 }, verified_count: 2 },
+          {
+            slot_id: "dress_shirt",
+            market_prices: { min_viable: 35 },
+            verified_count: 2,
+          },
+          {
+            slot_id: "dress_pants",
+            market_prices: { min_viable: 40 },
+            verified_count: 2,
+          },
         ],
       }),
       false,
@@ -161,7 +236,9 @@ describe("shouldAskBudgetRaise", () => {
       shouldAskBudgetRaise({
         plan,
         tension: { severity: "infeasible", slots: [] },
-        slots: [{ slot_id: "blazer", market_prices: { min_viable: 200 } }],
+        slots: [
+          { slot_id: "blazer", market_prices: { min_viable: 200 }, verified_count: 0 },
+        ],
         skip: true,
       }),
       false,
@@ -189,7 +266,9 @@ describe("shouldAskBudgetRaise", () => {
       shouldAskBudgetRaise({
         plan,
         tension: { severity: "tight", slots: [] },
-        slots: [{ slot_id: "blazer", market_prices: { min_viable: 200 } }],
+        slots: [
+          { slot_id: "blazer", market_prices: { min_viable: 200 }, verified_count: 0 },
+        ],
       }),
       false,
     );
@@ -216,19 +295,50 @@ describe("buildBudgetRaiseClarification", () => {
 });
 
 describe("buildBudgetRaiseAskFromContext", () => {
-  it("returns ask payload when gate fires", () => {
+  it("returns ask payload when a required slot is empty", () => {
     const ask = buildBudgetRaiseAskFromContext({
       plan: outfitPlan(100),
       tension: { severity: "tight", slots: [] },
       slots: [
-        { slot_id: "blazer", market_prices: { min_viable: 90 } },
-        { slot_id: "dress_shirt", market_prices: { min_viable: 40 } },
-        { slot_id: "dress_pants", market_prices: { min_viable: 50 } },
+        { slot_id: "blazer", market_prices: { min_viable: 90 }, verified_count: 0 },
+        {
+          slot_id: "dress_shirt",
+          market_prices: { min_viable: 40 },
+          verified_count: 1,
+        },
+        {
+          slot_id: "dress_pants",
+          market_prices: { min_viable: 50 },
+          verified_count: 1,
+        },
       ],
     });
     assert.ok(ask);
     assert.equal(ask!.reason, "set_below_min_viable");
     assert.equal(ask!.stated_max, 100);
+  });
+
+  it("returns null when every required slot has verified items", () => {
+    assert.equal(
+      buildBudgetRaiseAskFromContext({
+        plan: outfitPlan(100),
+        tension: { severity: "infeasible", slots: [] },
+        slots: [
+          { slot_id: "blazer", market_prices: { min_viable: 90 }, verified_count: 1 },
+          {
+            slot_id: "dress_shirt",
+            market_prices: { min_viable: 40 },
+            verified_count: 1,
+          },
+          {
+            slot_id: "dress_pants",
+            market_prices: { min_viable: 50 },
+            verified_count: 1,
+          },
+        ],
+      }),
+      null,
+    );
   });
 
   it("returns null when fundable", () => {
@@ -237,8 +347,12 @@ describe("buildBudgetRaiseAskFromContext", () => {
         plan: outfitPlan(400),
         tension: { severity: "none", slots: [] },
         slots: [
-          { slot_id: "blazer", market_prices: { min_viable: 80 } },
-          { slot_id: "dress_shirt", market_prices: { min_viable: 30 } },
+          { slot_id: "blazer", market_prices: { min_viable: 80 }, verified_count: 2 },
+          {
+            slot_id: "dress_shirt",
+            market_prices: { min_viable: 30 },
+            verified_count: 2,
+          },
         ],
       }),
       null,
@@ -258,6 +372,17 @@ describe("parseBudgetRaiseAnswer", () => {
     assert.deepEqual(parseBudgetRaiseAnswer(BUDGET_RAISE_CONTINUE_OPTION), {
       kind: "continue",
     });
+  });
+});
+
+describe("ensureLoosenBudgetChip", () => {
+  it("injects Loosen the budget, replacing a lower-budget chip", () => {
+    const next = ensureLoosenBudgetChip({
+      text: "Want me to tweak a piece?",
+      chips: ["Swap the shirt", "Bolder on top", "Same, lower budget", "2 more looks"],
+    });
+    assert.ok(next.chips.includes(LOOSEN_BUDGET_CHIP));
+    assert.equal(next.chips.includes("Same, lower budget"), false);
   });
 });
 

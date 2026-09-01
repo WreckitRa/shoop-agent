@@ -13,18 +13,19 @@ import {
 import { backfillFittingTellFromText } from "@/lib/onboarding/fitting-tell";
 
 describe("fitting circle step model", () => {
-  it("places consent first, then photo, then name/life/spend", () => {
+  it("places consent, photo, then fit before name", () => {
     assert.deepEqual(FITTING_Q_STEPS.slice(0, 6), [
       "consent",
       "photo",
+      "fit",
       "name",
       "life",
       "spend",
-      "fit",
     ]);
     assert.deepEqual(FITTING_Q_STEPS.slice(-2), ["honesty", "circle"]);
-    assert.equal(FITTING_STEPS.at(-2), "circle");
-    assert.equal(FITTING_STEPS.at(-1), "verdict");
+    assert.equal(FITTING_STEPS.at(-2), "verdict");
+    assert.equal(FITTING_STEPS.at(-1), "circle");
+    assert.ok(!FITTING_STEPS.includes("wanted" as (typeof FITTING_STEPS)[number]));
     assert.ok(STITCH_KNOTS.some((k) => k.id === "life"));
     assert.ok(STITCH_KNOTS.some((k) => k.id === "fit"));
     assert.ok(STITCH_KNOTS.some((k) => k.id === "circle"));
@@ -39,19 +40,18 @@ describe("fitting circle step model", () => {
   it("maps honesty/circle to the Circle knot and verdict to mint", () => {
     assert.equal(knotNowIndex("consent"), 0);
     assert.equal(knotNowIndex("photo"), 0);
-    assert.equal(knotNowIndex("life"), 2);
-    assert.equal(knotNowIndex("fit"), 4);
-    assert.equal(knotNowIndex("honesty"), 8);
-    assert.equal(knotNowIndex("circle"), 8);
-    assert.equal(knotNowIndex("verdict"), 9);
+    assert.equal(knotNowIndex("fit"), 1);
+    assert.equal(knotNowIndex("name"), 2);
+    assert.equal(knotNowIndex("life"), 3);
+    assert.equal(knotNowIndex("honesty"), 7);
+    assert.equal(knotNowIndex("circle"), 7);
+    assert.equal(knotNowIndex("verdict"), 8);
     assert.equal(sewnThroughIndex("consent"), -1);
     assert.equal(sewnThroughIndex("photo"), -1);
-    assert.equal(sewnThroughIndex("name"), 0);
-    assert.equal(sewnThroughIndex("life"), 1);
-    assert.equal(sewnThroughIndex("spend"), 2);
-    assert.equal(sewnThroughIndex("honesty"), 7);
-    assert.equal(sewnThroughIndex("circle"), 8);
-    assert.equal(sewnThroughIndex("verdict"), 9);
+    assert.equal(sewnThroughIndex("fit"), 0);
+    assert.equal(sewnThroughIndex("name"), 1);
+    assert.equal(sewnThroughIndex("verdict"), 7);
+    assert.equal(sewnThroughIndex("circle"), 7);
   });
 
   it("formats mirror circle labels", () => {

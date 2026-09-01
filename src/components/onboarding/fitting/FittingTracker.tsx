@@ -43,7 +43,6 @@ function factsForKnot(
       return out;
     }
     case "worn":
-    case "wanted":
       return mirror.leanLabel && mirror.leanLabel !== "—"
         ? [{ text: mirror.leanLabel }]
         : [];

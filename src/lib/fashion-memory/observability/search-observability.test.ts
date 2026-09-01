@@ -5,6 +5,7 @@ import {
   emptyStageLatency,
   laneMixFromRatings,
   mcpHitsFromQueryLogs,
+  mcpQueryDurationStats,
 } from "./search-observability";
 
 describe("search observability helpers", () => {
@@ -42,10 +43,23 @@ describe("search observability helpers", () => {
     );
   });
 
+  it("mcpQueryDurationStats reports p95 of query walls", () => {
+    const stats = mcpQueryDurationStats(
+      [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 5000].map(
+        (duration_ms) => ({ duration_ms }),
+      ),
+    );
+    assert.equal(stats.n, 11);
+    assert.equal(stats.p50_ms, 600);
+    assert.equal(stats.p95_ms, 5000);
+    assert.equal(stats.max_ms, 5000);
+  });
+
   it("empty latency has null totals", () => {
     const l = emptyStageLatency();
     assert.equal(l.total_to_provisional_ms, null);
     assert.equal(l.planner_ms, 0);
+    assert.equal(l.image_prep_ms, 0);
   });
 
   it("laneMixFromRatings counts unlabeled separately", () => {

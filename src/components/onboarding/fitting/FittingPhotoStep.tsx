@@ -591,12 +591,31 @@ export function FittingPhotoStep({
             <FittingCta onClick={onContinue} disabled={busy}>
               {busy ? "Saving…" : "Keep going... it's developing"}
             </FittingCta>
+            <button
+              type="button"
+              onClick={onSkipPhoto}
+              disabled={busy}
+              className="mt-3 border-0 bg-transparent p-0 font-sans text-[12.5px] font-semibold text-[var(--fitting-quiet)] underline decoration-[#C4C4CC] underline-offset-4 hover:text-[var(--fitting-ink)]"
+            >
+              Skip for now
+            </button>
+          </div>
+        ) : scan ? (
+          <div className="sticky bottom-0 z-[4] mt-8 bg-gradient-to-t from-white via-white/95 to-transparent pt-6">
+            <button
+              type="button"
+              onClick={onSkipPhoto}
+              disabled={busy}
+              className="border-0 bg-transparent p-0 font-sans text-[12.5px] font-semibold text-[var(--fitting-quiet)] underline decoration-[#C4C4CC] underline-offset-4 hover:text-[var(--fitting-ink)]"
+            >
+              Skip for now
+            </button>
           </div>
         ) : (
           <FittingNavRow
             onNext={onContinue}
             busy={busy}
-            nextLabel={scan ? "Skip for now" : "Lock it in"}
+            nextLabel="Lock it in"
           />
         )
       ) : null}

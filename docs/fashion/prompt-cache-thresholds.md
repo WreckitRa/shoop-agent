@@ -26,7 +26,7 @@ Static-prefix sizes measured as `ceil(chars / 3.5)` on the system string only
 
 | Stage | Model | Static tokens (approx) | Min | Cacheable? | Why |
 | --- | --- | ---: | ---: | --- | --- |
-| `router` | Haiku 4.5 | ~4,866 | 4,096 | **yes** | `ROUTER_PROMPT_STATIC` clears the floor. Turn 1 writes; turn 2+ should read. |
+| `router` | Sonnet 5 | ~4,866 | 1,024 | **yes** | `ROUTER_PROMPT_STATIC` clears the floor. Turn 1 writes; turn 2+ should read. |
 | `planner` | Haiku 4.5 | ~1,713 | 4,096 | **no** | Under floor. Marker present; zeros expected. **Do not pad.** |
 | `normalize_llm` | Haiku 4.5 | ~391 | 4,096 | **no** | Tiny classifier prompt. Zeros = n/a. |
 | `extraction` | Haiku 4.5 | ~1,877 | 4,096 | **no** | Under floor. **Do not pad.** |

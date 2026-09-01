@@ -44,6 +44,7 @@ describe("sanitizeBriefGarments", () => {
   it("keeps known garments", () => {
     assert.equal(isStylePhraseGarment("shirt"), false);
     assert.equal(isStylePhraseGarment("cool style laid back"), true);
+    assert.equal(isStylePhraseGarment("maternity romper"), false);
   });
 
   it("does not invent shirt/trousers/shoes when all garments are style fluff", () => {
@@ -58,8 +59,8 @@ describe("sanitizeBriefGarments", () => {
 
   it("collapses shoe/shoes to one family (cmsriozum0017k4xg4g6nm2h9)", () => {
     const out = sanitizeBriefGarments(
-      baseBrief({ garments: ["top", "bottom", "shoe", "shoes"] }),
+      baseBrief({ garments: ["top", "trousers", "shoe", "shoes"] }),
     );
-    assert.deepEqual(out.garments, ["top", "bottom", "shoe"]);
+    assert.deepEqual(out.garments, ["top", "trousers", "shoe"]);
   });
 });

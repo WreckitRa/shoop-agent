@@ -6,7 +6,6 @@ import {
   FittingNavRow,
   FittingTitle,
   FittingWhisper,
-  OnboardingTile,
 } from "@/components/onboarding/onboarding-ui";
 
 type Props = {
@@ -16,12 +15,20 @@ type Props = {
   busy?: boolean;
 };
 
+const SCALE = HONESTY_OPTIONS.map((o) => o.value);
+
 export function TasteHonestyStep({
   value,
   onChange,
   onContinue,
   busy,
 }: Props) {
+  const current = SCALE.includes(value as (typeof SCALE)[number])
+    ? value
+    : "3";
+  const idx = Math.max(0, SCALE.indexOf(current as (typeof SCALE)[number]));
+  const opt = HONESTY_OPTIONS[idx]!;
+
   return (
     <section>
       <FittingKick>PERSON</FittingKick>
@@ -37,16 +44,38 @@ export function TasteHonestyStep({
         <b>yes that gets you the same look.</b>
       </FittingWhisper>
 
-      <div className="grid max-w-[680px] grid-cols-1 gap-2.5 sm:grid-cols-3">
-        {HONESTY_OPTIONS.map((opt) => (
-          <OnboardingTile
-            key={opt.value}
-            selected={value === opt.value}
-            onClick={() => onChange(opt.value)}
-            title={opt.label}
-            hint={`“${opt.quote}”`}
-          />
-        ))}
+      <div className="mt-6 max-w-[520px]">
+        <input
+          type="range"
+          min={1}
+          max={5}
+          step={1}
+          value={Number(current)}
+          onChange={(e) => onChange(e.target.value)}
+          aria-valuemin={1}
+          aria-valuemax={5}
+          aria-valuenow={Number(current)}
+          aria-label={opt.label}
+          className="w-full accent-[var(--fitting-red)]"
+        />
+        <div className="mt-2 flex justify-between gap-1 text-[10px] font-semibold text-[var(--fitting-quiet)]">
+          {HONESTY_OPTIONS.map((o) => (
+            <span
+              key={o.value}
+              className={
+                o.value === current
+                  ? "font-extrabold text-[var(--fitting-ink)]"
+                  : undefined
+              }
+            >
+              {o.value} · {o.label}
+            </span>
+          ))}
+        </div>
+        <p className="mt-4 text-[14px] leading-[1.55] text-[var(--fitting-quiet)]">
+          <b className="font-semibold text-[var(--fitting-ink)]">{opt.label}.</b>{" "}
+          “{opt.quote}”
+        </p>
       </div>
 
       {onContinue ? (

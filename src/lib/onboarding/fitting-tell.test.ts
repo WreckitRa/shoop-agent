@@ -39,7 +39,7 @@ describe("fitting-tell", () => {
       brandLikes: ["COS"],
     });
     assert.equal(patch.profile?.preferredName, "Alex");
-    assert.equal(patch.profile?.genderPresentation, "masculine");
+    assert.equal(patch.profile?.genderPresentation, "menswear");
     assert.ok(patch.profile?.styleEra?.includes("30s"));
     assert.equal(patch.profile?.valuePhilosophy, "best_value,luxury");
     assert.equal(patch.sizing?.bodyType, "athletic");

@@ -4,11 +4,8 @@ import { MIN_ACCOUNT_AGE } from "@/lib/legal/constants";
 import {
   GENDER_OPTIONS,
   STYLE_ERAS,
-  ageYearsFromBirthDate,
   isAtLeastAge,
   maxBirthDateIso,
-  styleEraFromAge,
-  styleErasForAge,
 } from "@/lib/onboarding/form-options";
 import {
   FittingField,
@@ -67,60 +64,11 @@ export function YouIdentityStep({
   onContinue,
   busy,
 }: Props) {
-  const ageYears =
-    !values.birthDateSkipped &&
-    /^\d{4}-\d{2}-\d{2}$/.test(values.birthDate) &&
-    isAtLeastAge(values.birthDate, MIN_ACCOUNT_AGE)
-      ? ageYearsFromBirthDate(values.birthDate)
-      : null;
-
-  const eraOptions =
-    ageYears != null
-      ? styleErasForAge(ageYears)
-      : STYLE_ERAS.filter((e) =>
-          [
-            "13_14",
-            "15_17",
-            "18_22",
-            "23_29",
-            "30s",
-            "40s",
-            "50s_60s",
-            "65_plus",
-          ].includes(e.value),
-        );
-
   const underage =
     Boolean(values.birthDate) &&
     /^\d{4}-\d{2}-\d{2}$/.test(values.birthDate) &&
     !values.birthDateSkipped &&
     !isAtLeastAge(values.birthDate, MIN_ACCOUNT_AGE);
-
-  function onBirthdayChange(raw: string) {
-    onChange("birthDateSkipped", false);
-    if (!raw) {
-      onChange("birthDate", "");
-      return;
-    }
-    onChange("birthDate", raw);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && isAtLeastAge(raw, MIN_ACCOUNT_AGE)) {
-      const age = ageYearsFromBirthDate(raw);
-      if (age != null) {
-        const guess = styleEraFromAge(age);
-        const allowed = new Set(
-          styleErasForAge(age).map((e) => e.value as string),
-        );
-        const kept = values.styleEras.filter((e) => allowed.has(e));
-        if (kept.length === 0) {
-          onChange("styleEras", [guess]);
-        } else if (!kept.includes(guess)) {
-          onChange("styleEras", [guess, ...kept.filter((e) => e !== guess)]);
-        } else {
-          onChange("styleEras", kept);
-        }
-      }
-    }
-  }
 
   return (
     <section>
@@ -143,7 +91,7 @@ export function YouIdentityStep({
         autoFocus
       />
 
-      <FittingQlbl>How do you shop for clothing?</FittingQlbl>
+      <FittingQlbl>Which type of clothings do you shop for?</FittingQlbl>
       <div className="flex max-w-[620px] flex-wrap gap-2.5">
         {GENDER_OPTIONS.map((opt) => (
           <OnboardingChip
@@ -167,7 +115,10 @@ export function YouIdentityStep({
           value={values.birthDate}
           max={MAX_BIRTH_DATE}
           disabled={values.birthDateSkipped}
-          onChange={(e) => onBirthdayChange(e.target.value)}
+          onChange={(e) => {
+            onChange("birthDateSkipped", false);
+            onChange("birthDate", e.target.value);
+          }}
           className="min-w-[200px] rounded-[13px] border-[1.5px] border-[var(--fitting-g3)] bg-white px-3.5 py-2.5 font-display text-[15px] font-bold text-[var(--fitting-ink)] outline-none focus:border-[var(--fitting-ink)] disabled:opacity-50"
         />
         <OnboardingChip
@@ -191,18 +142,12 @@ export function YouIdentityStep({
         shown, never used to box you in.
       </OnboardingWhy>
 
-      <FittingQlbl
-        hint={
-          ageYears != null
-            ? "birthday narrowed these… pick one or more"
-            : "pick one or more... style doesn't check ID"
-        }
-      >
+      <FittingQlbl hint="pick one or more... style doesn't check ID">
         Which era is your style living in?
       </FittingQlbl>
       <FittingMulti>PICK AS MANY AS ARE TRUE</FittingMulti>
       <div className="mt-3 flex max-w-[620px] flex-wrap gap-2">
-        {eraOptions.map((era) => (
+        {STYLE_ERAS.map((era) => (
           <OnboardingChip
             key={era.value}
             selected={values.styleEras.includes(era.value)}

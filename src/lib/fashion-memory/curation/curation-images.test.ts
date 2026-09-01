@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import sharp from "sharp";
-import { fetchAndResizeCurationImage } from "./curation-images";
+import { fetchAndResizeCurationImage, seedCurationImageCache, clearCurationImageCache } from "./curation-images";
 import { CURATION_IMAGE_MAX_PX } from "./config";
 
 test("fetchAndResizeCurationImage resizes oversized originals under the Anthropic cap", async () => {
@@ -50,5 +50,27 @@ test("fetchAndResizeCurationImage returns null on fetch failure", async () => {
     assert.equal(block, null);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("seeded 512px cache is reused without a network fetch", async () => {
+  clearCurationImageCache();
+  const url = "https://images.example.com/prepared.jpg";
+  seedCurationImageCache({
+    [url]: {
+      type: "image",
+      source: { type: "base64", media_type: "image/jpeg", data: "aaa" },
+    },
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new Error("network should not run");
+  }) as typeof fetch;
+  try {
+    const block = await fetchAndResizeCurationImage(url);
+    assert.equal(block?.source.data, "aaa");
+  } finally {
+    globalThis.fetch = originalFetch;
+    clearCurationImageCache();
   }
 });

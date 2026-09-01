@@ -106,6 +106,9 @@ export function ShoopFindCard({
         {priceLabel ? (
           <span className="shoop-vitem__price">{priceLabel}</span>
         ) : null}
+        <span className="shoop-vitem__drag" aria-hidden>
+          Drag onto twin
+        </span>
         {!hideTryOnOverlay ? (
           <FittingRoomAction
             item={fittingItem}

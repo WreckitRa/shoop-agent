@@ -6,8 +6,8 @@ import {
   parseStyleUserReview,
 } from "./review";
 import { verdictReadiness } from "./verdict-input";
-import { parseStylistVerdict, STYLIST_VERDICT_ROOT_KEYS } from "./verdict";
-import { STYLIST_VERDICT_SCHEMA } from "./verdict-prompt";
+import { STYLIST_READING_ROOT_KEYS, STYLIST_READING_SCHEMA, STYLIST_VERDICT_SCHEMA } from "./verdict-prompt";
+import { hydrateStylistVerdict, parseStylistVerdict, STYLIST_VERDICT_ROOT_KEYS } from "./verdict";
 import type { StylePhotoAnalysis } from "./result";
 
 describe("style photo review", () => {
@@ -154,5 +154,49 @@ describe("stylist verdict readiness", () => {
       [...STYLIST_VERDICT_ROOT_KEYS],
     );
     assert.equal(parseStylistVerdict({}), null);
+  });
+
+  it("parses a reading-card payload after hydrating unused roots", () => {
+    assert.deepEqual(
+      [...STYLIST_READING_SCHEMA.required],
+      [...STYLIST_READING_ROOT_KEYS],
+    );
+    const reading = {
+      verdict_status: {
+        readiness: "final",
+        overall_confidence: 0.8,
+        data_completeness: 0.8,
+        sources_used: ["questionnaire"],
+        remaining_unknowns: [],
+        assumptions: [],
+        verdict_scope: "fitting card",
+      },
+      executive_verdict: {
+        headline: "Clean lines",
+        profile_summary: "You wear structure well.",
+        signature_style_statement: "Tailored ease",
+        desired_impression: ["sharp"],
+        impressions_to_avoid: ["sloppy"],
+        strongest_assets: ["shoulders"],
+        biggest_opportunities: ["rise"],
+        non_negotiables: ["ease"],
+        top_priorities: ["jacket"],
+      },
+      user_facing_verdict: {
+        title: "Clean lines",
+        opening: "Keep the shoulder honest.",
+        golden_rules: ["Structure over cling"],
+        mistakes_to_avoid: ["Boxy everything"],
+        first_five_actions: ["One jacket that fits"],
+        confidence_note: "High",
+        review_trigger: "If your week changes",
+      },
+    };
+    const parsed = parseStylistVerdict(reading);
+    assert.ok(parsed);
+    assert.equal(parsed.executive_verdict.headline, "Clean lines");
+    const hydrated = hydrateStylistVerdict(reading) as Record<string, unknown>;
+    assert.ok("shopping_engine_profile" in hydrated);
+    assert.ok("wardrobe_plan" in hydrated);
   });
 });

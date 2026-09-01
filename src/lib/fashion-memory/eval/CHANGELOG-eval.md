@@ -3,6 +3,96 @@
 Each entry: prompt/code change → target cell → before/after scores from
 `eval/runs/<seed>-*/summary.json`.
 
+## S5b — attribute, then cut (2026-08-29)
+
+No Stage A quality/rung changes. Baseline is the same 17
+`1-v4-taste-2026-08-28T10-33-01-155Z` (percentile = `ceil(p·n)-1`).
+
+**Attribution (before cuts).** `total_to_final` starts at catalog search, so
+planner sits outside that wall. Pre-Stage-A from user turn ≈ planner +
+(`total_to_final` − A − B): p50 **6.0 + 42.5 ≈ 48.5s**. Sequential sum of
+named catalog stages is only ~24s p50 — the rest is brand translate, budget
+lift, recipient-profile rebuild, and image fetch folded into Stage A.
+`image_prep_ms` was not a field (0 / inside Stage A). Query logs were not
+persisted on eval artifacts, so MCP query p95 was unknown.
+
+| stage | n | p50 | p95 | named win |
+|---|---:|---:|---:|---|
+| planner_ms | 17 | 5998 | 9428 | hang-safety 45s→15s (p95 already <15s; caps hung calls) |
+| fan_out_ms | 17 | 2553 | 12254 | already `Promise.all` slots + `Promise.all` variants/lanes per slot |
+| normalize_ms | 17 | 9137 | **27627** | hang-safety 45s→15s (this tail) |
+| hard_drops_ms | 17 | 32 | 102 | — |
+| score_ms | 17 | 5 | 23 | — |
+| taste_rerank_ms | 17 | 3877 | 4356 | overlap with first hydrate wave |
+| hydrate_ms | 17 | 8568 | **35038** | first wave when first shortlist exists; capsule slots no longer serial |
+| image_prep_ms | 0 | — | — | per-item on verify (first search, not only refinement persist) |
+| stage_a_ms | 17 | 14244 | 46977 | untouched |
+| stage_b_ms | 17 | 6217 | 12955 | — |
+| render_ms | 17 | 0 | 1 | — |
+| total_to_provisional_ms | **0** | — | — | eval never passed `onProvisional` |
+| total_to_final_ms | 17 | 62950 | 130445 | p50 < 45s |
+
+Sofia rescore-only baseline (`1-v4-s2-sofia-2026-08-28T10-52-09-563Z`):
+**34903ms** (target < 20s).
+
+Landed: `PLANNER_HARD_MS` / `NORMALIZE_HARD_MS` **15s**; hydrate first-wave
+overlap with per-slot taste + parallel capsule slots; `prefetchCurationImageUrls`
+on verify during `fillToTarget` (first search); `onProvisional` wired in
+`eval/live-search.ts`; `image_prep_ms` + `mcp_query` on observability.
+
+**Fan-out:** slots `Promise.allSettled`; per slot, variant/lane plans
+`Promise.all` (hedge spare in parallel). Not serial.
+
+Re-run `1-v4-taste-s5b-2026-08-29T15-26-55-045Z` (n=17, skip-judge):
+
+| stage | n | p50 | p95 | vs baseline p50 |
+|---|---:|---:|---:|---|
+| planner_ms | 17 | 5355 | 9229 | −0.6s |
+| fan_out_ms | 17 | 9038 | 16703 | **+6.5s** (MCP this pass; code is parallel) |
+| normalize_ms | 17 | 5291 | 26584 | −3.8s (p95 still >15s — cache load sits outside the LLM race) |
+| hydrate_ms | 17 | 5459 | 22759 | −3.1s / p95 −12.3s |
+| image_prep_ms | 17 | 0 | 847 | cache hits after verify-prefetch |
+| stage_a_ms | 17 | 13498 | 19928 | −0.7s (no rung change) |
+| total_to_provisional_ms | 16 | 25021 | 65950 | now recorded |
+| total_to_final_ms | 17 | **37881** | 95476 | −25.1s |
+| mcp_query p95 (per search) | 17 | 4664 | **7542** | — |
+
+Gates: p50 final **37.9s < 45s PASS**. Sofia rescore-only **12783ms < 20s PASS**
+(`refinement_mode=rescore-only`; first search had 0 verified on boots/coat so
+no provisional on that row). Provisional **recorded 16/17**, p50 **25.0s**
+(target < 20s **MISS** — catalog still barriers on all-slot normalize before
+any hydrate; this pass’s fan-out p50 was 9s).
+
+## Pilot prep — S3 budget abort, S5 image reuse, alerts (2026-08-29)
+
+S3: `budget_raise_ask` only when a **required slot has zero verified**.
+Infeasible/tight with a non-empty verified set proceeds (`budget_note` +
+**Loosen the budget** chip). Fixture: `budget-raise-ask.test.ts`.
+
+S5 latency on last full-stage run `1-v4-taste-2026-08-28T10-33-01-155Z`
+(n=17, percentile = `ceil(p·n)-1`):
+
+| stage | n | p50 | p95 | target |
+|---|---:|---:|---:|---|
+| total_to_provisional_ms | 0 | — | — | p50 < 20s |
+| total_to_final_ms | 17 | 62950 | 130445 | p50 < 45s |
+| stage_a_ms | 17 | 14244 | 46977 | no degradation |
+| hydrate_ms | 17 | 8568 | 35038 | skip on rescore reuse |
+| taste_rerank_ms | 17 | 3877 | 4356 | — |
+| planner_ms | 17 | 5998 | 9428 | — |
+| fan_out_ms | 17 | 2553 | 12254 | — |
+| normalize_ms | 17 | 9137 | 27627 | — |
+| stage_b_ms | 17 | 6217 | 12955 | — |
+
+Sofia rescore-only (`1-v4-s2-sofia-2026-08-28T10-52-09-563Z`): **34903ms**
+(target < 20s). Stage A still ~14.5s — the floor. Named wins only: persist
+prepared 512px JPEGs on `search_pools`; seed the curation image cache on
+refinement; start Stage A when the reused bench is assembled (skip hydrate
+on rescore-only). `chooseStageARung` still always full.
+
+Pilot: `pilot_alerts` table; `purchase_memory_missing_search_id` writes a
+row; `/admin/pilot-health` + daily SQL in `docs/fashion/pilot.md`.
+
 ## S1e / S2 — occasion not a string gate; tiny-budget images; 12b explore notch (2026-08-28)
 
 S2's failure on S1d was exact-match on `occasion_context` (`commute` vs

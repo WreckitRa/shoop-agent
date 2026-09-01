@@ -31,12 +31,37 @@ export function genderFromUserProfile(
 ): GenderPresentation | null {
   const t = raw?.trim().toLowerCase() ?? "";
   if (!t) return null;
-  if (/\b(men|mens|men'?s|masculine|male)\b/.test(t)) return "mens";
-  if (/\b(women|womens|women'?s|feminine|female)\b/.test(t)) return "womens";
   if (
-    /\b(mix|mixed|non.?binary|fluid|both|androgynous)\b/.test(t) ||
+    t === "menswear" ||
+    t === "mens" ||
+    t === "masculine" ||
+    t === "male" ||
+    t === "man"
+  ) {
+    return "mens";
+  }
+  if (
+    t === "womenswear" ||
+    t === "womens" ||
+    t === "feminine" ||
+    t === "female" ||
+    t === "woman"
+  ) {
+    return "womens";
+  }
+  if (
+    t === "both" ||
+    t === "mixed" ||
+    t === "androgynous" ||
+    t === "nonbinary" ||
+    t === "non-binary" ||
     t === "prefer not to say"
   ) {
+    return "mixed";
+  }
+  if (/\b(men|mens|men'?s|masculine|male)\b/.test(t)) return "mens";
+  if (/\b(women|womens|women'?s|feminine|female)\b/.test(t)) return "womens";
+  if (/\b(mix|mixed|non.?binary|fluid|both|androgynous)\b/.test(t)) {
     return "mixed";
   }
   return null;

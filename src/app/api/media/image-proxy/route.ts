@@ -10,6 +10,7 @@ export function isAllowedImageHost(hostname: string): boolean {
   return (
     host.endsWith(".supabase.co") ||
     host.endsWith(".supabase.in") ||
+    // FASHN outputs: cdn.fashn.ai today, media.fashn.ai from 2026-09-02.
     host.endsWith(".fashn.ai") ||
     host === "fashn.ai" ||
     host.endsWith(".amazonaws.com") ||

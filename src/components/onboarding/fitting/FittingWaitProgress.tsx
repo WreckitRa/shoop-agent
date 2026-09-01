@@ -17,24 +17,24 @@ export const VERDICT_WAIT_STEPS: WaitStep[] = [
     detail: "Face, coloring, and what you confirmed — not guessing from the photo alone.",
   },
   {
-    atMs: 12_000,
-    label: "Matching body & proportions",
+    atMs: 8_000,
+    label: "Matching body",
     detail: "Height, build, and silhouette so the advice actually fits.",
   },
   {
-    atMs: 35_000,
-    label: "Weighing worn vs wanted",
-    detail: "What you already love against what you’re reaching for.",
+    atMs: 16_000,
+    label: "Weighing what you wear",
+    detail: "What you already love against the week ahead.",
   },
   {
-    atMs: 70_000,
-    label: "Writing your golden rules",
+    atMs: 28_000,
+    label: "Writing your rules",
     detail: "The do / don’t lines that stay useful for months.",
   },
   {
-    atMs: 110_000,
+    atMs: 40_000,
     label: "Sharpening the verdict",
-    detail: "Still going — big profiles take a couple of minutes. Stay here.",
+    detail: "Almost there — stay here.",
   },
 ];
 
@@ -56,12 +56,13 @@ export const SCAN_WAIT_STEPS: WaitStep[] = [
   },
 ];
 
-function formatElapsed(ms: number): string {
-  const sec = Math.floor(ms / 1000);
+function formatRemaining(ms: number, expectedMs: number): string {
+  const left = Math.max(0, expectedMs - ms);
+  const sec = Math.ceil(left / 1000);
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  if (m <= 0) return `${s}s`;
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  if (m <= 0) return `${s}s left`;
+  return `${m}:${s.toString().padStart(2, "0")} left`;
 }
 
 /** Asymptotic bar — approaches ~92%, never claims 100% until done. */
@@ -80,7 +81,7 @@ function activeStepIndex(steps: WaitStep[], elapsedMs: number): number {
 
 export function FittingWaitProgress({
   steps,
-  expectedMs = 90_000,
+  expectedMs = 55_000,
   className,
 }: {
   steps: WaitStep[];
@@ -124,7 +125,7 @@ export function FittingWaitProgress({
           </span>
         </div>
         <span className="shrink-0 font-mono text-[10px] font-semibold tabular-nums text-[var(--fitting-quiet)]">
-          {formatElapsed(elapsedMs)}
+          {formatRemaining(elapsedMs, expectedMs)}
         </span>
       </div>
 

@@ -63,8 +63,9 @@ ready_to_search + FashionSearchBrief
   │     ├─ parallel slot MCP search (+ brand-translate prefetch)
   │     ├─ normalize → hard-drops → score
   │     ├─ budget lift retries
-  │     ├─ budget_raise_ask? → abort (no hydrate/curation)
-  │     ├─ hydrate verified_pool / overflow
+  │     ├─ hydrate verified_pool / overflow (skip on rescore-only reused bench)
+  │     ├─ budget_raise_ask? only if a required slot has 0 verified → abort curation
+  │     ├─ else proceed (budget_note + Loosen the budget when tight)
   │     ├─ PROVISIONAL rack → SSE fashion_catalog_search { provisional: true }
   │     │     narrate "Showing verified options while I finish styling"
   │     ├─ prefetch curation images
@@ -386,7 +387,9 @@ If survivors too thin vs allocation:
 
 If tension says stated budget cannot produce a viable set and user has not declined the budget gap:
 
-- Return `budget_raise_ask` with clarification questions
+If a required slot has zero verified after hydrate, return `budget_raise_ask`.
+Otherwise proceed with `budget_note` + Loosen the budget. Declined twice →
+`skipBudgetRaiseAsk`.
 - Stream **rewrites** the turn to `ask_clarification` (no curation UI)
 - Skippable via `skipBudgetRaiseAsk` when gap already declined
 

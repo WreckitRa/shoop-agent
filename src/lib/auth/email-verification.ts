@@ -17,7 +17,9 @@ function verifyCookieSecret(): string {
 
 export type SignupVerifyCookie = {
   email: string;
+  /** Legacy cookie field — new signups attest age without a birthday. */
   birthDate?: string | null;
+  ageAttested?: boolean | null;
   termsVersion?: string | null;
 };
 
@@ -30,6 +32,7 @@ export function signVerifyEmailCookie(
       : {
           email: payload.email.trim().toLowerCase(),
           birthDate: payload.birthDate ?? null,
+          ageAttested: payload.ageAttested ?? null,
           termsVersion: payload.termsVersion ?? null,
         };
   const encoded = Buffer.from(JSON.stringify(data)).toString("base64url");
@@ -68,6 +71,7 @@ export function readVerifyEmailCookie(
       return {
         email,
         birthDate: parsed.birthDate ?? null,
+        ageAttested: parsed.ageAttested ?? null,
         termsVersion: parsed.termsVersion ?? null,
       };
     }

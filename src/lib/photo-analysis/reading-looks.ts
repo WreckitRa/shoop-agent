@@ -27,7 +27,7 @@ export type ReadingLookItem = ReadingLookQuery & {
   product: ReadingLookProduct | null;
 };
 
-const LOOK_COUNT = 3;
+const LOOK_COUNT = 5;
 const PIECES_PER_LOOK = 4;
 const MAX_QUERIES = LOOK_COUNT * PIECES_PER_LOOK;
 

@@ -6,6 +6,7 @@ import { LogIn, LogOut, Settings, UserPlus } from "lucide-react";
 import { useSidebarUser } from "@/components/chat/useSidebarUser";
 import { cn } from "@/lib/ai-chat/cn";
 import { openAuthModal, useGuestMode } from "@/hooks/useGuestMode";
+import { closeYouOverlays } from "@/lib/client/close-you-overlays";
 import { prepareClientForSignedOut } from "@/lib/client/identity-sync";
 
 export function SidebarUserFooter() {
@@ -90,7 +91,10 @@ export function SidebarUserFooter() {
               <Link
                 href="/profile"
                 role="menuitem"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  closeYouOverlays();
+                }}
                 className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-tint"
               >
                 <Settings className="size-4 shrink-0 text-ink-soft" />

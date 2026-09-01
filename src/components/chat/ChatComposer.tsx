@@ -9,6 +9,7 @@ import { useSuggestedPrompt } from "@/components/chat/useSuggestedPrompt";
 import { ShoopIcon } from "@/components/brand/ShoopBrand";
 import { LegalFooterLinks } from "@/components/legal/LegalFooterLinks";
 import { cn } from "@/lib/ai-chat/cn";
+import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 
 const HOME_PLACEHOLDERS = [
   '"Day house party outfit… cool and comfy, under $250."',
@@ -41,6 +42,7 @@ export function ChatComposer({
   const clearComposerReplyContext = useChatStore(
     (s) => s.clearComposerReplyContext,
   );
+  const composerLocked = useInlineFittingStore((s) => s.composerLocked);
   const [homePlaceholderIndex, setHomePlaceholderIndex] = useState(0);
 
   const suggestedPlaceholder = useSuggestedPrompt();
@@ -116,12 +118,14 @@ export function ChatComposer({
     ta.current?.focus({ preventScroll: true });
   }, []);
 
-  const canSubmit = input.trim().length > 0;
-  const placeholder = isStreaming
-    ? "Type your next message…"
-    : isHomeEmpty
-      ? HOME_PLACEHOLDERS[homePlaceholderIndex]
-      : suggestedPlaceholder;
+  const canSubmit = !composerLocked && input.trim().length > 0;
+  const placeholder = composerLocked
+    ? "Finish the fitting first…"
+    : isStreaming
+      ? "Type your next message…"
+      : isHomeEmpty
+        ? HOME_PLACEHOLDERS[homePlaceholderIndex]
+        : suggestedPlaceholder;
 
   return (
     <div
@@ -171,6 +175,7 @@ export function ChatComposer({
               rows={isHeroComposer ? 2 : isHomeEmpty ? 1 : 2}
               placeholder={placeholder}
               value={input}
+              disabled={composerLocked}
               aria-busy={isStreaming || undefined}
               aria-label="Ask Shoop"
               onChange={(e) => {

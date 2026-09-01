@@ -15,6 +15,8 @@ export const INLINE_FITTING_CARD_SLOT_ID = "shoop-inline-fitting-card";
 type InlineFittingState = {
   columnOpen: boolean;
   onboardingActive: boolean;
+  /** Lock the chat composer once they hit Lock it in (honesty → verdict). */
+  composerLocked: boolean;
   /** User closed the column — don't auto-reopen or fall back to fullscreen. */
   columnDismissed: boolean;
   /** Re-open The Fitting after onboarding is already complete (create/update twin). */
@@ -32,11 +34,13 @@ type InlineFittingState = {
   confirmLeave: () => void;
   clearReplay: () => void;
   setOnboardingActive: (active: boolean) => void;
+  setComposerLocked: (locked: boolean) => void;
 };
 
 export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
   columnOpen: false,
   onboardingActive: false,
+  composerLocked: false,
   columnDismissed: false,
   replayFitting: false,
   pendingLeave: false,
@@ -71,7 +75,12 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
     });
   },
   closeColumn: () =>
-    set({ columnOpen: false, replayFitting: false, pendingLeave: false }),
+    set({
+      columnOpen: false,
+      replayFitting: false,
+      pendingLeave: false,
+      composerLocked: false,
+    }),
   dismissColumn: () => {
     markOnboardingUiDismissed();
     set({
@@ -79,6 +88,7 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
       columnDismissed: true,
       replayFitting: false,
       pendingLeave: false,
+      composerLocked: false,
     });
   },
   requestDismiss: () => {
@@ -99,6 +109,7 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
   confirmLeave: () => get().dismissColumn(),
   clearReplay: () => set({ replayFitting: false }),
   setOnboardingActive: (onboardingActive) => set({ onboardingActive }),
+  setComposerLocked: (composerLocked) => set({ composerLocked }),
 }));
 
 export function getInlineFittingSlot(): HTMLElement | null {

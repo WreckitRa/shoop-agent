@@ -39,6 +39,7 @@ import { useShowSettingsBadge } from "@/hooks/useUserIdentity";
 import { useToastStore } from "@/lib/client/toast-store";
 import { openAuthModal, useGuestMode } from "@/hooks/useGuestMode";
 import { prepareClientForSignedOut } from "@/lib/client/identity-sync";
+import { closeYouOverlays } from "@/lib/client/close-you-overlays";
 import { cn } from "@/lib/ai-chat/cn";
 
 export {
@@ -150,6 +151,7 @@ function SidebarCollapsedRail({ onNewShoop }: { onNewShoop: () => void }) {
           href="/profile"
           title="Settings"
           aria-label="Settings"
+          onClick={() => closeYouOverlays()}
           className={cn(sidebarRailButtonClass, "my-0.5")}
         >
           <Settings className={sidebarRailIconClass} strokeWidth={1.75} />

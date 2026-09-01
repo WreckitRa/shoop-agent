@@ -69,7 +69,7 @@ export function AskLookCard({ token, initialShare }: Props) {
   );
   const [noteDraft, setNoteDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreen, setFullscreen] = useState<"a" | "b" | false>(false);
 
   const voterKey = useMemo(() => getAskVoterKey(), []);
 
@@ -299,7 +299,7 @@ export function AskLookCard({ token, initialShare }: Props) {
                   key={side}
                   type="button"
                   className="shoop-ask-imhit relative overflow-hidden rounded-lg"
-                  onClick={() => setFullscreen(true)}
+                  onClick={() => setFullscreen(side)}
                   aria-label={`See ${label}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -314,7 +314,7 @@ export function AskLookCard({ token, initialShare }: Props) {
             <button
               type="button"
               className="shoop-ask-imhit"
-              onClick={() => setFullscreen(true)}
+              onClick={() => setFullscreen("a")}
               aria-label="See full look"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -337,7 +337,7 @@ export function AskLookCard({ token, initialShare }: Props) {
           <button
             type="button"
             className="shoop-ask-fullbtn"
-            onClick={() => setFullscreen(true)}
+            onClick={() => setFullscreen("a")}
           >
             Full look
           </button>
@@ -659,7 +659,11 @@ export function AskLookCard({ token, initialShare }: Props) {
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={share.imageUrl}
+            src={
+              fullscreen === "b" && share.altImageUrl
+                ? share.altImageUrl
+                : share.imageUrl
+            }
             alt={`${share.askerName} — full look`}
             onClick={(e) => e.stopPropagation()}
           />

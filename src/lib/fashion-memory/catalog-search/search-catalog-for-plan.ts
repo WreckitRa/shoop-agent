@@ -3,6 +3,8 @@ import { createAbortScope } from "@/lib/ai-chat/abort-scope";
 import { extractCatalogImageUrl } from "@/lib/shopify/catalog";
 import { applyHardDropsForSlots } from "../hard-drops/orchestrator";
 import { hydrateCatalogSlots } from "../hydration/orchestrator";
+import { createConcurrencyGate } from "../hydration/concurrency-gate";
+import { HYDRATION_MAX_CONCURRENCY } from "../hydration/config";
 import { normalizeCatalogSearchSlots } from "../normalize/orchestrator";
 import { scoreCatalogSlots } from "../scoring/orchestrator";
 import {
@@ -15,6 +17,8 @@ import { resolveAllocation } from "../budget/budgetAllocation";
 import { computeBudgetTension } from "../budget/budgetTension";
 import {
   buildBudgetRaiseAskFromContext,
+  budgetProceedNote,
+  ensureLoosenBudgetChip,
   type BudgetRaiseAsk,
 } from "../budget/budget-raise-ask";
 import { recordPipelineEvent } from "../observability/trace";
@@ -22,6 +26,7 @@ import {
   emptyStageLatency,
   laneMixFromRatings,
   mcpHitsFromQueryLogs,
+  mcpQueryDurationStats,
   type SearchFunnelSlotCounts,
   type SearchObservability,
   type SearchSlotLaneLog,
@@ -48,7 +53,14 @@ import { runFashionCuration } from "../curation/run-curation";
 import { buildProvisionalPresentation } from "../curation/provisional-rack";
 import type { SlotPool } from "../hydration/types";
 import { persistAllSlotPools, loadPoolsForSearch } from "../hydration/pool-persistence";
-import { bindReusedSlot, familyKeyForSlot, indexPoolsByFamily } from "./reuse-slots";
+import { createSlotPool } from "../hydration/pool";
+import {
+  attachReusedVerified,
+  bindReusedSlot,
+  familyKeyForSlot,
+  indexPoolsByFamily,
+  reusedBenchIsAssembled,
+} from "./reuse-slots";
 import { buildCatalogCallContext } from "@/lib/shopify/catalog";
 import {
   FASHION_PROVISIONAL_RACK_ENABLED,
@@ -571,17 +583,26 @@ export async function searchFashionCatalogPlan(
     string,
     import("../hydration/types").HydratedCandidate[]
   >();
-  const reusedByFamily =
+  const previousPoolRows =
     refinementMode !== "full" &&
     params.refinement?.previousSearchId &&
     params.userId
-      ? indexPoolsByFamily(
-          await loadPoolsForSearch({
-            searchId: params.refinement.previousSearchId,
-            userId: params.userId,
-          }),
-        )
-      : new Map();
+      ? await loadPoolsForSearch({
+          searchId: params.refinement.previousSearchId,
+          userId: params.userId,
+        })
+      : [];
+  if (previousPoolRows.length) {
+    const { seedCurationImageCache } = await import(
+      "../curation/curation-images"
+    );
+    for (const row of previousPoolRows) {
+      if (row.state.prepared_images) {
+        seedCurationImageCache(row.state.prepared_images);
+      }
+    }
+  }
+  const reusedByFamily = indexPoolsByFamily(previousPoolRows);
   const canRescore =
     refinementMode === "rescore-only" && reusedByFamily.size > 0;
   const effectiveMode =
@@ -804,76 +825,11 @@ export async function searchFashionCatalogPlan(
     });
   }
 
-  const budgetRaiseAsk: BudgetRaiseAsk | null = params.skipBudgetRaiseAsk
-    ? null
-    : buildBudgetRaiseAskFromContext({
-        plan,
-        tension: budget_tension,
-        slots,
-      });
-
-  if (budgetRaiseAsk) {
-    recordPipelineEvent({
-      traceId: params.traceId,
-      stage: "budget_raise_ask",
-      payload: {
-        reason: budgetRaiseAsk.reason,
-        stated_max: budgetRaiseAsk.stated_max,
-        min_viable_total: budgetRaiseAsk.min_viable_total,
-      },
-    });
-    logAiChat("info", "fashion_budget_raise_ask", {
-      traceId: params.traceId,
-      reason: budgetRaiseAsk.reason,
-      stated_max: budgetRaiseAsk.stated_max,
-      min_viable_total: budgetRaiseAsk.min_viable_total,
-      budget_tension: budget_tension?.severity,
-    });
-    logAiChat("info", "fashion_catalog_plan_complete", {
-      mode: plan.mode,
-      slot_count: slots.length,
-      total_products: slots.reduce((n, s) => n + s.counts.unique_products, 0),
-      verified_pool: 0,
-      brand_statuses: plan.slots.map((s) => s.brand_status),
-      timing_ms,
-      normalize_ms: initialProcessed.normalize_ms,
-      hard_drop_ms: initialProcessed.hard_drop_ms,
-      scoring_ms: initialProcessed.scoring_ms,
-      hydration_ms: 0,
-      curation_ms: 0,
-      budget_tension: budget_tension?.severity,
-      budget_raise_ask: true,
-    });
-    return {
-      version: 1,
-      plan,
-      slots,
-      timing_ms,
-      brand_narration: brandNarration ?? undefined,
-      budget_assembly: plan.budget_allocation?.budget_assembly,
-      budget_interpretation: plan.budget_allocation?.budget_interpretation,
-      budget_tension,
-      budget_raise_ask: budgetRaiseAsk,
-      search_observability: await assembleCatalogObservability({
-        plan,
-        slots,
-        retrievalBySlot,
-        funnelMid: initialProcessed.funnel_mid,
-        latency: {
-          fan_out_ms,
-          normalize_ms: initialProcessed.normalize_ms,
-          hard_drops_ms: initialProcessed.hard_drop_ms,
-          score_ms: initialProcessed.scoring_ms,
-          total_to_final_ms: Date.now() - started,
-        },
-        userId: params.userId,
-        guestSnapshot: params.guestSnapshot,
-        tasteSignals: params.tasteSignals,
-        traceId: params.traceId,
-        refinement_mode: effectiveMode,
-      }),
-    };
-  }
+  const skipHydrateForReuse = reusedBenchIsAssembled({
+    mode: effectiveMode === "rescore-only" ? "rescore-only" : "full",
+    reusedByFamily,
+    planSlots: plan.slots,
+  });
 
   let hydration_ms = 0;
   let taste_rerank_ms = 0;
@@ -888,6 +844,7 @@ export async function searchFashionCatalogPlan(
   let curation_ms = 0;
   let stage_a_ms = 0;
   let stage_b_ms = 0;
+  let image_prep_ms = 0;
   let curation;
   let curationRegistry: import("../curation/types").CurationRefRegistry | undefined;
   let pools: Map<string, SlotPool> | undefined;
@@ -920,52 +877,11 @@ export async function searchFashionCatalogPlan(
       })),
     );
 
-    const tasteStarted = Date.now();
-    if (isTasteScoringEnabled()) {
-      const reranked = await applyTasteRerankToSlots({
-        slots,
-        planSlots: plan.slots,
-        brief: plan.brief,
-        recipientFacts: params.recipientFacts ?? [],
-        recipientProfile: recipientProfile ?? "",
-        recipientPersonId: plan.brief.recipient_person_id,
-        signalsHash,
-        signal: params.signal,
-        traceId: params.traceId,
-        createMessage: params.createMessage,
-      });
-      slots = reranked.slots;
-      tasteRerankStats = reranked.stats;
-    }
-    taste_rerank_ms = Date.now() - tasteStarted;
-
-    params.onPhase?.({
-      line: "Checking stock and your size",
-      previewImages: previewUrlsFromSlots(slots),
-      droppedImages: droppedUrlsFromSlots(slots),
-    });
-    const hydrateStarted = Date.now();
-    const hydrated = await hydrateCatalogSlots({
-      traceId: params.traceId,
-      plan,
-      slots,
-      recipientFacts: params.recipientFacts ?? [],
-      accessToken: params.accessToken,
-      profile: params.profile,
-      signal: params.signal,
-      abortScope,
-      ...(reuseVerifiedBySlot.size
-        ? { reuseVerifiedBySlot }
-        : {}),
-    });
-    slots = hydrated.slots;
-    pools = hydrated.pools;
-    hydration_ms = Date.now() - hydrateStarted;
-
     const { isCoverageGapPool, recordFamilyCoverage } = await import(
       "./family-coverage"
     );
-    slots = slots.map((slot) => {
+
+    const attachCoverage = (slot: FashionSlotCatalogResult) => {
       const pool = pools?.get(slot.slot_id);
       const survivors = pool?.verified.length ?? slot.verified_pool?.length ?? 0;
       recordFamilyCoverage({
@@ -980,7 +896,208 @@ export async function searchFashionCatalogPlan(
         thin_slot: Boolean(pool?.thin || slot.thin_slot || coverage_gap),
         coverage_gap,
       };
-    });
+    };
+
+    if (skipHydrateForReuse && params.accessToken) {
+      const tasteStarted = Date.now();
+      if (isTasteScoringEnabled()) {
+        const reranked = await applyTasteRerankToSlots({
+          slots,
+          planSlots: plan.slots,
+          brief: plan.brief,
+          recipientFacts: params.recipientFacts ?? [],
+          recipientProfile: recipientProfile ?? "",
+          recipientPersonId: plan.brief.recipient_person_id,
+          signalsHash,
+          signal: params.signal,
+          traceId: params.traceId,
+          createMessage: params.createMessage,
+        });
+        slots = reranked.slots;
+        tasteRerankStats = reranked.stats;
+      }
+      taste_rerank_ms = Date.now() - tasteStarted;
+
+      slots = attachReusedVerified({ slots, reuseVerifiedBySlot });
+      pools = new Map();
+      for (const slot of slots) {
+        const planSlot = plan.slots.find((p) => p.slot_id === slot.slot_id);
+        if (!planSlot) continue;
+        const verified = slot.verified_pool ?? [];
+        const verifiedIds = new Set(verified.map((c) => c.id));
+        const pool = createSlotPool({
+          slot: planSlot,
+          scoredProducts: slot.products,
+          brief: plan.brief,
+          recipientFacts: params.recipientFacts ?? [],
+          accessToken: params.accessToken,
+          skipInitialFill: true,
+          initialState: {
+            verified,
+            reserve: slot.products.filter((p) => !verifiedIds.has(p.id)),
+            dead: [],
+            thin: verified.length < 3,
+          },
+        });
+        pools.set(slot.slot_id, pool);
+      }
+      slots = slots.map(attachCoverage);
+    } else {
+      params.onPhase?.({
+        line: "Checking stock and your size",
+        previewImages: previewUrlsFromSlots(slots),
+        droppedImages: droppedUrlsFromSlots(slots),
+      });
+      const hydrateGate = createConcurrencyGate(HYDRATION_MAX_CONCURRENCY);
+      const nextSlots = [...slots];
+      const nextPools = new Map<string, SlotPool>();
+      const tasteParts: Array<{ ms: number; stats: typeof tasteRerankStats }> =
+        [];
+      const hydrateStarts: number[] = [];
+      const hydrateEnds: number[] = [];
+
+      await Promise.all(
+        nextSlots.map(async (slot, idx) => {
+          let working = slot;
+          if (isTasteScoringEnabled()) {
+            const t0 = Date.now();
+            const reranked = await applyTasteRerankToSlots({
+              slots: [working],
+              planSlots: plan.slots,
+              brief: plan.brief,
+              recipientFacts: params.recipientFacts ?? [],
+              recipientProfile: recipientProfile ?? "",
+              recipientPersonId: plan.brief.recipient_person_id,
+              signalsHash,
+              signal: params.signal,
+              traceId: params.traceId,
+              createMessage: params.createMessage,
+            });
+            tasteParts.push({ ms: Date.now() - t0, stats: reranked.stats });
+            working = reranked.slots[0]!;
+          }
+          const h0 = Date.now();
+          hydrateStarts.push(h0);
+          const hydrated = await hydrateCatalogSlots({
+            traceId: params.traceId,
+            plan,
+            slots: [working],
+            recipientFacts: params.recipientFacts ?? [],
+            accessToken: params.accessToken!,
+            profile: params.profile!,
+            signal: params.signal,
+            abortScope,
+            concurrencyGate: hydrateGate,
+            ...(reuseVerifiedBySlot.size ? { reuseVerifiedBySlot } : {}),
+          });
+          hydrateEnds.push(Date.now());
+          nextSlots[idx] = hydrated.slots[0]!;
+          for (const [id, pool] of hydrated.pools) nextPools.set(id, pool);
+        }),
+      );
+
+      taste_rerank_ms = tasteParts.reduce((n, p) => Math.max(n, p.ms), 0);
+      tasteRerankStats = tasteParts.reduce(
+        (acc, p) => ({
+          calls: acc.calls + p.stats.calls,
+          aborted: acc.aborted + p.stats.aborted,
+          rated: acc.rated + p.stats.rated,
+          input_tokens: acc.input_tokens + p.stats.input_tokens,
+          output_tokens: acc.output_tokens + p.stats.output_tokens,
+          cache_hits: acc.cache_hits + p.stats.cache_hits,
+        }),
+        tasteRerankStats,
+      );
+      hydration_ms =
+        hydrateStarts.length > 0
+          ? Math.max(...hydrateEnds) - Math.min(...hydrateStarts)
+          : 0;
+      slots = nextSlots;
+      pools = nextPools;
+      slots = slots.map(attachCoverage);
+    }
+
+    const budgetRaiseAsk: BudgetRaiseAsk | null = params.skipBudgetRaiseAsk
+      ? null
+      : buildBudgetRaiseAskFromContext({
+          plan,
+          tension: budget_tension,
+          slots: slots.map((s) => ({
+            slot_id: s.slot_id,
+            garment: s.garment,
+            market_prices: s.market_prices,
+            verified_count: s.verified_pool?.length ?? 0,
+          })),
+        });
+
+    if (budgetRaiseAsk) {
+      recordPipelineEvent({
+        traceId: params.traceId,
+        stage: "budget_raise_ask",
+        payload: {
+          reason: budgetRaiseAsk.reason,
+          stated_max: budgetRaiseAsk.stated_max,
+          min_viable_total: budgetRaiseAsk.min_viable_total,
+        },
+      });
+      logAiChat("info", "fashion_budget_raise_ask", {
+        traceId: params.traceId,
+        reason: budgetRaiseAsk.reason,
+        stated_max: budgetRaiseAsk.stated_max,
+        min_viable_total: budgetRaiseAsk.min_viable_total,
+        budget_tension: budget_tension?.severity,
+      });
+      logAiChat("info", "fashion_catalog_plan_complete", {
+        mode: plan.mode,
+        slot_count: slots.length,
+        total_products: slots.reduce((n, s) => n + s.counts.unique_products, 0),
+        verified_pool: slots.reduce(
+          (n, s) => n + (s.verified_pool?.length ?? 0),
+          0,
+        ),
+        brand_statuses: plan.slots.map((s) => s.brand_status),
+        timing_ms,
+        normalize_ms: initialProcessed.normalize_ms,
+        hard_drop_ms: initialProcessed.hard_drop_ms,
+        scoring_ms: initialProcessed.scoring_ms,
+        hydration_ms,
+        curation_ms: 0,
+        budget_tension: budget_tension?.severity,
+        budget_raise_ask: true,
+      });
+      return {
+        version: 1,
+        plan,
+        slots,
+        timing_ms,
+        brand_narration: brandNarration ?? undefined,
+        budget_assembly: plan.budget_allocation?.budget_assembly,
+        budget_interpretation: plan.budget_allocation?.budget_interpretation,
+        budget_tension,
+        budget_raise_ask: budgetRaiseAsk,
+        search_observability: await assembleCatalogObservability({
+          plan,
+          slots,
+          retrievalBySlot,
+          funnelMid: initialProcessed.funnel_mid,
+          latency: {
+            fan_out_ms,
+            normalize_ms: initialProcessed.normalize_ms,
+            hard_drops_ms: initialProcessed.hard_drop_ms,
+            score_ms: initialProcessed.scoring_ms,
+            taste_rerank_ms,
+            hydrate_ms: hydration_ms,
+            image_prep_ms: 0,
+            total_to_final_ms: Date.now() - started,
+          },
+          userId: params.userId,
+          guestSnapshot: params.guestSnapshot,
+          tasteSignals: params.tasteSignals,
+          traceId: params.traceId,
+          refinement_mode: effectiveMode,
+        }),
+      };
+    }
 
     if (FASHION_PROVISIONAL_RACK_ENABLED && params.onProvisional) {
       const provisional = buildProvisionalPresentation({
@@ -990,7 +1107,9 @@ export async function searchFashionCatalogPlan(
       });
       if (provisional) {
         params.onPhase?.({
-          line: "Hanging verified pieces while I finish styling",
+          line: skipHydrateForReuse
+            ? "Choosing what I’d actually put on you"
+            : "Hanging verified pieces while I finish styling",
           previewImages: verifiedUrlsFromSlots(slots),
         });
         params.onProvisional({ curation: provisional });
@@ -1000,6 +1119,7 @@ export async function searchFashionCatalogPlan(
       }
     }
 
+    if (!skipHydrateForReuse) {
     // Prefetch/resize finalist images while provisional renders + profile loads.
     try {
       const { prefetchCurationImageUrls } = await import(
@@ -1033,6 +1153,7 @@ export async function searchFashionCatalogPlan(
       prefetchCurationImageUrls(prefetchUrls, params.signal);
     } catch {
       /* non-fatal */
+    }
     }
 
     const survivorThumbs = (() => {
@@ -1121,8 +1242,32 @@ export async function searchFashionCatalogPlan(
       resolveCurationMessage: params.resolveCurationMessage,
     });
     curation = curationResult.presentation;
+    if (
+      curation &&
+      (budget_tension?.severity === "tight" ||
+        budget_tension?.severity === "infeasible")
+    ) {
+      const assembly = plan.budget_allocation?.budget_assembly;
+      const stated = assembly?.total_max;
+      if (stated && stated > 0) {
+        const narration = curation.narration;
+        if (!narration.budget_note?.trim()) {
+          narration.budget_note = budgetProceedNote(
+            stated,
+            assembly?.currency || "USD",
+          );
+        }
+        narration.next_step_offer = ensureLoosenBudgetChip(
+          narration.next_step_offer ?? {
+            text: "Want me to tweak a piece, or pull another round from here?",
+            chips: ["Swap a piece", "Bolder on top", "2 more looks"],
+          },
+        );
+      }
+    }
     curationRegistry = curationResult.registry;
     curation_ms = Date.now() - curationStarted;
+    image_prep_ms = curationResult.image_prep_ms ?? 0;
     stage_a_ms = curationResult.stage_a_ms ?? curation_ms;
     stage_b_ms = curationResult.stage_b_ms ?? 0;
     recordPipelineEvent({
@@ -1220,6 +1365,7 @@ export async function searchFashionCatalogPlan(
       score_ms: initialProcessed.scoring_ms,
       taste_rerank_ms,
       hydrate_ms: hydration_ms,
+      image_prep_ms,
       stage_a_ms,
       stage_b_ms,
       total_to_provisional_ms,
@@ -1411,6 +1557,7 @@ async function assembleCatalogObservability(params: {
       score_ms: params.latency.score_ms ?? 0,
       taste_rerank_ms: params.latency.taste_rerank_ms ?? 0,
       hydrate_ms: params.latency.hydrate_ms ?? 0,
+      image_prep_ms: params.latency.image_prep_ms ?? 0,
       stage_a_ms: params.latency.stage_a_ms ?? 0,
       stage_b_ms: params.latency.stage_b_ms ?? 0,
       total_to_provisional_ms: params.latency.total_to_provisional_ms ?? null,
@@ -1421,6 +1568,7 @@ async function assembleCatalogObservability(params: {
     taste_rerank: params.tasteRerank,
     lanes_by_slot,
     refinement_mode: params.refinement_mode ?? "full",
+    mcp_query: mcpQueryDurationStats(params.slots.flatMap((s) => s.query_logs)),
   };
 
   recordPipelineEvent({
@@ -1466,8 +1614,8 @@ export function fashionCatalogSearchToMetadata(
       ? { version: 1 as const, ...result.curation, trace_id: extras?.trace_id }
       : undefined,
     search_observability: result.search_observability,
-    brief: result.plan.brief,
-    plan_current_date: result.plan.currentDate,
+    brief: result.plan?.brief,
+    plan_current_date: result.plan?.currentDate,
   };
 }
 

@@ -102,6 +102,10 @@ import {
 } from "../router/anchor-gate";
 import { garmentSlotFamilyKey } from "../router/garment-family";
 import {
+  familyIdsMentionedInText,
+  garmentFamilyId,
+} from "../catalog-search/garment-taxonomy";
+import {
   ensureQuestionsHaveQuickOptions,
   ensureRideAlongDefaults,
   optionLabels,
@@ -235,16 +239,16 @@ function goingOnKnownSummary(params: {
   return formatKnownSummarySpeech(params);
 }
 
-/** Families the client named in any user turn this appointment. */
+/** Families the client named in any user turn this appointment (taxonomy provenance). */
 function clientNamedGarmentFamilies(
   messages: Array<{ role: string; content: string }>,
 ): Set<string> {
   const named = new Set<string>();
   for (const m of messages) {
     if (m.role !== "user") continue;
+    for (const id of familyIdsMentionedInText(m.content)) named.add(id);
     for (const g of normalizeGarmentClarificationAnswer(m.content)) {
-      const k = garmentSlotFamilyKey(g);
-      if (k) named.add(k);
+      named.add(garmentFamilyId(g));
     }
   }
   return named;
@@ -263,13 +267,8 @@ function briefGarmentsUnnamedByClient(params: {
     if (/^(you decide|other|add a piece|ooh nice|hmm|nice)$/i.test(g)) {
       continue;
     }
-    const k = garmentSlotFamilyKey(g);
+    const k = garmentFamilyId(g);
     if (!k || params.namedFamilies.has(k)) continue;
-    // Soft cover: "top" on brief covered if client said "shirt"
-    const covered = [...params.namedFamilies].some(
-      (n) => n === k || n.includes(k) || k.includes(n),
-    );
-    if (covered) continue;
     out.push(g);
   }
   return out;
@@ -2860,11 +2859,17 @@ async function resolveFashionRouterTurnInner(
     const named = clientNamedGarmentFamilies(
       params.routerContext.conversationMessages,
     );
+    if (lastUser) {
+      for (const id of familyIdsMentionedInText(lastUser)) named.add(id);
+      for (const g of normalizeGarmentClarificationAnswer(lastUser)) {
+        named.add(garmentFamilyId(g));
+      }
+    }
     const pickEvents =
       params.routerContext.recentRequestEventsByPersonId?.get(recipientId) ??
       [];
     for (const k of garmentFamiliesFromRequestEvents(pickEvents)) {
-      named.add(k);
+      named.add(garmentFamilyId(k));
     }
     const unnamed = briefGarmentsUnnamedByClient({
       garments: brief.garments ?? [],

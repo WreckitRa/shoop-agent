@@ -33,6 +33,7 @@ export type FullStageSearchRow = {
   refinement_latency_ms?: number | null;
   refinement_taste_cache_hits?: number;
   refinement_taste_calls?: number;
+  mcp_query?: NonNullable<SearchObservability["mcp_query"]>;
 };
 
 function looksWanted(persona: PersonaRunResult["persona"]): number {
@@ -91,6 +92,7 @@ export function fullStageRow(result: PersonaRunResult): FullStageSearchRow {
     refinement_latency_ms: result.refinement_latency_ms,
     refinement_taste_cache_hits: result.refinement_taste_cache_hits,
     refinement_taste_calls: result.refinement_taste_calls,
+    mcp_query: obs?.mcp_query,
   };
 }
 
@@ -168,6 +170,48 @@ export function fullStageSearchMarkdown(rows: FullStageSearchRow[]): string {
     lines.push(
       `| ${r.persona_id} | ${L.planner_ms} | ${L.fan_out_ms} | ${L.hard_drops_ms} | ${L.score_ms} | ${L.taste_rerank_ms} | ${L.hydrate_ms} | ${L.stage_a_ms} | ${L.stage_b_ms} | ${L.render_ms} | ${L.total_to_final_ms ?? "—"} |`,
     );
+  }
+  const lats = rows.map((r) => r.latency).filter((L): L is NonNullable<typeof L> => Boolean(L));
+  if (lats.length) {
+    const pct = (arr: number[], p: number): string => {
+      const a = arr.filter((n) => Number.isFinite(n)).sort((x, y) => x - y);
+      if (!a.length) return "—";
+      return String(a[Math.min(a.length - 1, Math.max(0, Math.ceil(p * a.length) - 1))]);
+    };
+    const keys: Array<keyof (typeof lats)[0]> = [
+      "planner_ms",
+      "fan_out_ms",
+      "normalize_ms",
+      "hard_drops_ms",
+      "score_ms",
+      "taste_rerank_ms",
+      "hydrate_ms",
+      "image_prep_ms",
+      "stage_a_ms",
+      "stage_b_ms",
+      "render_ms",
+      "total_to_provisional_ms",
+      "total_to_final_ms",
+    ];
+    lines.push("", "### Latency p50 / p95 (ms)", "");
+    lines.push("| stage | n | p50 | p95 |");
+    lines.push("|---|---:|---:|---:|");
+    for (const k of keys) {
+      const vals = lats
+        .map((L) => L[k])
+        .filter((n): n is number => n != null && Number.isFinite(n));
+      lines.push(
+        `| ${k} | ${vals.length} | ${pct(vals, 0.5)} | ${pct(vals, 0.95)} |`,
+      );
+    }
+    const queryMax = rows
+      .map((r) => r.mcp_query?.p95_ms)
+      .filter((n): n is number => n != null && Number.isFinite(n));
+    if (queryMax.length) {
+      lines.push(
+        `| mcp_query_p95_ms (slowest per search) | ${queryMax.length} | ${pct(queryMax, 0.5)} | ${pct(queryMax, 0.95)} |`,
+      );
+    }
   }
   lines.push("", "### Taste rerank (per search)", "");
   lines.push("| persona | calls | aborted | rated | input tok | output tok |");

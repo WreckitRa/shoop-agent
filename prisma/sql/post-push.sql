@@ -72,6 +72,13 @@ ALTER TABLE "UserProfile"
   ADD COLUMN IF NOT EXISTS "kids" TEXT;
 
 
+-- >>> supabase/migrations/20260831120000_age_attest_weekends.sql
+ALTER TABLE "UserProfile"
+  ADD COLUMN IF NOT EXISTS "ageAttestedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "weekendsAre" TEXT;
+
+
+
 -- >>> supabase/migrations/20260818180000_photo_analysis.sql
 -- Isolated LLM style-photo analysis. Display only — never consumed by search.
 CREATE TABLE IF NOT EXISTS "PhotoAnalysis" (

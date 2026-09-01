@@ -21,10 +21,10 @@ export const CATALOG_QUERY_HARD_MS = envMs("FASHION_CATALOG_QUERY_HARD_MS", 20_0
 
 export const PLANNER_TRIPWIRE_MS = envMs("FASHION_PLANNER_TRIPWIRE_MS", 12_000);
 /** Hang-safety only — deterministic builder runs if this fires. */
-export const PLANNER_HARD_MS = envMs("FASHION_PLANNER_HARD_MS", 45_000);
+export const PLANNER_HARD_MS = envMs("FASHION_PLANNER_HARD_MS", 15_000);
 
 export const NORMALIZE_TRIPWIRE_MS = envMs("FASHION_NORMALIZE_TRIPWIRE_MS", 12_000);
-export const NORMALIZE_HARD_MS = envMs("FASHION_NORMALIZE_HARD_MS", 45_000);
+export const NORMALIZE_HARD_MS = envMs("FASHION_NORMALIZE_HARD_MS", 15_000);
 
 /** Taste rerank hang-safety — fail-open to prior score. */
 export const TASTE_RERANK_HARD_MS = envMs("FASHION_TASTE_RERANK_HARD_MS", 20_000);

@@ -4,6 +4,7 @@ import { isFashionMemoryGuestUserId, isSupabaseAuthUserId } from "./auth";
 import type { CartItemMetadata } from "@/lib/cart/types";
 import { logAiChat } from "@/lib/ai-chat/observability";
 import { writePurchaseMemory } from "./purchase";
+import { writePilotAlert } from "./pilot-alerts";
 import type { FashionPurchaseApplyInput } from "./purchase-local";
 
 export type CheckoutPurchaseHint = {
@@ -74,10 +75,13 @@ function productCard(hint: CheckoutPurchaseHint): ProductCard {
   };
 }
 
-/** Pilot P0: a broken search id must surface on day one, not on visit 2. logAiChat is a no-op. */
+/** Pilot P0: a broken search id must surface on day one, not on visit 2. */
 function alertPurchaseMemoryMissingSearchId(payload: Record<string, unknown>): void {
-  console.error("[PILOT][P0] purchase_memory_missing_search_id", payload);
-  logAiChat("error", "purchase_memory_missing_search_id", payload);
+  void writePilotAlert({
+    code: "purchase_memory_missing_search_id",
+    severity: "P0",
+    payload,
+  });
 }
 
 /**

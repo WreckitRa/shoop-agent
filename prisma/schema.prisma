@@ -419,6 +419,8 @@ model UserProfile {
   pronouns           String?
   ageRange           String?
   birthDate          DateTime?
+  /// Signup / settings attestation that the account holder is at least 13.
+  ageAttestedAt      DateTime?
   genderPresentation String?
 
   country  String?
@@ -436,11 +438,13 @@ model UserProfile {
   workEnvironment String?
   lifestyleTags   String[] @default([])
 
-  /// Quiz life-context: studying | working_onsite | working_home | working_mixed | own_thing | home_with_kids | between_things | retired
+  /// Quiz life-context CSV: studying | working_onsite | …
   weekIs String?
-  /// dating | with_someone | not_right_now
+  /// dating | with_someone | not_right_now — unused (weekendsAre replaced it)
   dressingFor String?
-  /// young | older | none
+  /// Quiz weekend CSV: home | friends | family | …
+  weekendsAre String?
+  /// young | older | none (CSV when multi)
   kids String?
 
   valuePhilosophy  String?
@@ -459,7 +463,7 @@ model UserProfile {
   /// Style-life era chip from onboarding (e.g. "30s_prime"). Also maps to ageRange.
   styleEra String?
 
-  /// How direct Shoop should be: gentle | straight | no_mercy
+  /// How direct Shoop should be: 1–5 (legacy gentle | straight | no_mercy)
   honestyPreference String?
 
   /// Compliments the user wants to hear (max 2 in onboarding UI).

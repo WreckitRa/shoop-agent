@@ -19,6 +19,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   Fashion funnel
                 </Link>
+                <Link
+                  href="/admin/pilot-health"
+                  className="font-medium text-ink-muted hover:text-brand hover:underline"
+                >
+                  Pilot health
+                </Link>
               </nav>
             </div>
             <div className="flex items-center gap-4">

@@ -69,7 +69,9 @@ export function mapOnboardingGender(
 ): PersonDepartment | null {
   const t = raw?.trim().toLowerCase() ?? "";
   if (!t) return null;
-  if (t === "androgynous" || t === "prefer not to say") return "mixed";
+  if (t === "androgynous" || t === "prefer not to say" || t === "both") {
+    return "mixed";
+  }
   return genderFromUserProfile(raw);
 }
 

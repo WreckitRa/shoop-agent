@@ -60,11 +60,20 @@ export type SearchStageLatency = {
   score_ms: number;
   taste_rerank_ms: number;
   hydrate_ms: number;
+  /** Wall of prepareCurationImages at Stage A (cache hits after verify-prefetch ≈ 0). */
+  image_prep_ms: number;
   stage_a_ms: number;
   stage_b_ms: number;
   render_ms: number;
   total_to_provisional_ms: number | null;
   total_to_final_ms: number | null;
+};
+
+export type SearchMcpQueryStats = {
+  n: number;
+  p50_ms: number | null;
+  p95_ms: number | null;
+  max_ms: number | null;
 };
 
 export type SearchCostByStage = {
@@ -124,6 +133,7 @@ export type SearchObservability = {
   taste_rerank?: SearchTasteRerankStats;
   lanes_by_slot?: SearchSlotLaneLog[];
   refinement_mode?: "rescore-only" | "partial" | "full";
+  mcp_query?: SearchMcpQueryStats;
 };
 
 export function emptyLaneMix(): SearchLaneMix {
@@ -156,6 +166,7 @@ export function emptyStageLatency(
     score_ms: 0,
     taste_rerank_ms: 0,
     hydrate_ms: 0,
+    image_prep_ms: 0,
     stage_a_ms: 0,
     stage_b_ms: 0,
     render_ms: 0,
@@ -240,4 +251,24 @@ export function mcpHitsFromQueryLogs(
   logs: Array<{ raw_count?: number }>,
 ): number {
   return logs.reduce((n, l) => n + (l.raw_count ?? 0), 0);
+}
+
+export function percentileMs(values: number[], p: number): number | null {
+  const a = values.filter((n) => Number.isFinite(n)).sort((x, y) => x - y);
+  if (!a.length) return null;
+  return a[Math.min(a.length - 1, Math.max(0, Math.ceil(p * a.length) - 1))]!;
+}
+
+export function mcpQueryDurationStats(
+  logs: Array<{ duration_ms?: number }>,
+): SearchMcpQueryStats {
+  const values = logs
+    .map((l) => l.duration_ms)
+    .filter((n): n is number => n != null && Number.isFinite(n));
+  return {
+    n: values.length,
+    p50_ms: percentileMs(values, 0.5),
+    p95_ms: percentileMs(values, 0.95),
+    max_ms: values.length ? Math.max(...values) : null,
+  };
 }

@@ -172,6 +172,7 @@ describe("API edges", () => {
   it("image proxy allowlist accepts storage hosts and rejects others", () => {
     assert.equal(isAllowedImageHost("xyz.supabase.co"), true);
     assert.equal(isAllowedImageHost("cdn.fashn.ai"), true);
+    assert.equal(isAllowedImageHost("media.fashn.ai"), true);
     assert.equal(isAllowedImageHost("evil.example"), false);
     assert.equal(isAllowedImageHost("not-fashn.ai.evil"), false);
   });

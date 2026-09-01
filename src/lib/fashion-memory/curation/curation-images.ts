@@ -23,6 +23,35 @@ const JPEG_QUALITY = 82;
 
 /** In-flight / completed prep keyed by original URL — overlaps hydration → curation. */
 const prefetchCache = new Map<string, Promise<CurationImageBlock | null>>();
+const preparedResolved = new Map<string, CurationImageBlock>();
+
+export function seedCurationImageCache(
+  images: Record<string, CurationImageBlock>,
+): void {
+  for (const [url, block] of Object.entries(images)) {
+    const raw = url.trim();
+    if (!raw || !block) continue;
+    preparedResolved.set(raw, block);
+    prefetchCache.set(raw, Promise.resolve(block));
+  }
+}
+
+export function snapshotPreparedImages(
+  urls: string[],
+): Record<string, CurationImageBlock> {
+  const out: Record<string, CurationImageBlock> = {};
+  for (const url of urls) {
+    const raw = url.trim();
+    const block = preparedResolved.get(raw);
+    if (block) out[raw] = block;
+  }
+  return out;
+}
+
+export function clearCurationImageCache(): void {
+  prefetchCache.clear();
+  preparedResolved.clear();
+}
 
 export function prefetchCurationImageUrls(
   urls: string[],
@@ -31,7 +60,10 @@ export function prefetchCurationImageUrls(
   for (const url of urls) {
     const raw = url.trim();
     if (!raw || prefetchCache.has(raw)) continue;
-    prefetchCache.set(raw, fetchAndResizeCurationImageUncached(raw, signal));
+    prefetchCache.set(
+      raw,
+      fetchAndResizeCurationImageUncached(raw, signal),
+    );
   }
 }
 
@@ -67,7 +99,7 @@ async function fetchAndResizeCurationImageUncached(
       .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
       .toBuffer();
 
-    return {
+    const block: CurationImageBlock = {
       type: "image",
       source: {
         type: "base64",
@@ -75,6 +107,8 @@ async function fetchAndResizeCurationImageUncached(
         data: resized.toString("base64"),
       },
     };
+    preparedResolved.set(raw, block);
+    return block;
   } catch (error) {
     if (signal?.aborted) return null;
     logAiChat("warn", "fashion_curation_image_prepare_failed", {

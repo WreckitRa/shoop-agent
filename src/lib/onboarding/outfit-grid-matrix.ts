@@ -3,6 +3,8 @@
  * Code owns the 9-cell spread (8 styleMix axes + Wildcard); the LLM fills cells.
  */
 
+import { genderPresentationBucket } from "@/lib/onboarding/form-options";
+
 export const STYLE_MIX_AXES = [
   "Parisian",
   "Minimal",
@@ -143,12 +145,7 @@ export function slotOverlapsWornPicks(
 type GenderBucket = "feminine" | "masculine" | "androgynous";
 
 function genderBucket(gender?: string): GenderBucket {
-  const g = gender?.trim().toLowerCase() ?? "";
-  if (g === "masculine") return "masculine";
-  if (g === "androgynous" || g === "nonbinary" || g === "prefer not to say") {
-    return "androgynous";
-  }
-  return "feminine";
+  return genderPresentationBucket(gender) || "feminine";
 }
 
 type FallbackRow = {

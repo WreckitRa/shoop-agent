@@ -8,7 +8,12 @@ import type { FashionSearchPlanSlot } from "../search-planner/types";
 import { buildSizeSelection } from "./build-size-selection";
 import { hydrationTargetCount } from "./config";
 import { hydrateCandidate } from "./hydrate-candidate";
+import { hydrateCatalogSlots } from "./orchestrator";
 import { createSlotPool } from "./pool";
+import {
+  clearCurationImageCache,
+  fetchAndResizeCurationImage,
+} from "../curation/curation-images";
 import type { HydratedCandidate } from "./types";
 
 const brief: FashionSearchBrief = {
@@ -605,5 +610,114 @@ describe("hydrateCandidate transient retry", () => {
     });
     assert.equal(calls, 2);
     assert.equal(result.outcome, "verified");
+  });
+});
+
+describe("prefetch on verify", () => {
+  it("starts image prep as soon as a candidate verifies", async () => {
+    clearCurationImageCache();
+    const url = "https://cdn.example/verify-prefetch.jpg";
+    let fetches = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      fetches += 1;
+      const sharp = (await import("sharp")).default;
+      const buf = await sharp({
+        create: {
+          width: 64,
+          height: 64,
+          channels: 3,
+          background: { r: 10, g: 20, b: 30 },
+        },
+      })
+        .jpeg()
+        .toBuffer();
+      return new Response(buf, {
+        status: 200,
+        headers: { "content-type": "image/jpeg" },
+      });
+    }) as typeof fetch;
+    try {
+      const pool = createSlotPool({
+        slot: { ...planSlot, options_wanted: 1 },
+        scoredProducts: [product("p1", { image_urls: [url] })],
+        brief,
+        recipientFacts: [],
+        accessToken: "tok",
+        hydrateFn: async ({ product: p }) => ({
+          outcome: "verified",
+          candidate: {
+            ...verified(p.id),
+            media_urls: [url],
+            image_urls: [url],
+          },
+        }),
+      });
+      await pool.fillToTarget();
+      const block = await fetchAndResizeCurationImage(url);
+      assert.ok(block);
+      assert.equal(fetches, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+      clearCurationImageCache();
+    }
+  });
+});
+
+describe("hydrateCatalogSlots", () => {
+  it("starts every capsule slot's first wave together", async () => {
+    const startedAt: number[] = [];
+    const delay = 80;
+    const shirtSlot = {
+      slot_id: "shirt",
+      garment: "shirt",
+      role: "anchor" as const,
+      style_direction: "casual",
+      palette_constraint: null,
+      palette_source: "spread" as const,
+      options_wanted: 1,
+      query_variants: ["shirt"],
+    };
+    const shoeSlot = {
+      ...shirtSlot,
+      slot_id: "shoes",
+      garment: "shoes",
+      query_variants: ["shoes"],
+    };
+    const emptySlot = (slotId: string, garment: string) => ({
+      slot_id: slotId,
+      garment,
+      products: [product(`${slotId}-1`)],
+      query_variants_used: [{ query: garment, category_filtered: true }],
+      counts: { unique_products: 1, per_variant: [1], reformulated: false },
+      query_logs: [],
+    });
+    const wall0 = Date.now();
+    await hydrateCatalogSlots({
+      plan: {
+        version: 1,
+        mode: "capsule",
+        reasoning: "test",
+        brief: { ...brief, request_type: "capsule", garments: ["shirt", "shoes"] },
+        currentDate: "2026-08-29",
+        slots: [shirtSlot, shoeSlot],
+      },
+      slots: [emptySlot("shirt", "shirt"), emptySlot("shoes", "shoes")],
+      recipientFacts: [],
+      accessToken: "tok",
+      profile: { countryCode: "US", currency: "USD", positiveSignals: [] },
+      hydrateFn: async ({ product: p }) => {
+        startedAt.push(Date.now());
+        await new Promise((r) => setTimeout(r, delay));
+        return { outcome: "verified", candidate: verified(p.id) };
+      },
+    });
+    const wall = Date.now() - wall0;
+    assert.equal(startedAt.length, 2);
+    assert.ok(
+      Math.abs(startedAt[0]! - startedAt[1]!) < delay / 2,
+      "second slot waited for first wave",
+    );
+    assert.ok(wall < delay * 1.8, `serial hydrates: ${wall}ms`);
   });
 });

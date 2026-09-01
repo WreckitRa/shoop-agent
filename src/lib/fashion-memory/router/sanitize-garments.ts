@@ -1,6 +1,7 @@
 /**
- * Router garment sanitizer (v1.1): style phrases must never become slots.
- * Merge style fluff into style_direction; keep real garments.
+ * Router garment sanitizer: style phrases must never become slots.
+ * Merge style fluff into style_direction; keep real garments (including
+ * unmapped families — those pass through with unknown_family).
  */
 import { garmentSlotFamilyKey, isKnownGarmentFamily } from "./garment-family";
 import type { FashionSearchBrief } from "./types";

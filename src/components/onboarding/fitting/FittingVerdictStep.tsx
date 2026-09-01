@@ -30,6 +30,7 @@ type Props = {
   circleNames?: string[];
   dressStatus?: "idle" | "dressing" | "ready" | "error";
   dressStyleLabel?: string | null;
+  dressedLookUrl?: string | null;
   busy?: boolean;
   onMeetTwin: () => void;
   ctaLabel?: string;
@@ -259,6 +260,7 @@ export function FittingVerdictStep({
   circleNames = [],
   dressStatus = "idle",
   dressStyleLabel = null,
+  dressedLookUrl = null,
   busy,
   onMeetTwin,
   ctaLabel,
@@ -408,6 +410,52 @@ export function FittingVerdictStep({
           </>
         ) : null}
       </p>
+
+        {lookGroups.length || (verdict && looks === null) ? (
+          <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
+            <div className="mb-1 font-display text-[10px] font-black tracking-[0.14em] text-[#C4C4CC]">
+              FIRST
+            </div>
+            <FittingKick>YOUR WEEK, DRESSED</FittingKick>
+            <h2 className="mb-4 font-display text-[clamp(22px,2.6vw,28px)] font-black leading-[1.08] tracking-[-0.03em]">
+              Five looks on you — not catalog stills.
+            </h2>
+            {lookGroups.length ? (
+              <div className="flex flex-col gap-6">
+                {lookGroups.map((group) => (
+                  <div key={group.id}>
+                    <div className="mb-3 font-display text-[13px] font-extrabold tracking-[-0.02em]">
+                      {group.label}
+                    </div>
+                    {dressedLookUrl ? (
+                      <div className="mb-2.5 overflow-hidden rounded-2xl bg-[#F4F4F6]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={dressedLookUrl}
+                          alt=""
+                          className="aspect-[3/4] w-full object-cover object-top"
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                        {group.products.map((product) => (
+                          <ReadingProductTile
+                            key={product.id}
+                            product={product}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="font-whisper text-[15px] italic text-[var(--fitting-quiet)]">
+                Dressing the looks on your twin…
+              </p>
+            )}
+          </div>
+        ) : null}
 
         {reading.steps.length >= 2 ? (
           <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
@@ -657,41 +705,6 @@ export function FittingVerdictStep({
               This is the mix you picked.
             </h2>
             <TasteDonut mix={reading.mix} />
-          </div>
-        ) : null}
-
-        {lookGroups.length || (verdict && looks === null) ? (
-          <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
-            <div className="mb-1 font-display text-[10px] font-black tracking-[0.14em] text-[#C4C4CC]">
-              THREE OF FIVE
-            </div>
-            <FittingKick>YOUR WEEK, DRESSED</FittingKick>
-            <h2 className="mb-4 font-display text-[clamp(22px,2.6vw,28px)] font-black leading-[1.08] tracking-[-0.03em]">
-              Live pieces for the week you&apos;ve got.
-            </h2>
-            {lookGroups.length ? (
-              <div className="flex flex-col gap-6">
-                {lookGroups.map((group) => (
-                  <div key={group.id}>
-                    <div className="mb-3 font-display text-[13px] font-extrabold tracking-[-0.02em]">
-                      {group.label}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                      {group.products.map((product) => (
-                        <ReadingProductTile
-                          key={product.id}
-                          product={product}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="font-whisper text-[15px] italic text-[var(--fitting-quiet)]">
-                Pulling live pieces from the rack…
-              </p>
-            )}
           </div>
         ) : null}
 

@@ -233,9 +233,6 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
           type="button"
           onClick={() => {
             openFittingRoom();
-            window.setTimeout(() => {
-              useTryOnDrawerStore.getState().requestAskShare();
-            }, 400);
           }}
           className="mt-2 flex items-center justify-between rounded-[13px] border border-hairline bg-white px-3.5 py-2.5 text-[11.5px] font-bold text-ink transition hover:border-ink/20"
         >

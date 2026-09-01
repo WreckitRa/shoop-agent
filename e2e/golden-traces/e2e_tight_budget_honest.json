@@ -1,8 +1,12 @@
 {
   "stages": [
-    "gate"
+    "gate",
+    "gate",
+    "gate",
+    "router"
   ],
   "eventCounts": {
-    "gate": 1
+    "gate": 3,
+    "router": 1
   }
 }

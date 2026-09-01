@@ -265,7 +265,8 @@ Rye / Shopify merchant handoff cannot correlate `userId`. **Rye confirm
 `searchId` (assistant message id) + `ref` from add-to-cart; confirm (and GET
 when already completed) call `completeCheckoutPurchase` → `writePurchaseMemory`.
 Guests get a payload the client applies via `persistGuestFashionPurchase`.
-Missing `search_id` fires `[PILOT][P0] purchase_memory_missing_search_id`
+Missing `search_id` writes `[PILOT][P0] purchase_memory_missing_search_id`
+to `pilot_alerts` and `console.error` (`docs/fashion/pilot.md`).
 (`console.error`) and writes nothing. The write is idempotent on `(search_id, ref)`.
 
 **Pilot constraint:** visit-2 purchase memory only exists if checkout went

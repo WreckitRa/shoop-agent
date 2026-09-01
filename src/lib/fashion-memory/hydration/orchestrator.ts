@@ -23,6 +23,13 @@ export type HydrateCatalogSlotsParams = {
   profile: FashionSearchProfile;
   signal?: AbortSignal;
   abortScope?: AbortScope;
+  /**
+   * Shared across per-slot hydrate calls so overlapping first waves don't
+   * each open HYDRATION_MAX_CONCURRENCY paths.
+   */
+  concurrencyGate?: import("./concurrency-gate").ConcurrencyGate;
+  /** Test injection — defaults to live hydrateCandidate. */
+  hydrateFn?: import("./pool").CreateSlotPoolParams["hydrateFn"];
   /** Already-verified candidates from a prior search (refinement reuse). */
   reuseVerifiedBySlot?: Map<string, import("./types").HydratedCandidate[]>;
 };
@@ -175,11 +182,11 @@ export async function hydrateCatalogSlots(
   );
 
   const abortScope = params.abortScope ?? createAbortScope(params.signal);
-  const concurrencyGate = createConcurrencyGate(HYDRATION_MAX_CONCURRENCY);
+  const concurrencyGate =
+    params.concurrencyGate ?? createConcurrencyGate(HYDRATION_MAX_CONCURRENCY);
 
   const pools = new Map<string, SlotPoolImpl>();
   const metrics: HydrationMetrics[] = [];
-  const slotById = new Map(params.slots.map((s) => [s.slot_id, s]));
 
   const planSlotById = new Map(params.plan.slots.map((s) => [s.slot_id, s]));
 
@@ -200,6 +207,7 @@ export async function hydrateCatalogSlots(
       traceId: params.traceId,
       abortScope,
       concurrencyGate,
+      ...(params.hydrateFn ? { hydrateFn: params.hydrateFn } : {}),
       ...(reused?.length
         ? {
             initialState: {
@@ -224,56 +232,32 @@ export async function hydrateCatalogSlots(
   const mode = params.plan.mode;
   const anchorFirst = mode === "outfit" || mode === "capsule";
 
-  if (anchorFirst) {
-    const anchorPlanSlots = params.plan.slots.filter((s) => s.role === "anchor");
-    const supportPlanSlots = params.plan.slots.filter((s) => s.role === "support");
+  async function fillOne(slot: FashionSlotCatalogResult) {
+    const started = Date.now();
+    const pool = makePool(slot);
+    await fillPool(slot, pool);
+    pools.set(slot.slot_id, pool);
+    const m = buildMetrics(pool, Date.now() - started);
+    metrics.push(m);
+    emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats(), pool);
+  }
 
-    for (const planSlot of anchorPlanSlots) {
-      const slot = slotById.get(planSlot.slot_id);
-      if (!slot) continue;
-      const started = Date.now();
-      const pool = makePool(slot);
-      await fillPool(slot, pool);
-      pools.set(slot.slot_id, pool);
-      const m = buildMetrics(pool, Date.now() - started);
-      metrics.push(m);
-      emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats(), pool);
-    }
+  // First wave starts as soon as the caller passes this slot's shortlist.
+  // Anchors used to fill serially (capsule p95 ~35s); the shared gate already
+  // caps get_product stampede, so every slot's wave-1 runs together.
+  await Promise.all(params.slots.map((slot) => fillOne(slot)));
 
+  if (anchorFirst && params.slots.length === params.plan.slots.length) {
     recordPipelineEvent({
       traceId: params.traceId,
       stage: "hydration_anchor_complete",
       payload: {
-        anchor_slots: anchorPlanSlots.map((s) => s.slot_id),
+        anchor_slots: params.plan.slots
+          .filter((s) => s.role === "anchor")
+          .map((s) => s.slot_id),
         mode,
       },
     });
-
-    await Promise.all(
-      supportPlanSlots.map(async (planSlot) => {
-        const slot = slotById.get(planSlot.slot_id);
-        if (!slot) return;
-        const started = Date.now();
-        const pool = makePool(slot);
-        await fillPool(slot, pool);
-        pools.set(slot.slot_id, pool);
-        const m = buildMetrics(pool, Date.now() - started);
-        metrics.push(m);
-        emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats(), pool);
-      }),
-    );
-  } else {
-    await Promise.all(
-      params.slots.map(async (slot) => {
-        const started = Date.now();
-        const pool = makePool(slot);
-        await fillPool(slot, pool);
-        pools.set(slot.slot_id, pool);
-        const m = buildMetrics(pool, Date.now() - started);
-        metrics.push(m);
-        emitHydrationEvent(params.traceId, slot, m, pool.getWaveStats(), pool);
-      }),
-    );
   }
 
   const hydratedSlots = params.slots.map((slot) => {

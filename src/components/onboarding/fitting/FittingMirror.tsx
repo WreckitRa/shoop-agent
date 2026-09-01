@@ -187,7 +187,7 @@ export function FittingMirror({
             {fillUrl ? null : (
               <div className="absolute inset-0 flex items-end justify-center">
                 <div
-                  className="fitting-motion relative max-h-full max-w-full overflow-visible transition-[height] duration-700 ease-out"
+                  className="fitting-motion relative max-h-full max-w-full overflow-hidden transition-[height] duration-700 ease-out"
                   style={{
                     height: `${heightPct}%`,
                     aspectRatio: `${SILHOUETTE_VIEWBOX.w} / ${SILHOUETTE_VIEWBOX.h}`,
@@ -352,6 +352,22 @@ export function FittingMirror({
               <>
                 <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden">
                   <i className="fitting-scan-line" />
+                  {mirror.scanNotes.slice(0, 4).map((note, i) => (
+                    <div
+                      key={note.label}
+                      className={cn(
+                        "shoop-sscan__anno lit",
+                        `shoop-sscan__anno--${i + 1}`,
+                      )}
+                    >
+                      {i % 2 === 1 ? <span className="tick" /> : null}
+                      <span>
+                        {note.label}
+                        {note.value ? ` · ${note.value}` : ""}
+                      </span>
+                      {i % 2 === 0 ? <span className="tick" /> : null}
+                    </div>
+                  ))}
                 </div>
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[6] px-0.5">
                   <div

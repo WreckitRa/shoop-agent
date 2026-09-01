@@ -460,6 +460,7 @@ export async function runFashionCuration(
   let retries = 0;
   let fallback = false;
   let imageCount = 0;
+  let imagePrepMs = 0;
   const appliedVetoRefs = new Set<string>();
   const harvestedVetoes: DeliverCurationVeto[] = [];
   const excludedRefs = new Set(params.excludedRefs ?? []);
@@ -587,6 +588,7 @@ outfit mode.`
     return {
       presentation,
       curation_ms: curationMs,
+      image_prep_ms: 0,
       registry: inputBundle.registry,
     };
   }
@@ -608,6 +610,7 @@ outfit mode.`
   });
 
   imageCount = inputBundle.imageBlocks.length;
+  imagePrepMs += inputBundle.image_prep_ms;
 
   if (inputBundle.images_failed > 0) {
     logAiChat("info", "fashion_curation_images_prepare_partial", {
@@ -649,6 +652,7 @@ outfit mode.`
     inputBundle.textBlock = next.textBlock;
     // Keep original registry for ref stability; image_shown already decided.
     imageCount = next.imageBlocks.length;
+    imagePrepMs += next.image_prep_ms;
     return next;
   };
 
@@ -1163,8 +1167,9 @@ outfit mode.`
   return {
     presentation,
     curation_ms: curationMs,
-    stage_a_ms: stageAMs,
+    stage_a_ms: Math.max(0, stageAMs - imagePrepMs),
     stage_b_ms: Date.now() - voiceStarted,
+    image_prep_ms: imagePrepMs,
     registry: inputBundle.registry,
   };
 }

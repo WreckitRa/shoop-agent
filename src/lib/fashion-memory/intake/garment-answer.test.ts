@@ -35,7 +35,7 @@ describe("normalizeGarmentClarificationAnswer", () => {
   it("parses shoes-and-accessories chip", () => {
     assert.deepEqual(
       normalizeGarmentClarificationAnswer("Shoes (and other accessories)"),
-      ["shoes"],
+      ["shoes", "accessories"],
     );
   });
 

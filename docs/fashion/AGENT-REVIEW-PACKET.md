@@ -359,7 +359,7 @@ Default `SCORING_WEIGHTS_VERSION=v4-taste`. `v3-brand` is the pre-S1 table. Also
 
 ### 8.4 Budget
 
-`budgetAllocation.ts` from `budget_context`. Thin outfit/capsule → lift (re-admit then optional re-query) or **budget_raise_ask** (abort search → clarification). Declined twice → stop blocking.
+`budgetAllocation.ts` from `budget_context`. Thin outfit/capsule → lift (re-admit then optional re-query). **budget_raise_ask** only when a required slot has zero verified. Otherwise proceed + budget_note + Loosen the budget. Declined twice → stop blocking.
 
 ### 8.5 Hydration (L4)
 

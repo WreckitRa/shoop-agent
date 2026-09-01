@@ -330,7 +330,8 @@ export function FittingStage({
   const dressingLook =
     (status === "starting" || status === "processing") &&
     activeItems.length > 0;
-  const scanLive = activeItems.length > 0 && (dressingLook || showResult);
+  const lookReady = showResult && lookPainted;
+  const scanLive = activeItems.length > 0 && lookReady;
   const dressingScan = dressingLook || (showResult && !lookPainted);
   const mirrorSrc =
     showResult && lookPainted && resultUrl
@@ -699,11 +700,9 @@ export function FittingStage({
           ) : null}
           {hangers}
         </div>
-        {overlay ? null : (
-          <div className="shoop-draghint">
-            Drop a find here to hang it <b>· onto the mirror to wear it</b>
+        <div className="shoop-draghint">
+            Drop a find here to hang it <b>· onto the twin to wear it</b>
           </div>
-        )}
       </div>
 
       {overlay ? null : (
@@ -729,7 +728,7 @@ export function FittingStage({
             </div>
             <div className="shoop-croom__mhead-actions">
               <span className="shoop-croom__dressed">{dressedLabel}</span>
-              {showResult && lookPainted && scanLive ? (
+              {lookReady && scanLive ? (
                 <button
                   type="button"
                   className="rounded-full bg-ink px-3 py-1.5 text-[11px] font-extrabold text-white transition hover:bg-ink/90"
@@ -761,7 +760,7 @@ export function FittingStage({
               "shoop-twin",
               dropGlow && "shoop-twin--glow",
               scanScanning && "shoop-twin--scanning",
-              (scanScanning || dressingScan) && "shoop-twin--baking",
+              scanScanning && "shoop-twin--baking",
               showResult && lookPainted && "shoop-twin--studied",
               Boolean(dressFlash) && "shoop-twin--dressing",
             )}
@@ -878,7 +877,7 @@ export function FittingStage({
               </div>
             ) : null}
 
-            {!showResult || !lookPainted ? (
+            {!lookReady ? (
               <span className="shoop-twin__tag">{TRYON_DISCLAIMER}</span>
             ) : null}
 

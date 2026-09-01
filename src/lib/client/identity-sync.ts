@@ -20,7 +20,7 @@ import {
   resolveAppAccessMode,
   useAppSessionStore,
 } from "@/lib/client/app-session";
-import { leaveConversationRoute } from "@/lib/client/chat-navigation";
+import { leaveConversationRoute, resetToRoot } from "@/lib/client/chat-navigation";
 import { clearGuestSession, getGuestSessionId } from "@/lib/client/guest-storage";
 import { clearPendingCheckout } from "@/lib/client/pending-checkout";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
@@ -304,5 +304,5 @@ export async function prepareClientForSignedOut() {
   lastSyncedScopeKey = SIGNED_OUT_SCOPE_KEY;
   applyAuthSession({ configured: true, user: null });
   resetUserScopedClientState();
-  leaveConversationRoute();
+  resetToRoot();
 }

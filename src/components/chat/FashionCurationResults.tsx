@@ -28,16 +28,6 @@ import {
 import { buildInlineProductState } from "@/lib/shared/productPanelParams";
 import { stashChatFocusReturn } from "@/lib/shared/chatFocus";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
-import {
-  resolveTryonCta,
-  useSelfAvatarStore,
-} from "@/components/tryon/self-avatar-store";
-import {
-  accessNeedsAccountForMirror,
-  guestFittingCtaLabel,
-} from "@/components/tryon/mirror-entry";
-import { requestMirror } from "@/components/tryon/request-mirror";
-import { useAppSessionStore } from "@/lib/client/app-session";
 
 function dragLookOntoStage(
   event: DragEvent,
@@ -168,88 +158,6 @@ function CuratedPickCard({
       tryonAvailable={pick.tryon == null || pick.tryon.available === true}
       tryonCta={pick.tryon?.cta}
     />
-  );
-}
-
-function ChangingRoomCta({
-  picks,
-  searchId,
-  title,
-}: {
-  picks: RenderPick[];
-  searchId: string;
-  title: string;
-}) {
-  const openAndDressItems = useTryOnDrawerStore((s) => s.openAndDressItems);
-  const addManyToFittingRoom = useTryOnDrawerStore((s) => s.addManyToFittingRoom);
-  const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
-  const openCreateFlow = useSelfAvatarStore((s) => s.openCreateFlow);
-  const avatarStatus = useSelfAvatarStore((s) => s.status);
-  const needsAccount = accessNeedsAccountForMirror(
-    useAppSessionStore((s) => s.mode),
-  );
-
-  if (!picks.length) return null;
-
-  const items = picks.map((pick) =>
-    fittingRoomItemFromSearchPick({ pick, searchId }),
-  );
-  // Missing tryon (pre-attach) is optimistic — only hide when explicitly unavailable.
-  const anyTryon = picks.some(
-    (p) => p.tryon == null || p.tryon.available === true,
-  );
-  const wantsAvatar = picks.some((p) => p.tryon?.cta === "create_avatar");
-  const cta = resolveTryonCta({
-    available: anyTryon,
-    cta: wantsAvatar ? "create_avatar" : undefined,
-    avatarStatus,
-  });
-
-  if (cta === "hidden") return null;
-
-  if (needsAccount) {
-    return (
-      <button
-        type="button"
-        className="shoop-quiz-apply"
-        onClick={() => requestMirror()}
-      >
-        {guestFittingCtaLabel("button")}
-        <span aria-hidden>→</span>
-      </button>
-    );
-  }
-
-  if (cta === "create_avatar") {
-    return (
-      <button
-        type="button"
-        className="shoop-quiz-apply"
-        onClick={() => openCreateFlow()}
-      >
-        Create your avatar
-        <span aria-hidden>→</span>
-      </button>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      data-tryon-trigger
-      className="shoop-quiz-apply"
-      onClick={() => {
-        if (anyTryon) {
-          openAndDressItems({ items, title });
-          return;
-        }
-        addManyToFittingRoom(items);
-        openFittingRoom();
-      }}
-    >
-      See it on you
-      <span aria-hidden>→</span>
-    </button>
   );
 }
 
@@ -597,11 +505,6 @@ export const FashionCurationResults = memo(function FashionCurationResults({
           ) : render.narration.brand_note ? (
             <p className="shoop-pickline">{render.narration.brand_note}</p>
           ) : null}
-          <ChangingRoomCta
-            picks={render.tiers.picks}
-            searchId={searchId}
-            title="Your rack"
-          />
           {panel}
         </div>
       ) : null}

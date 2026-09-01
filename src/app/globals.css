@@ -2144,6 +2144,23 @@
   color: var(--ink);
 }
 
+.shoop-vitem__drag {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 3px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+  box-shadow: 0 1px 0 rgba(14, 14, 17, 0.06);
+}
+
 .shoop-vitem__why {
   padding: 10px 12px;
   font-size: 10.5px;
@@ -2679,16 +2696,19 @@
   align-items: center;
   gap: 7px;
   justify-content: center;
-  font-size: 10.5px;
-  color: var(--ink-muted, #71717a);
-  padding: 8px 12px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink, #0e0e11);
+  padding: 10px 12px 14px;
   flex: 0 0 auto;
   text-align: center;
+  border-top: 1px dashed var(--hairline, #e4e4e7);
+  background: #fafafa;
 }
 
 .shoop-draghint b {
-  color: var(--ink);
-  font-weight: 600;
+  color: var(--brand, #e42831);
+  font-weight: 800;
 }
 
 .shoop-cboard {

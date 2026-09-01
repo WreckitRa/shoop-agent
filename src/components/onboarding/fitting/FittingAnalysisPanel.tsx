@@ -24,6 +24,10 @@ import {
 } from "./FittingWaitProgress";
 import { listConfirmableTraits } from "@/lib/photo-analysis/review";
 import { photoScanPhase } from "@/lib/photo-analysis/scan-phase";
+import {
+  canonicalScanLabel,
+  scanTraitKind,
+} from "@/lib/photo-analysis/scan-trait-options";
 import { writeOnboardingUiSession } from "./ui-session";
 import type { MirrorState } from "./types";
 
@@ -185,10 +189,16 @@ export function FittingAnalysisPanel({
     const notes = listConfirmableTraits(analysis.result)
       .filter((row) => row.value?.trim())
       .slice(0, 5)
-      .map((row) => ({
-        label: row.label,
-        value: clipScanValue(row.value!),
-      }));
+      .map((row) => {
+        const kind = scanTraitKind(row.path);
+        const short = kind
+          ? canonicalScanLabel(kind, row.value!) || row.value!
+          : row.value!;
+        return {
+          label: row.label,
+          value: clipScanValue(short),
+        };
+      });
     onScanUi({ activity: "review", notes });
   }, [enabled, generating, analysis, onScanUi]);
 
@@ -283,14 +293,13 @@ export function FittingAnalysisPanel({
         {genError || analysis?.verdictError ? null : (
           <FittingWhisper>
             Your approved scan, body, era, week, and taste — turned into rules
-            you can shop with. Usually under two minutes. Watch your twin —
-            that&apos;s the only picture.
+            you can shop with. Watch your twin — that&apos;s the only picture.
           </FittingWhisper>
         )}
         {!genError && !analysis?.verdictError ? (
           <FittingWaitProgress
             steps={VERDICT_WAIT_STEPS}
-            expectedMs={90_000}
+            expectedMs={45_000}
           />
         ) : null}
         {genError ? (

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   ageYearsFromBirthDate,
+  genderPresentationBucket,
   lifestyleTagsFromLife,
   normalizeClimate,
   normalizeHonestyPreference,
@@ -89,10 +90,23 @@ describe("normalizeClimate", () => {
 });
 
 describe("normalizeHonestyPreference", () => {
-  it("maps legacy gentle onto straight and keeps two live tones", () => {
-    assert.equal(normalizeHonestyPreference("gentle"), "straight");
-    assert.equal(normalizeHonestyPreference("straight"), "straight");
-    assert.equal(normalizeHonestyPreference("no_mercy"), "no_mercy");
+  it("maps legacy tones onto the 1–5 scale", () => {
+    assert.equal(normalizeHonestyPreference("gentle"), "1");
+    assert.equal(normalizeHonestyPreference("straight"), "3");
+    assert.equal(normalizeHonestyPreference("no_mercy"), "5");
+    assert.equal(normalizeHonestyPreference("1"), "1");
+    assert.equal(normalizeHonestyPreference("4"), "4");
     assert.equal(normalizeHonestyPreference(""), "");
+  });
+});
+
+describe("genderPresentationBucket", () => {
+  it("maps quiz values and legacy aliases onto presentation buckets", () => {
+    assert.equal(genderPresentationBucket("menswear"), "masculine");
+    assert.equal(genderPresentationBucket("masculine"), "masculine");
+    assert.equal(genderPresentationBucket("womenswear"), "feminine");
+    assert.equal(genderPresentationBucket("feminine"), "feminine");
+    assert.equal(genderPresentationBucket("both"), "androgynous");
+    assert.equal(genderPresentationBucket(""), "");
   });
 });

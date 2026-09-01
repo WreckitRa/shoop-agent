@@ -11,6 +11,7 @@ import {
   STYLE_ERAS,
   WEEK_IS_OPTIONS,
   WORLD_OPTIONS,
+  normalizeHonestyPreference,
 } from "@/lib/onboarding/form-options";
 import type {
   FashionFactBodyNoteValue,
@@ -148,11 +149,14 @@ export function honestyToneLine(
   honesty: string | null | undefined,
 ): string | null {
   if (!honesty?.trim()) return null;
-  const v = honesty.trim().toLowerCase();
-  if (v === "gentle" || v === "straight") {
-    return `tone: honesty balanced ("tell me straight")`;
+  const v = normalizeHonestyPreference(honesty) || honesty.trim().toLowerCase();
+  if (v === "1" || v === "2") {
+    return `tone: honesty low ("${v === "1" ? "hit me easy" : "kind but honest"}")`;
   }
-  if (v === "no_mercy") return `tone: honesty high ("full stylist mode")`;
+  if (v === "3") return `tone: honesty balanced ("give it to me straight")`;
+  if (v === "4" || v === "5") {
+    return `tone: honesty high ("${v === "5" ? "no mercy" : "don't sugarcoat it"}")`;
+  }
   const opt = HONESTY_OPTIONS.find((o) => o.value === v);
   return opt ? `tone: honesty ${opt.label.toLowerCase()}` : `tone: honesty ${v}`;
 }
@@ -160,9 +164,10 @@ export function honestyToneLine(
 export function mapHonestyToVoice(
   honesty: string | null | undefined,
 ): "gentle" | "balanced" | "blunt" | undefined {
-  const v = honesty?.trim().toLowerCase();
-  if (v === "gentle" || v === "straight") return "balanced";
-  if (v === "no_mercy") return "blunt";
+  const v = normalizeHonestyPreference(honesty);
+  if (v === "1" || v === "2") return "gentle";
+  if (v === "3") return "balanced";
+  if (v === "4" || v === "5") return "blunt";
   return undefined;
 }
 

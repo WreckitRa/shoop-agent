@@ -28,6 +28,7 @@ export function joeBrief() {
       sizes_confirmed: ["shirt", "trousers", "shoes"],
       sizes_unconfirmed: [] as string[],
     },
+    depth: { looks_wanted: 1, source: "stated" as const },
   };
 }
 

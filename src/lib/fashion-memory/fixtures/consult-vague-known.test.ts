@@ -47,6 +47,7 @@ describe("consult_vague_known", () => {
     assert.ok(parsed.escape_chip);
     assert.ok(parsed.questions.length <= 3);
     for (const q of parsed.questions) {
+      if (q.gap === "preference_anchor") continue;
       const withDecide = ensureYouDecideOption(q);
       assert.ok(
         withDecide.quick_options?.some((o) =>

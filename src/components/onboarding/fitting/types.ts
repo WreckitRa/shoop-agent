@@ -1,42 +1,39 @@
 export type FittingStep =
   | "consent"
   | "photo"
+  | "fit"
   | "name"
   | "life"
   | "spend"
-  | "fit"
   | "worn"
-  | "wanted"
   | "nolist"
   | "honesty"
-  | "circle"
-  | "verdict";
+  | "verdict"
+  | "circle";
 
 export const FITTING_STEPS: FittingStep[] = [
   "consent",
   "photo",
+  "fit",
   "name",
   "life",
   "spend",
-  "fit",
   "worn",
-  "wanted",
   "nolist",
   "honesty",
-  "circle",
   "verdict",
+  "circle",
 ];
 
 /** Question steps only (excludes verdict). */
 export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
   "consent",
   "photo",
+  "fit",
   "name",
   "life",
   "spend",
-  "fit",
   "worn",
-  "wanted",
   "nolist",
   "honesty",
   "circle",
@@ -44,31 +41,30 @@ export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
 
 export const STITCH_KNOTS = [
   { id: "photo", label: "Photo", top: "3%" },
-  { id: "name", label: "Name", top: "13%" },
-  { id: "life", label: "Life", top: "23%" },
-  { id: "spend", label: "Spend", top: "33%" },
-  { id: "fit", label: "Fit", top: "43%" },
-  { id: "worn", label: "Worn", top: "53%" },
-  { id: "wanted", label: "Wanted", top: "63%" },
-  { id: "nolist", label: "No-list", top: "73%" },
+  { id: "fit", label: "Fit", top: "14%" },
+  { id: "name", label: "Name", top: "25%" },
+  { id: "life", label: "Life", top: "36%" },
+  { id: "spend", label: "Spend", top: "47%" },
+  { id: "worn", label: "Worn", top: "58%" },
+  { id: "nolist", label: "No-list", top: "69%" },
   { id: "circle", label: "Circle", top: "84%" },
   { id: "mint", label: "The mint", top: "96%", emphasis: true },
 ] as const;
 
 /** Left-rail groups — same knots, sequential, mock tracker chrome. */
 export const TRACKER_GROUPS = [
-  { label: "LOOK", knotIds: ["photo", "name"] },
+  { label: "LOOK", knotIds: ["photo", "fit", "name"] },
   { label: "LIFE", knotIds: ["life"] },
-  { label: "EVIDENCE", knotIds: ["spend", "fit", "worn", "wanted", "nolist"] },
+  { label: "EVIDENCE", knotIds: ["spend", "worn", "nolist"] },
   { label: "PERSON", knotIds: ["circle"] },
   { label: "DIRECTION", knotIds: ["mint"] },
 ] as const;
 
 /** sewn % per knot index */
-export const SEWN_PCT = [3, 13, 23, 33, 43, 53, 63, 73, 84, 100];
+export const SEWN_PCT = [3, 14, 25, 36, 47, 58, 69, 84, 100];
 
 /** progress bar % per question step */
-export const STEP_PROGRESS_PCT = [3, 10, 18, 26, 34, 44, 54, 64, 74, 84, 93];
+export const STEP_PROGRESS_PCT = [3, 12, 22, 32, 42, 52, 62, 74, 84, 93];
 
 export const STEP_META: Record<
   Exclude<FittingStep, "verdict">,
@@ -79,15 +75,14 @@ export const STEP_META: Record<
 > = {
   consent: { n: 1, stage: "Before we start" },
   photo: { n: 2, stage: "Getting to know you" },
-  name: { n: 3, stage: "Getting to know you" },
-  life: { n: 4, stage: "Getting to know you" },
-  spend: { n: 5, stage: "Getting to know you" },
-  fit: { n: 6, stage: "Getting to know you" },
+  fit: { n: 3, stage: "Getting to know you" },
+  name: { n: 4, stage: "Getting to know you" },
+  life: { n: 5, stage: "Getting to know you" },
+  spend: { n: 6, stage: "Getting to know you" },
   worn: { n: 7, stage: "Getting to know you" },
-  wanted: { n: 8, stage: "Getting to know you" },
-  nolist: { n: 9, stage: "Getting to know you" },
-  honesty: { n: 10, stage: "Getting to know you" },
-  circle: { n: 11, stage: "Getting to know you" },
+  nolist: { n: 8, stage: "Getting to know you" },
+  honesty: { n: 9, stage: "Getting to know you" },
+  circle: { n: 10, stage: "Getting to know you" },
 };
 
 /** Knot index highlighted / sewn for each step */
@@ -96,25 +91,23 @@ export function knotNowIndex(step: FittingStep): number {
     case "consent":
     case "photo":
       return 0;
-    case "name":
-      return 1;
-    case "life":
-      return 2;
-    case "spend":
-      return 3;
     case "fit":
+      return 1;
+    case "name":
+      return 2;
+    case "life":
+      return 3;
+    case "spend":
       return 4;
     case "worn":
       return 5;
-    case "wanted":
-      return 6;
     case "nolist":
-      return 7;
+      return 6;
     case "honesty":
     case "circle":
-      return 8;
+      return 7;
     case "verdict":
-      return 9;
+      return 8;
     default:
       return 0;
   }
@@ -125,26 +118,24 @@ export function sewnThroughIndex(step: FittingStep): number {
     case "consent":
     case "photo":
       return -1;
-    case "name":
-      return 0;
-    case "life":
-      return 1;
-    case "spend":
-      return 2;
     case "fit":
+      return 0;
+    case "name":
+      return 1;
+    case "life":
+      return 2;
+    case "spend":
       return 3;
     case "worn":
       return 4;
-    case "wanted":
-      return 5;
     case "nolist":
-      return 6;
+      return 5;
     case "honesty":
+      return 6;
+    case "verdict":
       return 7;
     case "circle":
-      return 8;
-    case "verdict":
-      return 9;
+      return 7;
     default:
       return -1;
   }
@@ -238,8 +229,8 @@ export const EMPTY_MIRROR: MirrorState = {
 
 export function formFromGender(gender: string): SilhouetteForm {
   const g = gender.toLowerCase();
-  if (g === "masculine") return "m";
-  if (g === "feminine") return "f";
+  if (g === "masculine" || g === "menswear" || g === "mens") return "m";
+  if (g === "feminine" || g === "womenswear" || g === "womens") return "f";
   return "n";
 }
 

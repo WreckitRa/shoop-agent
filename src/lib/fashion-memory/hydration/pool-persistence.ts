@@ -26,6 +26,11 @@ export type SearchPoolState = {
   recurate_count: number;
   /** Hard-drop survivors at persist time (attributes, scores, taste ratings). */
   survivors?: FashionSlotCatalogProduct[];
+  /** Prepared 512px JPEGs keyed by source image URL — reused on refinements. */
+  prepared_images?: Record<
+    string,
+    import("../curation/curation-images").CurationImageBlock
+  >;
   /** Context needed to rehydrate and run on-demand hydration. */
   context: {
     slot: FashionSearchPlanSlot;
@@ -86,6 +91,7 @@ export function serializePoolState(pool: {
   shown_refs: string[];
   recurate_count: number;
   survivors?: FashionSlotCatalogProduct[];
+  prepared_images?: SearchPoolState["prepared_images"];
   context: SearchPoolState["context"];
 }): SearchPoolState {
   return {
@@ -99,6 +105,7 @@ export function serializePoolState(pool: {
     shown_refs: pool.shown_refs,
     recurate_count: pool.recurate_count,
     survivors: pool.survivors?.map(slimProductForPool),
+    prepared_images: pool.prepared_images,
     context: pool.context,
   };
 }
@@ -325,9 +332,15 @@ export async function persistAllSlotPools(params: {
   contexts: Map<string, SearchPoolState["context"]>;
   survivorsBySlot?: Map<string, FashionSlotCatalogProduct[]>;
 }): Promise<void> {
+  const { snapshotPreparedImages } = await import("../curation/curation-images");
   for (const [slotId, pool] of params.pools) {
     const context = params.contexts.get(slotId);
     if (!context) continue;
+    const imageUrls: string[] = [];
+    for (const c of pool.verified) {
+      const url = c.media_urls?.[0] ?? c.image_urls?.[0];
+      if (url) imageUrls.push(url);
+    }
     await saveSlotPool({
       searchId: params.searchId,
       slotId,
@@ -343,6 +356,7 @@ export async function persistAllSlotPools(params: {
         shown_refs: pool.shown_refs ?? [],
         recurate_count: pool.recurate_count ?? 0,
         survivors: params.survivorsBySlot?.get(slotId),
+        prepared_images: snapshotPreparedImages(imageUrls),
         context,
       },
     });

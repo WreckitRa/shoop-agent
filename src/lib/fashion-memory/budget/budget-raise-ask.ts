@@ -11,6 +11,8 @@ export type BudgetRaiseAskSlot = {
   slot_id: string;
   garment?: string;
   market_prices?: { min_viable: number } | null;
+  /** Post-hydrate verified count. 0 on a required slot is the only abort. */
+  verified_count?: number;
 };
 
 export type BudgetRaiseAsk = {
@@ -78,6 +80,32 @@ export function suggestRaisedBudgets(params: {
   return uniq.slice(0, 3);
 }
 
+export const LOOSEN_BUDGET_CHIP = "Loosen the budget";
+
+function slotVerifiedCount(slot: BudgetRaiseAskSlot): number {
+  return slot.verified_count ?? 0;
+}
+
+function emptyRequiredSlots(
+  plan: FashionSearchPlan,
+  slots: BudgetRaiseAskSlot[],
+): BudgetRaiseAskSlot[] {
+  const byId = new Map(slots.map((s) => [s.slot_id, s]));
+  const empty: BudgetRaiseAskSlot[] = [];
+  for (const planSlot of plan.slots) {
+    const row = byId.get(planSlot.slot_id);
+    if (slotVerifiedCount(row ?? { slot_id: planSlot.slot_id }) === 0) {
+      empty.push(row ?? { slot_id: planSlot.slot_id, garment: planSlot.garment });
+    }
+  }
+  return empty;
+}
+
+/**
+ * Abort into a raise-ask only when a required slot has zero verified
+ * items. Tight/infeasible tension with a non-empty verified set proceeds
+ * (budget_note + Loosen chip) — never blocks the rack.
+ */
 export function shouldAskBudgetRaise(params: {
   plan: FashionSearchPlan;
   tension?: BudgetTension | null;
@@ -90,6 +118,9 @@ export function shouldAskBudgetRaise(params: {
   const assembly = params.plan.budget_allocation?.budget_assembly;
   if (!assembly || !(assembly.total_max > 0)) return false;
 
+  const empty = emptyRequiredSlots(params.plan, params.slots);
+  if (empty.length === 0) return false;
+
   if (params.tension?.severity === "infeasible") return true;
 
   const mode = params.plan.mode;
@@ -98,8 +129,34 @@ export function shouldAskBudgetRaise(params: {
   const minViable = estimateMinViableSetTotal(params.slots);
   if (minViable == null) return false;
 
-  const ceiling = assembly.total_max * (1 + (assembly.tolerance ?? BUDGET_ASSEMBLY_TOLERANCE));
+  const ceiling =
+    assembly.total_max * (1 + (assembly.tolerance ?? BUDGET_ASSEMBLY_TOLERANCE));
   return minViable > ceiling;
+}
+
+export function budgetProceedNote(statedMax: number, currency: string): string {
+  return `Staying at ${formatMoney(statedMax, currency)} — closest real options.`;
+}
+
+export function ensureLoosenBudgetChip(offer: {
+  text: string;
+  chips: string[];
+}): { text: string; chips: string[] } {
+  const chips = [...offer.chips];
+  if (
+    chips.some(
+      (c) => c.trim().toLowerCase() === LOOSEN_BUDGET_CHIP.toLowerCase(),
+    )
+  ) {
+    return { text: offer.text, chips };
+  }
+  const replaceAt = chips.findIndex((c) =>
+    /lower budget|tighter budget/i.test(c),
+  );
+  if (replaceAt >= 0) chips[replaceAt] = LOOSEN_BUDGET_CHIP;
+  else if (chips.length >= 4) chips[chips.length - 1] = LOOSEN_BUDGET_CHIP;
+  else chips.push(LOOSEN_BUDGET_CHIP);
+  return { text: offer.text, chips };
 }
 
 export function buildBudgetRaiseClarification(params: {

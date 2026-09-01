@@ -108,6 +108,7 @@ export type CurationInputBundle = {
   userMessages: MessageCreateParamsNonStreaming["messages"];
   /** Photos requested but fetch/resize failed. */
   images_failed: number;
+  image_prep_ms: number;
 };
 
 export async function buildCurationInput(params: {
@@ -156,12 +157,14 @@ export async function buildCurationInput(params: {
     }
   }
 
+  const preparedStarted = Date.now();
   const prepared = params.omitImages
     ? { byRef: new Map<string, CurationImageBlock>(), prepared: 0, failed: 0 }
     : await prepareCurationImages({
         urls: pendingImages,
         signal: params.signal,
       });
+  const image_prep_ms = Date.now() - preparedStarted;
 
   const lines: string[] = [];
   const department =
@@ -370,5 +373,6 @@ export async function buildCurationInput(params: {
     imageBlocks,
     userMessages,
     images_failed: prepared.failed,
+    image_prep_ms,
   };
 }

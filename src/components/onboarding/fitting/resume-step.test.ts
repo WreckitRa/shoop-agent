@@ -72,11 +72,11 @@ describe("firstIncompleteFittingStep", () => {
           tasteTags: [{ category: "worn" }],
         }),
       ),
-      "wanted",
+      "nolist",
     );
   });
 
-  it("lands on circle after honesty, not on verdict", () => {
+  it("lands on verdict after honesty, not on circle", () => {
     assert.equal(
       firstIncompleteFittingStep(
         status({
@@ -84,14 +84,14 @@ describe("firstIncompleteFittingStep", () => {
             ...you,
             weekIs: "office",
             valuePhilosophy: "quality",
-            honestyPreference: "straight",
+            honestyPreference: "3",
           },
           sizing: { heightCm: 170, bodyType: "average" },
-          tasteTags: [{ category: "worn" }, { category: "aspirational" }],
+          tasteTags: [{ category: "worn" }],
           brandPreferences: [{ brand: "COS" }],
         }),
       ),
-      "circle",
+      "verdict",
     );
   });
 });
@@ -133,7 +133,7 @@ describe("resolveFittingResumeStep", () => {
         }),
         "photo",
       ),
-      "spend",
+      "fit",
     );
   });
 });

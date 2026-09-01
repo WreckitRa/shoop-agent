@@ -9,6 +9,7 @@ import {
   FittingWhisper,
   OnboardingChip,
 } from "@/components/onboarding/onboarding-ui";
+import { cn } from "@/lib/ai-chat/cn";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import {
   buildStyleUserReview,
@@ -18,38 +19,18 @@ import {
 import type { StylePhotoAnalysis } from "@/lib/photo-analysis/result";
 import type { PhotoAnalysisPublic } from "@/lib/photo-analysis/types";
 import {
+  kindHasColor,
+  matchScanTrait,
+  optionsForKind,
+  scanTraitKind,
+  type ScanTraitKind,
+  type ScanTraitOption,
+} from "@/lib/photo-analysis/scan-trait-options";
+import {
   heightCmFromPhotoValues,
   type FittingPhotoValues,
 } from "./FittingPhotoStep";
 import { resolveScanCheckBody } from "./scan-check-body";
-
-const BUILDS: { label: string; value: NonNullable<FittingPhotoValues["build"]> }[] = [
-  { label: "Slim", value: "slim" },
-  { label: "Average", value: "average" },
-  { label: "Athletic", value: "athletic" },
-  { label: "Broad", value: "broad" },
-  { label: "Plus", value: "plus" },
-];
-
-const MUSCLE: {
-  label: string;
-  value: NonNullable<FittingPhotoValues["muscularity"]>;
-}[] = [
-  { label: "Soft", value: "low" },
-  { label: "Toned", value: "moderate" },
-  { label: "Defined", value: "high" },
-];
-
-const SHAPES: {
-  label: string;
-  value: NonNullable<FittingPhotoValues["bodyShape"]>;
-}[] = [
-  { label: "Rectangle", value: "rectangle" },
-  { label: "Triangle", value: "triangle" },
-  { label: "Inverted", value: "inverted_triangle" },
-  { label: "Hourglass", value: "hourglass" },
-  { label: "Oval", value: "oval" },
-];
 
 export function confirmedBodyFromPhoto(
   values: FittingPhotoValues,
@@ -72,12 +53,166 @@ export function confirmedBodyFromPhoto(
   };
 }
 
+function ColorDropdown({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: ScanTraitOption[];
+  value: string;
+  onChange: (label: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const selected =
+    options.find((o) => o.label === value || o.id === value) ?? null;
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative max-w-[280px]">
+      <FittingQlbl>{label}</FittingQlbl>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex h-12 w-full items-center gap-3 rounded-xl border-[1.5px] bg-white px-3 text-left",
+          open
+            ? "border-[var(--fitting-ink)]"
+            : "border-[var(--fitting-line)]",
+        )}
+      >
+        <span
+          className="size-7 shrink-0 rounded-full border border-black/10"
+          style={{ background: selected?.hex ?? "#EEEFF3" }}
+          aria-hidden
+        />
+        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--fitting-ink)]">
+          {selected?.label ?? "Pick"}
+        </span>
+        <span className="text-[11px] text-[var(--fitting-quiet)]" aria-hidden>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open ? (
+        <ul
+          role="listbox"
+          className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-2xl border border-[var(--fitting-line)] bg-white p-1 shadow-[0_16px_40px_-24px_rgba(14,14,17,0.45)]"
+        >
+          {options.map((o) => {
+            const on = o.label === selected?.label;
+            return (
+              <li key={o.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  onClick={() => {
+                    onChange(o.label);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-[13.5px] font-semibold",
+                    on
+                      ? "bg-[#F4F4F6] text-[var(--fitting-ink)]"
+                      : "text-[var(--fitting-ink)] hover:bg-[#F7F7F9]",
+                  )}
+                >
+                  <span
+                    className="size-7 shrink-0 rounded-full border border-black/10"
+                    style={{ background: o.hex }}
+                    aria-hidden
+                  />
+                  {o.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function ChipTrait({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: ScanTraitOption[];
+  value: string;
+  onChange: (label: string) => void;
+}) {
+  return (
+    <div>
+      <FittingQlbl>{label}</FittingQlbl>
+      <div className="flex max-w-[520px] flex-wrap gap-2">
+        {options.map((o) => (
+          <OnboardingChip
+            key={o.id}
+            selected={o.label === value || o.id === value}
+            onClick={() => onChange(o.label)}
+          >
+            {o.label}
+          </OnboardingChip>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function traitControl(
+  kind: ScanTraitKind,
+  label: string,
+  value: string,
+  onChange: (label: string) => void,
+) {
+  const options = optionsForKind(kind);
+  if (kindHasColor(kind)) {
+    return (
+      <ColorDropdown
+        label={label}
+        options={options}
+        value={value}
+        onChange={onChange}
+      />
+    );
+  }
+  return (
+    <ChipTrait
+      label={label}
+      options={options}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
+
 export function AnalysisReviewForm({
   photoHash,
   result,
   saved,
   body,
-  onBodyChange,
   onSaved,
   onSkip,
 }: {
@@ -99,26 +234,23 @@ export function AnalysisReviewForm({
   );
   const initialEdits = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const row of rows) out[row.path] = row.value ?? "";
-    for (const c of saved?.corrections ?? []) out[c.path] = c.corrected_value;
+    for (const row of rows) {
+      const kind = scanTraitKind(row.path);
+      const fromSaved = saved?.corrections?.find((c) => c.path === row.path)
+        ?.corrected_value;
+      if (fromSaved) {
+        out[row.path] = fromSaved;
+        continue;
+      }
+      out[row.path] = kind
+        ? matchScanTrait(kind, row.value ?? "")?.label ?? ""
+        : (row.value ?? "");
+    }
     return out;
   }, [rows, saved]);
   const [edits, setEdits] = useState<Record<string, string>>(initialEdits);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const seeded = useRef(false);
-
-  useEffect(() => {
-    if (seeded.current) return;
-    seeded.current = true;
-    if (body.build !== shown.build) onBodyChange("build", shown.build);
-    if (body.muscularity !== shown.muscularity) {
-      onBodyChange("muscularity", shown.muscularity);
-    }
-    if (shown.bodyShape && body.bodyShape !== shown.bodyShape) {
-      onBodyChange("bodyShape", shown.bodyShape);
-    }
-  }, [body, shown, onBodyChange]);
 
   async function save() {
     if (saving) return;
@@ -191,130 +323,21 @@ export function AnalysisReviewForm({
         ]}
       />
       <FittingWhisper>
-        Face reading plus the numbers you already gave me. The twin on the
-        right is the picture — fix anything that&apos;s off here, then lock it.
+        Colours and shape from the photo. Tap anything that&apos;s off — then
+        lock it.
       </FittingWhisper>
-      {rows.map((row) => (
-        <div key={row.path}>
-          <FittingQlbl>{row.label}</FittingQlbl>
-          <input
-            type="text"
-            value={edits[row.path] ?? row.value ?? ""}
-            onChange={(e) =>
-              setEdits((prev) => ({ ...prev, [row.path]: e.target.value }))
-            }
-            className="w-full max-w-[440px] border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[22px] font-bold text-[var(--fitting-ink)] outline-none placeholder:text-[#D9D9DE] focus:border-[var(--fitting-red)]"
-          />
-        </div>
-      ))}
 
-      <FittingQlbl>Height</FittingQlbl>
-      <div className="flex flex-wrap items-end gap-3">
-        {body.heightUnit === "cm" ? (
-          <input
-            type="text"
-            inputMode="numeric"
-            value={body.heightCm || ""}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/[^\d]/g, "");
-              onBodyChange("heightCm", raw ? Number(raw) : null);
-            }}
-            className="w-[120px] border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[22px] font-bold outline-none focus:border-[var(--fitting-red)]"
-          />
-        ) : (
-          <>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={body.heightFt || ""}
-              onChange={(e) => {
-                const raw = e.target.value.replace(/[^\d]/g, "");
-                onBodyChange("heightFt", raw ? Number(raw) : null);
-              }}
-              className="w-[72px] border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[22px] font-bold outline-none focus:border-[var(--fitting-red)]"
-            />
-            <span className="pb-2 text-[12px] font-bold text-[var(--fitting-quiet)]">
-              ft
-            </span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={body.heightIn || ""}
-              onChange={(e) => {
-                const raw = e.target.value.replace(/[^\d]/g, "");
-                onBodyChange("heightIn", raw ? Number(raw) : null);
-              }}
-              className="w-[72px] border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[22px] font-bold outline-none focus:border-[var(--fitting-red)]"
-            />
-          </>
-        )}
-        <span className="pb-2 text-[12px] font-bold text-[var(--fitting-quiet)]">
-          {body.heightUnit === "cm" ? "cm" : "in"}
-        </span>
-      </div>
-
-      <FittingQlbl>Weight</FittingQlbl>
-      <div className="flex flex-wrap items-end gap-3">
-        <input
-          type="text"
-          inputMode="numeric"
-          value={body.weightSkipped ? "" : body.weightValue ?? ""}
-          placeholder="—"
-          onChange={(e) => {
-            const raw = e.target.value.replace(/[^\d]/g, "");
-            onBodyChange("weightSkipped", false);
-            onBodyChange("weightValue", raw ? Number(raw) : null);
-          }}
-          className="w-[120px] border-0 border-b-[3px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[22px] font-bold outline-none placeholder:text-[#D9D9DE] focus:border-[var(--fitting-red)]"
-        />
-        <span className="pb-2 text-[12px] font-bold text-[var(--fitting-quiet)]">
-          {body.weightUnit}
-        </span>
-      </div>
-
-      <FittingQlbl>Build</FittingQlbl>
-      <div className="flex max-w-[520px] flex-wrap gap-2">
-        {BUILDS.map((b) => (
-          <OnboardingChip
-            key={b.value}
-            selected={shown.build === b.value}
-            onClick={() => onBodyChange("build", b.value)}
-          >
-            {b.label}
-          </OnboardingChip>
-        ))}
-      </div>
-
-      <FittingQlbl>Definition</FittingQlbl>
-      <div className="flex max-w-[520px] flex-wrap gap-2">
-        {MUSCLE.map((m) => (
-          <OnboardingChip
-            key={m.value}
-            selected={shown.muscularity === m.value}
-            onClick={() => onBodyChange("muscularity", m.value)}
-          >
-            {m.label}
-          </OnboardingChip>
-        ))}
-      </div>
-
-      <FittingQlbl>Shape</FittingQlbl>
-      <div className="flex max-w-[520px] flex-wrap gap-2">
-        {SHAPES.map((s) => (
-          <OnboardingChip
-            key={s.value}
-            selected={shown.bodyShape === s.value}
-            onClick={() =>
-              onBodyChange(
-                "bodyShape",
-                shown.bodyShape === s.value ? null : s.value,
-              )
-            }
-          >
-            {s.label}
-          </OnboardingChip>
-        ))}
-      </div>
+      {rows.map((row) => {
+        const kind = scanTraitKind(row.path);
+        if (!kind) return null;
+        return (
+          <div key={row.path}>
+            {traitControl(kind, row.label, edits[row.path] ?? "", (label) =>
+              setEdits((prev) => ({ ...prev, [row.path]: label })),
+            )}
+          </div>
+        );
+      })}
 
       {error ? (
         <p className="mt-4 text-[13px] font-semibold text-[var(--fitting-red)]">

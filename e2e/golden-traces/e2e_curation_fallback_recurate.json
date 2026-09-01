@@ -1,6 +1,8 @@
 {
   "stages": [
     "brief_persisted",
+    "gate",
+    "router",
     "ucp_query",
     "ucp_query",
     "ucp_query",
@@ -12,22 +14,35 @@
     "normalize",
     "hard_drops",
     "scoring",
+    "taste_rerank_failed",
+    "taste_rerank",
     "hydration",
     "turn_budget",
+    "curation",
     "invariant_warning",
     "curation",
-    "curation"
+    "curation",
+    "search_funnel",
+    "taste_fit",
+    "search_latency"
   ],
   "eventCounts": {
     "brief_persisted": 1,
+    "gate": 1,
+    "router": 1,
     "ucp_query": 7,
     "ucp_coverage": 1,
     "normalize": 1,
     "hard_drops": 1,
     "scoring": 1,
+    "taste_rerank_failed": 1,
+    "taste_rerank": 1,
     "hydration": 1,
     "turn_budget": 1,
+    "curation": 3,
     "invariant_warning": 1,
-    "curation": 2
+    "search_funnel": 1,
+    "taste_fit": 1,
+    "search_latency": 1
   }
 }

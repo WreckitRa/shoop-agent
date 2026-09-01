@@ -160,6 +160,7 @@ export type FashionCurationResult = {
   curation_ms: number;
   stage_a_ms?: number;
   stage_b_ms?: number;
+  image_prep_ms?: number;
   registry: CurationRefRegistry;
 };
 

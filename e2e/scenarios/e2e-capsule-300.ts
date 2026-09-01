@@ -29,6 +29,7 @@ const capsuleBrief = {
     sizes_confirmed: ["shirt", "trousers", "shoes"],
     sizes_unconfirmed: [] as string[],
   },
+  depth: { looks_wanted: 3, source: "stated" as const },
 };
 
 export const e2eCapsule300: E2eScenario = {
@@ -70,7 +71,7 @@ export const e2eCapsule300: E2eScenario = {
   },
   steps: [
     {
-      user: "3 work outfits to rotate, $300 total",
+      user: "3 work outfits to rotate — shirts, trousers, and shoes, $300 total",
       expect: {
         plan: {
           mode: "capsule",
