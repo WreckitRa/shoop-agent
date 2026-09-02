@@ -93,6 +93,7 @@ export function FittingAnalysisPanel({
 }) {
   const [analysis, setAnalysis] = useState<PhotoAnalysisPublic | null>(null);
   const [photoHash, setPhotoHash] = useState<string | null>(null);
+  const [polled, setPolled] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const completedRef = useRef(false);
@@ -136,6 +137,7 @@ export function FittingAnalysisPanel({
         if (photoHash && row && row.photoHash !== photoHash) return;
         if (!photoHash && row?.photoHash) setPhotoHash(row.photoHash);
         setAnalysis(row);
+        if (photoHash) setPolled(true);
         const phase = photoScanPhase(row);
         if (phase === "done" && row?.verdict && !completedRef.current) {
           completedRef.current = true;
@@ -271,7 +273,7 @@ export function FittingAnalysisPanel({
   if (!enabled) return null;
 
   const phase = photoScanPhase(analysis);
-  const running = phase === "reading";
+  const running = phase === "reading" && (analysis != null || !polled);
   const usable = Boolean(
     analysis?.result?.analysis_status.usable && (photoHash || analysis?.photoHash),
   );

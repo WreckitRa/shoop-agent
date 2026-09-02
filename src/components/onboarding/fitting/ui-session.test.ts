@@ -7,6 +7,7 @@ import {
   markOnboardingUiDismissed,
   markOnboardingUiResumed,
   readOnboardingUiSession,
+  sessionIsMagicLocked,
   writeOnboardingUiSession,
 } from "./ui-session";
 
@@ -73,5 +74,16 @@ describe("onboarding ui session", () => {
     writeOnboardingUiSession({ step: "verdict" });
     markOnboardingUiDismissed();
     assert.equal(isFinishingFitting(readOnboardingUiSession()), false);
+  });
+
+  it("locks scan/verdict/circle as the fullscreen sequence", () => {
+    writeOnboardingUiSession({ step: "honesty" });
+    assert.equal(sessionIsMagicLocked(readOnboardingUiSession()), false);
+    writeOnboardingUiSession({ step: "verdict", finale: "scan", locked: true });
+    assert.equal(sessionIsMagicLocked(readOnboardingUiSession()), true);
+    writeOnboardingUiSession({ step: "circle" });
+    assert.equal(sessionIsMagicLocked(readOnboardingUiSession()), true);
+    markOnboardingUiDismissed();
+    assert.equal(sessionIsMagicLocked(readOnboardingUiSession()), false);
   });
 });

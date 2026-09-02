@@ -26,6 +26,8 @@ type Props = {
   /** Photo step: pick a face from the silhouette head. */
   onPickPhoto?: (file: File) => void;
   photoPickLocked?: boolean;
+  /** Bigger add-photo chip when the twin sits under the questions. */
+  photoCta?: "rail" | "flow";
   /** Twin mint failed — print again from THE MIRROR. */
   onRetryTwin?: () => void;
 };
@@ -38,6 +40,7 @@ export function FittingMirror({
   layout = "page",
   onPickPhoto,
   photoPickLocked = false,
+  photoCta = "rail",
   onRetryTwin,
 }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
@@ -189,11 +192,11 @@ export function FittingMirror({
             )}
           >
             {fillUrl ? null : (
-              <div className="absolute inset-0 flex items-end justify-center">
+              <div className="absolute inset-0 flex items-end justify-center [container-type:size]">
                 <div
-                  className="fitting-motion relative max-h-full max-w-full overflow-hidden transition-[height] duration-700 ease-out"
+                  className="fitting-motion relative"
                   style={{
-                    height: `${heightPct}%`,
+                    width: `min(100%, calc(${heightPct}cqh * ${SILHOUETTE_VIEWBOX.w} / ${SILHOUETTE_VIEWBOX.h}))`,
                     aspectRatio: `${SILHOUETTE_VIEWBOX.w} / ${SILHOUETTE_VIEWBOX.h}`,
                     color: bodyColor,
                   }}
@@ -209,22 +212,20 @@ export function FittingMirror({
                     }
                     legLine={mirror.legLine}
                     heightCm={null}
-                    showHead={false}
                     decorative
                   />
                   <HeadWrap
                     className={cn(
-                      "absolute z-[2] flex flex-col items-center",
+                      "absolute inset-0 z-[2]",
                       onPickPhoto && !photoPickLocked && "cursor-pointer",
                       onPickPhoto &&
                         photoPickLocked &&
                         "pointer-events-none opacity-40",
                     )}
-                    style={silhouetteHeadOverlayStyle()}
                   >
                     <span
                       className={cn(
-                        "block aspect-square w-full shrink-0 rounded-full transition-all duration-700",
+                        "absolute aspect-square rounded-full transition-all duration-700",
                         onPickPhoto &&
                           !mirror.photoUrl &&
                           "outline outline-2 outline-dashed outline-[var(--fitting-ink)]",
@@ -237,17 +238,18 @@ export function FittingMirror({
                           !mirror.photoUrl &&
                           "bg-gradient-to-br from-[#E8DDD0] to-[#C4B4A2]",
                       )}
-                      style={
-                        mirror.photoUrl
+                      style={{
+                        ...silhouetteHeadOverlayStyle(),
+                        ...(mirror.photoUrl
                           ? {
                               backgroundImage: `url(${mirror.photoUrl})`,
                               backgroundSize: "cover",
                               backgroundPosition: "center",
                             }
                           : mirror.developPct >= 26
-                            ? undefined
-                            : { backgroundColor: bodyColor }
-                      }
+                            ? {}
+                            : { backgroundColor: bodyColor }),
+                      }}
                     />
                     {onPickPhoto ? (
                       <>
@@ -268,7 +270,14 @@ export function FittingMirror({
                             : "Add a face photo"}
                         </span>
                         {!mirror.photoUrl ? (
-                          <span className="relative z-10 mt-1.5 whitespace-nowrap rounded-[10px] bg-[var(--fitting-ink)] px-2.5 py-1.5 font-display text-[10px] font-extrabold text-white shadow-[0_10px_18px_-10px_rgba(14,14,17,.5)]">
+                          <span
+                            className={cn(
+                              "absolute left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-[10px] bg-[var(--fitting-ink)] font-display font-extrabold text-white shadow-[0_10px_18px_-10px_rgba(14,14,17,.5)]",
+                              photoCta === "flow"
+                                ? "bottom-[22%] px-4 py-2.5 text-[13px]"
+                                : "bottom-[20%] px-2.5 py-1.5 text-[10px]",
+                            )}
+                          >
                             Add a face photo{" "}
                             <span aria-hidden>→</span>
                           </span>

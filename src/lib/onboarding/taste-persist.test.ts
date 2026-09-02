@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildPatchFromTastePicks } from "./taste-persist";
+import { buildPatchFromTastePicks, honestyPreferenceForSave } from "./taste-persist";
 
 describe("buildPatchFromTastePicks", () => {
   it("maps worn/aspirational picks, brands, vetoes, and style mix", () => {
@@ -67,5 +67,16 @@ describe("buildPatchFromTastePicks", () => {
       honestyPreference: "gentle",
     });
     assert.equal(patch.profile?.honestyPreference, "1");
+  });
+
+  it("does not stamp honesty until the honesty step is locked", () => {
+    const worn = buildPatchFromTastePicks({
+      wornPicks: [{ id: "1", label: "jeans", archetype: "Sporty" }],
+    });
+    assert.equal(worn.profile?.honestyPreference, undefined);
+    assert.equal(honestyPreferenceForSave("worn", ""), undefined);
+    assert.equal(honestyPreferenceForSave("nolist", "5"), undefined);
+    assert.equal(honestyPreferenceForSave("final", ""), "3");
+    assert.equal(honestyPreferenceForSave("final", "5"), "5");
   });
 });

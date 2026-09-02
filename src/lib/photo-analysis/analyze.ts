@@ -15,6 +15,7 @@ import {
   EMPTY_IMAGE_PREFLIGHT,
   parseStylePhotoAnalysis,
   parseStylePhotoPreflight,
+  rescueClearFaceGate,
   shouldRunDetailedAnalysis,
   type PhotoCoverage,
   type StylePhotoAnalysis,
@@ -95,7 +96,7 @@ export async function preflightStylePhotos({
     });
     const gate = parseStylePhotoPreflight(raw);
     if (!gate) throw new Error(PHOTO_ERROR.non_json);
-    return gate;
+    return rescueClearFaceGate(gate);
   });
 }
 

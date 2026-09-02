@@ -142,7 +142,7 @@ export function TasteLovesVetoesStep({
   const nextLabel =
     loveCount >= 1
       ? `Continue · ${loveCount} shops, ${vetoCount} vetoes`
-      : "Pick at least one";
+      : "Continue without shops";
 
   function tapBrand(brand: CatalogBrand) {
     const next = applyBrandTap(brandLikes, brandAvoids, brand.name);

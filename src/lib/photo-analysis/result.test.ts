@@ -4,6 +4,7 @@ import {
   EMPTY_IMAGE_PREFLIGHT,
   parseStylePhotoAnalysis,
   parseStylePhotoPreflight,
+  rescueClearFaceGate,
   shouldRunDetailedAnalysis,
   STYLE_PHOTO_ANALYSIS_ROOT_KEYS,
 } from "./result";
@@ -108,5 +109,36 @@ describe("style photo preflight", () => {
       true,
     );
     assert.equal(shouldRunDetailedAnalysis({ next_action: "stop" }, true), false);
+  });
+
+  it("lets a clear single face through even when Luna calls it generated", () => {
+    const stopped = parseStylePhotoPreflight({
+      decision: "reject",
+      next_action: "stop",
+      person_presence: "one",
+      target_unambiguous: true,
+      photo_type: "illustration_or_generated",
+      requested_coverage: "face",
+      coverage_satisfied: false,
+      highest_supported_coverage: "none",
+      body_visibility: "upper_body",
+      face_visibility: "clear",
+      supported_analyses: [],
+      reason_codes: ["not_a_real_person_photo"],
+      missing_requirements: ["A real photograph"],
+      user_message: "Please upload a clear photograph of the person for analysis.",
+      confidence: 0.99,
+    });
+    assert.ok(stopped);
+    const rescued = rescueClearFaceGate(stopped);
+    assert.equal(rescued.next_action, "run_full_analysis");
+    assert.equal(rescued.decision, "accept_full");
+    assert.equal(rescued.photo_type, "real_person_photo");
+    assert.equal(shouldRunDetailedAnalysis(rescued, false), true);
+  });
+
+  it("does not rescue a gate with no visible person", () => {
+    const empty = rescueClearFaceGate(EMPTY_IMAGE_PREFLIGHT);
+    assert.equal(empty.next_action, "stop");
   });
 });

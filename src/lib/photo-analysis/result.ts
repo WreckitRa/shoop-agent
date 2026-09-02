@@ -140,6 +140,57 @@ export function parseStylePhotoPreflight(
   };
 }
 
+/**
+ * Luna often tags a studio headshot as generated/screenshot and stops.
+ * A single unambiguous, visible face is enough to pay for Terra.
+ */
+export function rescueClearFaceGate(
+  gate: StylePhotoPreflight,
+): StylePhotoPreflight {
+  const faceOk =
+    gate.person_presence === "one" &&
+    gate.target_unambiguous &&
+    (gate.face_visibility === "clear" ||
+      gate.face_visibility === "partly_visible");
+  if (!faceOk) return gate;
+  if (
+    gate.next_action === "run_full_analysis" ||
+    gate.next_action === "run_partial_analysis"
+  ) {
+    return gate;
+  }
+
+  const coverage: AchievedCoverage =
+    gate.body_visibility === "head_to_toe"
+      ? "full_body"
+      : gate.body_visibility === "upper_body" ||
+          gate.body_visibility === "three_quarter"
+        ? "upper_body"
+        : "face";
+  const faceRoute = gate.requested_coverage === "face";
+  const generatedish =
+    gate.photo_type === "illustration_or_generated" ||
+    gate.photo_type === "document_or_screenshot";
+
+  return {
+    ...gate,
+    decision: faceRoute || coverage === gate.requested_coverage
+      ? "accept_full"
+      : "accept_partial",
+    next_action: "run_full_analysis",
+    highest_supported_coverage: coverage,
+    coverage_satisfied: faceRoute || coverage === gate.requested_coverage,
+    photo_type: generatedish ? "real_person_photo" : gate.photo_type,
+    reason_codes: gate.reason_codes.filter(
+      (code) => code !== "not_a_real_person_photo",
+    ),
+    supported_analyses:
+      gate.supported_analyses.length > 0
+        ? gate.supported_analyses
+        : ["face_geometry", "color_conditions", "hair_and_grooming"],
+  };
+}
+
 /** Onboarding does not spend on partial analysis. */
 export function shouldRunDetailedAnalysis(
   gate: Pick<StylePhotoPreflight, "next_action">,

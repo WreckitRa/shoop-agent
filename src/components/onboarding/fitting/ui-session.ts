@@ -1,4 +1,4 @@
-import { FITTING_STEPS, type FittingStep } from "./types";
+import { FITTING_STEPS, isMagicFittingStep, type FittingStep } from "./types";
 
 export const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v4";
 
@@ -10,6 +10,8 @@ export type OnboardingUiSession = {
   finale?: OnboardingUiFinale;
   /** User closed The Fitting — do not auto-reopen on refresh. */
   dismissed?: boolean;
+  /** Scan/verdict/circle — Fitting owns the viewport. */
+  locked?: boolean;
 };
 
 function isFittingStep(v: unknown): v is FittingStep {
@@ -40,6 +42,7 @@ function parseSession(raw: string | null): OnboardingUiSession | null {
       circleNames: parseCircleNames(parsed.circleNames),
       finale,
       dismissed: parsed.dismissed === true,
+      locked: parsed.locked === true,
     };
   } catch {
     return null;
@@ -93,6 +96,7 @@ export function writeOnboardingUiSession(
     circleNames: pos.circleNames ?? prev?.circleNames,
     finale: pos.finale ?? prev?.finale,
     dismissed: "dismissed" in pos ? pos.dismissed : prev?.dismissed,
+    locked: "locked" in pos ? pos.locked : prev?.locked,
   };
   const raw = JSON.stringify(next);
   storageSet(window.localStorage, raw);
@@ -120,11 +124,18 @@ export function markOnboardingUiResumed() {
   writeOnboardingUiSession({ ...prev, dismissed: false });
 }
 
-/** Last step — after save/login, close Fitting onto the You mirror. */
+/** Scan/verdict/friends owns the viewport until they log in or quit. */
+export function sessionIsMagicLocked(
+  session: OnboardingUiSession | null,
+): boolean {
+  if (!session || session.dismissed === true) return false;
+  return session.locked === true || isMagicFittingStep(session.step);
+}
+
+/** Verdict card is the last save-before-circle beat — keep Fitting open after signup. */
 export function isFinishingFitting(
   session: OnboardingUiSession | null,
 ): boolean {
-  return Boolean(
-    session && session.step === "verdict" && session.dismissed !== true,
-  );
+  if (!session || session.dismissed === true) return false;
+  return session.step === "verdict";
 }

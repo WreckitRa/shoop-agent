@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   FittingCta,
   FittingKick,
@@ -73,6 +73,8 @@ type Props = {
   mode?: "scan" | "body";
   /** Guest: local preview only — processing waits until they save progress. */
   deferProcessing?: boolean;
+  /** Twin sits under the copy until a photo is on it. */
+  twinSlot?: ReactNode;
 };
 
 /** Smart default when user skips definition — still satisfies FASHN required attrs. */
@@ -280,6 +282,7 @@ export function FittingPhotoStep({
   showBust = false,
   mode = "scan",
   deferProcessing = false,
+  twinSlot,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -342,9 +345,13 @@ export function FittingPhotoStep({
       />
       {scan ? (
         <FittingWhisper>
-          {deferProcessing
-            ? "One face photograph — tap the face on the card. It stays on this device until you save your progress — we don't process it until then. Height and build are typed facts after this."
-            : "One face photograph — tap the face on the card. Height and build are typed facts after this — used for the twin, never shown, never judged."}
+          {values.photoPreview
+            ? deferProcessing
+              ? "It stays on this device until you save your progress — we don't process it until then. Height and build are typed facts after this."
+              : "Height and build are typed facts after this — used for the twin, never shown, never judged."
+            : deferProcessing
+              ? "One face photograph — add it on your twin below. It stays on this device until you save your progress — we don't process it until then."
+              : "One face photograph — add it on your twin below. Height and build are typed facts after this — used for the twin, never shown, never judged."}
         </FittingWhisper>
       ) : (
         <FittingWhisper>
@@ -352,6 +359,8 @@ export function FittingPhotoStep({
           judged.
         </FittingWhisper>
       )}
+
+      {scan ? twinSlot : null}
 
       {scan ? (
         <>

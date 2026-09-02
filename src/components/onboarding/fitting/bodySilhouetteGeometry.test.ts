@@ -18,6 +18,8 @@ import {
   silhouetteMorphStyle,
   SILHOUETTE_HEAD,
   SILHOUETTE_TORSO_TOP_Y,
+  SILHOUETTE_VIEWBOX,
+  silhouetteHeadOverlayStyle,
   type BodySilhouetteInput,
   type LegLineVisual,
 } from "./bodySilhouetteGeometry";
@@ -193,10 +195,24 @@ describe("body silhouette geometry", () => {
     assert.match(silhouetteMorphStyle(false).transition, /280ms/);
   });
 
-  it("tucks the torso under the head so the neck does not gap", () => {
-    const headBottom = SILHOUETTE_HEAD.cy + SILHOUETTE_HEAD.r;
-    assert.ok(SILHOUETTE_TORSO_TOP_Y <= headBottom);
-    assert.ok(headBottom - SILHOUETTE_TORSO_TOP_Y <= 4);
+  it("places the HTML face overlay on the SVG head viewBox", () => {
+    const s = silhouetteHeadOverlayStyle();
+    const left = parseFloat(s.left);
+    const top = parseFloat(s.top);
+    const width = parseFloat(s.width);
+    const { cx, cy, r } = SILHOUETTE_HEAD;
+    assert.ok(Math.abs(left - ((cx - r) / SILHOUETTE_VIEWBOX.w) * 100) < 1e-9);
+    assert.ok(Math.abs(top - ((cy - r) / SILHOUETTE_VIEWBOX.h) * 100) < 1e-9);
+    assert.ok(Math.abs(width - ((r * 2) / SILHOUETTE_VIEWBOX.w) * 100) < 1e-9);
+  });
+
+  it("tucks the torso under the photo chin, not the circle's bottom edge", () => {
+    const { cy, r } = SILHOUETTE_HEAD;
+    const headBottom = cy + r;
+    assert.ok(SILHOUETTE_TORSO_TOP_Y > cy);
+    assert.ok(SILHOUETTE_TORSO_TOP_Y < headBottom);
+    assert.ok(headBottom >= 76);
+    assert.ok(headBottom <= 86);
   });
 
   it("label uses explicit selections only", () => {

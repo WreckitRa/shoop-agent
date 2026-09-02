@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/ai-chat/cn";
 import { FittingCta, FittingKick, FittingWhisper } from "@/components/onboarding/onboarding-ui";
 import { guestFetch } from "@/lib/client/guest-fetch";
@@ -14,6 +14,10 @@ import {
 import { buildReadingView } from "@/lib/photo-analysis/verdict-reading";
 import type { StylistVerdict } from "@/lib/photo-analysis/verdict";
 import { catalogDisplayImageUrl, CATALOG_IMAGE_PX } from "@/lib/shopify/catalog-display-image";
+import {
+  TRYON_CLIENT_POLL_MAX_MS,
+  TRYON_CLIENT_POLL_MS,
+} from "@/lib/tryon/client-poll";
 import type { BuildKey, SilhouetteForm } from "./types";
 
 type Props = {
@@ -50,6 +54,68 @@ const BUILD_TXT: Record<BuildKey, string> = {
 const DONUT_R = 72;
 const DONUT_C = 2 * Math.PI * DONUT_R;
 const DONUT_GAP = 3;
+const LOOKS_ON_YOU = 5;
+
+type LookOnYou = "loading" | "error" | string;
+
+async function pollLookJob(jobId: string): Promise<string | null> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt <= TRYON_CLIENT_POLL_MAX_MS) {
+    const pollRes = await guestFetch(`/api/tryon/fitting-room/${jobId}`);
+    const pollBody = (await pollRes.json()) as {
+      error?: string;
+      tryon_look?: {
+        status?: string;
+        final_image_url?: string;
+        partial_note?: string;
+        compare?: boolean;
+        variants?: Array<{ image_url?: string; status?: string }>;
+      };
+    };
+    if (!pollRes.ok) return null;
+    const look = pollBody.tryon_look;
+    if (look?.status === "completed" && look.final_image_url) {
+      return look.final_image_url;
+    }
+    if (look?.compare) {
+      const any =
+        look.final_image_url ||
+        look.variants?.find((v) => v.image_url)?.image_url;
+      const settled = (look.variants ?? []).every(
+        (v) => v.status === "completed" || v.status === "failed",
+      );
+      if (any && settled) return any;
+      if (look.status === "failed" && !any) return null;
+    } else if (look?.status === "failed") {
+      return null;
+    }
+    await new Promise((r) => setTimeout(r, TRYON_CLIENT_POLL_MS));
+  }
+  return null;
+}
+
+async function dressLookOnYou(
+  products: ReadingLookProduct[],
+): Promise<string | null> {
+  const items = products.slice(0, 6).map((product) => ({
+    provenance: {
+      kind: "image" as const,
+      imageUrl: product.imageUrl,
+      title: product.title,
+      garment: product.title,
+      styleId: product.id,
+    },
+  }));
+  if (!items.length) return null;
+  const res = await guestFetch("/api/tryon/fitting-room", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  const body = (await res.json()) as { error?: string; jobId?: string };
+  if (!res.ok || !body.jobId) return null;
+  return pollLookJob(body.jobId);
+}
 
 function TasteDonut({
   mix,
@@ -381,6 +447,43 @@ export function FittingVerdictStep({
     return groups;
   }, [looks]);
 
+  const fiveLooks = useMemo(
+    () => lookGroups.filter((group) => group.id !== "buy").slice(0, LOOKS_ON_YOU),
+    [lookGroups],
+  );
+  const [lookOnYou, setLookOnYou] = useState<Record<string, LookOnYou>>({});
+  const dressedLooksRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const pending = fiveLooks.filter(
+      (group) => group.products.length && !dressedLooksRef.current.has(group.id),
+    );
+    if (!pending.length) return;
+    let cancelled = false;
+    void (async () => {
+      for (const group of pending) {
+        if (cancelled) return;
+        dressedLooksRef.current.add(group.id);
+        setLookOnYou((prev) => ({ ...prev, [group.id]: "loading" }));
+        try {
+          const url = await dressLookOnYou(group.products);
+          if (cancelled) return;
+          setLookOnYou((prev) => ({
+            ...prev,
+            [group.id]: url ?? "error",
+          }));
+        } catch {
+          if (!cancelled) {
+            setLookOnYou((prev) => ({ ...prev, [group.id]: "error" }));
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fiveLooks]);
+
   const noteCount = Math.max(
     reading.areas.filter((a) => a.verdict === "n").length,
     reading.steps.length,
@@ -411,7 +514,7 @@ export function FittingVerdictStep({
         ) : null}
       </p>
 
-        {lookGroups.length || (verdict && looks === null) ? (
+        {fiveLooks.length || (verdict && looks === null) ? (
           <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
             <div className="mb-1 font-display text-[10px] font-black tracking-[0.14em] text-[#C4C4CC]">
               FIRST
@@ -420,34 +523,44 @@ export function FittingVerdictStep({
             <h2 className="mb-4 font-display text-[clamp(22px,2.6vw,28px)] font-black leading-[1.08] tracking-[-0.03em]">
               Five looks on you — not catalog stills.
             </h2>
-            {lookGroups.length ? (
+            {fiveLooks.length ? (
               <div className="flex flex-col gap-6">
-                {lookGroups.map((group) => (
+                {fiveLooks.map((group) => {
+                  const onYou = lookOnYou[group.id];
+                  return (
                   <div key={group.id}>
                     <div className="mb-3 font-display text-[13px] font-extrabold tracking-[-0.02em]">
                       {group.label}
                     </div>
-                    {dressedLookUrl ? (
+                    {typeof onYou === "string" ? (
                       <div className="mb-2.5 overflow-hidden rounded-2xl bg-[#F4F4F6]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={dressedLookUrl}
+                          src={onYou}
                           alt=""
                           className="aspect-[3/4] w-full object-cover object-top"
                         />
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                        {group.products.map((product) => (
-                          <ReadingProductTile
-                            key={product.id}
-                            product={product}
-                          />
-                        ))}
-                      </div>
+                      <>
+                        <p className="mb-2.5 font-whisper text-[14px] italic text-[var(--fitting-quiet)]">
+                          {onYou === "error"
+                            ? "Couldn’t dress this one on you — the pieces are below."
+                            : "Dressing this look on you…"}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                          {group.products.map((product) => (
+                            <ReadingProductTile
+                              key={product.id}
+                              product={product}
+                            />
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="font-whisper text-[15px] italic text-[var(--fitting-quiet)]">

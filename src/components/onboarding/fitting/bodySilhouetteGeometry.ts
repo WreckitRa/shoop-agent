@@ -31,10 +31,10 @@ export type BodySilhouetteInput = {
 type WidthKey = Exclude<keyof BodyGeometry, "torsoBottomY">;
 
 const CX = 90;
-const HEAD_CY = 34;
+const HEAD_CY = 50;
 const HEAD_R = 29;
-/** Torso peak — tucked under the head so the neck never gaps. */
-export const SILHOUETTE_TORSO_TOP_Y = 62;
+/** Torso peak sits in the chin so the collar does not poke out above the neck. */
+export const SILHOUETTE_TORSO_TOP_Y = 68;
 export const SILHOUETTE_VIEWBOX = { w: 180, h: 340 } as const;
 const FOOT_Y = 312;
 const ARM_Y0 = 91;

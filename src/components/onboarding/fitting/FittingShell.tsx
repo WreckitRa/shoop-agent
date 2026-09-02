@@ -22,6 +22,7 @@ type Props = {
   onPickPhoto?: (file: File) => void;
   photoPickLocked?: boolean;
   onRetryTwin?: () => void;
+  onDismiss?: () => void;
 };
 
 export function FittingShell({
@@ -36,8 +37,9 @@ export function FittingShell({
   tellBusy,
   layout = "page",
   onPickPhoto,
-  photoPickLocked,
+  photoPickLocked = false,
   onRetryTwin,
+  onDismiss,
 }: Props) {
   const column = layout === "column";
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -53,7 +55,7 @@ export function FittingShell({
       className={
         column
           ? "relative flex h-full min-h-0 flex-col overflow-hidden bg-white text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white"
-          : "fixed inset-0 z-[110] overflow-x-hidden overflow-y-auto bg-white text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white"
+          : "fixed inset-0 z-[100] overflow-x-hidden overflow-y-auto bg-white text-[var(--fitting-ink)] selection:bg-[var(--fitting-red)] selection:text-white"
       }
     >
       {column ? (
@@ -105,12 +107,25 @@ export function FittingShell({
             ref={scrollRef}
             className="relative min-w-0 px-5 pb-8 pt-6 sm:px-8 lg:px-10 lg:pt-8"
           >
+            {onDismiss ? (
+              <button
+                type="button"
+                aria-label="Leave The Fitting"
+                onClick={onDismiss}
+                className="absolute right-4 top-4 z-20 grid size-8 place-items-center rounded-full border border-[var(--fitting-line)] bg-white text-[var(--fitting-quiet)] transition hover:text-[var(--fitting-ink)]"
+              >
+                <span aria-hidden className="text-lg leading-none">
+                  ×
+                </span>
+              </button>
+            ) : null}
             {children}
           </div>
-          <div className="hidden min-w-0 lg:block">
+          <div className="min-h-[42vh] min-w-0 border-t border-[var(--fitting-line)] lg:h-full lg:min-h-0 lg:border-t-0">
             <FittingMirror
+              layout="column"
               mirror={mirror}
-              onTell={step === "verdict" ? undefined : onTell}
+              onTell={step === "verdict" || step === "circle" ? undefined : onTell}
               tellFeedback={tellFeedback}
               tellBusy={tellBusy}
               onPickPhoto={onPickPhoto}

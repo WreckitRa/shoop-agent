@@ -173,6 +173,32 @@ describe("identity reset", () => {
     assert.equal(fitting.columnOpen, true);
     assert.equal(fitting.onboardingActive, true);
     assert.equal(fitting.columnDismissed, false);
+    assert.equal(fitting.stageLocked, false);
+  });
+
+  it("keeps Fitting fullscreen across guest→user signup on the mint", () => {
+    const { sessionStorage } = installBrowserStorage();
+    sessionStorage.setItem(
+      "shoop.onboarding.ui.v4",
+      JSON.stringify({ step: "verdict", finale: "scan", locked: true }),
+    );
+    useInlineFittingStore.setState({
+      columnOpen: true,
+      onboardingActive: true,
+      stageLocked: true,
+      columnDismissed: false,
+      replayFitting: true,
+    });
+
+    resetUserScopedClientState({ preserveOnboarding: true });
+
+    const fitting = useInlineFittingStore.getState();
+    assert.equal(fitting.columnOpen, true);
+    assert.equal(fitting.stageLocked, true);
+    assert.equal(
+      sessionStorage.getItem("shoop.onboarding.ui.v4"),
+      JSON.stringify({ step: "verdict", finale: "scan", locked: true }),
+    );
   });
 
   it("keeps a held fitting photo across guest→user signup, and drops it otherwise", () => {

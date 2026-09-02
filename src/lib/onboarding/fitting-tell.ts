@@ -34,6 +34,7 @@ import {
 import { tagsFromFreeText } from "@/lib/onboarding/taste-tags";
 
 export type FittingTellStep =
+  | "consent"
   | "photo"
   | "name"
   | "life"
@@ -591,6 +592,7 @@ export function bucketsFromExtraction(
 }
 
 const BUCKET_ORDER: FittingTellStep[] = [
+  "consent",
   "photo",
   "name",
   "life",

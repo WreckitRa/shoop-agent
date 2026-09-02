@@ -6,9 +6,13 @@ import {
   STITCH_KNOTS,
   TRACKER_GROUPS,
   circleMirrorLabel,
+  fittingBackTarget,
+  isMagicFittingStep,
+  twinDocksInFlow,
   knotNowIndex,
   sewnThroughIndex,
   printSerialFromId,
+  wornTrackerLabels,
 } from "@/components/onboarding/fitting/types";
 import { backfillFittingTellFromText } from "@/lib/onboarding/fitting-tell";
 
@@ -30,7 +34,16 @@ describe("fitting circle step model", () => {
     assert.ok(STITCH_KNOTS.some((k) => k.id === "life"));
     assert.ok(STITCH_KNOTS.some((k) => k.id === "fit"));
     assert.ok(STITCH_KNOTS.some((k) => k.id === "circle"));
-    assert.equal(STITCH_KNOTS.at(-1)?.id, "mint");
+    assert.equal(STITCH_KNOTS.at(-1)?.id, "circle");
+    assert.equal(STITCH_KNOTS.at(-2)?.id, "mint");
+    assert.equal(isMagicFittingStep("honesty"), false);
+    assert.equal(isMagicFittingStep("nolist"), false);
+    assert.equal(isMagicFittingStep("verdict"), true);
+    assert.equal(isMagicFittingStep("circle"), true);
+    assert.equal(twinDocksInFlow("photo", false), true);
+    assert.equal(twinDocksInFlow("photo", true), false);
+    assert.equal(twinDocksInFlow("consent", false), false);
+    assert.equal(twinDocksInFlow("fit", false), false);
     const grouped = TRACKER_GROUPS.flatMap((g) => [...g.knotIds]);
     assert.deepEqual(
       grouped,
@@ -38,7 +51,7 @@ describe("fitting circle step model", () => {
     );
   });
 
-  it("maps honesty/circle to the Circle knot and verdict to mint", () => {
+  it("maps honesty/verdict to mint and circle last, unsewn until asked", () => {
     assert.equal(knotNowIndex("consent"), 0);
     assert.equal(knotNowIndex("photo"), 0);
     assert.equal(knotNowIndex("fit"), 1);
@@ -48,15 +61,27 @@ describe("fitting circle step model", () => {
     assert.equal(knotNowIndex("corner"), 6);
     assert.equal(knotNowIndex("nolist"), 7);
     assert.equal(knotNowIndex("honesty"), 8);
-    assert.equal(knotNowIndex("circle"), 8);
-    assert.equal(knotNowIndex("verdict"), 9);
+    assert.equal(knotNowIndex("verdict"), 8);
+    assert.equal(knotNowIndex("circle"), 9);
     assert.equal(sewnThroughIndex("consent"), -1);
     assert.equal(sewnThroughIndex("photo"), -1);
     assert.equal(sewnThroughIndex("fit"), 0);
     assert.equal(sewnThroughIndex("name"), 1);
     assert.equal(sewnThroughIndex("corner"), 5);
-    assert.equal(sewnThroughIndex("verdict"), 8);
+    assert.equal(sewnThroughIndex("verdict"), 7);
     assert.equal(sewnThroughIndex("circle"), 8);
+  });
+
+  it("lists each worn pick instead of collapsing to one mix axis", () => {
+    assert.deepEqual(
+      wornTrackerLabels(["Streetwear", "Athleisure", "Classic and polished"]),
+      ["Streetwear", "Athleisure", "Classic and polished"],
+    );
+    assert.deepEqual(
+      wornTrackerLabels(["Streetwear", " streetwear ", "Athleisure"]),
+      ["Streetwear", "Athleisure"],
+    );
+    assert.deepEqual(wornTrackerLabels(["", "  "]), []);
   });
 
   it("formats mirror circle labels", () => {
@@ -69,6 +94,26 @@ describe("fitting circle step model", () => {
     assert.equal(printSerialFromId("abc"), printSerialFromId("abc"));
     assert.equal(printSerialFromId("abc").length, 6);
     assert.notEqual(printSerialFromId("abc"), printSerialFromId("abd"));
+  });
+
+  it("walks back through quiz steps and the locked mint without skipping ahead", () => {
+    assert.equal(fittingBackTarget({ step: "consent" }), null);
+    assert.deepEqual(fittingBackTarget({ step: "photo" }), { step: "consent" });
+    assert.deepEqual(fittingBackTarget({ step: "fit" }), { step: "photo" });
+    assert.deepEqual(fittingBackTarget({ step: "name" }), { step: "fit" });
+    assert.deepEqual(fittingBackTarget({ step: "honesty" }), { step: "nolist" });
+    assert.equal(
+      fittingBackTarget({ step: "verdict", finale: "scan", hasPhoto: true }),
+      null,
+    );
+    assert.deepEqual(
+      fittingBackTarget({ step: "verdict", finale: "card", hasPhoto: true }),
+      { step: "verdict", finale: "scan" },
+    );
+    assert.deepEqual(fittingBackTarget({ step: "circle" }), {
+      step: "verdict",
+      finale: "card",
+    });
   });
 });
 

@@ -7,6 +7,8 @@ import {
   markOnboardingUiDismissed,
   markOnboardingUiResumed,
   readOnboardingUiSession,
+  sessionIsMagicLocked,
+  writeOnboardingUiSession,
 } from "./fitting/ui-session";
 
 export const INLINE_FITTING_SLOT_ID = "shoop-inline-fitting";
@@ -17,6 +19,10 @@ type InlineFittingState = {
   onboardingActive: boolean;
   /** Lock the chat composer once they hit Lock it in (honesty → verdict). */
   composerLocked: boolean;
+  /** Scan/verdict/circle — hide chat + chrome, Fitting is the page. */
+  stageLocked: boolean;
+  /** Photo step, no face yet — twin sits under the questions, not the rail. */
+  twinDock: "flow" | "rail";
   /** User closed the column — don't auto-reopen or fall back to fullscreen. */
   columnDismissed: boolean;
   /** Re-open The Fitting after onboarding is already complete (create/update twin). */
@@ -35,12 +41,16 @@ type InlineFittingState = {
   clearReplay: () => void;
   setOnboardingActive: (active: boolean) => void;
   setComposerLocked: (locked: boolean) => void;
+  setStageLocked: (locked: boolean) => void;
+  setTwinDock: (dock: "flow" | "rail") => void;
 };
 
 export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
   columnOpen: false,
   onboardingActive: false,
   composerLocked: false,
+  stageLocked: false,
+  twinDock: "rail",
   columnDismissed: false,
   replayFitting: false,
   pendingLeave: false,
@@ -54,6 +64,7 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
       columnDismissed: false,
       replayFitting: !resumeInProgress,
       pendingLeave: false,
+      stageLocked: sessionIsMagicLocked(session),
     });
     void import("@/components/chat/chat-store").then(({ useChatStore }) => {
       const chat = useChatStore.getState();
@@ -67,6 +78,7 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
       columnOpen: true,
       columnDismissed: false,
       pendingLeave: false,
+      stageLocked: sessionIsMagicLocked(readOnboardingUiSession()),
     });
     void import("@/components/chat/chat-store").then(({ useChatStore }) => {
       const chat = useChatStore.getState();
@@ -80,6 +92,8 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
       replayFitting: false,
       pendingLeave: false,
       composerLocked: false,
+      stageLocked: false,
+      twinDock: "rail",
     }),
   dismissColumn: () => {
     markOnboardingUiDismissed();
@@ -89,6 +103,8 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
       replayFitting: false,
       pendingLeave: false,
       composerLocked: false,
+      stageLocked: false,
+      twinDock: "rail",
     });
   },
   requestDismiss: () => {
@@ -110,6 +126,11 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
   clearReplay: () => set({ replayFitting: false }),
   setOnboardingActive: (onboardingActive) => set({ onboardingActive }),
   setComposerLocked: (composerLocked) => set({ composerLocked }),
+  setStageLocked: (stageLocked) => {
+    writeOnboardingUiSession({ locked: stageLocked });
+    set({ stageLocked });
+  },
+  setTwinDock: (twinDock) => set({ twinDock }),
 }));
 
 export function getInlineFittingSlot(): HTMLElement | null {

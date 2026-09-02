@@ -16,6 +16,18 @@ export type OutfitPick = {
 
 type OnboardingPatch = z.infer<typeof onboardingPatchSchema>;
 
+export type TasteSaveMark = "worn" | "wanted" | "nolist" | "final";
+
+/** Honesty is locked on the honesty step — earlier taste saves must not stamp a default. */
+export function honestyPreferenceForSave(
+  mark: TasteSaveMark | undefined,
+  value: string | null | undefined,
+): "1" | "2" | "3" | "4" | "5" | undefined {
+  if (mark !== "final") return undefined;
+  const normalized = normalizeHonestyPreference(value);
+  return normalized || "3";
+}
+
 function titleTokens(title?: string): string[] {
   if (!title?.trim()) return [];
   return title

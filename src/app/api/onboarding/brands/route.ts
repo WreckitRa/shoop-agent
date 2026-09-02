@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
+import { brandsPostSchema } from "@/lib/onboarding/request-schemas";
 import {
   findSeedBrand,
   searchSeedBrands,
@@ -12,12 +12,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const postSchema = z
-  .object({
-    name: z.string().min(1).max(60),
-  })
-  .strict();
 
 function serialize(brand: CatalogBrand) {
   return {
@@ -64,7 +58,7 @@ export async function POST(req: Request) {
     const auth = await getAuthContext();
     if (!auth.ok) return auth.response;
 
-    const parsed = postSchema.safeParse(await req.json().catch(() => null));
+    const parsed = brandsPostSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return Response.json(
         { error: "Invalid body.", issues: parsed.error.flatten() },

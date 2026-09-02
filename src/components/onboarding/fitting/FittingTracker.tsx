@@ -7,6 +7,7 @@ import {
   TRACKER_GROUPS,
   knotNowIndex,
   sewnThroughIndex,
+  wornTrackerLabels,
   type FittingStep,
   type MirrorState,
 } from "./types";
@@ -42,10 +43,13 @@ function factsForKnot(
       if (mirror.heightCm != null) out.push({ text: `${mirror.heightCm} cm` });
       return out;
     }
-    case "worn":
+    case "worn": {
+      const labels = wornTrackerLabels(mirror.wornLabels);
+      if (labels.length) return labels.map((text) => ({ text }));
       return mirror.leanLabel && mirror.leanLabel !== "—"
         ? [{ text: mirror.leanLabel }]
         : [];
+    }
     case "corner":
       return mirror.cornerLabel && mirror.cornerLabel !== "—"
         ? [{ text: mirror.cornerLabel }]

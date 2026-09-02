@@ -8,6 +8,7 @@ import {
 import { useCartStore } from "@/components/cart/cart-store";
 import { useInlineProductStore } from "@/components/chat/inline-product-store";
 import { clearPendingFittingPhoto } from "@/components/onboarding/fitting/pending-photo";
+import { isMagicFittingStep } from "@/components/onboarding/fitting/types";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import {
   clearOnboardingUiSession,
@@ -118,12 +119,21 @@ export function resetUserScopedClientState(opts?: {
   useInlineProductStore.getState().collapse();
 
   if (preserve) {
+    const session = readOnboardingUiSession();
+    const locked =
+      fitting.stageLocked ||
+      session?.locked === true ||
+      (session != null &&
+        session.dismissed !== true &&
+        isMagicFittingStep(session.step));
     useInlineFittingStore.setState({
       columnOpen: keepFittingOpen,
       onboardingActive: keepFittingOpen,
+      stageLocked: keepFittingOpen && locked,
       columnDismissed: false,
       replayFitting: keepFittingOpen,
       pendingLeave: false,
+      twinDock: fitting.twinDock,
     });
     clearPendingCheckout();
     clearChatFocusReturn();
@@ -136,6 +146,9 @@ export function resetUserScopedClientState(opts?: {
     columnDismissed: false,
     replayFitting: false,
     pendingLeave: false,
+    composerLocked: false,
+    stageLocked: false,
+    twinDock: "rail",
   });
   clearIdentityScopedBrowserStorage();
   clearPendingFittingPhoto();

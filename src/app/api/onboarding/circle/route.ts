@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
+import { circlePostSchema } from "@/lib/onboarding/request-schemas";
 import {
   normalizeCircleNames,
   saveTrustedCirclePeople,
@@ -7,12 +7,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const bodySchema = z
-  .object({
-    names: z.array(z.string().max(40)).max(6),
-  })
-  .strict();
 
 export async function POST(req: Request) {
   try {
@@ -26,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     const raw = await req.json().catch(() => null);
-    const parsed = bodySchema.safeParse(raw);
+    const parsed = circlePostSchema.safeParse(raw);
     if (!parsed.success) {
       return Response.json(
         { error: "Invalid body.", issues: parsed.error.flatten() },

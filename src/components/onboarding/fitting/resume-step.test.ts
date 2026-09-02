@@ -61,7 +61,7 @@ describe("firstIncompleteFittingStep", () => {
     );
   });
 
-  it("does not jump to honesty just because worn picks exist", () => {
+  it("does not skip honesty/nolist just because worn tags exist", () => {
     assert.equal(
       firstIncompleteFittingStep(
         status({
@@ -75,6 +75,25 @@ describe("firstIncompleteFittingStep", () => {
         }),
       ),
       "corner",
+    );
+  });
+
+  it("stays on honesty after no-list until honesty is actually saved", () => {
+    assert.equal(
+      firstIncompleteFittingStep(
+        status({
+          profile: {
+            ...you,
+            weekIs: "office",
+            valuePhilosophy: "quality",
+            styleBecome: "more tailored",
+          },
+          sizing: { heightCm: 170, bodyType: "average" },
+          tasteTags: [{ category: "worn" }],
+          brandPreferences: [{ brand: "COS" }],
+        }),
+      ),
+      "honesty",
     );
   });
 

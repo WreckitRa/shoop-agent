@@ -22,6 +22,7 @@ type Props = {
   onChange: (names: string[]) => void;
   onContinue: () => void;
   onSkip: () => void;
+  onSaveAccount?: () => void;
   busy?: boolean;
 };
 
@@ -35,6 +36,7 @@ export function TasteCircleStep({
   onChange,
   onContinue,
   onSkip,
+  onSaveAccount,
   busy,
 }: Props) {
   const slots = normalizeSlots(names);
@@ -106,10 +108,22 @@ export function TasteCircleStep({
         nextLabel="Lock it in"
         enterHint={false}
         skip={{
-          label: "I'd rather decide later",
+          label: onSaveAccount
+            ? "Continue without an account"
+            : "I'd rather decide later",
           onClick: onSkip,
         }}
       />
+      {onSaveAccount ? (
+        <button
+          type="button"
+          onClick={onSaveAccount}
+          disabled={busy}
+          className="mt-3 border-0 bg-transparent p-0 font-sans text-[12.5px] font-semibold text-[var(--fitting-ink)] underline decoration-[#C4C4CC] underline-offset-4 hover:text-[var(--fitting-red)]"
+        >
+          Save to an account
+        </button>
+      ) : null}
     </section>
   );
 }

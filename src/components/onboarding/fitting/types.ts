@@ -27,7 +27,35 @@ export const FITTING_STEPS: FittingStep[] = [
   "circle",
 ];
 
-/** Question steps only (excludes verdict). */
+/** Scan → verify → verdict card → friends. Chat and chrome close. */
+export function isMagicFittingStep(step: FittingStep): boolean {
+  return step === "verdict" || step === "circle";
+}
+
+/** Photo CTA sits under the copy until a face is on the twin. */
+export function twinDocksInFlow(step: FittingStep, hasPhoto: boolean): boolean {
+  return step === "photo" && !hasPhoto;
+}
+
+export type FittingBackFinale = "scan" | "card";
+
+/** Where Back lands. Null = stay (consent, or scan before the card). */
+export function fittingBackTarget(args: {
+  step: FittingStep;
+  finale?: FittingBackFinale;
+  hasPhoto?: boolean;
+}): { step: FittingStep; finale?: FittingBackFinale } | null {
+  if (args.step === "circle") {
+    return { step: "verdict", finale: "card" };
+  }
+  if (args.step === "verdict" && args.finale === "card" && args.hasPhoto) {
+    return { step: "verdict", finale: "scan" };
+  }
+  if (isMagicFittingStep(args.step)) return null;
+  const idx = FITTING_STEPS.indexOf(args.step);
+  if (idx <= 0) return null;
+  return { step: FITTING_STEPS[idx - 1]! };
+}
 export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
   "consent",
   "photo",
@@ -51,8 +79,8 @@ export const STITCH_KNOTS = [
   { id: "worn", label: "Worn", top: "53%" },
   { id: "corner", label: "Corner", top: "63%" },
   { id: "nolist", label: "No-list", top: "73%" },
-  { id: "circle", label: "Circle", top: "85%" },
-  { id: "mint", label: "The mint", top: "96%", emphasis: true },
+  { id: "mint", label: "The mint", top: "85%", emphasis: true },
+  { id: "circle", label: "Circle", top: "96%" },
 ] as const;
 
 /** Left-rail groups — same knots, sequential, mock tracker chrome. */
@@ -60,8 +88,8 @@ export const TRACKER_GROUPS = [
   { label: "LOOK", knotIds: ["photo", "fit", "name"] },
   { label: "LIFE", knotIds: ["life"] },
   { label: "EVIDENCE", knotIds: ["spend", "worn", "corner", "nolist"] },
-  { label: "PERSON", knotIds: ["circle"] },
   { label: "DIRECTION", knotIds: ["mint"] },
+  { label: "PERSON", knotIds: ["circle"] },
 ] as const;
 
 /** sewn % per knot index */
@@ -111,9 +139,9 @@ export function knotNowIndex(step: FittingStep): number {
     case "nolist":
       return 7;
     case "honesty":
-    case "circle":
-      return 8;
     case "verdict":
+      return 8;
+    case "circle":
       return 9;
     default:
       return 0;
@@ -140,9 +168,8 @@ export function sewnThroughIndex(step: FittingStep): number {
     case "nolist":
       return 6;
     case "honesty":
-      return 7;
     case "verdict":
-      return 8;
+      return 7;
     case "circle":
       return 8;
     default:
@@ -202,6 +229,8 @@ export type MirrorState = {
   /** Photo analysis / verdict writing — visual lives on this card, not a second photo. */
   scanActivity: "idle" | "reading" | "review" | "writing";
   scanNotes: Array<{ label: string; value: string }>;
+  /** Worn-grid picks — tracker facts, not the collapsed lean mix. */
+  wornLabels: string[];
 };
 
 export const EMPTY_MIRROR: MirrorState = {
@@ -236,6 +265,7 @@ export const EMPTY_MIRROR: MirrorState = {
   foil: false,
   scanActivity: "idle",
   scanNotes: [],
+  wornLabels: [],
 };
 
 export function formFromGender(gender: string): SilhouetteForm {
@@ -273,6 +303,21 @@ export function spendShort(value: string): string {
     default:
       return value.slice(0, 10);
   }
+}
+
+/** Unique worn-grid labels for the tracker, in pick order. */
+export function wornTrackerLabels(labels: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of labels) {
+    const text = raw.trim();
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out;
 }
 
 /** Format trusted-circle names for the Mirror print line. */

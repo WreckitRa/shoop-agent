@@ -47,6 +47,8 @@ export const ChatLayout = memo(function ChatLayout() {
   const collapseInlineProduct = useInlineProductStore((s) => s.collapse);
   const tryOnOpen = useTryOnDrawerStore((s) => s.open);
   const fittingColumnOpen = useInlineFittingStore((s) => s.columnOpen);
+  const stageLocked = useInlineFittingStore((s) => s.stageLocked);
+  const twinDock = useInlineFittingStore((s) => s.twinDock);
   const closeFittingColumn = useInlineFittingStore((s) => s.requestDismiss);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [desktop, setDesktop] = useState(false);
@@ -140,6 +142,14 @@ export const ChatLayout = memo(function ChatLayout() {
     </>
   );
 
+  if (stageLocked) {
+    return (
+      <AppShell>
+        <div className="min-h-0 flex-1 bg-white" />
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <ChatFocusHighlightProvider highlight={focusHighlight}>
@@ -206,7 +216,9 @@ export const ChatLayout = memo(function ChatLayout() {
                       className={cn(
                         "grid min-h-0 flex-1 grid-cols-1",
                         fittingColumnOpen
-                          ? "grid-rows-[minmax(108px,0.38fr)_minmax(0,1fr)] lg:grid-rows-1 lg:grid-cols-[minmax(220px,0.42fr)_minmax(0,1fr)]"
+                          ? stageLocked
+                            ? "grid-rows-1 lg:grid-cols-1"
+                            : "grid-rows-[minmax(108px,0.38fr)_minmax(0,1fr)] lg:grid-rows-1 lg:grid-cols-[minmax(220px,0.42fr)_minmax(0,1fr)]"
                           : "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
                       )}
                     >
@@ -215,21 +227,24 @@ export const ChatLayout = memo(function ChatLayout() {
                           "relative flex min-h-0 min-w-0 flex-col",
                           fittingColumnOpen &&
                             "overflow-hidden bg-[#F7F7F8] lg:border-r lg:border-[var(--fitting-line)]",
+                          stageLocked && "hidden",
                         )}
                       >
-                        {thread}
+                        {stageLocked ? null : thread}
                       </div>
 
                       <section
                         className={cn(
                           "relative min-h-0 overflow-hidden bg-white",
                           fittingColumnOpen
-                            ? "grid grid-rows-[minmax(0,1.5fr)_minmax(190px,0.65fr)] lg:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_minmax(230px,300px)]"
+                            ? twinDock === "flow"
+                              ? "grid grid-rows-1"
+                              : "grid grid-rows-[minmax(0,1.5fr)_minmax(190px,0.65fr)] lg:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_minmax(230px,300px)]"
                             : "hidden",
                         )}
                       >
                         <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden">
-                          {fittingColumnOpen ? (
+                          {fittingColumnOpen && !stageLocked ? (
                             <button
                               type="button"
                               aria-label="Keep chatting"
@@ -246,7 +261,12 @@ export const ChatLayout = memo(function ChatLayout() {
                             className="flex min-h-0 flex-1 flex-col overflow-hidden"
                           />
                         </div>
-                        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-[var(--fitting-line)] lg:border-l lg:border-t-0">
+                        <aside
+                          className={cn(
+                            "flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-[var(--fitting-line)] lg:border-l lg:border-t-0",
+                            twinDock === "flow" && "hidden",
+                          )}
+                        >
                           <div
                             id={INLINE_FITTING_CARD_SLOT_ID}
                             className="flex min-h-0 flex-1 flex-col overflow-hidden"

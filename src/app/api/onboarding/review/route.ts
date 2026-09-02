@@ -1,10 +1,7 @@
-import { z } from "zod";
 import { after } from "next/server";
 import { getAuthContext } from "@/lib/auth/session";
-import {
-  applyOnboardingPatch,
-  onboardingPatchSchema,
-} from "@/lib/onboarding/status";
+import { applyOnboardingPatch } from "@/lib/onboarding/status";
+import { reviewPostSchema } from "@/lib/onboarding/request-schemas";
 import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
 import { ensureSelfPerson } from "@/lib/fashion-memory/people";
 import { fashionOwnerUserId } from "@/lib/fashion-memory/auth";
@@ -13,18 +10,10 @@ import { minorClosedResponse } from "@/lib/legal/close-account";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const reviewSchema = z
-  .object({
-    patch: onboardingPatchSchema,
-    extraNotes: z.string().max(24_000).optional(),
-    requestKey: z.string().min(8).max(128),
-  })
-  .strict();
-
 export async function POST(req: Request) {
   try {
     const raw = await req.json();
-    const parsed = reviewSchema.safeParse(raw);
+    const parsed = reviewPostSchema.safeParse(raw);
     if (!parsed.success) {
       return Response.json(
         { error: "Invalid body.", issues: parsed.error.flatten() },

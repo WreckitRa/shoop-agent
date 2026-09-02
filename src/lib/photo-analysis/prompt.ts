@@ -12,9 +12,11 @@ Decide whether the supplied image set is suitable to send to a more expensive
 personal-style vision analysis.
 
 CHECK ONLY
-1. Whether the input appears to be a real, understandable photograph rather than
-   an illustration, product-only image, blank image, document, screenshot, or
-   unrelated scene.
+1. Whether the input shows a real person. Accept a camera photo or a screenshot
+   / export of a photograph when a single clear face is visible. Reject
+   illustrations, product-only images, blank images, documents, UI screenshots
+   (apps, chats, websites), collages, and unrelated scenes. Do not reject a
+   studio or phone headshot because it was saved as a screenshot.
 2. Whether a person is visibly present.
 3. Whether exactly one intended target is unambiguous. If several people appear,
    use the target description supplied by the user; if it does not resolve the

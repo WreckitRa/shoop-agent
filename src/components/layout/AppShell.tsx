@@ -1,6 +1,7 @@
 "use client";
 
 import { useChatStore } from "@/components/chat/chat-store";
+import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import {
   ChatSidebar,
   SIDEBAR_WIDTH_COLLAPSED,
@@ -17,6 +18,7 @@ import { GuestModeBanner } from "@/components/auth/GuestModeBanner";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const setSidebarOpen = useChatStore((s) => s.setSidebarOpen);
   const sidebarCollapsed = useChatStore((s) => s.sidebarCollapsed);
+  const stageLocked = useInlineFittingStore((s) => s.stageLocked);
 
   return (
     <div
@@ -29,21 +31,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         } as React.CSSProperties
       }
     >
-      <ChatSidebar />
+      {stageLocked ? null : <ChatSidebar />}
       <ToastHost />
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <GuestModeBanner />
-          <AppTopBar onOpenSidebar={() => setSidebarOpen(true)} />
+          {stageLocked ? null : <GuestModeBanner />}
+          {stageLocked ? null : (
+            <AppTopBar onOpenSidebar={() => setSidebarOpen(true)} />
+          )}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {children}
           </div>
-          <AppTabBar />
+          {stageLocked ? null : <AppTabBar />}
         </main>
-        <TryOnDrawer />
+        {stageLocked ? null : <TryOnDrawer />}
         <SelfAvatarHost />
-        <CartDrawer />
+        {stageLocked ? null : <CartDrawer />}
       </div>
     </div>
   );

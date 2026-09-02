@@ -97,11 +97,11 @@ export function BodyTwinSilhouette({
   return (
     <svg
       viewBox={`0 0 ${SILHOUETTE_VIEWBOX.w} ${SILHOUETTE_VIEWBOX.h}`}
-      preserveAspectRatio="xMidYMax meet"
+      preserveAspectRatio="xMidYMin meet"
       className={cn("fitting-motion overflow-visible", className)}
       style={{
-        transformOrigin: "50% 100%",
-        transform: `scale(${scale})`,
+        transformOrigin: "50% 0%",
+        transform: showHead ? `scale(${scale})` : undefined,
         ...morph,
       }}
       fill="currentColor"

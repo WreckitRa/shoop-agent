@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { photoScanPhase } from "./scan-phase";
+import { photoScanPhase, pinVerdictFinale, verdictUiFinale } from "./scan-phase";
 import type { PhotoAnalysisPublic } from "./types";
 import type { StyleUserReview } from "./review";
 
@@ -84,5 +84,38 @@ describe("photoScanPhase", () => {
       ),
       "error",
     );
+  });
+});
+
+describe("verdictUiFinale", () => {
+  it("keeps a photo on scan until she confirms — even with no row yet", () => {
+    assert.equal(verdictUiFinale(null, true), "scan");
+    assert.equal(verdictUiFinale(row(), true), "scan");
+    assert.equal(verdictUiFinale(row({ status: "running" }), true), "scan");
+    assert.equal(verdictUiFinale(row({ userReview: review() }), true), "scan");
+  });
+
+  it("locks the card only after a verdict, or when there was no photo", () => {
+    assert.equal(verdictUiFinale(null, false), "card");
+    assert.equal(
+      verdictUiFinale(
+        row({
+          verdictStatus: "done",
+          verdict: { user_facing_verdict: { headline: "x" } } as never,
+        }),
+        true,
+      ),
+      "card",
+    );
+  });
+
+  it("does not treat a failed read as a skip", () => {
+    assert.equal(verdictUiFinale(row({ error: "nope" }), true), "scan");
+  });
+
+  it("keeps the card once she has continued past scan", () => {
+    assert.equal(pinVerdictFinale("card", "scan"), "card");
+    assert.equal(pinVerdictFinale("scan", "scan"), "scan");
+    assert.equal(pinVerdictFinale("scan", "card"), "card");
   });
 });

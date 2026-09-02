@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { buildOutfitGridDeck } from "@/lib/onboarding/outfit-grid";
 import { buildPatchFromTastePicks } from "@/lib/onboarding/taste-persist";
 import { getAuthContext } from "@/lib/auth/session";
@@ -9,60 +8,14 @@ import {
 import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
 import { findSeedBrand } from "@/lib/onboarding/brand-catalog";
 import { rememberCommunityBrand } from "@/lib/onboarding/onboarding-brand-db";
+import {
+  tasteDeckQuerySchema,
+  tastePostSchema,
+} from "@/lib/onboarding/request-schemas";
 import { after } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const deckQuerySchema = z.object({
-  mode: z.enum(["worn", "aspirational"]).default("worn"),
-  genderPresentation: z.string().optional(),
-  styleEra: z.string().optional(),
-  lifestyleTags: z.string().optional(),
-  valuePhilosophy: z.string().optional(),
-  brandLikes: z.string().optional(),
-  brandAvoids: z.string().optional(),
-  shippingCountry: z.string().optional(),
-  currency: z.string().optional(),
-  wornLabels: z.string().optional(),
-  wornTasteTags: z.string().optional(),
-  /** Style catalog ids already picked on worn step. */
-  wornLookIds: z.string().optional(),
-  /** Style ids already on screen — fetch the next page (See more). */
-  excludeLookIds: z.string().optional(),
-});
-
-const outfitPickSchema = z
-  .object({
-    id: z.string().min(1).max(256),
-    label: z.string().min(1).max(80),
-    tasteTags: z.array(z.string().max(80)).max(16).optional(),
-    productTitle: z.string().max(280).optional(),
-    productId: z.string().max(256).optional(),
-    archetype: z.string().max(40).optional(),
-  })
-  .strict();
-
-const postSchema = z
-  .object({
-    wornPicks: z.array(outfitPickSchema).max(6).optional(),
-    aspirationalPicks: z.array(outfitPickSchema).max(4).optional(),
-    brandLikes: z.array(z.string().max(120)).max(40).optional(),
-    brandAvoids: z.array(z.string().max(120)).max(40).optional(),
-    hardAvoids: z.array(z.string().max(120)).max(20).optional(),
-    comfort: z.array(z.string().max(160)).max(16).optional(),
-    compliments: z.array(z.string().max(40)).max(4).optional(),
-    honestyPreference: z
-      .enum(["1", "2", "3", "4", "5", "gentle", "straight", "no_mercy"])
-      .optional()
-      .nullable(),
-    styleFriction: z.string().max(2000).optional().nullable(),
-    styleBecome: z.string().max(2000).optional().nullable(),
-    valuePhilosophy: z.string().max(120).optional().nullable(),
-    /** When true, marks onboarding complete (cart reveal CTA). */
-    complete: z.boolean().optional(),
-  })
-  .strict();
 
 function splitCsv(value?: string): string[] {
   if (!value?.trim()) return [];
@@ -78,7 +31,7 @@ export async function GET(req: Request) {
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
     const url = new URL(req.url);
-    const parsedQuery = deckQuerySchema.safeParse({
+    const parsedQuery = tasteDeckQuerySchema.safeParse({
       mode: url.searchParams.get("mode") ?? "worn",
       genderPresentation: url.searchParams.get("genderPresentation") ?? undefined,
       styleEra: url.searchParams.get("styleEra") ?? undefined,
@@ -177,7 +130,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const raw = await req.json();
-    const parsed = postSchema.safeParse(raw);
+    const parsed = tastePostSchema.safeParse(raw);
     if (!parsed.success) {
       return Response.json(
         { error: "Invalid body.", issues: parsed.error.flatten() },
