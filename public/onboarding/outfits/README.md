@@ -3,19 +3,14 @@
 Drop style images here. Served at:
 
 ```
-/onboarding/outfits/{id}.webp
+/onboarding/outfits/{id}.jpg
 ```
 
-Examples:
+Ids come from `outfit-style-catalog.ts`:
 
 ```
-public/onboarding/outfits/f-w-parisian-01.webp
-public/onboarding/outfits/m-a-classic-01.webp
+public/onboarding/outfits/f-effortless_minimal-01.jpg
+public/onboarding/outfits/m-sporty-c91fa476-0.jpg
 ```
 
-1. Name the file exactly `{id}.webp` (id from `outfit-style-catalog.ts`)
-2. Point `imageUrl` on that look to `/onboarding/outfits/{id}.webp`  
-   (or use `outfitPhotoUrl("f-w-parisian-01")`)
-3. Styles are **mode-agnostic** — the same photo can show as “worn” for one person and “wanted” for another
-
-Checklist + gen prompts: `docs/onboarding/outfit-style-photo-checklist.md`
+Styles are **mode-agnostic** — the same photo can show as “worn” for one person and “wanted” for another. Ranking filters by gender, age/era, and lifestyle; **See more styles** pages through the rest of the library.

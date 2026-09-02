@@ -466,6 +466,11 @@ model UserProfile {
   /// How direct Shoop should be: 1–5 (legacy gentle | straight | no_mercy)
   honestyPreference String?
 
+  /// Honest Corner: what they dislike in their current style (free text).
+  styleFriction String?
+  /// Honest Corner: what they want to improve or become (free text).
+  styleBecome   String?
+
   /// Compliments the user wants to hear (max 2 in onboarding UI).
   complimentPreferences String[] @default([])
 
@@ -600,6 +605,18 @@ model BrandPreference {
 
   @@unique([userId, brand, category])
   @@index([userId, sentiment])
+  @@schema("public")
+}
+
+/// Names shoppers typed on the brands step that were not in the seed catalog.
+/// Later users can search and pick them. Seeded tiles stay in code.
+model OnboardingBrand {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  @@index([name])
   @@schema("public")
 }
 

@@ -82,6 +82,12 @@ function buildShopperContext(status: Awaited<ReturnType<typeof getOnboardingStat
     if (tone) lines.push(tone);
     lines.push(`Honesty quote to honor: "${honestyQuote(p.honestyPreference)}"`);
   }
+  if (p?.styleFriction?.trim()) {
+    lines.push(`Honest Corner — doesn't like now: ${p.styleFriction.trim()}`);
+  }
+  if (p?.styleBecome?.trim()) {
+    lines.push(`Honest Corner — wants to become: ${p.styleBecome.trim()}`);
+  }
   if (Array.isArray(p?.lifestyleTags) && p.lifestyleTags.length) {
     lines.push(`Lifestyle: ${p.lifestyleTags.slice(0, 8).join(", ")}`);
   }

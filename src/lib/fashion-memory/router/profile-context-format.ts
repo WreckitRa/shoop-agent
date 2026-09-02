@@ -177,6 +177,8 @@ export type OnboardingMetaFromBodyNote = {
   lifestyle_tags?: string[];
   value_philosophy?: string;
   honesty_preference?: string;
+  style_friction?: string;
+  style_become?: string;
   compliment_preferences?: string[];
   week_is?: string;
   dressing_for?: string;
@@ -212,6 +214,12 @@ export function parseOnboardingMetaFromFacts(
       typeof value.honesty_preference === "string"
         ? value.honesty_preference
         : undefined,
+    style_friction:
+      typeof value.style_friction === "string"
+        ? value.style_friction
+        : undefined,
+    style_become:
+      typeof value.style_become === "string" ? value.style_become : undefined,
     compliment_preferences: Array.isArray(value.compliment_preferences)
       ? (value.compliment_preferences as string[])
       : undefined,
@@ -274,12 +282,25 @@ export function composeContextLine(meta: OnboardingMetaFromBodyNote): string | n
 }
 
 export function composeAspiresLine(meta: OnboardingMetaFromBodyNote): string | null {
+  const become = clipPrompt(meta.style_become);
+  if (become) return `aspires: ${become}`;
   const comps = (meta.compliment_preferences ?? [])
     .map((c) => c.trim().toLowerCase())
     .filter(Boolean)
     .slice(0, 2);
   if (!comps.length) return null;
   return `aspires: compliments ${comps.map((c) => `"${c}"`).join(", ")}`;
+}
+
+export function composeFrictionLine(meta: OnboardingMetaFromBodyNote): string | null {
+  const friction = clipPrompt(meta.style_friction);
+  return friction ? `style_friction: ${friction}` : null;
+}
+
+function clipPrompt(raw: string | undefined, max = 180): string | null {
+  const t = raw?.replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
 /** Prompt/context hint only — never mutate occasion_context from lifestyle tags. */

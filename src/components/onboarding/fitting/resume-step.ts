@@ -13,6 +13,8 @@ export type ResumeStatus = {
     climate: string | null;
     valuePhilosophy: string | null;
     honestyPreference: string | null;
+    styleFriction: string | null;
+    styleBecome: string | null;
   } | null;
   sizing: {
     heightCm?: number | null;
@@ -61,6 +63,9 @@ export function firstIncompleteFittingStep(
   if (!hasLife(profile)) return "life";
   if (!profile?.valuePhilosophy?.trim()) return "spend";
   if (!hasCategory(status.tasteTags, "worn")) return "worn";
+  if (!profile?.styleFriction?.trim() && !profile?.styleBecome?.trim()) {
+    return "corner";
+  }
   if (!profile?.honestyPreference?.trim()) {
     return status.brandPreferences.length > 0 ||
       status.hardNegatives.length > 0

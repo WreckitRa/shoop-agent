@@ -6,6 +6,7 @@ export type FittingStep =
   | "life"
   | "spend"
   | "worn"
+  | "corner"
   | "nolist"
   | "honesty"
   | "verdict"
@@ -19,6 +20,7 @@ export const FITTING_STEPS: FittingStep[] = [
   "life",
   "spend",
   "worn",
+  "corner",
   "nolist",
   "honesty",
   "verdict",
@@ -34,6 +36,7 @@ export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
   "life",
   "spend",
   "worn",
+  "corner",
   "nolist",
   "honesty",
   "circle",
@@ -45,9 +48,10 @@ export const STITCH_KNOTS = [
   { id: "name", label: "Name", top: "25%" },
   { id: "life", label: "Life", top: "36%" },
   { id: "spend", label: "Spend", top: "47%" },
-  { id: "worn", label: "Worn", top: "58%" },
-  { id: "nolist", label: "No-list", top: "69%" },
-  { id: "circle", label: "Circle", top: "84%" },
+  { id: "worn", label: "Worn", top: "53%" },
+  { id: "corner", label: "Corner", top: "63%" },
+  { id: "nolist", label: "No-list", top: "73%" },
+  { id: "circle", label: "Circle", top: "85%" },
   { id: "mint", label: "The mint", top: "96%", emphasis: true },
 ] as const;
 
@@ -55,16 +59,16 @@ export const STITCH_KNOTS = [
 export const TRACKER_GROUPS = [
   { label: "LOOK", knotIds: ["photo", "fit", "name"] },
   { label: "LIFE", knotIds: ["life"] },
-  { label: "EVIDENCE", knotIds: ["spend", "worn", "nolist"] },
+  { label: "EVIDENCE", knotIds: ["spend", "worn", "corner", "nolist"] },
   { label: "PERSON", knotIds: ["circle"] },
   { label: "DIRECTION", knotIds: ["mint"] },
 ] as const;
 
 /** sewn % per knot index */
-export const SEWN_PCT = [3, 14, 25, 36, 47, 58, 69, 84, 100];
+export const SEWN_PCT = [3, 13, 23, 33, 43, 53, 63, 73, 85, 100];
 
 /** progress bar % per question step */
-export const STEP_PROGRESS_PCT = [3, 12, 22, 32, 42, 52, 62, 74, 84, 93];
+export const STEP_PROGRESS_PCT = [3, 11, 20, 28, 36, 44, 52, 61, 70, 81, 93];
 
 export const STEP_META: Record<
   Exclude<FittingStep, "verdict">,
@@ -80,9 +84,10 @@ export const STEP_META: Record<
   life: { n: 5, stage: "Getting to know you" },
   spend: { n: 6, stage: "Getting to know you" },
   worn: { n: 7, stage: "Getting to know you" },
-  nolist: { n: 8, stage: "Getting to know you" },
-  honesty: { n: 9, stage: "Getting to know you" },
-  circle: { n: 10, stage: "Getting to know you" },
+  corner: { n: 8, stage: "Getting to know you" },
+  nolist: { n: 9, stage: "Getting to know you" },
+  honesty: { n: 10, stage: "Getting to know you" },
+  circle: { n: 11, stage: "Getting to know you" },
 };
 
 /** Knot index highlighted / sewn for each step */
@@ -101,13 +106,15 @@ export function knotNowIndex(step: FittingStep): number {
       return 4;
     case "worn":
       return 5;
-    case "nolist":
+    case "corner":
       return 6;
+    case "nolist":
+      return 7;
     case "honesty":
     case "circle":
-      return 7;
-    case "verdict":
       return 8;
+    case "verdict":
+      return 9;
     default:
       return 0;
   }
@@ -128,14 +135,16 @@ export function sewnThroughIndex(step: FittingStep): number {
       return 3;
     case "worn":
       return 4;
-    case "nolist":
+    case "corner":
       return 5;
-    case "honesty":
+    case "nolist":
       return 6;
+    case "honesty":
+      return 7;
     case "verdict":
-      return 7;
+      return 8;
     case "circle":
-      return 7;
+      return 8;
     default:
       return -1;
   }
@@ -151,6 +160,7 @@ export type MirrorState = {
   leanLabel: string;
   brandsLabel: string;
   noListLabel: string;
+  cornerLabel: string;
   circleLabel: string;
   /** Face photo — silhouette head only until the twin is ready. */
   photoUrl: string | null;
@@ -201,6 +211,7 @@ export const EMPTY_MIRROR: MirrorState = {
   leanLabel: "",
   brandsLabel: "",
   noListLabel: "",
+  cornerLabel: "",
   circleLabel: "",
   photoUrl: null,
   twinAvatarUrl: null,

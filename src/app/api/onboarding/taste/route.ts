@@ -7,6 +7,8 @@ import {
   getOnboardingStatus,
 } from "@/lib/onboarding/status";
 import { kickOnboardingJobWorker } from "@/lib/onboarding/background-jobs";
+import { findSeedBrand } from "@/lib/onboarding/brand-catalog";
+import { rememberCommunityBrand } from "@/lib/onboarding/onboarding-brand-db";
 import { after } from "next/server";
 
 export const runtime = "nodejs";
@@ -45,8 +47,8 @@ const postSchema = z
   .object({
     wornPicks: z.array(outfitPickSchema).max(6).optional(),
     aspirationalPicks: z.array(outfitPickSchema).max(4).optional(),
-    brandLikes: z.array(z.string().max(120)).max(20).optional(),
-    brandAvoids: z.array(z.string().max(120)).max(20).optional(),
+    brandLikes: z.array(z.string().max(120)).max(40).optional(),
+    brandAvoids: z.array(z.string().max(120)).max(40).optional(),
     hardAvoids: z.array(z.string().max(120)).max(20).optional(),
     comfort: z.array(z.string().max(160)).max(16).optional(),
     compliments: z.array(z.string().max(40)).max(4).optional(),
@@ -54,6 +56,8 @@ const postSchema = z
       .enum(["1", "2", "3", "4", "5", "gentle", "straight", "no_mercy"])
       .optional()
       .nullable(),
+    styleFriction: z.string().max(2000).optional().nullable(),
+    styleBecome: z.string().max(2000).optional().nullable(),
     valuePhilosophy: z.string().max(120).optional().nullable(),
     /** When true, marks onboarding complete (cart reveal CTA). */
     complete: z.boolean().optional(),
@@ -140,6 +144,7 @@ export async function GET(req: Request) {
       wornTasteTags: splitCsv(q.wornTasteTags),
       wornLookIds: splitCsv(q.wornLookIds),
       excludeLookIds: splitCsv(q.excludeLookIds),
+      shuffleSeed: userId,
     };
 
     const { deck, hasMore } = await buildOutfitGridDeck(ctx, {
@@ -188,7 +193,17 @@ export async function POST(req: Request) {
     const status = await applyOnboardingPatch(patch, userId, {
       complete: parsed.data.complete,
     });
-    after(kickOnboardingJobWorker);
+    after(() => {
+      kickOnboardingJobWorker();
+      const typed = [
+        ...(parsed.data.brandLikes ?? []),
+        ...(parsed.data.brandAvoids ?? []),
+      ];
+      for (const name of typed) {
+        if (findSeedBrand(name)) continue;
+        void rememberCommunityBrand(name);
+      }
+    });
 
     return Response.json({
       saved: true,

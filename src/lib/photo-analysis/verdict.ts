@@ -135,7 +135,7 @@ function listPresentDomains(input: {
   const budget = isFilledRecord(q.budget) ? q.budget : null;
   if (budget?.philosophy) domains.push("budget");
   const taste = isFilledRecord(q.taste) ? q.taste : null;
-  if (taste?.style_mix || taste?.honesty || Array.isArray(taste?.compliments)) {
+  if (taste?.style_mix || taste?.honesty || taste?.honest_corner || Array.isArray(taste?.compliments)) {
     domains.push("taste");
   }
   const body = isFilledRecord(input.measurements.body)
@@ -145,7 +145,8 @@ function listPresentDomains(input: {
   const w = input.wardrobeInventory;
   if (
     (Array.isArray(w.worn) && w.worn.length) ||
-    (Array.isArray(w.wanted) && w.wanted.length)
+    (Array.isArray(w.wanted) && w.wanted.length) ||
+    isFilledRecord(w.honest_corner)
   ) {
     domains.push("wardrobe");
   }

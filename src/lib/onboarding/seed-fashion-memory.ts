@@ -223,6 +223,8 @@ export async function seedOnboardingIntoFashionMemory(
       profile.valuePhilosophy?.trim() ||
       profile.styleEra?.trim() ||
       profile.honestyPreference?.trim() ||
+      profile.styleFriction?.trim() ||
+      profile.styleBecome?.trim() ||
       profile.weekIs?.trim() ||
       profile.dressingFor?.trim() ||
       profile.kids?.trim() ||
@@ -245,6 +247,12 @@ export async function seedOnboardingIntoFashionMemory(
             : {}),
           ...(profile.honestyPreference?.trim()
             ? { honesty_preference: profile.honestyPreference.trim() }
+            : {}),
+          ...(profile.styleFriction?.trim()
+            ? { style_friction: profile.styleFriction.trim() }
+            : {}),
+          ...(profile.styleBecome?.trim()
+            ? { style_become: profile.styleBecome.trim() }
             : {}),
           ...(profile.complimentPreferences?.length
             ? { compliment_preferences: profile.complimentPreferences }

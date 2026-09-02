@@ -46,6 +46,7 @@ describe("fitting-tell", () => {
     assert.equal(patch.sizing?.heightCm, Math.round((5 * 12 + 11) * 2.54));
     assert.ok(patch.brands?.some((b) => b.brand === "Everlane"));
     assert.ok(patch.hardNegatives?.some((h) => h.value === "logos"));
+    assert.equal(patch.profile?.styleFriction, undefined);
     assert.deepEqual(filledLabels(extraction).sort(), [
       "brands loved",
       "build",
@@ -56,6 +57,18 @@ describe("fitting-tell", () => {
       "no-list",
       "spend",
     ].sort());
+  });
+
+  it("persists Honest Corner prose onto the profile patch", () => {
+    const extraction: FittingTellExtraction = {
+      styleFriction: "everything looks unfinished",
+      styleBecome: "more tailored",
+      summary: "Noted the honest corner.",
+    };
+    const patch = buildPatchFromFittingTell(extraction);
+    assert.equal(patch.profile?.styleFriction, "everything looks unfinished");
+    assert.equal(patch.profile?.styleBecome, "more tailored");
+    assert.deepEqual(filledLabels(extraction), ["honest corner"]);
   });
 
   it("flags brands as deferred on the name step", () => {

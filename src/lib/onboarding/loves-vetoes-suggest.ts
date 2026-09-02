@@ -22,6 +22,8 @@ export type LovesVetoesContext = {
   aspirationalLabels?: string[];
   wornTasteTags?: string[];
   aspirationalTasteTags?: string[];
+  styleFriction?: string;
+  styleBecome?: string;
 };
 
 type ScoredItem = {
@@ -135,6 +137,8 @@ function contextTokens(ctx: LovesVetoesContext): Set<string> {
   for (const t of ctx.aspirationalLabels ?? []) add(t);
   for (const t of ctx.wornTasteTags ?? []) add(t);
   for (const t of ctx.aspirationalTasteTags ?? []) add(t);
+  add(ctx.styleFriction);
+  add(ctx.styleBecome);
 
   // Soft expansions from spend / era
   const vpSet = new Set(

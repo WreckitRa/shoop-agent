@@ -14,11 +14,13 @@ import {
   type OutfitGridMode,
 } from "@/lib/onboarding/outfit-grid-matrix";
 import {
+  CAMPUS_STYLE_FAMILIES,
+  POLISHED_STYLE_FAMILIES,
   getInhouseOutfitLooks,
   type OutfitFormality,
-  type OutfitGenderBucket,
   type OutfitStyleLook,
 } from "@/lib/onboarding/outfit-style-catalog";
+import { seededShuffle } from "@/lib/onboarding/outfit-shuffle";
 
 export const OUTFIT_DECK_PAGE_SIZE = 9;
 
@@ -39,6 +41,8 @@ export type OutfitDeckContext = {
   wornLookIds?: string[];
   /** Already-shown style ids (pagination / See more). */
   excludeLookIds?: string[];
+  /** Stable per-user salt so style photo variants shuffle without flicker. */
+  shuffleSeed?: string;
 };
 
 export type OutfitDeckPage = {
@@ -138,6 +142,8 @@ function energyScore(
     const arch = look.archetypes[0];
     if (arch === "Sporty" || arch === "Street") n += 10;
     if (arch === "Classic" || arch === "Parisian") n -= 8;
+    if (CAMPUS_STYLE_FAMILIES.has(look.family)) n += 16;
+    if (POLISHED_STYLE_FAMILIES.has(look.family)) n -= 10;
   }
   if (polishedCtx && !casualCtx) {
     if (look.formality === "smart" || look.formality === "formal") n += 14;
@@ -145,6 +151,8 @@ function energyScore(
     const arch = look.archetypes[0];
     if (arch === "Classic" || arch === "Parisian") n += 8;
     if (arch === "Sporty") n -= 4;
+    if (POLISHED_STYLE_FAMILIES.has(look.family)) n += 14;
+    if (CAMPUS_STYLE_FAMILIES.has(look.family)) n -= 8;
   }
   return n;
 }
@@ -332,7 +340,7 @@ export function scoreLookForContext(
     era = 6;
   } else {
     const hit = eras.some((e) => look.eras.includes(e as never));
-    era = hit ? 28 : -6;
+    era = hit ? 28 : -16;
   }
 
   let lifestyle = 6;
@@ -348,7 +356,7 @@ export function scoreLookForContext(
     const hintHit =
       hint &&
       look.lifestyles.map((x) => x.toLowerCase()).includes(hint);
-    lifestyle = hit || hintHit ? 22 : -4;
+    lifestyle = hit || hintHit ? 22 : -12;
   }
 
   let spendScore = 6;
@@ -425,6 +433,7 @@ function cardFromLook(
     imageUrl: look.imageUrl,
     tasteTags: [
       ...look.tasteTags,
+      look.family,
       cell.archetype.toLowerCase(),
     ].slice(0, 8),
     searchQuery: `inhouse ${cell.archetype} ${look.label}`,
@@ -432,6 +441,14 @@ function cardFromLook(
     archetype: cell.archetype,
     cell: cell.cell,
   };
+}
+
+function lookDept(look: OutfitStyleLook): "f" | "m" | "x" {
+  const f = look.genders.includes("feminine");
+  const m = look.genders.includes("masculine");
+  if (f && !m) return "f";
+  if (m && !f) return "m";
+  return "x";
 }
 
 type Ranked = { look: OutfitStyleLook; score: number };
@@ -448,7 +465,7 @@ function rankPool(
       score: scoreLookForContext(look, ctx, cell, { hardGender }).total,
     }))
     .filter((r) => r.score > -5_000)
-    .sort((a, b) => b.score - a.score || a.look.id.localeCompare(b.look.id));
+    .sort((a, b) => b.score - a.score);
 }
 
 /**
@@ -465,14 +482,17 @@ export function selectInhouseDeck(
   const used = new Set<string>();
   const usedColors = new Map<string, number>();
   const usedFormality = new Map<string, number>();
+  const usedFamilies = new Map<string, number>();
+  const usedDept = new Map<string, number>();
   const deck: OutfitGridCard[] = [];
   const excludeIds = new Set(
     (ctx.excludeLookIds ?? []).map((id) => id.trim()).filter(Boolean),
   );
   const paging = excludeIds.size > 0;
 
-  // Full library, but gender is enforced hard in scoring.
-  const pool = [...looks];
+  const seed = `${ctx.shuffleSeed?.trim() || "default"}:${ctx.mode}`;
+  // Shuffle first so equal-score variants (same family, different photo) differ per user.
+  const pool = seededShuffle(looks, seed);
   const bucket = genderBucketFromPresentation(ctx.genderPresentation);
 
   for (const look of pool) {
@@ -483,17 +503,36 @@ export function selectInhouseDeck(
 
   for (const cell of matrix) {
     const pickWithDiversity = (ranked: Ranked[]): Ranked | null => {
+      const maxFamily = paging ? 3 : 1;
+      const maxDept = paging || bucket !== "androgynous" ? 9 : 6;
       for (const row of ranked) {
         if (used.has(row.look.id)) continue;
         if (used.has(row.look.imageUrl)) continue;
         const colorCount = usedColors.get(row.look.colorFamily) ?? 0;
         const formCount = usedFormality.get(row.look.formality) ?? 0;
-        if (colorCount >= 3 || formCount >= 4) continue;
+        const famCount = usedFamilies.get(row.look.family) ?? 0;
+        const deptCount = usedDept.get(lookDept(row.look)) ?? 0;
+        if (
+          colorCount >= 3 ||
+          formCount >= 4 ||
+          famCount >= maxFamily ||
+          deptCount >= maxDept
+        ) {
+          continue;
+        }
         return row;
       }
       for (const row of ranked) {
         if (used.has(row.look.id) || used.has(row.look.imageUrl)) continue;
+        if ((usedFamilies.get(row.look.family) ?? 0) >= maxFamily) continue;
+        if ((usedDept.get(lookDept(row.look)) ?? 0) >= maxDept) continue;
         return row;
+      }
+      if (paging) {
+        for (const row of ranked) {
+          if (used.has(row.look.id) || used.has(row.look.imageUrl)) continue;
+          return row;
+        }
       }
       return null;
     };
@@ -569,10 +608,16 @@ export function selectInhouseDeck(
       chosen.look.formality,
       (usedFormality.get(chosen.look.formality) ?? 0) + 1,
     );
+    usedFamilies.set(
+      chosen.look.family,
+      (usedFamilies.get(chosen.look.family) ?? 0) + 1,
+    );
+    const dept = lookDept(chosen.look);
+    usedDept.set(dept, (usedDept.get(dept) ?? 0) + 1);
     deck.push(cardFromLook(chosen.look, ctx, cell));
   }
 
-  return deck;
+  return seededShuffle(deck, `${seed}:layout`);
 }
 
 function outfitDeckHasMore(

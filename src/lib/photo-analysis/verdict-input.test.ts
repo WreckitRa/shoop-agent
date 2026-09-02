@@ -17,6 +17,8 @@ describe("buildVerdictPayload", () => {
         country: "Lebanon",
         valuePhilosophy: "premium",
         honestyPreference: "straight",
+        styleFriction: "hoodies every day",
+        styleBecome: "more put-together",
         complimentPreferences: ["effortless"],
         styleMix: { axes: [{ label: "Minimal", percent: 40 }] },
       },
@@ -57,6 +59,16 @@ describe("buildVerdictPayload", () => {
     assert.equal(body.muscularity, "high");
     assert.deepEqual(payload.wardrobeInventory.worn, ["navy knit"]);
     assert.deepEqual(payload.wardrobeInventory.comfort, ["no tight fits"]);
+    const corner = payload.wardrobeInventory.honest_corner as {
+      friction: string;
+      become: string;
+    };
+    assert.equal(corner.friction, "hoodies every day");
+    assert.equal(corner.become, "more put-together");
+    const taste = payload.questionnaireAnswers.taste as {
+      honest_corner: { friction: string; become: string };
+    };
+    assert.equal(taste.honest_corner.become, "more put-together");
     assert.ok(
       (payload.wardrobeInventory.brands_like as string[]).includes("COS"),
     );

@@ -17,6 +17,7 @@ import {
 import {
   composeAspiresLine,
   composeContextLine,
+  composeFrictionLine,
   formatLastSearchLine,
   formatRecentPicksLine,
   honestyToneLine,
@@ -175,6 +176,8 @@ export function formatRouterPersonProfile(params: {
       if (tone) lines.push(tone);
       const aspires = composeAspiresLine(meta);
       if (aspires) lines.push(aspires);
+      const friction = composeFrictionLine(meta);
+      if (friction) lines.push(friction);
     }
   }
 

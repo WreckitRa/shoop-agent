@@ -54,6 +54,7 @@ import {
 } from "@/components/onboarding/fitting/ui-session";
 import { TasteCircleStep } from "@/components/onboarding/TasteCircleStep";
 import { TasteHonestyStep } from "@/components/onboarding/TasteHonestyStep";
+import { TasteHonestCornerStep } from "@/components/onboarding/TasteHonestCornerStep";
 import { TasteLifeStep, type TasteLifeValues } from "@/components/onboarding/TasteLifeStep";
 import { TasteLovesVetoesStep } from "@/components/onboarding/TasteLovesVetoesStep";
 import {
@@ -263,6 +264,8 @@ type OnboardingPrefill = {
   kids?: string;
   climate?: string;
   honestyPreference?: string;
+  styleFriction?: string;
+  styleBecome?: string;
   circleNames?: string;
   heightCm?: number;
   weightKg?: number;
@@ -302,6 +305,8 @@ function mergePrefillLatch(
     climate: next.climate?.trim() || prev.climate,
     honestyPreference:
       next.honestyPreference?.trim() || prev.honestyPreference,
+    styleFriction: next.styleFriction?.trim() || prev.styleFriction,
+    styleBecome: next.styleBecome?.trim() || prev.styleBecome,
     circleNames:
       mergeCsvLabels(prev.circleNames, next.circleNames) ?? prev.circleNames,
     heightCm: next.heightCm ?? prev.heightCm,
@@ -332,6 +337,8 @@ type OnboardingStatus = {
     valuePhilosophy: string | null;
     styleEra: string | null;
     honestyPreference: string | null;
+    styleFriction: string | null;
+    styleBecome: string | null;
     complimentPreferences: string[] | null;
     lifestyleTags: string[] | null;
     climate: string | null;
@@ -649,6 +656,8 @@ export function OnboardingGate() {
   const [hardAvoids, setHardAvoids] = useState<string[]>([]);
   const [comfort, setComfort] = useState<string[]>([]);
   const [honestyPreference, setHonestyPreference] = useState("");
+  const [styleFriction, setStyleFriction] = useState("");
+  const [styleBecome, setStyleBecome] = useState("");
   /** Trusted Circle first-name slots (sparse; up to 3). */
   const [circleNames, setCircleNames] = useState<string[]>(["", "", ""]);
   const [styleMix, setStyleMix] = useState<StyleMix | null>(null);
@@ -884,6 +893,8 @@ export function OnboardingGate() {
           prefill.honestyPreference,
       );
     }
+    if (prefill.styleFriction) setStyleFriction(prefill.styleFriction);
+    if (prefill.styleBecome) setStyleBecome(prefill.styleBecome);
     if (prefill.circleNames) {
       const parsed = prefill.circleNames
         .split(",")
@@ -1066,6 +1077,12 @@ export function OnboardingGate() {
             next.profile.honestyPreference,
         );
       }
+      if (next.profile?.styleFriction?.trim()) {
+        setStyleFriction(next.profile.styleFriction.trim());
+      }
+      if (next.profile?.styleBecome?.trim()) {
+        setStyleBecome(next.profile.styleBecome.trim());
+      }
       if (next.profile?.styleMix) setStyleMix(next.profile.styleMix);
       if (next.sizing?.heightCm) {
         const cm = next.sizing.heightCm;
@@ -1108,6 +1125,8 @@ export function OnboardingGate() {
           next.tasteTags.some((t) => t.category === "worn"),
         wantedSaved:
           prev.wantedSaved ||
+          Boolean(next.profile?.styleFriction?.trim()) ||
+          Boolean(next.profile?.styleBecome?.trim()) ||
           next.tasteTags.some((t) => t.category === "aspirational"),
         nolistSaved:
           prev.nolistSaved ||
@@ -2355,6 +2374,8 @@ export function OnboardingGate() {
           compliments: [],
           honestyPreference:
             normalizeHonestyPreference(honestyPreference) || "3",
+          styleFriction: styleFriction.trim() || undefined,
+          styleBecome: styleBecome.trim() || undefined,
           valuePhilosophy: valuePhilosophyWire,
           complete,
         }),
@@ -2373,7 +2394,11 @@ export function OnboardingGate() {
         ...f,
         wornSaved: f.wornSaved || mark === "worn" || wornPicks.length > 0,
         wantedSaved:
-          f.wantedSaved || mark === "wanted" || aspirationalPicks.length > 0,
+          f.wantedSaved ||
+          mark === "wanted" ||
+          Boolean(styleFriction.trim()) ||
+          Boolean(styleBecome.trim()) ||
+          aspirationalPicks.length > 0,
         nolistSaved:
           f.nolistSaved ||
           mark === "nolist" ||
@@ -2562,8 +2587,15 @@ export function OnboardingGate() {
     }
     if (current === "worn") {
       await runWithLoading({
-        nextStep: "nolist",
+        nextStep: "corner",
         work: () => saveTaste(false, "worn"),
+      });
+      return;
+    }
+    if (current === "corner") {
+      await runWithLoading({
+        nextStep: "nolist",
+        work: () => saveTaste(false, "wanted"),
       });
       return;
     }
@@ -2641,6 +2673,8 @@ export function OnboardingGate() {
             kids: kids || undefined,
             climate: climate || undefined,
             honestyPreference: honestyPreference || undefined,
+            styleFriction: styleFriction.trim() || undefined,
+            styleBecome: styleBecome.trim() || undefined,
             circleNames: circleNames.map((n) => n.trim()).filter(Boolean),
             heightCm: heightCmFromPhoto(photoValues),
             weightKg:
@@ -2675,6 +2709,8 @@ export function OnboardingGate() {
           kids?: string;
           climate?: string;
           honestyPreference?: string;
+          styleFriction?: string;
+          styleBecome?: string;
           circleNames?: string[];
           muscularity?: string;
           bodyShape?: string;
@@ -2733,6 +2769,10 @@ export function OnboardingGate() {
             json.extraction?.honestyPreference ??
               json.prefill?.honestyPreference,
           ) || undefined,
+        styleFriction:
+          json.extraction?.styleFriction ?? json.prefill?.styleFriction,
+        styleBecome:
+          json.extraction?.styleBecome ?? json.prefill?.styleBecome,
         circleNames:
           json.extraction?.circleNames?.join(", ") ??
           json.prefill?.circleNames,
@@ -2990,6 +3030,10 @@ export function OnboardingGate() {
       leanLabel: lean,
       brandsLabel: brandLikes.length ? `${brandLikes.length} loved` : "",
       noListLabel: vetoN ? `${vetoN} refused` : "",
+      cornerLabel:
+        styleBecome.trim() || styleFriction.trim()
+          ? (styleBecome.trim() || styleFriction.trim()).slice(0, 28)
+          : "",
       circleLabel: circleMirrorLabel(circleNames),
       photoUrl: localFacePreview,
       twinAvatarUrl: displayTwinUrl,
@@ -3031,6 +3075,8 @@ export function OnboardingGate() {
     hardAvoids,
     brandAvoids,
     brandLikes,
+    styleFriction,
+    styleBecome,
     circleNames,
     localFacePreview,
     twinAvatarUrl,
@@ -3341,8 +3387,20 @@ export function OnboardingGate() {
             onToggle={(card) =>
               setWornPicks((prev) => togglePick(prev, card, 3))
             }
-            why="Your real wardrobe is my starting point. The dream comes next."
+            why="Your real wardrobe is my starting point. Next I need the honest version."
             onContinue={() => void advanceFrom("worn")}
+            busy={busy}
+          />
+        ) : null}
+
+        {step === "corner" ? (
+          <TasteHonestCornerStep
+            friction={styleFriction}
+            become={styleBecome}
+            onChangeFriction={setStyleFriction}
+            onChangeBecome={setStyleBecome}
+            onContinue={() => void advanceFrom("corner")}
+            onSkip={() => void advanceFrom("corner")}
             busy={busy}
           />
         ) : null}
@@ -3363,6 +3421,8 @@ export function OnboardingGate() {
               aspirationalTasteTags: aspirationalPicks.flatMap(
                 (p) => p.tasteTags ?? [],
               ),
+              styleFriction,
+              styleBecome,
             }}
             brandLikes={brandLikes}
             brandAvoids={brandAvoids}
@@ -3434,7 +3494,11 @@ export function OnboardingGate() {
           <FittingVerdictStep
             preferredName={preferredName}
             wornLabels={wornPicks.map((p) => p.label)}
-            stealLabels={aspirationalPicks.map((p) => p.label)}
+            stealLabels={
+              styleBecome.trim()
+                ? [styleBecome.trim()]
+                : aspirationalPicks.map((p) => p.label)
+            }
             leanLabel={mirror.leanLabel}
             form={mirror.form}
             build={photoValues.build}
@@ -3467,7 +3531,7 @@ export function OnboardingGate() {
               const face = stylistVerdict?.user_facing_verdict;
               const text = face?.opening
                 ? `${face.title ? `${face.title}. ` : ""}${face.opening} www.shoop.world`
-                : `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, drawn to ${aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} www.shoop.world`;
+                : `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, heading toward ${styleBecome.trim() || aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} www.shoop.world`;
               void navigator.clipboard?.writeText(text).then(() => {
                 setShareCopied(true);
                 setTimeout(() => setShareCopied(false), 2000);

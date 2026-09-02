@@ -9,6 +9,7 @@ import {
   FittingTitle,
   FittingWhisper,
 } from "@/components/onboarding/onboarding-ui";
+import { styleTileAspect } from "@/lib/onboarding/outfit-shuffle";
 
 export type OutfitGridCard = {
   id: string;
@@ -43,10 +44,9 @@ const FALLBACK_GRADIENTS = [
   "linear-gradient(165deg,#20263E 0%,#3A4470 60%,#5A6494 100%)",
   "linear-gradient(160deg,#482432 0%,#7C3A52 60%,#A85A74 100%)",
   "linear-gradient(165deg,#4E4A3C 0%,#847C60 60%,#B0A480 100%)",
-  "linear-gradient(165deg,#22342A 0%,#3E6448 60%,#5E8A68 100%)",
-  "linear-gradient(165deg,#32363E 0%,#5E6572 60%,#8A93A0 100%)",
-  "linear-gradient(160deg,#44202C 0%,#7C3048 60%,#A84E68 100%)",
 ];
+
+const SKELETON_ASPECTS = ["3/4", "1/1", "4/5", "2/3", "5/6", "3/4"] as const;
 
 export function TasteOutfitGridStep({
   mode,
@@ -123,66 +123,64 @@ export function TasteOutfitGridStep({
       ) : null}
 
       {loading ? (
-        <div className="mt-4 grid max-w-[680px] grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="fitting-brand-grid max-w-[680px]">
+          {SKELETON_ASPECTS.map((aspect, i) => (
             <div
               key={i}
-              className="aspect-[4/5] animate-pulse rounded-2xl bg-[var(--fitting-g2)]"
+              className="fitting-brand-card mb-3 animate-pulse rounded-2xl bg-[var(--fitting-g2)]"
+              style={{ aspectRatio: aspect }}
             />
           ))}
         </div>
       ) : (
-        <div className="mt-4 grid max-w-[680px] grid-cols-2 gap-2.5 sm:grid-cols-3">
+        <div className="fitting-brand-grid max-w-[680px]">
           {cards.map((card, index) => {
             const selected = selectedIds.includes(card.id);
             const bg =
               FALLBACK_GRADIENTS[index % FALLBACK_GRADIENTS.length]!;
+            const aspect = styleTileAspect(card.id);
             return (
               <button
                 key={card.id}
                 type="button"
                 onClick={() => handleToggle(card)}
                 className={cn(
-                  "relative w-full overflow-hidden rounded-2xl border-2 border-transparent text-left transition-all duration-150",
-                  "aspect-[4/5] [filter:saturate(0.9)] hover:-translate-y-[3px] hover:[filter:saturate(1.05)] hover:shadow-[0_16px_30px_-20px_rgba(26,26,46,0.4)]",
+                  "fitting-brand-card mb-3 block w-full overflow-hidden rounded-2xl border-2 border-transparent text-left transition duration-200 hover:-translate-y-[3px]",
                   selected &&
-                    "border-[var(--fitting-ink)] [filter:saturate(1.12)]",
+                    "shadow-[inset_0_0_0_3px_var(--fitting-ink)] [filter:saturate(1.08)]",
                   !selected &&
                     selectedIds.length >= maxPicks &&
                     "opacity-50",
                 )}
-                style={{
-                  background: card.imageUrl
-                    ? undefined
-                    : bg,
-                }}
               >
-                {card.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={card.imageUrl}
-                    alt=""
-                    className="absolute inset-0 size-full object-cover"
-                    draggable={false}
-                  />
-                ) : null}
                 <span
-                  className="pointer-events-none absolute inset-0"
+                  className="relative block w-full overflow-hidden"
                   style={{
-                    background:
-                      "radial-gradient(90% 60% at 50% 22%,rgba(255,255,255,.16),transparent 60%),linear-gradient(0deg,rgba(0,0,0,.38) 0%,transparent 45%)",
+                    aspectRatio: aspect,
+                    background: card.imageUrl ? undefined : bg,
                   }}
-                />
-                <span
-                  className={cn(
-                    "absolute right-2.5 top-2.5 z-[3] grid size-[19px] place-items-center rounded-full bg-white font-display text-[9px] font-extrabold text-[var(--fitting-ink)] transition-opacity",
-                    selected ? "opacity-100" : "opacity-0",
-                  )}
                 >
-                  ✓
-                </span>
-                <span className="absolute inset-0 z-[2] grid place-items-center px-3.5 text-center font-display text-[13.5px] font-extrabold uppercase leading-[1.35] tracking-[0.16em] text-white [text-shadow:0_2px_16px_rgba(0,0,0,.5)]">
-                  {card.label}
+                  {card.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={card.imageUrl}
+                      alt=""
+                      className="fitting-brand-im absolute inset-0 size-full object-cover object-[center_18%]"
+                      draggable={false}
+                    />
+                  ) : null}
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-2/5 bg-[linear-gradient(0deg,rgba(0,0,0,.55),transparent)]" />
+                  <span
+                    className={cn(
+                      "absolute right-2.5 top-2.5 z-[5] grid size-[26px] place-items-center rounded-[9px] bg-[var(--fitting-ink)] text-[12px] font-extrabold text-white transition-opacity",
+                      selected ? "opacity-100" : "opacity-0",
+                    )}
+                  >
+                    ✓
+                  </span>
+                  <span className="absolute inset-x-0 bottom-0 z-[3] px-3 pb-2.5 font-display text-[12.5px] font-extrabold uppercase leading-[1.25] tracking-[0.14em] text-white [text-shadow:0_1px_10px_rgba(0,0,0,.45)]">
+                    {card.label}
+                  </span>
                 </span>
               </button>
             );
@@ -191,7 +189,7 @@ export function TasteOutfitGridStep({
       )}
 
       {hasMore && onSeeMore && !loading ? (
-        <div className="mt-5 max-w-[680px]">
+        <div className="mt-2 max-w-[680px]">
           <button
             type="button"
             onClick={onSeeMore}

@@ -34,6 +34,8 @@ describe("buildPatchFromTastePicks", () => {
       compliments: ["Polished", "Expensive"],
       honestyPreference: "straight",
       valuePhilosophy: "premium",
+      styleFriction: "everything looks unfinished",
+      styleBecome: "more tailored, like I chose this",
     });
 
     assert.ok(patch.tasteTags?.some((t) => t.category === "worn"));
@@ -52,6 +54,8 @@ describe("buildPatchFromTastePicks", () => {
     assert.deepEqual(patch.sizing?.sensitivities, ["no heels"]);
     assert.equal(patch.profile?.honestyPreference, "3");
     assert.equal(patch.profile?.valuePhilosophy, "premium");
+    assert.equal(patch.profile?.styleFriction, "everything looks unfinished");
+    assert.equal(patch.profile?.styleBecome, "more tailored, like I chose this");
     assert.ok(patch.profile?.styleMix);
     assert.equal(patch.profile?.complimentPreferences?.length, 2);
     const axisLabels = patch.profile?.styleMix?.axes.map((a) => a.label) ?? [];

@@ -14,14 +14,14 @@ type AxisKey =
   | "Bold";
 
 const AXIS_KEYWORDS: Record<AxisKey, RegExp> = {
-  Parisian: /parisian|french|cafe|café|quiet.?luxury|airport|effortless/i,
-  Minimal: /minimal|clean|gallery|neutral|simple|modern/i,
-  Romantic: /romantic|blouse|garden|soft|feminine|sequin|party/i,
-  Street: /street|denim|sharp|urban|logo|chunky/i,
-  Classic: /classic|tailored|blazer|polished|classy|put.?together/i,
+  Parisian: /parisian|french|cafe|café|quiet.?luxury|airport|effortless|smart.?casual/i,
+  Minimal: /minimal|clean|gallery|neutral|simple|modern|layered/i,
+  Romantic: /romantic|blouse|garden|soft|feminine|sequin|party|body.?conscious|vintage/i,
+  Street: /street|denim|sharp|urban|logo|chunky|grunge|utility/i,
+  Classic: /classic|tailored|blazer|polished|classy|put.?together|preppy|workwear/i,
   Sporty: /athleisure|sport|athletic|knit|jeans/i,
-  Boho: /boho|festival|linen|relaxed/i,
-  Bold: /bold|neon|statement|unique|cool/i,
+  Boho: /boho|festival|linen|relaxed|resort|oversized|bohemian/i,
+  Bold: /bold|neon|statement|unique|cool|edgy|print|evening|dressy/i,
 };
 
 const COMPLIMENT_TO_HEADING: Record<string, string> = {
@@ -70,6 +70,10 @@ export function computeStyleMix(input: {
   aspirationalArchetypes?: string[];
   compliments?: string[];
   tasteTags?: string[];
+  /** Honest Corner — who they want to become (heading + soft axis votes). */
+  styleBecome?: string | null;
+  /** Honest Corner — what they dislike now (soft axis votes). */
+  styleFriction?: string | null;
 }): StyleMix {
   const scores = new Map<AxisKey, number>();
 
@@ -82,6 +86,9 @@ export function computeStyleMix(input: {
   for (const a of aspArch) {
     if (bumpArchetype(scores, a, 2)) archetypeVotes += 1;
   }
+
+  if (input.styleBecome?.trim()) scoreText(scores, input.styleBecome, 2);
+  if (input.styleFriction?.trim()) scoreText(scores, input.styleFriction, 1);
 
   // Keyword fallback only when we lack clean archetype votes (legacy / partial).
   if (archetypeVotes === 0) {
@@ -125,6 +132,9 @@ export function computeStyleMix(input: {
     compliments
       .map((c) => COMPLIMENT_TO_HEADING[c] ?? c)
       .find(Boolean) ??
+    (input.styleBecome?.trim()
+      ? capitalizeHeading(input.styleBecome.trim())
+      : null) ??
     (input.aspirationalLabels?.[0]
       ? capitalizeHeading(input.aspirationalLabels[0])
       : null);

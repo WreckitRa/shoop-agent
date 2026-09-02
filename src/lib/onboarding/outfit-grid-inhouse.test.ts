@@ -8,12 +8,13 @@ import {
 } from "./outfit-grid-inhouse";
 import { buildCastingMatrix, STYLE_MIX_AXES } from "./outfit-grid-matrix";
 import { INHOUSE_OUTFIT_LOOKS } from "./outfit-style-catalog";
+import { styleTileAspect } from "./outfit-shuffle";
 
 describe("inhouse outfit catalog", () => {
   it("has enough looks for key genders (mode-agnostic library)", () => {
-    assert.ok(INHOUSE_OUTFIT_LOOKS.length >= 36);
-    assert.ok(countInhouseCoverage({ genderPresentation: "feminine" }) >= 9);
-    assert.ok(countInhouseCoverage({ genderPresentation: "masculine" }) >= 9);
+    assert.ok(INHOUSE_OUTFIT_LOOKS.length >= 200);
+    assert.ok(countInhouseCoverage({ genderPresentation: "feminine" }) >= 80);
+    assert.ok(countInhouseCoverage({ genderPresentation: "masculine" }) >= 80);
   });
 
   it("fills 9 unique cells with images from the full style pool", () => {
@@ -26,8 +27,8 @@ describe("inhouse outfit catalog", () => {
     });
     assert.equal(deck.length, 9);
     assert.deepEqual(
-      deck.map((c) => c.archetype),
-      [...STYLE_MIX_AXES, "Wildcard"],
+      [...deck.map((c) => c.archetype)].sort(),
+      [...STYLE_MIX_AXES, "Wildcard"].sort(),
     );
     assert.ok(deck.every((c) => c.imageUrl));
     const ids = new Set(deck.map((c) => c.id));
@@ -91,8 +92,13 @@ describe("inhouse outfit catalog", () => {
 
   it("scores hoodie/joggers above a blazer for campus + laid-back context", () => {
     const cell = buildCastingMatrix(["campus_life"])[5]!; // Sporty
-    const hoodie = INHOUSE_OUTFIT_LOOKS.find((l) => l.id === "m-w-sporty-01")!;
-    const blazer = INHOUSE_OUTFIT_LOOKS.find((l) => l.id === "m-w-classic-01")!;
+    const hoodie = INHOUSE_OUTFIT_LOOKS.find(
+      (l) => l.family === "sporty" && l.genders.includes("masculine"),
+    )!;
+    const blazer = INHOUSE_OUTFIT_LOOKS.find(
+      (l) =>
+        l.family === "classic_polished" && l.genders.includes("masculine"),
+    )!;
     const hoodieScore = scoreLookForContext(
       hoodie,
       {
@@ -123,8 +129,7 @@ describe("inhouse outfit catalog", () => {
     const cell = buildCastingMatrix()[4]!; // Classic
     const look = INHOUSE_OUTFIT_LOOKS.find(
       (l) =>
-        l.id === "m-w-classic-01" ||
-        (l.archetypes[0] === "Classic" && l.genders.includes("masculine")),
+        l.family === "classic_polished" && l.genders.includes("masculine"),
     )!;
     const hit = scoreLookForContext(
       look,
@@ -179,6 +184,20 @@ describe("inhouse outfit catalog", () => {
     assert.equal(typeof page.hasMore, "boolean");
   });
 
+  it("first page shows distinct style families for the shopper", () => {
+    const deck = selectInhouseDeck({
+      mode: "worn",
+      genderPresentation: "feminine",
+      styleEra: "30s",
+      lifestyleTags: ["deep_in_career"],
+    });
+    const families = deck.map((c) => {
+      const look = INHOUSE_OUTFIT_LOOKS.find((l) => l.id === c.id);
+      return look?.family;
+    });
+    assert.equal(new Set(families).size, families.length);
+  });
+
   it("See more pages exclude already-shown styles", async () => {
     const first = await buildOutfitGridDeck({
       mode: "worn",
@@ -200,5 +219,32 @@ describe("inhouse outfit catalog", () => {
       assert.ok(!firstIds.has(card.id));
       assert.ok(card.imageUrl);
     }
+  });
+
+  it("same shuffle seed is stable; different seeds mix variants", () => {
+    const ctx = {
+      mode: "worn" as const,
+      genderPresentation: "feminine",
+      styleEra: "30s",
+      lifestyleTags: ["deep_in_career"],
+    };
+    const a1 = selectInhouseDeck({ ...ctx, shuffleSeed: "user-a" });
+    const a2 = selectInhouseDeck({ ...ctx, shuffleSeed: "user-a" });
+    const b = selectInhouseDeck({ ...ctx, shuffleSeed: "user-b" });
+    assert.deepEqual(
+      a1.map((c) => c.id),
+      a2.map((c) => c.id),
+    );
+    assert.notEqual(
+      a1.map((c) => c.id).join(),
+      b.map((c) => c.id).join(),
+    );
+  });
+
+  it("style tiles get mixed aspect ratios", () => {
+    const aspects = new Set(
+      INHOUSE_OUTFIT_LOOKS.slice(0, 40).map((l) => styleTileAspect(l.id)),
+    );
+    assert.ok(aspects.size >= 3);
   });
 });

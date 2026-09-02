@@ -145,6 +145,8 @@ export function buildVerdictPayload(input: {
   const climate = pickStr(profile, "climate");
   const budget = pickStr(profile, "valuePhilosophy", "valuePhilosophy");
   const honesty = pickStr(profile, "honestyPreference", "honestyPreference");
+  const styleFriction = pickStr(profile, "styleFriction", "styleFriction");
+  const styleBecome = pickStr(profile, "styleBecome", "styleBecome");
   const heightCm =
     confirmedBody?.height_cm ?? pickNum(sizing, "heightCm", "heightCm");
   const weightKg =
@@ -227,6 +229,10 @@ export function buildVerdictPayload(input: {
       style_era_label: styleEra ? styleEraLabel(styleEra) : null,
       honesty,
       honesty_label: labelOf(HONESTY_OPTIONS, honesty),
+      honest_corner: compact({
+        friction: styleFriction,
+        become: styleBecome,
+      }),
       compliments: [
         ...pickStrs(profile, "complimentPreferences", "complimentPreferences"),
         ...complimentTags,
@@ -266,6 +272,10 @@ export function buildVerdictPayload(input: {
   const wardrobeInventory = compact({
     worn,
     wanted,
+    honest_corner: compact({
+      friction: styleFriction,
+      become: styleBecome,
+    }),
     brands_like: likes,
     brands_avoid: [...brandAvoids, ...styleVetoes],
     style_vetoes: styleVetoes,

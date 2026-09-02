@@ -38,7 +38,7 @@ export const onboardingPatchSchema = z
   .object({
     profile: userProfilePatchSchema.optional(),
     sizing: sizingProfilePatchSchema.optional(),
-    brands: z.array(brandPreferencePostSchema).max(20).optional(),
+    brands: z.array(brandPreferencePostSchema).max(40).optional(),
     hardNegatives: z.array(hardNegativePostSchema).max(20).optional(),
     ownedProducts: z.array(ownedProductPostSchema).max(12).optional(),
     tasteTags: z.array(tasteTagSchema).max(24).optional(),

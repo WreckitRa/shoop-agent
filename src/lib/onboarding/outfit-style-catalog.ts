@@ -2,7 +2,7 @@
  * In-house onboarding style catalog for worn / aspirational grids.
  * Curated STYLE list — not Shopify. Looks are mode-agnostic:
  * worn vs wanted is decided by the quiz step + ranker, not by the asset.
- * Photos: public/onboarding/outfits/{id}.png → imageUrl "/onboarding/outfits/{id}.png"
+ * Photos: public/onboarding/outfits/{id}.jpg → /onboarding/outfits/{id}.jpg
  */
 
 import type { CastingArchetype } from "./outfit-grid-matrix";
@@ -16,661 +16,502 @@ export type OutfitGenderBucket =
 
 export type OutfitFormality = "casual" | "smart" | "formal" | "athletic";
 
+export type StyleFamilyId =
+  | "androgynous_tailoring"
+  | "athleisure"
+  | "body_conscious"
+  | "bohemian"
+  | "classic_polished"
+  | "dressy_occasion"
+  | "edgy"
+  | "effortless_minimal"
+  | "evening_out"
+  | "grunge"
+  | "layered"
+  | "oversized_relaxed"
+  | "preppy"
+  | "print_pattern"
+  | "relaxed_denim"
+  | "resort_holiday"
+  | "smart_casual"
+  | "soft_masc"
+  | "sporty"
+  | "streetwear"
+  | "utility_practical"
+  | "vintage_leaning"
+  | "workwear_pro";
+
 export type OutfitStyleLook = {
   id: string;
-  /** Absolute or same-origin. Prefer /onboarding/outfits/{id}.png */
   imageUrl: string;
+  family: StyleFamilyId;
   genders: OutfitGenderBucket[];
-  /**
-   * Empty = all eras.
-   * Use style-era values from form-options (e.g. "23_29", "30s").
-   */
   eras: StyleEraValue[];
-  /** Primary first — used for matrix cell fill. */
   archetypes: CastingArchetype[];
   label: string;
   title?: string;
   tasteTags: string[];
-  /** Empty = any lifestyle. Values like campus_life, deep_in_career. */
   lifestyles: string[];
-  /** Empty = any spend. best_value | premium | luxury | deal_hunter | design_first. */
   spend: string[];
   formality: OutfitFormality;
   colorFamily: string;
 };
 
-/**
- * Put generated photos in either:
- *   public/onboarding/outfits/{id}.png  (served at /onboarding/outfits/{id}.png)
- * or copy from src/lib/onboarding/outfits/ (source of generated assets).
- * Prefer local paths via outfitPhotoUrl(id).
- */
 export const OUTFIT_PHOTO_PUBLIC_DIR = "public/onboarding/outfits";
 export const OUTFIT_PHOTO_URL_PREFIX = "/onboarding/outfits";
 
 export function outfitPhotoUrl(
   id: string,
-  ext: "webp" | "jpg" | "png" = "png",
+  ext: "webp" | "jpg" | "png" = "jpg",
 ) {
   return `${OUTFIT_PHOTO_URL_PREFIX}/${id}.${ext}`;
 }
 
-/** Catalog images: local PNGs in /public/onboarding/outfits/. */
-const photo = (id: string) => outfitPhotoUrl(id, "png");
+const photo = (id: string) => outfitPhotoUrl(id, "jpg");
 
-/**
- * Seed style library. Same look can appear as worn for one user and wanted for another.
- */
-export const INHOUSE_OUTFIT_LOOKS: OutfitStyleLook[] = [
-  // ── Feminine ──────────────────────────────────────────────
-  {
-    id: "f-w-parisian-01",
-    imageUrl: photo("f-w-parisian-01"),
-    genders: ["feminine"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Parisian"],
-    label: "trench + café knit",
-    tasteTags: ["trench", "knit", "parisian", "neutral"],
-    lifestyles: ["deep_in_career", "first_job"],
+type FamilyDef = {
+  label: string;
+  archetypes: CastingArchetype[];
+  eras: StyleEraValue[];
+  lifestyles: string[];
+  spend: string[];
+  formality: OutfitFormality;
+  colorFamily: string;
+  tasteTags: string[];
+};
+
+const ALL_ADULT: StyleEraValue[] = [
+  "18_22",
+  "23_29",
+  "30s",
+  "40s",
+];
+const YOUNG: StyleEraValue[] = ["15_17", "18_22", "23_29", "30s"];
+const CAMPUS: StyleEraValue[] = ["13_14", "15_17", "18_22", "23_29"];
+const PRIME: StyleEraValue[] = ["23_29", "30s", "40s"];
+const POLISHED: StyleEraValue[] = ["23_29", "30s", "40s", "50s_60s", "65_plus"];
+const MATURE: StyleEraValue[] = ["30s", "40s", "50s_60s", "65_plus"];
+
+const FAMILIES: Record<StyleFamilyId, FamilyDef> = {
+  effortless_minimal: {
+    label: "Effortless minimal",
+    archetypes: ["Minimal"],
+    eras: POLISHED,
+    lifestyles: ["deep_in_career", "first_job", "running_the_show"],
     spend: ["premium", "design_first", "best_value"],
     formality: "smart",
-    colorFamily: "camel",
+    colorFamily: "grey",
+    tasteTags: ["minimal", "clean", "neutral", "quiet"],
   },
-  {
-    id: "f-w-minimal-01",
-    imageUrl: photo("f-w-minimal-01"),
-    genders: ["feminine"],
-    eras: ["18_22", "23_29", "30s", "40s"],
-    archetypes: ["Minimal"],
-    label: "black column day",
-    tasteTags: ["black", "column", "minimal", "clean"],
-    lifestyles: [],
-    spend: ["premium", "best_value", "design_first"],
-    formality: "smart",
-    colorFamily: "black",
-  },
-  {
-    id: "f-w-romantic-01",
-    imageUrl: photo("f-w-romantic-01"),
-    genders: ["feminine"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Romantic"],
-    label: "soft blouse + midi",
-    tasteTags: ["blouse", "midi", "romantic", "soft"],
-    lifestyles: [],
-    spend: ["best_value", "premium"],
-    formality: "smart",
-    colorFamily: "blush",
-  },
-  {
-    id: "f-w-street-01",
-    imageUrl: photo("f-w-street-01"),
-    genders: ["feminine", "androgynous"],
-    eras: ["15_17", "18_22", "23_29", "30s"],
-    archetypes: ["Street"],
-    label: "denim + white sneaks",
-    tasteTags: ["denim", "sneakers", "street", "casual"],
-    lifestyles: ["campus_life", "first_job"],
-    spend: ["best_value", "deal_hunter", "design_first"],
-    formality: "casual",
-    colorFamily: "indigo",
-  },
-  {
-    id: "f-w-classic-01",
-    imageUrl: photo("f-w-classic-01"),
-    genders: ["feminine"],
-    eras: ["23_29", "30s", "40s", "50s_60s"],
-    archetypes: ["Classic"],
-    label: "blazer + trousers",
-    tasteTags: ["blazer", "trousers", "classic", "work"],
-    lifestyles: ["deep_in_career", "running_the_show", "first_job"],
-    spend: ["premium", "luxury", "best_value"],
+  classic_polished: {
+    label: "Classic and polished",
+    archetypes: ["Classic", "Parisian"],
+    eras: POLISHED,
+    lifestyles: ["deep_in_career", "running_the_show"],
+    spend: ["premium", "luxury"],
     formality: "smart",
     colorFamily: "navy",
+    tasteTags: ["classic", "polished", "blazer", "tailored"],
   },
-  {
-    id: "f-w-sporty-01",
-    imageUrl: photo("f-w-sporty-01"),
-    genders: ["feminine", "androgynous"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Sporty"],
-    label: "knit + easy joggers",
-    tasteTags: ["knit", "joggers", "sporty", "athleisure"],
-    lifestyles: ["kids_in_the_mix", "time_is_mine", "campus_life"],
-    spend: ["best_value", "deal_hunter"],
-    formality: "athletic",
-    colorFamily: "grey",
-  },
-  {
-    id: "f-w-boho-01",
-    imageUrl: photo("f-w-boho-01"),
-    genders: ["feminine"],
-    eras: ["18_22", "23_29", "30s", "40s"],
-    archetypes: ["Boho"],
-    label: "linen shirt set",
-    tasteTags: ["linen", "relaxed", "boho", "earth"],
-    lifestyles: ["time_is_mine"],
-    spend: ["best_value", "design_first", "premium"],
-    formality: "casual",
-    colorFamily: "sand",
-  },
-  {
-    id: "f-w-bold-01",
-    imageUrl: photo("f-w-bold-01"),
-    genders: ["feminine"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Bold"],
-    label: "leather + graphic tee",
-    tasteTags: ["leather", "graphic", "bold", "edge"],
-    lifestyles: [],
-    spend: ["design_first", "premium", "best_value"],
-    formality: "casual",
-    colorFamily: "black",
-  },
-  {
-    id: "f-w-wild-01",
-    imageUrl: photo("f-w-wild-01"),
-    genders: ["feminine"],
-    eras: [],
-    archetypes: ["Wildcard"],
-    label: "hoodie + leggings truth",
-    tasteTags: ["hoodie", "leggings", "comfort", "real"],
-    lifestyles: ["kids_in_the_mix", "time_is_mine", "campus_life"],
-    spend: ["best_value", "deal_hunter"],
-    formality: "casual",
-    colorFamily: "grey",
-  },
-
-  // ── Feminine (elevated / dressier options in library) ─────────────────────────────────────
-  {
-    id: "f-a-parisian-01",
-    imageUrl: photo("f-a-parisian-01"),
-    genders: ["feminine"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Parisian"],
-    label: "quiet-luxury airport",
-    tasteTags: ["cashmere", "travel", "quiet-luxury", "parisian"],
-    lifestyles: ["deep_in_career", "running_the_show"],
-    spend: ["luxury", "premium", "design_first"],
-    formality: "smart",
-    colorFamily: "cream",
-  },
-  {
-    id: "f-a-minimal-01",
-    imageUrl: photo("f-a-minimal-01"),
-    genders: ["feminine"],
-    eras: ["23_29", "30s", "40s", "50s_60s"],
-    archetypes: ["Minimal"],
-    label: "gallery black column",
-    tasteTags: ["gallery", "black", "minimal", "sculptural"],
-    lifestyles: [],
-    spend: ["luxury", "premium", "design_first"],
-    formality: "formal",
-    colorFamily: "black",
-  },
-  {
-    id: "f-a-romantic-01",
-    imageUrl: photo("f-a-romantic-01"),
-    genders: ["feminine"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Romantic"],
-    label: "garden party dress",
-    tasteTags: ["garden", "dress", "romantic", "occasion"],
-    lifestyles: [],
-    spend: ["premium", "luxury", "design_first"],
-    formality: "formal",
-    colorFamily: "floral",
-  },
-  {
-    id: "f-a-street-01",
-    imageUrl: photo("f-a-street-01"),
-    genders: ["feminine", "androgynous"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Street"],
-    label: "street-sharp night",
-    tasteTags: ["street", "leather", "sharp", "night"],
-    lifestyles: [],
-    spend: ["premium", "design_first", "luxury"],
-    formality: "smart",
-    colorFamily: "black",
-  },
-  {
-    id: "f-a-classic-01",
-    imageUrl: photo("f-a-classic-01"),
-    genders: ["feminine"],
-    eras: ["30s", "40s", "50s_60s", "65_plus"],
+  workwear_pro: {
+    label: "Workwear professional",
     archetypes: ["Classic"],
-    label: "tailored suit day",
-    tasteTags: ["suit", "tailored", "classic", "power"],
-    lifestyles: ["deep_in_career", "running_the_show"],
-    spend: ["luxury", "premium"],
+    eras: POLISHED,
+    lifestyles: ["deep_in_career", "first_job", "running_the_show"],
+    spend: ["premium", "luxury", "best_value"],
     formality: "formal",
     colorFamily: "charcoal",
+    tasteTags: ["suit", "tailored", "work", "blazer"],
   },
-  {
-    id: "f-a-sporty-01",
-    imageUrl: photo("f-a-sporty-01"),
-    genders: ["feminine"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Sporty"],
-    label: "clean matching set",
-    tasteTags: ["athleisure", "clean", "sporty", "elevated"],
-    lifestyles: [],
-    spend: ["premium", "design_first", "best_value"],
-    formality: "athletic",
-    colorFamily: "cream",
-  },
-  {
-    id: "f-a-boho-01",
-    imageUrl: photo("f-a-boho-01"),
-    genders: ["feminine"],
-    eras: ["18_22", "23_29", "30s", "40s"],
-    archetypes: ["Boho"],
-    label: "festival layers",
-    tasteTags: ["boho", "festival", "layers", "print"],
-    lifestyles: ["time_is_mine"],
-    spend: ["design_first", "premium", "best_value"],
-    formality: "casual",
-    colorFamily: "earth",
-  },
-  {
-    id: "f-a-bold-01",
-    imageUrl: photo("f-a-bold-01"),
-    genders: ["feminine"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Bold"],
-    label: "sequin evening hit",
-    tasteTags: ["sequin", "evening", "bold", "glam"],
-    lifestyles: [],
-    spend: ["luxury", "premium", "design_first"],
-    formality: "formal",
-    colorFamily: "gold",
-  },
-  {
-    id: "f-a-wild-01",
-    imageUrl: photo("f-a-wild-01"),
-    genders: ["feminine"],
-    eras: [],
-    archetypes: ["Wildcard"],
-    label: "architect coat moment",
-    tasteTags: ["coat", "statement", "sculptural", "stretch"],
-    lifestyles: [],
-    spend: ["luxury", "design_first", "premium"],
-    formality: "smart",
-    colorFamily: "ivory",
-  },
-
-  // ── Masculine ────────────────────────────────────────────
-  {
-    id: "m-w-parisian-01",
-    imageUrl: photo("m-w-parisian-01"),
-    genders: ["masculine"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Parisian"],
-    label: "trench + knit polo",
-    tasteTags: ["trench", "polo", "parisian", "smart"],
+  smart_casual: {
+    label: "Smart casual",
+    archetypes: ["Classic", "Parisian"],
+    eras: ALL_ADULT,
     lifestyles: ["deep_in_career", "first_job"],
+    spend: ["premium", "best_value", "design_first"],
+    formality: "smart",
+    colorFamily: "navy",
+    tasteTags: ["blazer", "smart", "casual", "clean"],
+  },
+  preppy: {
+    label: "Preppy",
+    archetypes: ["Classic"],
+    eras: [...CAMPUS, "30s"],
+    lifestyles: ["campus_life", "first_job"],
     spend: ["premium", "best_value"],
     formality: "smart",
-    colorFamily: "camel",
+    colorFamily: "navy",
+    tasteTags: ["preppy", "polo", "collegiate", "classic"],
   },
-  {
-    id: "m-w-minimal-01",
-    imageUrl: photo("m-w-minimal-01"),
-    genders: ["masculine", "androgynous"],
-    eras: [],
-    archetypes: ["Minimal"],
-    label: "black tee + clean pants",
-    tasteTags: ["black", "tee", "minimal", "clean"],
-    lifestyles: [],
-    spend: ["best_value", "premium", "design_first"],
-    formality: "casual",
-    colorFamily: "black",
-  },
-  {
-    id: "m-w-romantic-01",
-    imageUrl: photo("m-w-romantic-01"),
-    genders: ["masculine"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Romantic"],
-    label: "soft oxford + chinos",
-    tasteTags: ["oxford", "chinos", "soft", "romantic"],
-    lifestyles: [],
-    spend: ["best_value", "premium"],
-    formality: "smart",
-    colorFamily: "blue",
-  },
-  {
-    id: "m-w-street-01",
-    imageUrl: photo("m-w-street-01"),
-    genders: ["masculine", "androgynous"],
-    eras: ["15_17", "18_22", "23_29", "30s"],
+  relaxed_denim: {
+    label: "Relaxed denim",
     archetypes: ["Street"],
-    label: "denim on denim",
-    tasteTags: ["denim", "jeans", "street", "sneakers"],
-    lifestyles: ["campus_life", "first_job"],
+    eras: YOUNG,
+    lifestyles: ["campus_life", "kids_in_the_mix", "first_job"],
     spend: ["best_value", "deal_hunter", "design_first"],
     formality: "casual",
     colorFamily: "indigo",
+    tasteTags: ["denim", "jeans", "casual", "relaxed"],
   },
-  {
-    id: "m-w-classic-01",
-    imageUrl: photo("m-w-classic-01"),
-    genders: ["masculine"],
-    eras: ["23_29", "30s", "40s", "50s_60s", "65_plus"],
-    archetypes: ["Classic"],
-    label: "blazer + chinos day",
-    tasteTags: ["blazer", "chinos", "classic", "work"],
-    lifestyles: ["deep_in_career", "running_the_show"],
-    spend: ["premium", "luxury", "best_value"],
-    formality: "smart",
-    colorFamily: "navy",
-  },
-  {
-    id: "m-w-sporty-01",
-    imageUrl: photo("m-w-sporty-01"),
-    genders: ["masculine"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Sporty"],
-    label: "hoodie + joggers",
-    tasteTags: ["hoodie", "joggers", "sporty", "athleisure"],
-    lifestyles: ["kids_in_the_mix", "campus_life", "time_is_mine"],
-    spend: ["best_value", "deal_hunter"],
-    formality: "athletic",
-    colorFamily: "grey",
-  },
-  {
-    id: "m-w-boho-01",
-    imageUrl: photo("m-w-boho-01"),
-    genders: ["masculine"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Boho"],
-    label: "linen shirt + shorts",
-    tasteTags: ["linen", "shorts", "coastal", "boho"],
-    lifestyles: ["time_is_mine"],
-    spend: ["best_value", "premium", "design_first"],
+  streetwear: {
+    label: "Streetwear",
+    archetypes: ["Street"],
+    eras: [...CAMPUS, "30s"],
+    lifestyles: ["campus_life", "first_job"],
+    spend: ["best_value", "design_first", "deal_hunter"],
     formality: "casual",
-    colorFamily: "sand",
+    colorFamily: "black",
+    tasteTags: ["street", "hoodie", "sneakers", "urban"],
   },
-  {
-    id: "m-w-bold-01",
-    imageUrl: photo("m-w-bold-01"),
-    genders: ["masculine"],
-    eras: ["18_22", "23_29", "30s"],
+  grunge: {
+    label: "Grunge",
+    archetypes: ["Street", "Bold"],
+    eras: YOUNG,
+    lifestyles: ["campus_life"],
+    spend: ["best_value", "deal_hunter", "design_first"],
+    formality: "casual",
+    colorFamily: "earth",
+    tasteTags: ["grunge", "flannel", "denim", "edge"],
+  },
+  edgy: {
+    label: "Edgy",
     archetypes: ["Bold"],
-    label: "statement jacket + tee",
-    tasteTags: ["jacket", "tee", "bold", "edge"],
+    eras: YOUNG,
     lifestyles: [],
     spend: ["design_first", "premium"],
     formality: "casual",
     colorFamily: "black",
+    tasteTags: ["edgy", "leather", "black", "sharp"],
   },
-  {
-    id: "m-w-wild-01",
-    imageUrl: photo("m-w-wild-01"),
-    genders: ["masculine"],
-    eras: [],
-    archetypes: ["Wildcard"],
-    label: "hoodie + jeans truth",
-    tasteTags: ["hoodie", "jeans", "comfort", "real"],
+  athleisure: {
+    label: "Athleisure",
+    archetypes: ["Sporty"],
+    eras: [...YOUNG, "40s"],
+    lifestyles: ["kids_in_the_mix", "campus_life", "time_is_mine"],
+    spend: ["best_value", "deal_hunter", "premium"],
+    formality: "athletic",
+    colorFamily: "cream",
+    tasteTags: ["athleisure", "hoodie", "knit", "easy"],
+  },
+  sporty: {
+    label: "Sporty",
+    archetypes: ["Sporty"],
+    eras: YOUNG,
     lifestyles: ["campus_life", "kids_in_the_mix", "time_is_mine"],
     spend: ["best_value", "deal_hunter"],
-    formality: "casual",
-    colorFamily: "grey",
-  },
-
-  // ── Masculine (elevated / dressier options in library) ────────────────────────────────────
-  {
-    id: "m-a-parisian-01",
-    imageUrl: photo("m-a-parisian-01"),
-    genders: ["masculine"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Parisian"],
-    label: "quiet-luxury travel",
-    tasteTags: ["cashmere", "travel", "quiet-luxury", "parisian"],
-    lifestyles: ["deep_in_career", "running_the_show"],
-    spend: ["luxury", "premium"],
-    formality: "smart",
-    colorFamily: "cream",
-  },
-  {
-    id: "m-a-minimal-01",
-    imageUrl: photo("m-a-minimal-01"),
-    genders: ["masculine", "androgynous"],
-    eras: [],
-    archetypes: ["Minimal"],
-    label: "gallery black kit",
-    tasteTags: ["gallery", "black", "minimal", "sculptural"],
-    lifestyles: [],
-    spend: ["luxury", "premium", "design_first"],
-    formality: "formal",
-    colorFamily: "black",
-  },
-  {
-    id: "m-a-romantic-01",
-    imageUrl: photo("m-a-romantic-01"),
-    genders: ["masculine"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Romantic"],
-    label: "soft evening shirt",
-    tasteTags: ["evening", "shirt", "soft", "romantic"],
-    lifestyles: [],
-    spend: ["premium", "luxury", "design_first"],
-    formality: "formal",
-    colorFamily: "ivory",
-  },
-  {
-    id: "m-a-street-01",
-    imageUrl: photo("m-a-street-01"),
-    genders: ["masculine", "androgynous"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Street"],
-    label: "street-sharp night",
-    tasteTags: ["street", "leather", "sharp", "night"],
-    lifestyles: [],
-    spend: ["premium", "design_first", "luxury"],
-    formality: "smart",
-    colorFamily: "black",
-  },
-  {
-    id: "m-a-classic-01",
-    imageUrl: photo("m-a-classic-01"),
-    genders: ["masculine"],
-    eras: ["30s", "40s", "50s_60s", "65_plus"],
-    archetypes: ["Classic"],
-    label: "tailored suit day",
-    tasteTags: ["suit", "tailored", "classic", "power"],
-    lifestyles: ["deep_in_career", "running_the_show"],
-    spend: ["luxury", "premium"],
-    formality: "formal",
-    colorFamily: "charcoal",
-  },
-  {
-    id: "m-a-sporty-01",
-    imageUrl: photo("m-a-sporty-01"),
-    genders: ["masculine"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Sporty"],
-    label: "clean athleisure set",
-    tasteTags: ["athleisure", "clean", "sporty", "elevated"],
-    lifestyles: [],
-    spend: ["premium", "design_first", "best_value"],
     formality: "athletic",
-    colorFamily: "cream",
+    colorFamily: "black",
+    tasteTags: ["sporty", "hoodie", "joggers", "sneakers"],
   },
-  {
-    id: "m-a-boho-01",
-    imageUrl: photo("m-a-boho-01"),
-    genders: ["masculine"],
-    eras: ["23_29", "30s", "40s"],
+  bohemian: {
+    label: "Bohemian",
     archetypes: ["Boho"],
-    label: "coastal linen set",
-    tasteTags: ["linen", "coastal", "resort", "boho"],
+    eras: PRIME,
     lifestyles: ["time_is_mine"],
-    spend: ["premium", "design_first", "best_value"],
-    formality: "casual",
-    colorFamily: "sand",
-  },
-  {
-    id: "m-a-bold-01",
-    imageUrl: photo("m-a-bold-01"),
-    genders: ["masculine"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Bold"],
-    label: "black-tie adjacent",
-    tasteTags: ["dinner", "formal", "bold", "evening"],
-    lifestyles: [],
-    spend: ["luxury", "premium"],
-    formality: "formal",
-    colorFamily: "black",
-  },
-  {
-    id: "m-a-wild-01",
-    imageUrl: photo("m-a-wild-01"),
-    genders: ["masculine"],
-    eras: [],
-    archetypes: ["Wildcard"],
-    label: "architect coat moment",
-    tasteTags: ["coat", "statement", "sculptural", "stretch"],
-    lifestyles: [],
-    spend: ["luxury", "design_first", "premium"],
-    formality: "smart",
-    colorFamily: "ivory",
-  },
-
-  // ── Androgynous / crossover extras for internal fallback depth ──
-  {
-    id: "x-w-street-02",
-    imageUrl: photo("x-w-street-02"),
-    genders: ["androgynous"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Street", "Bold"],
-    label: "boxy denim layers",
-    tasteTags: ["denim", "boxy", "street", "layers"],
-    lifestyles: ["campus_life", "first_job"],
-    spend: ["best_value", "design_first"],
-    formality: "casual",
-    colorFamily: "indigo",
-  },
-  {
-    id: "x-w-minimal-02",
-    imageUrl: photo("x-w-minimal-02"),
-    genders: ["androgynous", "feminine", "masculine"],
-    eras: [],
-    archetypes: ["Minimal", "Classic"],
-    label: "monochrome layers",
-    tasteTags: ["monochrome", "layers", "minimal", "clean"],
-    lifestyles: [],
-    spend: ["premium", "design_first", "best_value"],
-    formality: "smart",
-    colorFamily: "grey",
-  },
-  {
-    id: "x-w-sporty-02",
-    imageUrl: photo("x-w-sporty-02"),
-    genders: ["androgynous"],
-    eras: [],
-    archetypes: ["Sporty", "Wildcard"],
-    label: "track pants + knit",
-    tasteTags: ["track", "knit", "sporty", "comfort"],
-    lifestyles: [],
-    spend: ["best_value", "deal_hunter"],
-    formality: "athletic",
-    colorFamily: "grey",
-  },
-  {
-    id: "x-a-classic-02",
-    imageUrl: photo("x-a-classic-02"),
-    genders: ["androgynous"],
-    eras: ["30s", "40s", "50s_60s"],
-    archetypes: ["Classic", "Parisian"],
-    label: "sharp tailoring cut",
-    tasteTags: ["tailored", "suit", "classic", "sharp"],
-    lifestyles: ["deep_in_career", "running_the_show"],
-    spend: ["luxury", "premium"],
-    formality: "formal",
-    colorFamily: "navy",
-  },
-  {
-    id: "x-w-boho-02",
-    imageUrl: photo("x-w-boho-02"),
-    genders: ["feminine", "androgynous"],
-    eras: ["23_29", "30s", "40s"],
-    archetypes: ["Boho", "Romantic"],
-    label: "easy earth layers",
-    tasteTags: ["earth", "layers", "boho", "relaxed"],
-    lifestyles: ["time_is_mine"],
-    spend: ["best_value", "design_first"],
+    spend: ["design_first", "premium", "best_value"],
     formality: "casual",
     colorFamily: "earth",
+    tasteTags: ["boho", "print", "relaxed", "earth"],
   },
-  {
-    id: "x-a-bold-02",
-    imageUrl: photo("x-a-bold-02"),
-    genders: ["feminine", "androgynous"],
-    eras: ["18_22", "23_29", "30s"],
-    archetypes: ["Bold", "Wildcard"],
-    label: "color-block statement",
-    tasteTags: ["color-block", "statement", "bold", "print"],
+  oversized_relaxed: {
+    label: "Oversized and relaxed",
+    archetypes: ["Boho", "Wildcard"],
+    eras: [...YOUNG, "40s"],
+    lifestyles: ["campus_life", "kids_in_the_mix", "time_is_mine"],
+    spend: ["best_value", "design_first"],
+    formality: "casual",
+    colorFamily: "cream",
+    tasteTags: ["oversized", "relaxed", "hoodie", "easy"],
+  },
+  resort_holiday: {
+    label: "Resort and holiday",
+    archetypes: ["Boho", "Parisian"],
+    eras: [...PRIME, "50s_60s"],
+    lifestyles: ["time_is_mine"],
+    spend: ["premium", "design_first", "luxury"],
+    formality: "casual",
+    colorFamily: "sand",
+    tasteTags: ["linen", "resort", "holiday", "coastal"],
+  },
+  print_pattern: {
+    label: "Print and pattern",
+    archetypes: ["Bold", "Romantic"],
+    eras: PRIME,
     lifestyles: [],
     spend: ["design_first", "premium"],
     formality: "smart",
     colorFamily: "bright",
+    tasteTags: ["print", "pattern", "bold", "statement"],
   },
-  // Campus / younger eras
-  {
-    id: "f-w-street-campus",
-    imageUrl: photo("f-w-street-campus"),
-    genders: ["feminine"],
-    eras: ["13_14", "15_17", "18_22"],
-    archetypes: ["Street", "Wildcard"],
-    label: "campus denim basics",
-    tasteTags: ["denim", "campus", "casual", "street"],
-    lifestyles: ["campus_life"],
-    spend: ["best_value", "deal_hunter"],
-    formality: "casual",
-    colorFamily: "indigo",
+  vintage_leaning: {
+    label: "Vintage-leaning",
+    archetypes: ["Romantic", "Wildcard"],
+    eras: [...PRIME, "50s_60s"],
+    lifestyles: ["time_is_mine"],
+    spend: ["design_first", "premium", "best_value"],
+    formality: "smart",
+    colorFamily: "earth",
+    tasteTags: ["vintage", "retro", "texture", "character"],
   },
-  {
-    id: "m-w-street-campus",
-    imageUrl: photo("m-w-street-campus"),
-    genders: ["masculine"],
-    eras: ["13_14", "15_17", "18_22"],
-    archetypes: ["Street", "Sporty", "Wildcard"],
-    label: "campus tee + jeans",
-    tasteTags: ["tee", "jeans", "campus", "casual"],
-    lifestyles: ["campus_life"],
-    spend: ["best_value", "deal_hunter"],
-    formality: "casual",
-    colorFamily: "blue",
-  },
-  {
-    id: "f-a-icon-refined",
-    imageUrl: photo("f-a-icon-refined"),
-    genders: ["feminine"],
-    eras: ["50s_60s", "65_plus", "40s"],
-    archetypes: ["Classic", "Parisian", "Minimal"],
-    label: "refined cashmere day",
-    tasteTags: ["cashmere", "refined", "classic", "quiet"],
-    lifestyles: ["time_is_mine", "running_the_show"],
-    spend: ["luxury", "premium"],
+  layered: {
+    label: "Layered",
+    archetypes: ["Wildcard", "Minimal"],
+    eras: ALL_ADULT,
+    lifestyles: [],
+    spend: ["design_first", "premium"],
     formality: "smart",
     colorFamily: "cream",
+    tasteTags: ["layers", "drape", "texture", "sculptural"],
   },
-  {
-    id: "m-a-icon-refined",
-    imageUrl: photo("m-a-icon-refined"),
-    genders: ["masculine"],
-    eras: ["50s_60s", "65_plus", "40s"],
-    archetypes: ["Classic", "Parisian"],
-    label: "refined navy jacket",
-    tasteTags: ["navy", "jacket", "refined", "classic"],
-    lifestyles: ["time_is_mine", "running_the_show"],
-    spend: ["luxury", "premium"],
+  utility_practical: {
+    label: "Utility and practical",
+    archetypes: ["Street", "Wildcard"],
+    eras: ALL_ADULT,
+    lifestyles: ["kids_in_the_mix", "first_job"],
+    spend: ["best_value", "design_first"],
+    formality: "casual",
+    colorFamily: "olive",
+    tasteTags: ["utility", "cargo", "practical", "workwear"],
+  },
+  body_conscious: {
+    label: "Body-conscious",
+    archetypes: ["Romantic", "Bold"],
+    eras: PRIME,
+    lifestyles: [],
+    spend: ["premium", "design_first", "luxury"],
     formality: "smart",
-    colorFamily: "navy",
+    colorFamily: "white",
+    tasteTags: ["fitted", "knit", "body", "sculptural"],
   },
+  dressy_occasion: {
+    label: "Dressy occasion",
+    archetypes: ["Bold", "Romantic"],
+    eras: [...PRIME, "50s_60s"],
+    lifestyles: ["running_the_show"],
+    spend: ["luxury", "premium", "design_first"],
+    formality: "formal",
+    colorFamily: "emerald",
+    tasteTags: ["occasion", "dressy", "evening", "formal"],
+  },
+  evening_out: {
+    label: "Evening and going out",
+    archetypes: ["Bold", "Parisian"],
+    eras: PRIME,
+    lifestyles: [],
+    spend: ["luxury", "premium", "design_first"],
+    formality: "formal",
+    colorFamily: "black",
+    tasteTags: ["evening", "night", "glam", "sharp"],
+  },
+  androgynous_tailoring: {
+    label: "Androgynous tailoring",
+    archetypes: ["Classic", "Minimal"],
+    eras: [...ALL_ADULT, "50s_60s"],
+    lifestyles: ["deep_in_career", "first_job"],
+    spend: ["premium", "design_first", "luxury"],
+    formality: "smart",
+    colorFamily: "black",
+    tasteTags: ["tailored", "androgynous", "suit", "sharp"],
+  },
+  soft_masc: {
+    label: "Soft masc",
+    archetypes: ["Minimal", "Street"],
+    eras: ALL_ADULT,
+    lifestyles: ["first_job"],
+    spend: ["design_first", "premium", "best_value"],
+    formality: "casual",
+    colorFamily: "grey",
+    tasteTags: ["soft-masc", "relaxed", "tailored", "neutral"],
+  },
+};
+
+/** Families that read well on an androgynous / "both" rail. */
+const ANDROGYNOUS_FAMILIES = new Set<StyleFamilyId>([
+  "androgynous_tailoring",
+  "soft_masc",
+  "oversized_relaxed",
+  "streetwear",
+  "effortless_minimal",
+  "utility_practical",
+  "smart_casual",
+  "layered",
+]);
+
+export const CAMPUS_STYLE_FAMILIES = new Set<StyleFamilyId>([
+  "streetwear",
+  "sporty",
+  "athleisure",
+  "oversized_relaxed",
+  "relaxed_denim",
+  "grunge",
+  "preppy",
+]);
+
+export const POLISHED_STYLE_FAMILIES = new Set<StyleFamilyId>([
+  "classic_polished",
+  "workwear_pro",
+  "smart_casual",
+  "effortless_minimal",
+  "evening_out",
+  "dressy_occasion",
+]);
+
+const WOMEN_COUNTS: Record<StyleFamilyId, number> = {
+  androgynous_tailoring: 3,
+  athleisure: 4,
+  body_conscious: 3,
+  bohemian: 4,
+  classic_polished: 4,
+  dressy_occasion: 3,
+  edgy: 1,
+  effortless_minimal: 4,
+  evening_out: 2,
+  grunge: 4,
+  layered: 4,
+  oversized_relaxed: 4,
+  preppy: 4,
+  print_pattern: 4,
+  relaxed_denim: 4,
+  resort_holiday: 6,
+  smart_casual: 4,
+  soft_masc: 2,
+  sporty: 4,
+  streetwear: 4,
+  utility_practical: 4,
+  vintage_leaning: 4,
+  workwear_pro: 4,
+};
+
+type MenGroup = {
+  uuid: string;
+  family: StyleFamilyId;
+  n: number;
+  start?: number;
+};
+
+const MEN_GROUPS: MenGroup[] = [
+  { uuid: "c91fa476", family: "sporty", n: 4 },
+  { uuid: "4791bb95", family: "utility_practical", n: 4 },
+  { uuid: "778f5e74", family: "oversized_relaxed", n: 4 },
+  { uuid: "083037f5", family: "resort_holiday", n: 4 },
+  { uuid: "ed6f58bd", family: "effortless_minimal", n: 4 },
+  { uuid: "c4363126", family: "athleisure", n: 4 },
+  { uuid: "64a57eab", family: "resort_holiday", n: 4 },
+  { uuid: "a0aade79", family: "oversized_relaxed", n: 4 },
+  { uuid: "62dc540e", family: "preppy", n: 4 },
+  { uuid: "8725b3dd", family: "vintage_leaning", n: 4 },
+  { uuid: "bf10185b", family: "print_pattern", n: 4 },
+  { uuid: "da9e8329", family: "resort_holiday", n: 4 },
+  { uuid: "c41b0989", family: "smart_casual", n: 4 },
+  { uuid: "447f7d7f", family: "effortless_minimal", n: 4 },
+  { uuid: "4f9e5537", family: "oversized_relaxed", n: 4 },
+  { uuid: "9dab19fd", family: "smart_casual", n: 4 },
+  { uuid: "c28eb960", family: "workwear_pro", n: 4 },
+  { uuid: "2b726fc9", family: "classic_polished", n: 4 },
+  { uuid: "426d685a", family: "smart_casual", n: 4 },
+  { uuid: "56bfbfae", family: "effortless_minimal", n: 4 },
+  { uuid: "24d523cd", family: "smart_casual", n: 4 },
+  { uuid: "296f4575", family: "effortless_minimal", n: 4 },
+  { uuid: "d3b14f87", family: "effortless_minimal", n: 4 },
+  { uuid: "321fa065", family: "classic_polished", n: 4 },
+  { uuid: "845293f1", family: "evening_out", n: 4 },
+  { uuid: "05fe44d7", family: "evening_out", n: 4 },
+  { uuid: "5ed59845", family: "dressy_occasion", n: 4 },
+  { uuid: "58b9ef07", family: "layered", n: 4 },
+  { uuid: "9ebdc30f", family: "athleisure", n: 4 },
+  { uuid: "594c935f", family: "streetwear", n: 4 },
+  { uuid: "8ccf1557", family: "oversized_relaxed", n: 4 },
+  { uuid: "77fcd7ac", family: "streetwear", n: 4 },
+  { uuid: "b7ba45d8", family: "smart_casual", n: 4 },
+  { uuid: "5df0c2c8", family: "oversized_relaxed", n: 4 },
+  { uuid: "95905802", family: "edgy", n: 4 },
+  { uuid: "685d316f", family: "streetwear", n: 4 },
+  { uuid: "a83282fc", family: "streetwear", n: 4 },
+  { uuid: "e140c840", family: "effortless_minimal", n: 4 },
+  { uuid: "a462d546", family: "smart_casual", n: 4 },
+  { uuid: "5ca40f22", family: "preppy", n: 4 },
+  { uuid: "5b1f0418", family: "resort_holiday", n: 4 },
+  { uuid: "e0040533", family: "athleisure", n: 4 },
+  { uuid: "f1653c6a", family: "athleisure", n: 4 },
+  { uuid: "5448b4e8", family: "resort_holiday", n: 1, start: 1 },
+  { uuid: "5f5d9fc2", family: "sporty", n: 4 },
 ];
+
+const COLOR_SHIFT = [
+  "grey",
+  "navy",
+  "black",
+  "cream",
+  "earth",
+  "indigo",
+  "camel",
+] as const;
+
+function gendersFor(
+  dept: "feminine" | "masculine",
+  family: StyleFamilyId,
+): OutfitGenderBucket[] {
+  if (ANDROGYNOUS_FAMILIES.has(family)) return [dept, "androgynous"];
+  return [dept];
+}
+
+function lookOf(params: {
+  id: string;
+  family: StyleFamilyId;
+  dept: "feminine" | "masculine";
+  colorShift: number;
+}): OutfitStyleLook {
+  const fam = FAMILIES[params.family];
+  return {
+    id: params.id,
+    imageUrl: photo(params.id),
+    family: params.family,
+    genders: gendersFor(params.dept, params.family),
+    eras: fam.eras,
+    archetypes: fam.archetypes,
+    label: fam.label,
+    tasteTags: fam.tasteTags,
+    lifestyles: fam.lifestyles,
+    spend: fam.spend,
+    formality: fam.formality,
+    colorFamily: COLOR_SHIFT[params.colorShift % COLOR_SHIFT.length]!,
+  };
+}
+
+function buildLooks(): OutfitStyleLook[] {
+  const looks: OutfitStyleLook[] = [];
+  for (const family of Object.keys(WOMEN_COUNTS) as StyleFamilyId[]) {
+    const count = WOMEN_COUNTS[family];
+    for (let i = 1; i <= count; i += 1) {
+      const num = String(i).padStart(2, "0");
+      looks.push(
+        lookOf({
+          id: `f-${family}-${num}`,
+          family,
+          dept: "feminine",
+          colorShift: i - 1,
+        }),
+      );
+    }
+  }
+  for (const group of MEN_GROUPS) {
+    const start = group.start ?? 0;
+    for (let i = 0; i < group.n; i += 1) {
+      const idx = start + i;
+      looks.push(
+        lookOf({
+          id: `m-${group.family}-${group.uuid}-${idx}`,
+          family: group.family,
+          dept: "masculine",
+          colorShift: idx,
+        }),
+      );
+    }
+  }
+  return looks;
+}
+
+export const INHOUSE_OUTFIT_LOOKS: OutfitStyleLook[] = buildLooks();
 
 export function getInhouseOutfitLooks(): readonly OutfitStyleLook[] {
   return INHOUSE_OUTFIT_LOOKS;

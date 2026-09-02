@@ -40,6 +40,7 @@ export type FittingTellStep =
   | "spend"
   | "fit"
   | "worn"
+  | "corner"
   | "wanted"
   | "nolist"
   | "honesty"
@@ -60,6 +61,8 @@ export type FittingTellKnown = {
   kids?: string;
   climate?: string;
   honestyPreference?: string;
+  styleFriction?: string;
+  styleBecome?: string;
   circleNames?: string[];
   heightCm?: number | null;
   weightKg?: number | null;
@@ -77,7 +80,8 @@ export type FittingTellBucket =
   | "nolist"
   | "honesty"
   | "circle"
-  | "taste";
+  | "taste"
+  | "corner";
 
 const genderEnum = z.enum(
   GENDER_OPTIONS.map((g) => g.value) as [string, ...string[]],
@@ -425,6 +429,8 @@ export const fittingTellExtractionSchema = z
     styleLikes: z.array(z.string().min(1).max(60)).max(16).optional(),
     styleAvoids: z.array(z.string().min(1).max(60)).max(16).optional(),
     honestyPreference: honestyEnum.optional(),
+    styleFriction: z.string().min(1).max(2000).optional(),
+    styleBecome: z.string().min(1).max(2000).optional(),
     /** First names of people they ask for style opinions (Trusted Circle). */
     circleNames: z.array(z.string().min(1).max(40)).max(3).optional(),
     /** Short user-facing confirmation of what was understood. */
@@ -442,7 +448,7 @@ ALWAYS extract every actionable field, even if it doesn't match the current step
 (e.g. brands on the name step, height on the photo step, hard nos before the no-list).
 Return ONE JSON object only (no markdown, no prose outside JSON).
 
-FITTING STEPS (order): photo → name → life → spend → fit (height/build) → worn looks → wanted looks → brands/nolist → honesty → trusted circle → verdict
+FITTING STEPS (order): photo → name → life → spend → fit (height/build) → worn looks → honest corner → brands/nolist → honesty → trusted circle → verdict
 
 RULES
 - Only set fields the user actually communicated. Omit unknowns entirely (do not invent).
@@ -469,6 +475,10 @@ RULES
 - kids: young | older | none
 - climate: hot_humid | hot_dry | four_seasons | mild_wet | cold
 - styleLikes / styleAvoids: style descriptors (minimal, Parisian, preppy…)
+- styleFriction: what they dislike in their CURRENT style — keep their words as
+  free prose (not chip tags). "I look sloppy / everything is hoodies" → styleFriction.
+- styleBecome: who they want to become / what they want to improve toward — keep
+  their words. "more tailored, like I chose this" → styleBecome.
 - honestyPreference: 1 | 2 | 3 | 4 | 5 (only if they request feedback tone)
 - circleNames: up to 3 first names of people they ask for style opinions
   ("I ask Maya and Jordan" → ["Maya","Jordan"])
@@ -525,6 +535,7 @@ export function filledLabels(extraction: FittingTellExtraction): string[] {
   if (extraction.styleLikes?.length || extraction.styleAvoids?.length)
     labels.push("taste");
   if (extraction.honestyPreference) labels.push("honesty");
+  if (extraction.styleFriction || extraction.styleBecome) labels.push("honest corner");
   if (extraction.circleNames?.length) labels.push("circle");
   return labels;
 }
@@ -571,6 +582,7 @@ export function bucketsFromExtraction(
     buckets.push("nolist");
   }
   if (extraction.honestyPreference) buckets.push("honesty");
+  if (extraction.styleFriction || extraction.styleBecome) buckets.push("corner");
   if (extraction.circleNames?.length) buckets.push("circle");
   if (extraction.styleLikes?.length || extraction.styleAvoids?.length) {
     buckets.push("taste");
@@ -585,7 +597,7 @@ const BUCKET_ORDER: FittingTellStep[] = [
   "spend",
   "fit",
   "worn",
-  "wanted",
+  "corner",
   "nolist",
   "honesty",
   "circle",
@@ -601,6 +613,7 @@ const BUCKET_STEP: Record<FittingTellBucket, FittingTellStep> = {
   honesty: "honesty",
   circle: "circle",
   taste: "worn",
+  corner: "corner",
 };
 
 const BUCKET_LABEL: Record<FittingTellBucket, string> = {
@@ -612,6 +625,7 @@ const BUCKET_LABEL: Record<FittingTellBucket, string> = {
   honesty: "honesty",
   circle: "trusted circle",
   taste: "taste",
+  corner: "honest corner",
 };
 
 /**
@@ -624,7 +638,9 @@ export function deferredBuckets(
 ): FittingTellBucket[] {
   const buckets = bucketsFromExtraction(extraction);
   if (!currentStep) return buckets;
-  const now = BUCKET_ORDER.indexOf(currentStep);
+  const now = BUCKET_ORDER.indexOf(
+    currentStep === "wanted" ? "corner" : currentStep,
+  );
   if (now < 0) return buckets;
   return buckets.filter(
     (b) => BUCKET_ORDER.indexOf(BUCKET_STEP[b]) > now,
@@ -696,6 +712,12 @@ export function buildPatchFromFittingTell(
 
   if (extraction.honestyPreference) {
     profile.honestyPreference = extraction.honestyPreference;
+  }
+  if (extraction.styleFriction?.trim()) {
+    profile.styleFriction = extraction.styleFriction.trim();
+  }
+  if (extraction.styleBecome?.trim()) {
+    profile.styleBecome = extraction.styleBecome.trim();
   }
   if (extraction.weekIs) profile.weekIs = extraction.weekIs;
   if (extraction.dressingFor) profile.dressingFor = extraction.dressingFor;
@@ -796,6 +818,8 @@ export function prefillFromFittingTell(
     kids: extraction.kids,
     climate: extraction.climate,
     honestyPreference: extraction.honestyPreference,
+    styleFriction: extraction.styleFriction,
+    styleBecome: extraction.styleBecome,
     circleNames: extraction.circleNames?.join(", "),
     heightCm,
     weightKg: extraction.weightKg,
@@ -840,6 +864,9 @@ export async function extractFittingTell(params: {
   if (known.climate) knownLines.push(`climate: ${known.climate}`);
   if (known.honestyPreference)
     knownLines.push(`honesty: ${known.honestyPreference}`);
+  if (known.styleFriction)
+    knownLines.push(`styleFriction: ${known.styleFriction}`);
+  if (known.styleBecome) knownLines.push(`styleBecome: ${known.styleBecome}`);
   if (known.circleNames?.length)
     knownLines.push(`trusted circle: ${known.circleNames.join(", ")}`);
   if (known.heightCm) knownLines.push(`heightCm: ${known.heightCm}`);
@@ -907,6 +934,12 @@ export async function extractFittingTell(params: {
     if (hard?.length) salvage.hardAvoids = hard.slice(0, 16);
     const comfort = asStringArray(asRec.comfort);
     if (comfort?.length) salvage.comfort = comfort.slice(0, 16);
+    if (typeof asRec.styleFriction === "string" && asRec.styleFriction.trim()) {
+      salvage.styleFriction = asRec.styleFriction.trim().slice(0, 2000);
+    }
+    if (typeof asRec.styleBecome === "string" && asRec.styleBecome.trim()) {
+      salvage.styleBecome = asRec.styleBecome.trim().slice(0, 2000);
+    }
     extraction = salvage;
   } else {
     const data = out.data;
@@ -936,6 +969,8 @@ export async function extractFittingTell(params: {
       styleLikes: data.styleLikes,
       styleAvoids: data.styleAvoids,
       honestyPreference: data.honestyPreference,
+      styleFriction: data.styleFriction,
+      styleBecome: data.styleBecome,
       circleNames: data.circleNames,
       summary: data.summary,
     };

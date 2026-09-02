@@ -36,10 +36,11 @@ You are simulating, reviewing, extracting, or filling Shoop onboarding. Follow t
 | 5 | `life` | Week days / week ends / kids / climate | No |
 | 6 | `spend` | How you buy | No |
 | 7 | `worn` | Looks you actually wear | No — max 3 |
-| 8 | `nolist` | Brand loves, comfort lines, vetoes | No |
-| 9 | `honesty` | 1–5 honesty slider. **Lock it in** starts the verdict. | No |
-| 10 | `verdict` | Scan-check (if photo) then the card | Continue to circle |
-| 11 | `circle` | Who you actually ask | No — skip CTA |
+| 8 | `corner` | Honest Corner — current style friction + who they want to become | No — skip allowed |
+| 9 | `nolist` | Brand loves, comfort lines, vetoes | No |
+| 10 | `honesty` | 1–5 honesty slider. **Lock it in** starts the verdict. | No |
+| 11 | `verdict` | Scan-check (if photo) then the card | Continue to circle |
+| 12 | `circle` | Who you actually ask | No — skip CTA |
 
 Clothing type chips: **Menswear · Womenswear · Both** (`menswear` / `womenswear` / `both`). Honesty stores `1`–`5` (legacy `gentle`→1, `straight`→3, `no_mercy`→5).
 
@@ -456,7 +457,7 @@ If skipped: `slim` → `low`, `athletic` → `high`, else `moderate`.
 | **Pagination** | `See more styles` (9 per page) |
 | **Stored** | TasteTag category `worn` (label + tasteTags + archetype) |
 
-Cards are **not** a fixed chip list. They are ranked from the in-house catalog (`outfit-style-catalog.ts`) by gender bucket, era, lifestyle, spend. Same catalog feeds wanted (step 8); worn picks are hard-excluded there.
+Cards are **not** a fixed chip list. They are ranked from the in-house catalog (`outfit-style-catalog.ts`) by gender bucket, era, lifestyle, spend.
 
 Archetype cells (casting matrix): Parisian, Minimal, Romantic, Street, Classic, Sporty, Boho, Bold, Wildcard.
 
@@ -470,24 +471,29 @@ Catalog labels an agent may see (filtered — never dump the whole list to the u
 
 ---
 
-## Step 8 — `wanted`
+## Step 8 — `corner`
 
-**Title:** Whose closet would you steal?  
-**Whisper:** Pick two. Where you’re headed matters as much as where you are... I dress both.  
-**Why:** Where you're headed matters as much as where you are. I dress both.
+**Title:** The honest corner.  
+**Whisper:** Be straight with me. What don't you like in how you dress now? And what do you want to improve — or become? I take this over the pretty pictures.  
+**CTA:** That's the truth. Skip: I'd rather not say.
 
-### Q8.1 Aspirational looks
+### Q8.1 What you don't like in your current style
 
 | | |
 |--|--|
-| **Select** | visual cards, max **2** |
+| **Select** | free-text, max 2000 |
 | **Required** | no |
-| **Over max** | “Remove one to swap — max 2.” |
-| **Pagination** | `See more styles` |
-| **Stored** | TasteTag category `aspirational` |
-| **Constraint** | looks already picked on worn are excluded |
+| **Stored** | `UserProfile.styleFriction` |
 
-Same catalog and filtering as Q7.1.
+### Q8.2 What you want to improve or become
+
+| | |
+|--|--|
+| **Select** | free-text, max 2000 |
+| **Required** | no |
+| **Stored** | `UserProfile.styleBecome` |
+
+Used in the stylist verdict as `taste.honest_corner` / `wardrobe.honest_corner`, and seeded into fashion-memory `aspires:` / `style_friction`. Replaces the old wanted / steal grid.
 
 ---
 
@@ -682,9 +688,9 @@ life:    weekIs?, dressingFor?, kids?, climate?
 spend:   valuePhilosophy[]  // best_value|premium|luxury|deal_hunter|design_first|custom:*
 fit:     height, weight|skipped, build?, muscularity?, bodyShape?, bustFullness?, legLine?
 worn:    lookIds[] max 3
-wanted:  lookIds[] max 2
+corner:  styleFriction?, styleBecome?
 nolist:  brandLikes[], comfort[], hardAvoids[], brandAvoids[]
-honesty: straight | no_mercy | unset
+honesty: 1-5 | unset
 circle:  [name, name, name] | skip
 verdict: confirm photo traits? | skip → complete
 ```

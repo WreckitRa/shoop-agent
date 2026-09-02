@@ -39,4 +39,13 @@ describe("computeStyleMix", () => {
       ["Classic", "Minimal", "Parisian"].sort(),
     );
   });
+
+  it("uses Honest Corner become as heading when compliments are absent", () => {
+    const mix = computeStyleMix({
+      wornLabels: ["jeans + knit"],
+      styleBecome: "more tailored",
+    });
+    assert.equal(mix.headingToward, "More tailored");
+    assert.equal(mix.headingPercent, 25);
+  });
 });

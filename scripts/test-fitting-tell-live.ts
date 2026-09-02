@@ -170,7 +170,7 @@ const CASES: Case[] = [
   },
   {
     id: "style_descriptors",
-    step: "wanted",
+    step: "corner",
     text: "I love a minimal Parisian quiet luxury vibe, avoid super preppy looks",
     expect: {
       styleLikesIncludes: ["minimal", "parisian", "quiet"],

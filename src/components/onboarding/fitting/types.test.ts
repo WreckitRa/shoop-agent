@@ -22,9 +22,10 @@ describe("fitting circle step model", () => {
       "life",
       "spend",
     ]);
-    assert.deepEqual(FITTING_Q_STEPS.slice(-2), ["honesty", "circle"]);
+    assert.deepEqual(FITTING_Q_STEPS.slice(-3), ["nolist", "honesty", "circle"]);
     assert.equal(FITTING_STEPS.at(-2), "verdict");
     assert.equal(FITTING_STEPS.at(-1), "circle");
+    assert.ok(FITTING_STEPS.includes("corner"));
     assert.ok(!FITTING_STEPS.includes("wanted" as (typeof FITTING_STEPS)[number]));
     assert.ok(STITCH_KNOTS.some((k) => k.id === "life"));
     assert.ok(STITCH_KNOTS.some((k) => k.id === "fit"));
@@ -43,15 +44,19 @@ describe("fitting circle step model", () => {
     assert.equal(knotNowIndex("fit"), 1);
     assert.equal(knotNowIndex("name"), 2);
     assert.equal(knotNowIndex("life"), 3);
-    assert.equal(knotNowIndex("honesty"), 7);
-    assert.equal(knotNowIndex("circle"), 7);
-    assert.equal(knotNowIndex("verdict"), 8);
+    assert.equal(knotNowIndex("worn"), 5);
+    assert.equal(knotNowIndex("corner"), 6);
+    assert.equal(knotNowIndex("nolist"), 7);
+    assert.equal(knotNowIndex("honesty"), 8);
+    assert.equal(knotNowIndex("circle"), 8);
+    assert.equal(knotNowIndex("verdict"), 9);
     assert.equal(sewnThroughIndex("consent"), -1);
     assert.equal(sewnThroughIndex("photo"), -1);
     assert.equal(sewnThroughIndex("fit"), 0);
     assert.equal(sewnThroughIndex("name"), 1);
-    assert.equal(sewnThroughIndex("verdict"), 7);
-    assert.equal(sewnThroughIndex("circle"), 7);
+    assert.equal(sewnThroughIndex("corner"), 5);
+    assert.equal(sewnThroughIndex("verdict"), 8);
+    assert.equal(sewnThroughIndex("circle"), 8);
   });
 
   it("formats mirror circle labels", () => {

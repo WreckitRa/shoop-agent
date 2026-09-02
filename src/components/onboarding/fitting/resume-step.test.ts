@@ -32,6 +32,8 @@ function status(partial: {
       climate: null,
       valuePhilosophy: null,
       honestyPreference: null,
+      styleFriction: null,
+      styleBecome: null,
       ...partial.profile,
     },
     sizing: partial.sizing ?? null,
@@ -72,7 +74,7 @@ describe("firstIncompleteFittingStep", () => {
           tasteTags: [{ category: "worn" }],
         }),
       ),
-      "nolist",
+      "corner",
     );
   });
 
@@ -84,6 +86,7 @@ describe("firstIncompleteFittingStep", () => {
             ...you,
             weekIs: "office",
             valuePhilosophy: "quality",
+            styleBecome: "more tailored",
             honestyPreference: "3",
           },
           sizing: { heightCm: 170, bodyType: "average" },
@@ -117,6 +120,7 @@ describe("resolveFittingResumeStep", () => {
         weekIs: "office",
         valuePhilosophy: "quality",
         honestyPreference: "straight",
+        styleBecome: "more tailored",
       },
       sizing: { heightCm: 170, bodyType: "average" },
       tasteTags: [{ category: "worn" }, { category: "aspirational" }],

@@ -92,6 +92,8 @@ export const userProfilePatchSchema = z
       "straight",
       "no_mercy",
     ]).optional().nullable(),
+    styleFriction: z.string().max(2000).optional().nullable(),
+    styleBecome: z.string().max(2000).optional().nullable(),
     complimentPreferences: z.array(z.string().max(40)).max(4).optional(),
     styleMix: styleMixSchema.optional().nullable(),
   })

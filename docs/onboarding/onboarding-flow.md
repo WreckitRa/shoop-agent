@@ -27,7 +27,7 @@ Everything else is skippable.
 
 ## 2. Flow overview
 
-**Live UI** (`OnboardingGate` + fitting steps): consent → photo → fit → name → life → spend → worn → nolist → honesty → **verdict** → circle.
+**Live UI** (`OnboardingGate` + fitting steps): consent → photo → fit → name → life → spend → worn → corner → nolist → honesty → **verdict** → circle.
 
 | Step | Screen |
 |------|--------|
@@ -37,6 +37,7 @@ Everything else is skippable.
 | `life` | `TasteLifeStep` — week days + week ends (not dating) |
 | `spend` | `TasteSpendStep` |
 | `worn` | `TasteOutfitGridStep` |
+| `corner` | `TasteHonestCornerStep` — friction + become free text |
 | `nolist` | `TasteLovesVetoesStep` |
 | `honesty` | `TasteHonestyStep` (1–5) |
 | `verdict` | `FittingVerdictStep` |
@@ -130,7 +131,8 @@ Save path: `POST /api/onboarding/review` (also `ensureSelfPerson` for fashion ro
 |-------|-----|-----------------|-----------|---------|
 | `valuePhilosophy` | Spend chips (multi → CSV) | `best_value`, `premium`, `luxury`, `deal_hunter`, `design_first` | Optional | `UserProfile.valuePhilosophy` |
 | Worn picks | Outfit grid | Max **3** cards; labels/tags/archetypes | Optional | → `TasteTag` category `worn` (+ feeds `styleMix`) |
-| Aspirational picks | Steal grid | Max **2** cards | Optional | → `TasteTag` category `aspirational` |
+| Honest Corner | Two free-text fields | `styleFriction`, `styleBecome` ≤2000 | Optional | `UserProfile.styleFriction` / `styleBecome` |
+| Aspirational picks | Legacy steal grid (not live) | Max **2** cards | Optional | → `TasteTag` category `aspirational` |
 | `brandLikes` | Love chips + custom | Free text / suggestions | Optional | `BrandPreference` sentiment `love` |
 | `brandAvoids` | Avoid brands | Free text / suggestions | Optional | `BrandPreference` sentiment `avoid` |
 | `hardAvoids` | Style vetoes | Free text / ranked suggestions | Optional | `HardNegative` scope `style`, reason `taste` |

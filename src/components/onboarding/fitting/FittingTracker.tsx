@@ -46,6 +46,10 @@ function factsForKnot(
       return mirror.leanLabel && mirror.leanLabel !== "—"
         ? [{ text: mirror.leanLabel }]
         : [];
+    case "corner":
+      return mirror.cornerLabel && mirror.cornerLabel !== "—"
+        ? [{ text: mirror.cornerLabel }]
+        : [];
     case "nolist":
       return mirror.noListLabel && mirror.noListLabel !== "—"
         ? [{ text: mirror.noListLabel, no: true }]

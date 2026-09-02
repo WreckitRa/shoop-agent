@@ -8,6 +8,7 @@ import {
   silhouetteHeadOverlayStyle,
   SILHOUETTE_VIEWBOX,
 } from "./bodySilhouetteGeometry";
+import { FittingVerdictAnnotations } from "./FittingVerdictAnnotations";
 import type { MirrorState } from "./types";
 
 function formatTwinClock(sec: number): string {
@@ -175,6 +176,9 @@ export function FittingMirror({
                   "animate-[fitting-blink_1.8s_infinite]",
               )}
             />
+            {twinReady && mirror.scanActivity === "writing" ? (
+              <FittingVerdictAnnotations compact={layout === "column"} />
+            ) : null}
           </>
         ) : null}
         <div className="absolute inset-0 z-[2] flex flex-col p-3">

@@ -60,6 +60,8 @@ export function buildPatchFromTastePicks(input: {
   compliments?: string[];
   honestyPreference?: string | null;
   valuePhilosophy?: string | null;
+  styleFriction?: string | null;
+  styleBecome?: string | null;
 }): OnboardingPatch {
   const tasteTags: NonNullable<OnboardingPatch["tasteTags"]> = [];
   const seen = new Set<string>();
@@ -124,6 +126,8 @@ export function buildPatchFromTastePicks(input: {
       .filter((a): a is string => Boolean(a?.trim())),
     compliments: input.compliments ?? [],
     tasteTags: tasteTags.map((t) => t.tag),
+    styleBecome: input.styleBecome,
+    styleFriction: input.styleFriction,
   });
 
   const profile: NonNullable<OnboardingPatch["profile"]> = {
@@ -136,6 +140,14 @@ export function buildPatchFromTastePicks(input: {
   }
   if (input.valuePhilosophy?.trim()) {
     profile.valuePhilosophy = input.valuePhilosophy.trim();
+  }
+  if (input.styleFriction !== undefined) {
+    const t = input.styleFriction?.trim() ?? "";
+    profile.styleFriction = t || null;
+  }
+  if (input.styleBecome !== undefined) {
+    const t = input.styleBecome?.trim() ?? "";
+    profile.styleBecome = t || null;
   }
 
   const sizing: NonNullable<OnboardingPatch["sizing"]> | undefined =

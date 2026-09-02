@@ -1,0 +1,1912 @@
+[
+  {
+    "id": "shein",
+    "name": "Shein",
+    "dept": "Womenswear",
+    "priceBand": 1,
+    "composition": 0.1,
+    "regions": [
+      "high_street_current",
+      "y2k"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#B49AA8",
+    "c2": "#78606C",
+    "hasImage": true
+  },
+  {
+    "id": "primark",
+    "name": "Primark",
+    "dept": "Both",
+    "priceBand": 1,
+    "composition": 0.12,
+    "regions": [
+      "high_street_current",
+      "normcore"
+    ],
+    "markets": [
+      "uk",
+      "eu"
+    ],
+    "c1": "#9AA4B4",
+    "c2": "#5A6472",
+    "hasImage": true
+  },
+  {
+    "id": "handm",
+    "name": "H&M",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.25,
+    "regions": [
+      "high_street_current",
+      "smart_casual"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#A4A4AA",
+    "c2": "#5E5E64",
+    "hasImage": true
+  },
+  {
+    "id": "zara",
+    "name": "Zara",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.35,
+    "regions": [
+      "high_street_current",
+      "corporate_polish"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#8E8E96",
+    "c2": "#4A4A52",
+    "hasImage": true
+  },
+  {
+    "id": "mango",
+    "name": "Mango",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.35,
+    "regions": [
+      "smart_casual",
+      "corporate_polish"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#A8A2A0",
+    "c2": "#6E6664",
+    "hasImage": true
+  },
+  {
+    "id": "bershka",
+    "name": "Bershka",
+    "dept": "Both",
+    "priceBand": 1,
+    "composition": 0.15,
+    "regions": [
+      "y2k",
+      "streetwear"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#B0A0B8",
+    "c2": "#6E5E78",
+    "hasImage": false
+  },
+  {
+    "id": "stradivarius",
+    "name": "Stradivarius",
+    "dept": "Womenswear",
+    "priceBand": 1,
+    "composition": 0.18,
+    "regions": [
+      "y2k",
+      "coquette"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#C4A8B4",
+    "c2": "#846874",
+    "hasImage": true
+  },
+  {
+    "id": "pull_and_bear",
+    "name": "Pull & Bear",
+    "dept": "Both",
+    "priceBand": 1,
+    "composition": 0.18,
+    "regions": [
+      "skater",
+      "streetwear"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#98A8A0",
+    "c2": "#5A6A62",
+    "hasImage": true
+  },
+  {
+    "id": "uniqlo",
+    "name": "Uniqlo",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.55,
+    "regions": [
+      "normcore",
+      "elevated_basics"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#9AA4AE",
+    "c2": "#5E6870",
+    "hasImage": true
+  },
+  {
+    "id": "marks_and_spencer",
+    "name": "Marks & Spencer",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.4,
+    "regions": [
+      "timeless_classic",
+      "comfort_first"
+    ],
+    "markets": [
+      "uk",
+      "mena"
+    ],
+    "c1": "#9EA6AE",
+    "c2": "#626A72",
+    "hasImage": true
+  },
+  {
+    "id": "next",
+    "name": "Next",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.3,
+    "regions": [
+      "smart_casual",
+      "mum_practical"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#A6A29C",
+    "c2": "#68645E",
+    "hasImage": true
+  },
+  {
+    "id": "asos",
+    "name": "ASOS",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.25,
+    "regions": [
+      "high_street_current",
+      "y2k"
+    ],
+    "markets": [
+      "uk",
+      "global"
+    ],
+    "c1": "#8E96A0",
+    "c2": "#4E5660",
+    "hasImage": true
+  },
+  {
+    "id": "boohoo",
+    "name": "Boohoo",
+    "dept": "Womenswear",
+    "priceBand": 1,
+    "composition": 0.1,
+    "regions": [
+      "y2k",
+      "hyperfeminine"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#B89AA4",
+    "c2": "#7C6068",
+    "hasImage": true
+  },
+  {
+    "id": "gap",
+    "name": "Gap",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.35,
+    "regions": [
+      "preppy",
+      "elevated_basics"
+    ],
+    "markets": [
+      "us",
+      "global"
+    ],
+    "c1": "#8CA0B4",
+    "c2": "#4E6272",
+    "hasImage": true
+  },
+  {
+    "id": "old_navy",
+    "name": "Old Navy",
+    "dept": "Both",
+    "priceBand": 1,
+    "composition": 0.22,
+    "regions": [
+      "comfort_first",
+      "mum_practical"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#9AAAB8",
+    "c2": "#5C6C7A",
+    "hasImage": true
+  },
+  {
+    "id": "american_eagle",
+    "name": "American Eagle",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.25,
+    "regions": [
+      "skater",
+      "preppy"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#8C9CAE",
+    "c2": "#4E5E70",
+    "hasImage": true
+  },
+  {
+    "id": "abercrombie_and_fitch",
+    "name": "Abercrombie & Fitch",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.35,
+    "regions": [
+      "preppy",
+      "smart_casual"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#A0A69E",
+    "c2": "#62685E",
+    "hasImage": true
+  },
+  {
+    "id": "cos",
+    "name": "COS",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.8,
+    "regions": [
+      "minimalist",
+      "quiet_luxury"
+    ],
+    "markets": [
+      "eu",
+      "uk",
+      "mena"
+    ],
+    "c1": "#B8B0A4",
+    "c2": "#7A7268",
+    "hasImage": true
+  },
+  {
+    "id": "arket",
+    "name": "Arket",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.78,
+    "regions": [
+      "scandi_minimal",
+      "elevated_basics"
+    ],
+    "markets": [
+      "eu",
+      "uk"
+    ],
+    "c1": "#C8C2B6",
+    "c2": "#8E877A",
+    "hasImage": true
+  },
+  {
+    "id": "and_other_stories",
+    "name": "& Other Stories",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.62,
+    "regions": [
+      "undone_french",
+      "romantic"
+    ],
+    "markets": [
+      "eu",
+      "uk"
+    ],
+    "c1": "#C4A898",
+    "c2": "#8A6E5E",
+    "hasImage": true
+  },
+  {
+    "id": "massimo_dutti",
+    "name": "Massimo Dutti",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.6,
+    "regions": [
+      "timeless_classic",
+      "corporate_polish"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#A69684",
+    "c2": "#6E5E4C",
+    "hasImage": true
+  },
+  {
+    "id": "everlane",
+    "name": "Everlane",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.72,
+    "regions": [
+      "elevated_basics",
+      "minimalist"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#A6ACA8",
+    "c2": "#6A706C",
+    "hasImage": true
+  },
+  {
+    "id": "quince",
+    "name": "Quince",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.68,
+    "regions": [
+      "quiet_luxury",
+      "elevated_basics"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#BCAE9C",
+    "c2": "#7E7060",
+    "hasImage": true
+  },
+  {
+    "id": "aritzia",
+    "name": "Aritzia",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.55,
+    "regions": [
+      "corporate_polish",
+      "clean_girl"
+    ],
+    "markets": [
+      "us",
+      "canada"
+    ],
+    "c1": "#B4A8A0",
+    "c2": "#786C64",
+    "hasImage": true
+  },
+  {
+    "id": "reformation",
+    "name": "Reformation",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.5,
+    "regions": [
+      "romantic",
+      "cottagecore"
+    ],
+    "markets": [
+      "us",
+      "uk"
+    ],
+    "c1": "#B6A890",
+    "c2": "#7E7058",
+    "hasImage": true
+  },
+  {
+    "id": "sezane",
+    "name": "S\u00e9zane",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.7,
+    "regions": [
+      "undone_french",
+      "romantic"
+    ],
+    "markets": [
+      "eu",
+      "uk",
+      "us"
+    ],
+    "c1": "#C0A490",
+    "c2": "#846856",
+    "hasImage": true
+  },
+  {
+    "id": "anthropologie",
+    "name": "Anthropologie",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.48,
+    "regions": [
+      "boho",
+      "grandmillennial"
+    ],
+    "markets": [
+      "us",
+      "uk"
+    ],
+    "c1": "#B49A9E",
+    "c2": "#7A6064",
+    "hasImage": true
+  },
+  {
+    "id": "free_people",
+    "name": "Free People",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.42,
+    "regions": [
+      "boho",
+      "festival"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#BFA48C",
+    "c2": "#83685A",
+    "hasImage": true
+  },
+  {
+    "id": "madewell",
+    "name": "Madewell",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.52,
+    "regions": [
+      "relaxed_denim",
+      "elevated_basics"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#8C9CA8",
+    "c2": "#4E5E6A",
+    "hasImage": true
+  },
+  {
+    "id": "jcrew",
+    "name": "J.Crew",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.55,
+    "regions": [
+      "preppy",
+      "ivy_collegiate"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#8E9CB0",
+    "c2": "#505E72",
+    "hasImage": true
+  },
+  {
+    "id": "banana_republic",
+    "name": "Banana Republic",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.5,
+    "regions": [
+      "corporate_polish",
+      "smart_casual"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#A29A90",
+    "c2": "#645C52",
+    "hasImage": true
+  },
+  {
+    "id": "whistles",
+    "name": "Whistles",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.62,
+    "regions": [
+      "minimalist",
+      "corporate_polish"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#B0AAA2",
+    "c2": "#726C64",
+    "hasImage": true
+  },
+  {
+    "id": "reiss",
+    "name": "Reiss",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.58,
+    "regions": [
+      "corporate_polish",
+      "sharp_tailoring"
+    ],
+    "markets": [
+      "uk",
+      "mena"
+    ],
+    "c1": "#8A8E96",
+    "c2": "#4C5058",
+    "hasImage": false
+  },
+  {
+    "id": "ted_baker",
+    "name": "Ted Baker",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.42,
+    "regions": [
+      "smart_casual",
+      "print_pattern"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#9A8E9E",
+    "c2": "#5E5262",
+    "hasImage": true
+  },
+  {
+    "id": "karen_millen",
+    "name": "Karen Millen",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.4,
+    "regions": [
+      "corporate_polish",
+      "body_conscious"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#A89AA0",
+    "c2": "#6C5E64",
+    "hasImage": true
+  },
+  {
+    "id": "charles_tyrwhitt",
+    "name": "Charles Tyrwhitt",
+    "dept": "Menswear",
+    "priceBand": 3,
+    "composition": 0.45,
+    "regions": [
+      "timeless_classic",
+      "sartorial"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#8E9AAE",
+    "c2": "#505C70",
+    "hasImage": true
+  },
+  {
+    "id": "boden",
+    "name": "Boden",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.45,
+    "regions": [
+      "preppy",
+      "print_pattern"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#9CA8A0",
+    "c2": "#5E6A62",
+    "hasImage": true
+  },
+  {
+    "id": "hush",
+    "name": "Hush",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.55,
+    "regions": [
+      "soft_layers",
+      "comfort_first"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#B2ACA0",
+    "c2": "#746E62",
+    "hasImage": true
+  },
+  {
+    "id": "rouje",
+    "name": "Rouje",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.68,
+    "regions": [
+      "undone_french",
+      "romantic"
+    ],
+    "markets": [
+      "eu"
+    ],
+    "c1": "#B89096",
+    "c2": "#7C545A",
+    "hasImage": true
+  },
+  {
+    "id": "nanushka",
+    "name": "Nanushka",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.72,
+    "regions": [
+      "soft_layers",
+      "quiet_luxury"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#B4A692",
+    "c2": "#786A56",
+    "hasImage": true
+  },
+  {
+    "id": "baandsh",
+    "name": "Ba&sh",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.62,
+    "regions": [
+      "undone_french",
+      "boho"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#BFA69A",
+    "c2": "#83685C",
+    "hasImage": true
+  },
+  {
+    "id": "maje",
+    "name": "Maje",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.52,
+    "regions": [
+      "corporate_polish",
+      "edgy"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#A29AA6",
+    "c2": "#645C68",
+    "hasImage": true
+  },
+  {
+    "id": "sandro",
+    "name": "Sandro",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.56,
+    "regions": [
+      "sharp_tailoring",
+      "gallery_black"
+    ],
+    "markets": [
+      "eu",
+      "mena"
+    ],
+    "c1": "#909098",
+    "c2": "#52525A",
+    "hasImage": true
+  },
+  {
+    "id": "claudie_pierlot",
+    "name": "Claudie Pierlot",
+    "dept": "Womenswear",
+    "priceBand": 3,
+    "composition": 0.6,
+    "regions": [
+      "undone_french",
+      "preppy"
+    ],
+    "markets": [
+      "eu"
+    ],
+    "c1": "#B0A6A0",
+    "c2": "#726862",
+    "hasImage": true
+  },
+  {
+    "id": "toteme",
+    "name": "Toteme",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.88,
+    "regions": [
+      "quiet_luxury",
+      "minimalist"
+    ],
+    "markets": [
+      "eu",
+      "us"
+    ],
+    "c1": "#B0AAA0",
+    "c2": "#746E64",
+    "hasImage": true
+  },
+  {
+    "id": "the_frankie_shop",
+    "name": "The Frankie Shop",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.78,
+    "regions": [
+      "gallery_black",
+      "sharp_tailoring"
+    ],
+    "markets": [
+      "eu",
+      "us"
+    ],
+    "c1": "#8A8880",
+    "c2": "#4E4C46",
+    "hasImage": true
+  },
+  {
+    "id": "ganni",
+    "name": "Ganni",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.6,
+    "regions": [
+      "colour_forward",
+      "print_pattern"
+    ],
+    "markets": [
+      "eu",
+      "uk"
+    ],
+    "c1": "#A88EA0",
+    "c2": "#6E5464",
+    "hasImage": true
+  },
+  {
+    "id": "staud",
+    "name": "Staud",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.55,
+    "regions": [
+      "colour_forward",
+      "statement_led"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#96A68E",
+    "c2": "#5A6A52",
+    "hasImage": true
+  },
+  {
+    "id": "frame",
+    "name": "Frame",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.62,
+    "regions": [
+      "relaxed_denim",
+      "elevated_basics"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#C2BAA8",
+    "c2": "#867E6C",
+    "hasImage": true
+  },
+  {
+    "id": "agolde",
+    "name": "Agolde",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.66,
+    "regions": [
+      "relaxed_denim",
+      "nineties_minimal"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#8A98A6",
+    "c2": "#4C5A68",
+    "hasImage": true
+  },
+  {
+    "id": "citizens_of_humanity",
+    "name": "Citizens of Humanity",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.68,
+    "regions": [
+      "relaxed_denim",
+      "elevated_basics"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#7E8C9E",
+    "c2": "#42505E",
+    "hasImage": true
+  },
+  {
+    "id": "vince",
+    "name": "Vince",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.76,
+    "regions": [
+      "quiet_luxury",
+      "soft_layers"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#B6B0A6",
+    "c2": "#78726A",
+    "hasImage": false
+  },
+  {
+    "id": "theory",
+    "name": "Theory",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.72,
+    "regions": [
+      "corporate_polish",
+      "minimalist"
+    ],
+    "markets": [
+      "us",
+      "global"
+    ],
+    "c1": "#96968C",
+    "c2": "#585850",
+    "hasImage": true
+  },
+  {
+    "id": "joseph",
+    "name": "Joseph",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.8,
+    "regions": [
+      "minimalist",
+      "sharp_tailoring"
+    ],
+    "markets": [
+      "uk",
+      "eu"
+    ],
+    "c1": "#A2A098",
+    "c2": "#64625A",
+    "hasImage": true
+  },
+  {
+    "id": "meplusem",
+    "name": "Me+Em",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.66,
+    "regions": [
+      "corporate_polish",
+      "colour_forward"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#9E96A8",
+    "c2": "#605868",
+    "hasImage": true
+  },
+  {
+    "id": "rixo",
+    "name": "Rixo",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.5,
+    "regions": [
+      "boho",
+      "print_pattern"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#BE9E8E",
+    "c2": "#826256",
+    "hasImage": true
+  },
+  {
+    "id": "self_portrait",
+    "name": "Self-Portrait",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.48,
+    "regions": [
+      "dressy_occasion",
+      "hyperfeminine"
+    ],
+    "markets": [
+      "uk",
+      "mena"
+    ],
+    "c1": "#B49AA6",
+    "c2": "#785E68",
+    "hasImage": true
+  },
+  {
+    "id": "cult_gaia",
+    "name": "Cult Gaia",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.5,
+    "regions": [
+      "glam",
+      "statement_led"
+    ],
+    "markets": [
+      "us",
+      "mena"
+    ],
+    "c1": "#C4AC94",
+    "c2": "#88705A",
+    "hasImage": true
+  },
+  {
+    "id": "aje",
+    "name": "Aje",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.56,
+    "regions": [
+      "romantic",
+      "resort"
+    ],
+    "markets": [
+      "au"
+    ],
+    "c1": "#C2A8A0",
+    "c2": "#866C64",
+    "hasImage": true
+  },
+  {
+    "id": "zimmermann",
+    "name": "Zimmermann",
+    "dept": "Womenswear",
+    "priceBand": 5,
+    "composition": 0.6,
+    "regions": [
+      "romantic",
+      "resort"
+    ],
+    "markets": [
+      "au",
+      "global"
+    ],
+    "c1": "#C6AC9A",
+    "c2": "#8A7060",
+    "hasImage": false
+  },
+  {
+    "id": "isabel_marant",
+    "name": "Isabel Marant",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.72,
+    "regions": [
+      "boho",
+      "undone_french"
+    ],
+    "markets": [
+      "eu"
+    ],
+    "c1": "#B0A08E",
+    "c2": "#746458",
+    "hasImage": true
+  },
+  {
+    "id": "acne_studios",
+    "name": "Acne Studios",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.82,
+    "regions": [
+      "gallery_black",
+      "avant_garde"
+    ],
+    "markets": [
+      "eu"
+    ],
+    "c1": "#8E8E94",
+    "c2": "#505056",
+    "hasImage": true
+  },
+  {
+    "id": "our_legacy",
+    "name": "Our Legacy",
+    "dept": "Menswear",
+    "priceBand": 4,
+    "composition": 0.84,
+    "regions": [
+      "gallery_black",
+      "eclectic_vintage"
+    ],
+    "markets": [
+      "eu"
+    ],
+    "c1": "#8A8A82",
+    "c2": "#4E4E48",
+    "hasImage": true
+  },
+  {
+    "id": "lemaire",
+    "name": "Lemaire",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.92,
+    "regions": [
+      "quiet_luxury",
+      "avant_garde"
+    ],
+    "markets": [
+      "eu"
+    ],
+    "c1": "#AEA698",
+    "c2": "#726A5E",
+    "hasImage": true
+  },
+  {
+    "id": "studio_nicholson",
+    "name": "Studio Nicholson",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.86,
+    "regions": [
+      "minimalist",
+      "androgynous"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#A6A6A0",
+    "c2": "#686862",
+    "hasImage": true
+  },
+  {
+    "id": "margaret_howell",
+    "name": "Margaret Howell",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.9,
+    "regions": [
+      "timeless_classic",
+      "quiet_luxury"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#B2ADA2",
+    "c2": "#746F66",
+    "hasImage": true
+  },
+  {
+    "id": "sunspel",
+    "name": "Sunspel",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.82,
+    "regions": [
+      "elevated_basics",
+      "timeless_classic"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#B8B4AC",
+    "c2": "#7A766E",
+    "hasImage": true
+  },
+  {
+    "id": "drakes",
+    "name": "Drake's",
+    "dept": "Menswear",
+    "priceBand": 5,
+    "composition": 0.88,
+    "regions": [
+      "sartorial",
+      "ivy_collegiate"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#9E8E7E",
+    "c2": "#625448",
+    "hasImage": true
+  },
+  {
+    "id": "oliver_spencer",
+    "name": "Oliver Spencer",
+    "dept": "Menswear",
+    "priceBand": 4,
+    "composition": 0.78,
+    "regions": [
+      "workwear_heritage",
+      "eclectic_vintage"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#8E8878",
+    "c2": "#524C40",
+    "hasImage": true
+  },
+  {
+    "id": "folk",
+    "name": "Folk",
+    "dept": "Menswear",
+    "priceBand": 4,
+    "composition": 0.76,
+    "regions": [
+      "minimalist",
+      "workwear_heritage"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#96968E",
+    "c2": "#585852",
+    "hasImage": true
+  },
+  {
+    "id": "universal_works",
+    "name": "Universal Works",
+    "dept": "Menswear",
+    "priceBand": 4,
+    "composition": 0.74,
+    "regions": [
+      "workwear_heritage",
+      "americana"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#8E8676",
+    "c2": "#524A3E",
+    "hasImage": true
+  },
+  {
+    "id": "carhartt_wip",
+    "name": "Carhartt WIP",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.58,
+    "regions": [
+      "workwear_heritage",
+      "streetwear"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#96866C",
+    "c2": "#5A4E3C",
+    "hasImage": true
+  },
+  {
+    "id": "stone_island",
+    "name": "Stone Island",
+    "dept": "Menswear",
+    "priceBand": 5,
+    "composition": 0.62,
+    "regions": [
+      "techwear",
+      "streetwear"
+    ],
+    "markets": [
+      "eu",
+      "global"
+    ],
+    "c1": "#7E8A80",
+    "c2": "#42504A",
+    "hasImage": true
+  },
+  {
+    "id": "arcteryx",
+    "name": "Arc'teryx",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.7,
+    "regions": [
+      "gorpcore",
+      "techwear"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#7E8C96",
+    "c2": "#425058",
+    "hasImage": true
+  },
+  {
+    "id": "patagonia",
+    "name": "Patagonia",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.76,
+    "regions": [
+      "gorpcore",
+      "rugged_outdoors"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#8A9A8C",
+    "c2": "#4E5E52",
+    "hasImage": true
+  },
+  {
+    "id": "salomon",
+    "name": "Salomon",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.58,
+    "regions": [
+      "gorpcore",
+      "techwear"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#88949E",
+    "c2": "#4A5660",
+    "hasImage": true
+  },
+  {
+    "id": "nike",
+    "name": "Nike",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.42,
+    "regions": [
+      "sporty",
+      "streetwear"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#7E8288",
+    "c2": "#42464C",
+    "hasImage": true
+  },
+  {
+    "id": "adidas",
+    "name": "Adidas",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.45,
+    "regions": [
+      "sporty",
+      "blokecore"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#8E96A4",
+    "c2": "#4E5664",
+    "hasImage": false
+  },
+  {
+    "id": "new_balance",
+    "name": "New Balance",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.55,
+    "regions": [
+      "normcore",
+      "gorpcore"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#96A0A8",
+    "c2": "#586268",
+    "hasImage": false
+  },
+  {
+    "id": "lululemon",
+    "name": "Lululemon",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.55,
+    "regions": [
+      "athleisure",
+      "sporty"
+    ],
+    "markets": [
+      "us",
+      "global"
+    ],
+    "c1": "#8CA0A0",
+    "c2": "#4E6262",
+    "hasImage": true
+  },
+  {
+    "id": "alo_yoga",
+    "name": "Alo Yoga",
+    "dept": "Womenswear",
+    "priceBand": 4,
+    "composition": 0.42,
+    "regions": [
+      "athleisure",
+      "clean_girl"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#A8A49C",
+    "c2": "#6A665E",
+    "hasImage": true
+  },
+  {
+    "id": "gymshark",
+    "name": "Gymshark",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.35,
+    "regions": [
+      "sporty",
+      "athleisure"
+    ],
+    "markets": [
+      "uk",
+      "global"
+    ],
+    "c1": "#84888E",
+    "c2": "#484C52",
+    "hasImage": true
+  },
+  {
+    "id": "on_running",
+    "name": "On Running",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.62,
+    "regions": [
+      "sporty",
+      "gorpcore"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#94A0A6",
+    "c2": "#565E66",
+    "hasImage": true
+  },
+  {
+    "id": "levis",
+    "name": "Levi's",
+    "dept": "Both",
+    "priceBand": 3,
+    "composition": 0.6,
+    "regions": [
+      "relaxed_denim",
+      "americana"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#7E8C9E",
+    "c2": "#42505E",
+    "hasImage": true
+  },
+  {
+    "id": "lee",
+    "name": "Lee",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.52,
+    "regions": [
+      "americana",
+      "workwear_heritage"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#7A8898",
+    "c2": "#3E4C58",
+    "hasImage": true
+  },
+  {
+    "id": "wrangler",
+    "name": "Wrangler",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.5,
+    "regions": [
+      "western",
+      "americana"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#8A8272",
+    "c2": "#4E4638",
+    "hasImage": true
+  },
+  {
+    "id": "loro_piana",
+    "name": "Loro Piana",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.94,
+    "regions": [
+      "quiet_luxury",
+      "old_money_worn"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#BFB4A2",
+    "c2": "#837868",
+    "hasImage": true
+  },
+  {
+    "id": "brunello_cucinelli",
+    "name": "Brunello Cucinelli",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.92,
+    "regions": [
+      "quiet_luxury",
+      "old_money_worn"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#BCAE9A",
+    "c2": "#807260",
+    "hasImage": false
+  },
+  {
+    "id": "the_row",
+    "name": "The Row",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.95,
+    "regions": [
+      "quiet_luxury",
+      "minimalist"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#B4AEA4",
+    "c2": "#787268",
+    "hasImage": true
+  },
+  {
+    "id": "khaite",
+    "name": "Khaite",
+    "dept": "Womenswear",
+    "priceBand": 5,
+    "composition": 0.82,
+    "regions": [
+      "quiet_luxury",
+      "sharp_tailoring"
+    ],
+    "markets": [
+      "us"
+    ],
+    "c1": "#A8A29A",
+    "c2": "#6C665E",
+    "hasImage": true
+  },
+  {
+    "id": "bottega_veneta",
+    "name": "Bottega Veneta",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.8,
+    "regions": [
+      "quiet_luxury",
+      "statement_led"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#8A9A7E",
+    "c2": "#4E5E44",
+    "hasImage": true
+  },
+  {
+    "id": "celine",
+    "name": "Celine",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.78,
+    "regions": [
+      "gallery_black",
+      "sharp_tailoring"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#8E8E88",
+    "c2": "#50504A",
+    "hasImage": true
+  },
+  {
+    "id": "saint_laurent",
+    "name": "Saint Laurent",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.7,
+    "regions": [
+      "gallery_black",
+      "edgy"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#76767C",
+    "c2": "#3A3A40",
+    "hasImage": true
+  },
+  {
+    "id": "prada",
+    "name": "Prada",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.76,
+    "regions": [
+      "avant_garde",
+      "sharp_tailoring"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#7E8892",
+    "c2": "#424C56",
+    "hasImage": true
+  },
+  {
+    "id": "miu_miu",
+    "name": "Miu Miu",
+    "dept": "Womenswear",
+    "priceBand": 5,
+    "composition": 0.68,
+    "regions": [
+      "coquette",
+      "y2k"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#B49CA6",
+    "c2": "#78606A",
+    "hasImage": true
+  },
+  {
+    "id": "gucci",
+    "name": "Gucci",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.52,
+    "regions": [
+      "maximalist",
+      "statement_led"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#8E8464",
+    "c2": "#524834",
+    "hasImage": true
+  },
+  {
+    "id": "balenciaga",
+    "name": "Balenciaga",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.46,
+    "regions": [
+      "streetwear",
+      "avant_garde"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#6E6E74",
+    "c2": "#2E2E34",
+    "hasImage": true
+  },
+  {
+    "id": "loewe",
+    "name": "Loewe",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.78,
+    "regions": [
+      "avant_garde",
+      "statement_led"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#A69078",
+    "c2": "#6A5444",
+    "hasImage": true
+  },
+  {
+    "id": "jacquemus",
+    "name": "Jacquemus",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.66,
+    "regions": [
+      "resort",
+      "statement_led"
+    ],
+    "markets": [
+      "eu",
+      "global"
+    ],
+    "c1": "#C0AC98",
+    "c2": "#847060",
+    "hasImage": false
+  },
+  {
+    "id": "max_mara",
+    "name": "Max Mara",
+    "dept": "Womenswear",
+    "priceBand": 5,
+    "composition": 0.84,
+    "regions": [
+      "quiet_luxury",
+      "timeless_classic"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#BFA88E",
+    "c2": "#836C56",
+    "hasImage": true
+  },
+  {
+    "id": "vinted",
+    "name": "Vinted",
+    "dept": "Both",
+    "priceBand": 1,
+    "composition": 0.66,
+    "regions": [
+      "eclectic_vintage",
+      "vintage_led"
+    ],
+    "markets": [
+      "eu",
+      "uk"
+    ],
+    "c1": "#96AA9E",
+    "c2": "#5A6E62",
+    "hasImage": true
+  },
+  {
+    "id": "depop",
+    "name": "Depop",
+    "dept": "Both",
+    "priceBand": 1,
+    "composition": 0.58,
+    "regions": [
+      "y2k",
+      "eclectic_vintage"
+    ],
+    "markets": [
+      "uk",
+      "us"
+    ],
+    "c1": "#A89AAE",
+    "c2": "#6C5E72",
+    "hasImage": true
+  },
+  {
+    "id": "vestiaire_collective",
+    "name": "Vestiaire Collective",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.8,
+    "regions": [
+      "quiet_luxury",
+      "vintage_led"
+    ],
+    "markets": [
+      "eu",
+      "global"
+    ],
+    "c1": "#A6A096",
+    "c2": "#68625A",
+    "hasImage": true
+  },
+  {
+    "id": "charity_shops",
+    "name": "Charity shops",
+    "dept": "Both",
+    "priceBand": 1,
+    "composition": 0.7,
+    "regions": [
+      "eclectic_vintage",
+      "vintage_led"
+    ],
+    "markets": [
+      "uk"
+    ],
+    "c1": "#AEA492",
+    "c2": "#726856",
+    "hasImage": true
+  },
+  {
+    "id": "net_a_porter",
+    "name": "Net-a-Porter",
+    "dept": "Womenswear",
+    "priceBand": 5,
+    "composition": 0.72,
+    "regions": [
+      "quiet_luxury",
+      "dressy_occasion"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#9E9A94",
+    "c2": "#5E5A54",
+    "hasImage": true
+  },
+  {
+    "id": "matches",
+    "name": "Matches",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.76,
+    "regions": [
+      "quiet_luxury",
+      "avant_garde"
+    ],
+    "markets": [
+      "uk",
+      "global"
+    ],
+    "c1": "#96928C",
+    "c2": "#585450",
+    "hasImage": true
+  },
+  {
+    "id": "farfetch",
+    "name": "Farfetch",
+    "dept": "Both",
+    "priceBand": 4,
+    "composition": 0.66,
+    "regions": [
+      "statement_led",
+      "quiet_luxury"
+    ],
+    "markets": [
+      "global"
+    ],
+    "c1": "#8E8A86",
+    "c2": "#504C48",
+    "hasImage": true
+  },
+  {
+    "id": "namshi",
+    "name": "Namshi",
+    "dept": "Both",
+    "priceBand": 2,
+    "composition": 0.32,
+    "regions": [
+      "high_street_current",
+      "modest_contemporary"
+    ],
+    "markets": [
+      "mena"
+    ],
+    "c1": "#A8A098",
+    "c2": "#6A625A",
+    "hasImage": true
+  },
+  {
+    "id": "ounass",
+    "name": "Ounass",
+    "dept": "Both",
+    "priceBand": 5,
+    "composition": 0.7,
+    "regions": [
+      "khaleeji_glam",
+      "dressy_occasion"
+    ],
+    "markets": [
+      "mena"
+    ],
+    "c1": "#B49E86",
+    "c2": "#786250",
+    "hasImage": true
+  },
+  {
+    "id": "modanisa",
+    "name": "Modanisa",
+    "dept": "Womenswear",
+    "priceBand": 2,
+    "composition": 0.44,
+    "regions": [
+      "modest_contemporary",
+      "modest_classic"
+    ],
+    "markets": [
+      "mena",
+      "tr"
+    ],
+    "c1": "#A8A4B0",
+    "c2": "#6A6672",
+    "hasImage": true
+  }
+]

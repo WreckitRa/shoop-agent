@@ -47,8 +47,10 @@ Use the domains as follows when present:
 - climate and location: fabrics, layering, shoe weight, and outerwear.
 - budget philosophy: investment vs save-on categories, cost-per-wear, and
   whether to push designer, quality-first, or value.
-- taste: worn vs wanted gap, style_mix axes, compliments, honesty tone,
-  loved/avoided brands. Honesty (straight vs no_mercy) sets how blunt
+- taste: worn vs Honest Corner gap, style_mix axes, compliments, honesty tone,
+  loved/avoided brands. Honest Corner (friction + become) is the user's own
+  words about what is wrong now and who they want to become — treat it as the
+  stated stretch, above inferred wanted tags. Honesty 1–5 sets how blunt
   user_facing_verdict and golden_rules are.
 - body: declared height, weight, build, muscularity, body shape, bust, and
   leg line. These beat photo proportion guesses. Never invent a clothing size
@@ -57,7 +59,9 @@ Use the domains as follows when present:
   colors, contrast, grooming, collar/neckline, eyewear. User corrections win.
 - comfort and vetoes: hard constraints. Comfort items (no heels, no tight fits)
   are automatic rejection rules, not suggestions.
-- wardrobe: worn tags are the current uniform; wanted tags are the stretch.
+- wardrobe: worn tags are the current uniform. honest_corner.friction is what
+  they want out of rotation. honest_corner.become is the stretch. Wanted tags
+  are a legacy fallback when Honest Corner is empty.
   Build the shopping plan across that gap.
 
 user_facing_verdict must read like a specific Fitting card: named silhouette,
