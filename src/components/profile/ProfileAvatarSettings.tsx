@@ -7,6 +7,7 @@ import {
   SettingsCardHeader,
 } from "@/components/profile/profile-settings-ui";
 import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
+import { profileSettingsAccess } from "@/components/profile/profile-settings-access";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { useAppSessionStore } from "@/lib/client/app-session";
 
@@ -21,7 +22,7 @@ type AvatarPerson = {
 
 export function ProfileAvatarSettings() {
   const accessMode = useAppSessionStore((s) => s.mode);
-  const needsSignIn = accessMode === "guest" || accessMode === "anonymous";
+  const needsSignIn = !profileSettingsAccess(accessMode).showTwinSettings;
 
   const [selfPerson, setSelfPerson] = useState<AvatarPerson | null>(null);
   const [loading, setLoading] = useState(true);

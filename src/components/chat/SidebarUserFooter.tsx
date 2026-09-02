@@ -61,6 +61,18 @@ export function SidebarUserFooter() {
         >
           {isGuest ? (
             <>
+              <Link
+                href="/profile"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  closeYouOverlays();
+                }}
+                className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-tint"
+              >
+                <Settings className="size-4 shrink-0 text-ink-soft" />
+                Settings
+              </Link>
               <button
                 type="button"
                 role="menuitem"

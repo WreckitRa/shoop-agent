@@ -12,6 +12,7 @@ import {
   readCookiePrefs,
   writeCookiePrefs,
 } from "@/lib/legal/cookie-prefs";
+import { profileSettingsAccess } from "@/components/profile/profile-settings-access";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { useAppSessionStore } from "@/lib/client/app-session";
 
@@ -23,7 +24,7 @@ type SizingForm = {
 
 export function ProfilePrivacyControls() {
   const mode = useAppSessionStore((s) => s.mode);
-  const signedIn = mode === "authenticated" || mode === "local";
+  const access = profileSettingsAccess(mode);
   const [prefs, setPrefs] = useState(readCookiePrefs);
   const [biometricOn, setBiometricOn] = useState(false);
   const [sizing, setSizing] = useState<SizingForm>({
@@ -41,7 +42,7 @@ export function ProfilePrivacyControls() {
   }, []);
 
   useEffect(() => {
-    if (!signedIn) return;
+    if (!access.canFetchProfile) return;
     void guestFetch("/api/privacy/biometric-consent", { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) return;
@@ -68,7 +69,7 @@ export function ProfilePrivacyControls() {
         });
       })
       .catch(() => undefined);
-  }, [signedIn]);
+  }, [access.canFetchProfile]);
 
   async function exportData() {
     setBusy("export");
@@ -94,7 +95,9 @@ export function ProfilePrivacyControls() {
   async function withdrawBiometric() {
     if (
       !window.confirm(
-        "Withdraw biometric consent? Your twin, measurements from the photo, and renders will be deleted. Your account stays open.",
+        access.isGuest
+          ? "Withdraw biometric consent? Your twin, measurements from the photo, and renders will be deleted."
+          : "Withdraw biometric consent? Your twin, measurements from the photo, and renders will be deleted. Your account stays open.",
       )
     ) {
       return;
@@ -109,7 +112,11 @@ export function ProfilePrivacyControls() {
       });
       if (!res.ok) throw new Error("failed");
       setBiometricOn(false);
-      setMessage("Biometric data deleted. Your account is still here.");
+      setMessage(
+        access.isGuest
+          ? "Biometric data deleted."
+          : "Biometric data deleted. Your account is still here.",
+      );
     } catch {
       setMessage("Could not withdraw consent.");
     } finally {
@@ -184,7 +191,7 @@ export function ProfilePrivacyControls() {
         <div className="border-t border-hairline-soft px-5 py-3 sm:px-6">
           <button
             type="button"
-            disabled={busy === "sizing" || !signedIn}
+            disabled={busy === "sizing" || !access.canFetchProfile}
             onClick={() => void saveSizing()}
             className="text-sm font-semibold text-ink underline underline-offset-2 disabled:opacity-50"
           >
@@ -196,7 +203,11 @@ export function ProfilePrivacyControls() {
       <SettingsCard>
         <SettingsCardHeader
           title="Cookies"
-          description="Essential cookies keep you signed in. We do not run advertising cookies."
+          description={
+            access.isGuest
+              ? "Essential cookies keep this visit. We do not run advertising cookies."
+              : "Essential cookies keep you signed in. We do not run advertising cookies."
+          }
         />
         <label className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 sm:px-6">
           <span>
@@ -255,29 +266,41 @@ export function ProfilePrivacyControls() {
       <SettingsCard>
         <SettingsCardHeader
           title="Your rights"
-          description="See, correct, export, or delete what we hold. Same controls for everyone in the US."
+          description={
+            access.isGuest
+              ? "Correct what's here, or clear this visit below."
+              : "See, correct, export, or delete what we hold. Same controls for everyone in the US."
+          }
         />
         <div className="divide-y divide-hairline-soft">
-          <SettingsActionRow
-            title="Download a copy of your data"
-            subtitle="JSON export of profile, chats, consents, and shares."
-            onClick={() => void exportData()}
-          />
+          {access.showDataExport ? (
+            <SettingsActionRow
+              title="Download a copy of your data"
+              subtitle="JSON export of profile, chats, consents, and shares."
+              onClick={() => void exportData()}
+            />
+          ) : null}
           {biometricOn ? (
             <SettingsActionRow
               title="Withdraw biometric consent"
-              subtitle="Deletes your twin, photo-derived measurements, and renders. Account stays."
+              subtitle={
+                access.isGuest
+                  ? "Deletes your twin, photo-derived measurements, and renders."
+                  : "Deletes your twin, photo-derived measurements, and renders. Account stays."
+              }
               destructive
               onClick={() => void withdrawBiometric()}
             />
           ) : null}
-          <SettingsActionRow
-            title="Opt out of arbitration"
-            subtitle={`Email ${LEGAL_CONTACT_EMAIL} within 30 days of signup.`}
-            onClick={() => {
-              window.location.href = `mailto:${LEGAL_CONTACT_EMAIL}?subject=${encodeURIComponent("arbitration opt-out")}`;
-            }}
-          />
+          {access.showArbitrationOptOut ? (
+            <SettingsActionRow
+              title="Opt out of arbitration"
+              subtitle={`Email ${LEGAL_CONTACT_EMAIL} within 30 days of signup.`}
+              onClick={() => {
+                window.location.href = `mailto:${LEGAL_CONTACT_EMAIL}?subject=${encodeURIComponent("arbitration opt-out")}`;
+              }}
+            />
+          ) : null}
           <SettingsActionRow
             title={`Report an under-${MIN_ACCOUNT_AGE} account`}
             subtitle="We delete that account and all associated data."

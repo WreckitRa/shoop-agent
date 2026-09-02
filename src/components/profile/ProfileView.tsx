@@ -16,6 +16,7 @@ import {
   StickySaveBar,
 } from "@/components/profile/profile-settings-ui";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { useGuestMode } from "@/hooks/useGuestMode";
 import { useUserIdentity } from "@/hooks/useUserIdentity";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
@@ -113,6 +114,7 @@ const AGE_OPTIONS = AGE_RANGES.map((a) => ({ value: a, label: a }));
 export function ProfileView() {
   const { initials, email, preferredName, loading: identityLoading } =
     useUserIdentity();
+  const { isGuest } = useGuestMode();
   const [savedForm, setSavedForm] = useState<ProfileForm>(() =>
     toForm(preferredName ? { preferredName } : null),
   );
@@ -172,7 +174,8 @@ export function ProfileView() {
     form.preferredName.trim() ||
     savedForm.preferredName.trim() ||
     preferredName ||
-    "Your account";
+    (isGuest ? "Guest" : "Your account");
+  const displayInitials = isGuest && displayName === "Guest" ? "G" : initials;
   const loading = identityLoading && !preferredName;
 
   async function saveProfile() {
@@ -264,7 +267,7 @@ export function ProfileView() {
         ) : (
           <header className="flex flex-col items-center text-center">
             <div className="relative flex size-20 items-center justify-center rounded-full bg-ink text-2xl font-semibold tracking-tight text-white">
-              {initials}
+              {displayInitials}
             </div>
             <h1 className="mt-5 font-display text-2xl font-extrabold tracking-tight text-ink">
               {displayName}
@@ -273,6 +276,8 @@ export function ProfileView() {
               <p className="mt-1 max-w-sm truncate text-sm text-ink-muted">
                 {email}
               </p>
+            ) : isGuest ? (
+              <p className="mt-1 text-sm text-ink-muted">Browsing as a guest</p>
             ) : null}
           </header>
         )}
