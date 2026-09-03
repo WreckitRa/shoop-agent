@@ -64,17 +64,35 @@ export async function postPhotoResponsesWithRetry(
   body: string,
   signal: AbortSignal,
 ): Promise<{ res: Response; payload: unknown }> {
-  let res = await postPhotoResponses(apiKey, body, signal);
-  let payload: unknown = await res.json().catch(() => null);
-  let retries = 0;
-  while (res.status === 429 && retries < 3 && !signal.aborted) {
-    retries += 1;
-    await new Promise((r) => setTimeout(r, retryWaitMs(res, payload)));
-    if (signal.aborted) break;
-    res = await postPhotoResponses(apiKey, body, signal);
-    payload = await res.json().catch(() => null);
+  const delays = [400, 1200];
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      let res = await postPhotoResponses(apiKey, body, signal);
+      let payload: unknown = await res.json().catch(() => null);
+      let retries = 0;
+      while (res.status === 429 && retries < 3 && !signal.aborted) {
+        retries += 1;
+        await new Promise((r) => setTimeout(r, retryWaitMs(res, payload)));
+        if (signal.aborted) break;
+        res = await postPhotoResponses(apiKey, body, signal);
+        payload = await res.json().catch(() => null);
+      }
+      return { res, payload };
+    } catch (error) {
+      lastError = error;
+      const msg = error instanceof Error ? error.message : String(error);
+      const transient =
+        /fetch failed|network|econnreset|etimedout|econnrefused|und_err|socket/i.test(
+          msg,
+        );
+      if (attempt >= delays.length || signal.aborted || !transient) {
+        throw error;
+      }
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
   }
-  return { res, payload };
+  throw lastError;
 }
 
 export type PhotoJsonSchemaCall = {

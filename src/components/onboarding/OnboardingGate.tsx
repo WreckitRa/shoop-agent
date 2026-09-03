@@ -593,6 +593,9 @@ export function OnboardingGate() {
   const tellLatchRef = useRef<OnboardingPrefill>({});
 
   const submissionLockRef = useRef(false);
+  const sessionAtBootRef = useRef<ReturnType<typeof readOnboardingUiSession> | undefined>(
+    undefined,
+  );
   const reviewRequestKeyRef = useRef<string | null>(null);
   const scanBodyRequestKeyRef = useRef<string | null>(null);
   const wornDeckInFlightRef = useRef(false);
@@ -1259,6 +1262,10 @@ export function OnboardingGate() {
           useInlineFittingStore.getState().replayFitting &&
           next.onboarding.completed;
         const session = readOnboardingUiSession();
+        if (sessionAtBootRef.current === undefined) {
+          sessionAtBootRef.current = session;
+        }
+        const bootSession = sessionAtBootRef.current;
         const resume = resolveResumeStep(next, restart);
         setStep(resume);
         if (resume === "verdict" && session?.finale) {
@@ -1268,8 +1275,8 @@ export function OnboardingGate() {
           shouldAutoResumeFitting({
             completed: next.onboarding.completed,
             replay: restart,
-            sessionDismissed: session?.dismissed === true,
-            hasSession: Boolean(session),
+            sessionDismissed: bootSession?.dismissed === true,
+            hasSession: Boolean(bootSession),
           })
         ) {
           writeOnboardingUiSession({
@@ -1317,6 +1324,7 @@ export function OnboardingGate() {
     if (loading || !status) return;
     const session = readOnboardingUiSession();
     if (session?.dismissed) return;
+    if (!columnOpen && !stageLocked && !holdOpen && !session) return;
     writeOnboardingUiSession({
       step,
       circleNames,
@@ -1328,7 +1336,19 @@ export function OnboardingGate() {
         styleEras: styleEras.length ? styleEras : undefined,
       },
     });
-  }, [loading, status, step, circleNames, finale, preferredName, genderPresentation, styleEras]);
+  }, [
+    loading,
+    status,
+    step,
+    circleNames,
+    finale,
+    preferredName,
+    genderPresentation,
+    styleEras,
+    columnOpen,
+    stageLocked,
+    holdOpen,
+  ]);
 
   const twinInFlow = twinDocksInFlow(
     step,
@@ -3236,9 +3256,26 @@ export function OnboardingGate() {
 
   useLayoutEffect(() => {
     if (loading) return;
-    setOnboardingActive(incomplete);
-    if (incomplete && isMagicFittingStep(step)) setStageLocked(true);
-  }, [incomplete, loading, setOnboardingActive, setStageLocked, step]);
+    const inFitting = columnOpen || holdOpen || replayFitting || stageLocked;
+    setOnboardingActive(incomplete && inFitting);
+    if (
+      incomplete &&
+      isMagicFittingStep(step) &&
+      (columnOpen || holdOpen || replayFitting)
+    ) {
+      setStageLocked(true);
+    }
+  }, [
+    incomplete,
+    loading,
+    setOnboardingActive,
+    setStageLocked,
+    step,
+    columnOpen,
+    holdOpen,
+    replayFitting,
+    stageLocked,
+  ]);
 
   const progressPct =
     step === "verdict" || step === "circle"
@@ -3285,7 +3322,8 @@ export function OnboardingGate() {
 
   const fullscreen =
     stageLocked ||
-    isMagicFittingStep(step) ||
+    (isMagicFittingStep(step) &&
+      (columnOpen || holdOpen || replayFitting)) ||
     (mobileFitting && columnOpen && incomplete);
   const bodyHost =
     typeof document !== "undefined" ? document.body : null;

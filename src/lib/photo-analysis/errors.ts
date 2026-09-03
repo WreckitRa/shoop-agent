@@ -59,18 +59,23 @@ export function classifyPhotoError(message: string): PhotoErrorCode {
   if (lower.includes("empty output") || lower.includes("returned nothing")) {
     return "empty";
   }
+  if (
+    lower.includes("fetch failed") ||
+    lower.includes("network") ||
+    lower.includes("econnreset") ||
+    lower.includes("etimedout") ||
+    lower.includes("econnrefused") ||
+    lower.includes("und_err") ||
+    lower.includes("socket")
+  ) {
+    return "timeout";
+  }
   return "failed";
 }
 
 export function publicPhotoError(message: string | null | undefined): string | null {
   if (!message?.trim()) return null;
-  const code = classifyPhotoError(message);
-  if (code !== "failed") return PHOTO_ERROR[code];
-  const stripped = stripProviderSecrets(message);
-  if (!stripped || stripped.toLowerCase().includes("openai")) {
-    return PHOTO_ERROR.failed;
-  }
-  return stripped;
+  return PHOTO_ERROR[classifyPhotoError(message)];
 }
 
 export function publicPhotoErrorFromHttp(

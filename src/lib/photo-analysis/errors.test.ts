@@ -54,6 +54,15 @@ describe("photo-analysis errors", () => {
     );
   });
 
+  it("does not leak Node fetch failed to the shopper", () => {
+    assert.equal(classifyPhotoError("fetch failed"), "timeout");
+    assert.equal(publicPhotoError("fetch failed"), PHOTO_ERROR.timeout);
+    assert.equal(
+      publicPhotoError("tryon upload failed: fetch failed"),
+      PHOTO_ERROR.timeout,
+    );
+  });
+
   it("does not map a verdict truncation to the photo-scan line", () => {
     assert.equal(
       publicPhotoError(PHOTO_ERROR.verdict_incomplete),

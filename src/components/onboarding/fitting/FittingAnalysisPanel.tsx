@@ -8,9 +8,9 @@ import {
   FittingWhisper,
 } from "@/components/onboarding/onboarding-ui";
 import { guestFetch } from "@/lib/client/guest-fetch";
-import { PHOTO_ERROR } from "@/lib/photo-analysis/errors";
+import { PHOTO_ERROR, publicPhotoError } from "@/lib/photo-analysis/errors";
 import type { PhotoCoverage } from "@/lib/photo-analysis/result";
-import type { PhotoAnalysisPublic } from "@/lib/photo-analysis/types";
+import { fillPhotoAnalysisForm, type PhotoAnalysisPublic } from "@/lib/photo-analysis/types";
 import type { FittingPhotoValues } from "./FittingPhotoStep";
 import {
   AnalysisReviewForm,
@@ -429,6 +429,10 @@ export function FittingAnalysisPanel({
   }
 
   if (!analysis || analysis.error || !usable) {
+    const scanError =
+      publicPhotoError(analysis?.error) ||
+      analysis?.gate?.user_message ||
+      PHOTO_ERROR.empty;
     return (
       <section>
         <FittingKick>THE SCAN</FittingKick>
@@ -439,12 +443,30 @@ export function FittingAnalysisPanel({
           ]}
         />
         <FittingWhisper>
-          {analysis?.error ||
-            analysis?.gate?.user_message ||
-            PHOTO_ERROR.empty}{" "}
-          Skip this — the rest of your Fitting still stands.
+          {scanError} Skip this — the rest of your Fitting still stands.
         </FittingWhisper>
-        <div className="mt-8">
+        <div className="mt-8 flex flex-col gap-2">
+          <FittingCta
+            onClick={() => {
+              void (async () => {
+                const file = await resolvePhotoFile(photoFile, photoPreview);
+                if (!file) return;
+                setAnalysis(null);
+                setPolled(false);
+                const form = new FormData();
+                fillPhotoAnalysisForm(form, {
+                  photo: file,
+                  requestedCoverage: "face",
+                });
+                await guestFetch("/api/onboarding/photo-analysis?force=1", {
+                  method: "POST",
+                  body: form,
+                }).catch(() => undefined);
+              })();
+            }}
+          >
+            Try again
+          </FittingCta>
           <FittingCta onClick={onSkip}>Continue</FittingCta>
         </div>
       </section>

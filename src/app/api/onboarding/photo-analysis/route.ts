@@ -126,7 +126,7 @@ export async function POST(req: Request) {
       parseStylePhotoPreflight(existing?.gate)?.requested_coverage ??
       parseStylePhotoAnalysis(existing?.result)?.analysis_status
         .requested_coverage;
-    if (existing && prevCoverage === requestedCoverage) {
+    if (existing && prevCoverage === requestedCoverage && !existing.error) {
       return Response.json({ analysis: toPublic(existing) });
     }
   }
