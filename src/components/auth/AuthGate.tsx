@@ -32,6 +32,24 @@ import {
 import { useGuestHasPersistedData } from "@/hooks/useGuestMode";
 import { guestFetch } from "@/lib/client/guest-fetch";
 
+if (
+  process.env.NODE_ENV !== "production" &&
+  typeof Element !== "undefined" &&
+  !("__shoopPointerCapturePatched" in Element.prototype)
+) {
+  Object.defineProperty(Element.prototype, "__shoopPointerCapturePatched", {
+    value: true,
+  });
+  const orig = Element.prototype.releasePointerCapture;
+  Element.prototype.releasePointerCapture = function (pointerId: number) {
+    try {
+      orig.call(this, pointerId);
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === "NotFoundError")) throw e;
+    }
+  };
+}
+
 type AuthUser = { id: string; email: string | null };
 
 type AuthMode = "login" | "signup";
@@ -106,6 +124,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const askGuestBootRef = useRef(false);
   const previousUserIdRef = useRef<string | null>(null);
   const identityScope = useClientIdentityScopeKey();
+  const fittingLive = useInlineFittingStore(
+    (s) => s.onboardingActive || s.stageLocked,
+  );
+  const onboardingKey = fittingLive
+    ? "onboarding:fitting"
+    : `onboarding:${identityScope}`;
 
   const refreshGuest = useCallback(() => {
     setGuestActive(isGuestSessionActive());
@@ -130,10 +154,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           authConfigured: true,
           user: nextUser,
         });
+        const finishingFitting = isFinishingFitting(readOnboardingUiSession());
+        const fittingOpen =
+          useInlineFittingStore.getState().columnOpen ||
+          useInlineFittingStore.getState().onboardingActive ||
+          useInlineFittingStore.getState().stageLocked;
         await queueClientIdentityResync("auth", {
           force: true,
-          // Signup mid-Fitting: keep column + resume key so onboarding continues.
-          preserveOnboarding: migrateGuest,
+          preserveOnboarding: finishingFitting || (migrateGuest && fittingOpen),
         });
         if (!useInlineFittingStore.getState().columnOpen) {
           leaveConversationRoute();
@@ -392,7 +420,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <BiometricReconsentGate key={`biometric:${identityScope}`} enabled />
         ) : null}
         {!skipFittingChrome ? (
-          <OnboardingGate key={`onboarding:${identityScope}`} />
+          <OnboardingGate key={onboardingKey} />
         ) : null}
         {!skipFittingChrome ? <OnboardingLeaveFomo /> : null}
       </>
@@ -437,7 +465,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       <>
         {children}
         {!skipFittingChrome ? (
-          <OnboardingGate key={`onboarding:${identityScope}`} />
+          <OnboardingGate key={onboardingKey} />
         ) : null}
         {!skipFittingChrome ? <GuestLeavePrompt /> : null}
         {!skipFittingChrome ? <OnboardingLeaveFomo /> : null}

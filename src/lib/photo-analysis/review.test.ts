@@ -126,22 +126,29 @@ describe("style photo review", () => {
 });
 
 describe("stylist verdict readiness", () => {
-  it("blocks until analysis, review, identity, lifestyle, and height exist", () => {
+  it("blocks until analysis, review, and identity exist", () => {
     const missing = verdictReadiness({
       analysisUsable: false,
       reviewSubmitted: false,
       genderPresentation: "",
-      lifestyle: null,
-      heightCm: null,
     });
-    assert.equal(missing.length, 5);
+    assert.equal(missing.length, 3);
     assert.equal(
       verdictReadiness({
         analysisUsable: true,
         reviewSubmitted: true,
-        genderPresentation: "masculine",
-        lifestyle: "working_mixed",
-        heightCm: 179,
+        genderPresentation: "menswear",
+      }).length,
+      0,
+    );
+  });
+
+  it("does not require skippable height or lifestyle", () => {
+    assert.equal(
+      verdictReadiness({
+        analysisUsable: true,
+        reviewSubmitted: true,
+        genderPresentation: "womenswear",
       }).length,
       0,
     );

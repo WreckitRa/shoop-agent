@@ -22,15 +22,125 @@ type Props = {
   onTell?: (text: string) => void;
   tellFeedback?: string | null;
   tellBusy?: boolean;
-  layout?: "page" | "column";
+  layout?: "page" | "column" | "figure" | "stage";
   /** Photo step: pick a face from the silhouette head. */
   onPickPhoto?: (file: File) => void;
   photoPickLocked?: boolean;
   /** Bigger add-photo chip when the twin sits under the questions. */
-  photoCta?: "rail" | "flow";
+  photoCta?: "rail" | "flow" | "figure";
   /** Twin mint failed — print again from THE MIRROR. */
   onRetryTwin?: () => void;
 };
+
+function TwinFigure({
+  mirror,
+  bodyColor,
+  heightPct,
+  onPickPhoto,
+  photoPickLocked,
+  photoCta,
+}: {
+  mirror: MirrorState;
+  bodyColor: string;
+  heightPct: number;
+  onPickPhoto?: (file: File) => void;
+  photoPickLocked: boolean;
+  photoCta: "rail" | "flow" | "figure";
+}) {
+  const HeadWrap = onPickPhoto ? "label" : "div";
+  return (
+    <div className="absolute inset-0 flex items-end justify-center [container-type:size]">
+      <div
+        className="fitting-motion relative"
+        style={{
+          width: `min(100%, calc(${heightPct}cqh * ${SILHOUETTE_VIEWBOX.w} / ${SILHOUETTE_VIEWBOX.h}))`,
+          aspectRatio: `${SILHOUETTE_VIEWBOX.w} / ${SILHOUETTE_VIEWBOX.h}`,
+          color: bodyColor,
+        }}
+      >
+        <BodyTwinSilhouette
+          className="h-full w-full"
+          form={mirror.form}
+          build={mirror.build}
+          muscularity={mirror.muscularity}
+          bodyShape={mirror.bodyShape}
+          bustFullness={mirror.form === "f" ? mirror.bustFullness : null}
+          legLine={mirror.legLine}
+          heightCm={null}
+          decorative
+        />
+        <HeadWrap
+          className={cn(
+            "absolute inset-0 z-[2]",
+            onPickPhoto && !photoPickLocked && "cursor-pointer",
+            onPickPhoto && photoPickLocked && "pointer-events-none opacity-40",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute aspect-square rounded-full transition-all duration-700",
+              onPickPhoto &&
+                !mirror.photoUrl &&
+                "outline outline-2 outline-dashed outline-[var(--fitting-ink)]",
+              mirror.photoUrl &&
+                "outline outline-2 outline-[var(--fitting-line)] [filter:blur(2.5px)_saturate(0.9)]",
+              mirror.twinStatus === "developing" &&
+                mirror.photoUrl &&
+                "animate-[fitting-blink_1.8s_infinite] outline-[var(--fitting-red)]/30",
+              mirror.developPct >= 26 &&
+                !mirror.photoUrl &&
+                "bg-gradient-to-br from-[#E8DDD0] to-[#C4B4A2]",
+            )}
+            style={{
+              ...silhouetteHeadOverlayStyle(),
+              ...(mirror.photoUrl
+                ? {
+                    backgroundImage: `url(${mirror.photoUrl})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }
+                : mirror.developPct >= 26
+                  ? {}
+                  : { backgroundColor: bodyColor }),
+            }}
+          />
+          {onPickPhoto ? (
+            <>
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                disabled={photoPickLocked}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onPickPhoto(f);
+                  e.target.value = "";
+                }}
+              />
+              <span className="sr-only">
+                {mirror.photoUrl ? "Change face photo" : "Add a face photo"}
+              </span>
+              {!mirror.photoUrl ? (
+                <span
+                  className={cn(
+                    "fitting-shot-cta absolute left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-[10px] bg-[var(--fitting-ink)] font-display font-extrabold text-white shadow-[0_10px_18px_-10px_rgba(14,14,17,.5)]",
+                    photoCta === "figure"
+                      ? "bottom-[34%] px-4 py-2.5 text-[13px]"
+                      : photoCta === "flow"
+                        ? "bottom-[22%] px-4 py-2.5 text-[13px]"
+                        : "bottom-[20%] px-2.5 py-1.5 text-[10px]",
+                  )}
+                >
+                  Add a face photo <span aria-hidden>→</span>
+                </span>
+              ) : null}
+            </>
+          ) : null}
+        </HeadWrap>
+      </div>
+    </div>
+  );
+}
 
 export function FittingMirror({
   mirror,
@@ -62,14 +172,8 @@ export function FittingMirror({
     const el = printRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    el.style.setProperty(
-      "--mx",
-      `${((e.clientX - r.left) / r.width) * 100}%`,
-    );
-    el.style.setProperty(
-      "--my",
-      `${((e.clientY - r.top) / r.height) * 100}%`,
-    );
+    el.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
+    el.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
   }, []);
 
   const submitTell = () => {
@@ -80,25 +184,137 @@ export function FittingMirror({
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const lines: Array<{ id: string; label: string; value: string; red?: boolean }> =
-    [
-      { id: "era", label: "Era", value: mirror.eraLabel || "—" },
-      { id: "spend", label: "Spend", value: mirror.spendLabel || "—" },
-      { id: "lean", label: "Leaning", value: mirror.leanLabel || "—" },
-      { id: "brands", label: "Brands", value: mirror.brandsLabel || "—" },
-      {
-        id: "no",
-        label: "No-list",
-        value: mirror.noListLabel || "—",
-        red: true,
-      },
-      { id: "circle", label: "Circle", value: mirror.circleLabel || "—" },
-    ];
+  const lines: Array<{
+    id: string;
+    label: string;
+    value: string;
+    red?: boolean;
+  }> = [
+    { id: "era", label: "Era", value: mirror.eraLabel || "—" },
+    { id: "spend", label: "Spend", value: mirror.spendLabel || "—" },
+    { id: "lean", label: "Leaning", value: mirror.leanLabel || "—" },
+    { id: "brands", label: "Brands", value: mirror.brandsLabel || "—" },
+    {
+      id: "no",
+      label: "Never again",
+      value: mirror.noListLabel || "—",
+      red: true,
+    },
+    { id: "circle", label: "Circle", value: mirror.circleLabel || "—" },
+  ];
 
   const twinReady =
     Boolean(mirror.twinAvatarUrl) && mirror.twinStatus === "ready";
   const fillUrl = twinReady ? mirror.twinAvatarUrl : null;
-  const HeadWrap = onPickPhoto ? "label" : "div";
+  const twinFigure = (
+    <TwinFigure
+      mirror={mirror}
+      bodyColor={bodyColor}
+      heightPct={heightPct}
+      onPickPhoto={onPickPhoto}
+      photoPickLocked={photoPickLocked}
+      photoCta={photoCta}
+    />
+  );
+
+  if (layout === "figure") {
+    return (
+      <div className="relative mx-auto mt-6 h-[min(48vh,300px)] w-full max-w-[200px] text-[var(--fitting-ink)]">
+        {twinFigure}
+      </div>
+    );
+  }
+
+  const scanLive =
+    mirror.scanActivity === "reading" || mirror.scanActivity === "writing";
+  const stageScanChrome = (
+    <>
+      {fillUrl ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            key={fillUrl}
+            src={fillUrl}
+            alt=""
+            className={cn(
+              "absolute inset-0 size-full object-cover object-top",
+              twinReady
+                ? "animate-[fitting-twin-in_0.7s_ease-out]"
+                : "scale-[1.02]",
+              mirror.dressStatus === "dressing" &&
+                "animate-[fitting-blink_1.8s_infinite] opacity-90",
+              mirror.twinStatus === "developing" &&
+                !twinReady &&
+                "animate-[fitting-blink_1.8s_infinite]",
+            )}
+          />
+        </>
+      ) : null}
+      {mirror.scanActivity === "writing" ? (
+        <FittingVerdictAnnotations compact={layout === "column"} />
+      ) : null}
+      <div className="absolute inset-0 z-[2] flex flex-col p-3">
+        <div
+          className={cn(
+            "relative min-h-0 flex-1",
+            layout === "column" ? "min-h-[120px]" : "min-h-[180px]",
+          )}
+        >
+          {fillUrl ? null : twinFigure}
+          {scanLive && mirror.dressStatus !== "dressing" ? (
+            <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden">
+              <i className="fitting-scan-line" />
+              {mirror.scanActivity === "reading"
+                ? mirror.scanNotes.slice(0, 4).map((note, i) => (
+                    <div
+                      key={note.label}
+                      className={cn(
+                        "shoop-sscan__anno lit",
+                        `shoop-sscan__anno--${i + 1}`,
+                      )}
+                    >
+                      {i % 2 === 1 ? <span className="tick" /> : null}
+                      <span>
+                        {note.label}
+                        {note.value ? ` · ${note.value}` : ""}
+                      </span>
+                      {i % 2 === 0 ? <span className="tick" /> : null}
+                    </div>
+                  ))
+                : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+
+  if (layout === "stage") {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-gradient-to-b from-[#FAFAFB] to-[#F0F0F2] px-4 pb-2 pt-3 text-[var(--fitting-ink)]">
+        <div className="font-display text-[9.5px] font-extrabold tracking-[0.16em] text-[var(--fitting-quiet)]">
+          YOUR TWIN
+        </div>
+        <div
+          ref={printRef}
+          onMouseMove={onMove}
+          className="relative mt-2 min-h-0 flex-1 overflow-hidden rounded-2xl bg-[radial-gradient(70%_52%_at_50%_20%,#FFF,#F2F2F4_52%,#E2E2E6_100%)]"
+        >
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-0 z-[4] bg-[radial-gradient(circle_at_50%_32%,rgba(228,40,49,0.16),transparent_62%)] transition-opacity duration-500",
+              mirror.twinStatus === "developing" ||
+                mirror.dressStatus === "dressing" ||
+                scanLive
+                ? "opacity-100"
+                : "opacity-0",
+            )}
+          />
+          {stageScanChrome}
+        </div>
+      </div>
+    );
+  }
 
   const statusLine =
     mirror.twinStatus === "developing"
@@ -179,10 +395,10 @@ export function FittingMirror({
                   "animate-[fitting-blink_1.8s_infinite]",
               )}
             />
-            {twinReady && mirror.scanActivity === "writing" ? (
-              <FittingVerdictAnnotations compact={layout === "column"} />
-            ) : null}
           </>
+        ) : null}
+        {mirror.scanActivity === "writing" ? (
+          <FittingVerdictAnnotations compact={layout === "column"} />
         ) : null}
         <div className="absolute inset-0 z-[2] flex flex-col p-3">
           <div
@@ -191,103 +407,7 @@ export function FittingMirror({
               layout === "column" ? "min-h-[120px]" : "min-h-[180px]",
             )}
           >
-            {fillUrl ? null : (
-              <div className="absolute inset-0 flex items-end justify-center [container-type:size]">
-                <div
-                  className="fitting-motion relative"
-                  style={{
-                    width: `min(100%, calc(${heightPct}cqh * ${SILHOUETTE_VIEWBOX.w} / ${SILHOUETTE_VIEWBOX.h}))`,
-                    aspectRatio: `${SILHOUETTE_VIEWBOX.w} / ${SILHOUETTE_VIEWBOX.h}`,
-                    color: bodyColor,
-                  }}
-                >
-                  <BodyTwinSilhouette
-                    className="h-full w-full"
-                    form={mirror.form}
-                    build={mirror.build}
-                    muscularity={mirror.muscularity}
-                    bodyShape={mirror.bodyShape}
-                    bustFullness={
-                      mirror.form === "f" ? mirror.bustFullness : null
-                    }
-                    legLine={mirror.legLine}
-                    heightCm={null}
-                    decorative
-                  />
-                  <HeadWrap
-                    className={cn(
-                      "absolute inset-0 z-[2]",
-                      onPickPhoto && !photoPickLocked && "cursor-pointer",
-                      onPickPhoto &&
-                        photoPickLocked &&
-                        "pointer-events-none opacity-40",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute aspect-square rounded-full transition-all duration-700",
-                        onPickPhoto &&
-                          !mirror.photoUrl &&
-                          "outline outline-2 outline-dashed outline-[var(--fitting-ink)]",
-                        mirror.photoUrl &&
-                          "outline outline-2 outline-[var(--fitting-line)] [filter:blur(2.5px)_saturate(0.9)]",
-                        mirror.twinStatus === "developing" &&
-                          mirror.photoUrl &&
-                          "animate-[fitting-blink_1.8s_infinite] outline-[var(--fitting-red)]/30",
-                        mirror.developPct >= 26 &&
-                          !mirror.photoUrl &&
-                          "bg-gradient-to-br from-[#E8DDD0] to-[#C4B4A2]",
-                      )}
-                      style={{
-                        ...silhouetteHeadOverlayStyle(),
-                        ...(mirror.photoUrl
-                          ? {
-                              backgroundImage: `url(${mirror.photoUrl})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                            }
-                          : mirror.developPct >= 26
-                            ? {}
-                            : { backgroundColor: bodyColor }),
-                      }}
-                    />
-                    {onPickPhoto ? (
-                      <>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="sr-only"
-                          disabled={photoPickLocked}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) onPickPhoto(f);
-                            e.target.value = "";
-                          }}
-                        />
-                        <span className="sr-only">
-                          {mirror.photoUrl
-                            ? "Change face photo"
-                            : "Add a face photo"}
-                        </span>
-                        {!mirror.photoUrl ? (
-                          <span
-                            className={cn(
-                              "absolute left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-[10px] bg-[var(--fitting-ink)] font-display font-extrabold text-white shadow-[0_10px_18px_-10px_rgba(14,14,17,.5)]",
-                              photoCta === "flow"
-                                ? "bottom-[22%] px-4 py-2.5 text-[13px]"
-                                : "bottom-[20%] px-2.5 py-1.5 text-[10px]",
-                            )}
-                          >
-                            Add a face photo{" "}
-                            <span aria-hidden>→</span>
-                          </span>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </HeadWrap>
-                </div>
-              </div>
-            )}
+            {fillUrl ? null : twinFigure}
             {mirror.twinStatus === "developing" &&
             mirror.scanActivity !== "review" &&
             mirror.dressStatus !== "dressing" ? (
@@ -415,9 +535,7 @@ export function FittingMirror({
               key={line.id}
               className={cn(
                 "fitting-motion flex justify-between border-t border-[var(--fitting-line)] py-1.5 text-[10.5px] transition-all duration-300",
-                lit
-                  ? "translate-y-0 opacity-100"
-                  : "translate-y-1 opacity-40",
+                lit ? "translate-y-0 opacity-100" : "translate-y-1 opacity-40",
               )}
             >
               <span className="font-semibold text-[#B0B0B8]">{line.label}</span>
@@ -464,8 +582,7 @@ export function FittingMirror({
               (mirror.dressStatus === "idle" &&
                 mirror.twinStatus === "ready")) &&
               "text-[#2BB673]",
-            (mirror.dressStatus === "error" ||
-              mirror.twinStatus === "error") &&
+            (mirror.dressStatus === "error" || mirror.twinStatus === "error") &&
               "text-[var(--fitting-red)]",
           )}
         >
@@ -490,8 +607,8 @@ export function FittingMirror({
                 ? `dressed · ${mirror.dressStyleLabel}`
                 : "dressed · worn look on twin"
               : mirror.dressStatus === "error"
-                ? mirror.dressError ??
-                  "dress failed — twin still here undressed"
+                ? (mirror.dressError ??
+                  "dress failed — twin still here undressed")
                 : mirror.twinStatus === "ready"
                   ? "twin ready"
                   : mirror.twinStatus === "error"

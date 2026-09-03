@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
 import {
@@ -14,11 +15,21 @@ import { SelfAvatarHost } from "@/components/tryon/SelfAvatarHost";
 import { AppTopBar } from "@/components/layout/AppTopBar";
 import { AppTabBar } from "@/components/layout/AppTabBar";
 import { GuestModeBanner } from "@/components/auth/GuestModeBanner";
+import { MirrorPeek } from "@/components/chat/MirrorPeek";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const setSidebarOpen = useChatStore((s) => s.setSidebarOpen);
   const sidebarCollapsed = useChatStore((s) => s.sidebarCollapsed);
   const stageLocked = useInlineFittingStore((s) => s.stageLocked);
+  const fittingColumnOpen = useInlineFittingStore((s) => s.columnOpen);
+  const hideMobileChrome = stageLocked || fittingColumnOpen;
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (hideMobileChrome) root.setAttribute("data-shoop-stage-locked", "");
+    else root.removeAttribute("data-shoop-stage-locked");
+    return () => root.removeAttribute("data-shoop-stage-locked");
+  }, [hideMobileChrome]);
 
   return (
     <div
@@ -36,14 +47,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {stageLocked ? null : <GuestModeBanner />}
+          {hideMobileChrome ? null : <GuestModeBanner />}
           {stageLocked ? null : (
-            <AppTopBar onOpenSidebar={() => setSidebarOpen(true)} />
+            <div className="hidden lg:block">
+              <AppTopBar onOpenSidebar={() => setSidebarOpen(true)} />
+            </div>
+          )}
+          {hideMobileChrome ? null : (
+            <MirrorPeek onOpenSidebar={() => setSidebarOpen(true)} />
           )}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {children}
           </div>
-          {stageLocked ? null : <AppTabBar />}
+          {hideMobileChrome ? null : <AppTabBar />}
         </main>
         {stageLocked ? null : <TryOnDrawer />}
         <SelfAvatarHost />

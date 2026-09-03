@@ -41,8 +41,10 @@ export function BiometricConsentSheet({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[120] p-4">
-      <div className="pointer-events-auto mx-auto max-h-[min(85dvh,560px)] max-w-[640px] overflow-y-auto rounded-[20px] border border-[var(--fitting-line)] bg-white p-4 shadow-[0_18px_40px_-18px_rgba(14,14,17,0.45)]">
+    <div className="shoop-sheet-root" role="dialog" aria-label="Biometric consent">
+      <div className="shoop-sheet-dim" aria-hidden />
+      <div className="shoop-sheet max-h-[min(85dvh,560px)] overflow-y-auto">
+        <div className="shoop-sheet__grab" aria-hidden />
         <p className="text-[11px] font-extrabold tracking-[0.14em] text-[var(--fitting-quiet)]">
           THE SCAN · CONSENT
         </p>

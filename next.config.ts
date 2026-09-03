@@ -4,6 +4,9 @@ import { UCP_AGENT_PROFILE_CACHE_CONTROL } from "./src/lib/env";
 const nextConfig: NextConfig = {
   // Minimal self-contained server for Railway / container deploys.
   output: "standalone",
+  // Next 16.2's N badge captures pointers on touch and throws
+  // `releasePointerCapture` NotFoundError; it also sits on mobile sheets.
+  devIndicators: false,
   images: {
     // Allow cache-bust query strings on local assets (e.g. hero ?v=…).
     localPatterns: [{ pathname: "/assets/**" }],

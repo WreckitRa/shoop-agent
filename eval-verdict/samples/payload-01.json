@@ -1,0 +1,1006 @@
+{
+  "task": "Generate the canonical personal-stylist verdict from this reviewed profile.",
+  "data_manifest": {
+    "present_domains": [
+      "identity",
+      "lifestyle",
+      "climate",
+      "budget",
+      "taste",
+      "body",
+      "wardrobe",
+      "comfort",
+      "vetoes",
+      "face_scan"
+    ]
+  },
+  "photo_analysis": {
+    "final_summary": {
+      "next_best_action": "Provide the high-priority style intake plus controlled daylight and full-body fit photos before selecting a professional wardrobe direction.",
+      "largest_uncertainties": [
+        "Skin undertone and a definitive personal color palette cannot be established from this single uncalibrated image.",
+        "Facial-hair coverage limits precision around the jaw and chin.",
+        "No responsible conclusions can be made about body proportions, posture, lower-body fit, or complete outfit silhouette.",
+        "Professional needs, taste, budget, comfort, and fit preferences are not yet known."
+      ],
+      "provisional_style_profile": "A clean, understated casual presentation with a strong grooming baseline. Initial face-led testing can focus on controlled texture in the haircut, intentional stubble edge maintenance, and deeper muted colors, while all broader wardrobe recommendations await lifestyle and full-body fit evidence.",
+      "strongest_supported_observations": [
+        "Clear front-facing portrait with soft, even lighting and limited visible lens distortion.",
+        "Face appears moderately longer than wide, with a preliminary oval-oblong reading and a subtle rectangular influence.",
+        "Hair is dark brown, short tapered at the sides, and styled with a longer textured top; visible grooming is clean and cohesive.",
+        "Short, fairly even stubble beard and moustache are visible.",
+        "The only visible garment is a black or near-black casual crew-neck T-shirt."
+      ],
+      "readiness_for_final_recommendations": "partially_ready"
+    },
+    "analysis_status": {
+      "usable": true,
+      "summary": "A clear, front-facing head-and-upper-shoulders portrait supports a preliminary assessment of face geometry, visible grooming, and recorded coloring. It does not support body-proportion or lower-body analysis.",
+      "schema_version": "1.0",
+      "target_selection": "Unambiguous: the only visible person.",
+      "achieved_coverage": "face",
+      "coverage_complete": true,
+      "overall_confidence": 0.78,
+      "requested_coverage": "face",
+      "analyzed_image_count": 1,
+      "visible_person_count": 1,
+      "refusal_or_failure_reason": null
+    },
+    "capture_quality": {
+      "lighting": {
+        "value": "Soft, broadly even frontal lighting against a white background.",
+        "caveats": [
+          "Even studio-like lighting reduces contour distortion but does not establish skin undertone."
+        ],
+        "evidence": "Facial shadows are mild and balanced; the background is evenly bright.",
+        "confidence": 0.9
+      },
+      "occlusions": [
+        "Light facial hair partially softens the exact jaw and chin outline.",
+        "Crew-neck collar covers the lower neck and upper chest."
+      ],
+      "views_present": [
+        "front-facing head-and-upper-shoulders portrait"
+      ],
+      "white_balance": {
+        "value": "Appears near-neutral.",
+        "caveats": [
+          "A neutral-looking background does not verify calibrated white balance."
+        ],
+        "evidence": "The white background reads close to neutral and there is no strong obvious color cast.",
+        "confidence": 0.67
+      },
+      "artifact_risks": [
+        "Single-view limitation",
+        "unknown color calibration",
+        "minor image compression",
+        "facial-hair masking of underlying jawline"
+      ],
+      "visible_regions": [
+        "face",
+        "hair",
+        "ears",
+        "neck",
+        "upper shoulders",
+        "upper chest/crew-neck garment"
+      ],
+      "exposure_and_flash": {
+        "value": "Exposure appears balanced; no obvious direct-flash hotspots are visible.",
+        "caveats": [
+          "Image processing cannot be ruled out."
+        ],
+        "evidence": "Skin highlights are controlled and facial features remain visible.",
+        "confidence": 0.82
+      },
+      "perspective_and_lens": {
+        "value": "Limited visible perspective distortion.",
+        "caveats": [
+          "Lens focal length and shooting distance are unknown."
+        ],
+        "evidence": "Facial features do not show conspicuous wide-angle stretching.",
+        "confidence": 0.72
+      },
+      "filters_or_retouching": {
+        "value": "No strong filter or overt retouching is evident.",
+        "caveats": [
+          "Subtle retouching, compression, and color processing cannot be assessed reliably from one image."
+        ],
+        "evidence": "Skin texture and facial-hair detail remain visible.",
+        "confidence": 0.48
+      },
+      "camera_height_and_tilt": {
+        "value": "Camera appears approximately at eye level with little visible tilt.",
+        "caveats": [
+          "A single frontal view cannot fully exclude minor tilt."
+        ],
+        "evidence": "The face is centered and presented nearly square to the camera.",
+        "confidence": 0.82
+      },
+      "garment_fit_reliability": "low",
+      "face_analysis_reliability": "high",
+      "color_analysis_reliability": "medium",
+      "pose_and_weight_distribution": {
+        "value": null,
+        "caveats": [
+          "The image is cropped above the torso and does not show stance or weight distribution."
+        ],
+        "evidence": "not observable from supplied images",
+        "confidence": 0
+      },
+      "proportion_analysis_reliability": "unusable"
+    },
+    "outfit_analysis": [
+      {
+        "garment": "Black or near-black crew-neck T-shirt",
+        "evidence": "Only the neckline, upper chest, and partial shoulders are visible in a static headshot.",
+        "confidence": 0.34,
+        "fit_status": "unknown",
+        "observations": [
+          "The crew neck sits close and appears even around the base of the neck.",
+          "Visible upper-chest fabric appears smooth without clear pulling.",
+          "The garment is substantially cropped, so shoulder seam placement, body length, torso ease, and sleeve fit cannot be evaluated."
+        ],
+        "visible_color": "black or near-black",
+        "distortion_or_occlusion_risks": [
+          "Close crop",
+          "shoulder seams not clearly visible",
+          "lower torso and sleeves outside frame"
+        ],
+        "intended_silhouette_hypothesis": "likely standard fitted-to-regular casual T-shirt"
+      }
+    ],
+    "visible_profile": {
+      "face": {
+        "chin": {
+          "value": "moderate width and softly rounded appearance",
+          "caveats": [
+            "Facial hair and frontal perspective reduce precision."
+          ],
+          "evidence": "The chin terminates in a rounded rather than sharply pointed visible contour.",
+          "confidence": 0.57
+        },
+        "jawline": {
+          "value": "moderately defined, gently tapered jaw appearance",
+          "caveats": [
+            "Short beard growth obscures the underlying bony contour."
+          ],
+          "evidence": "The lower face narrows from the cheek area toward the chin with a visible but softened jaw contour.",
+          "confidence": 0.6
+        },
+        "forehead": {
+          "value": "medium-to-broad visible forehead, partly framed by hair.",
+          "caveats": [
+            "Hair styling obscures the precise hairline shape."
+          ],
+          "evidence": "The frontal hairline exposes a moderate forehead area with hair styled upward and back.",
+          "confidence": 0.66
+        },
+        "cheekbones": {
+          "value": "moderate width with a smooth, not sharply projected appearance",
+          "caveats": [
+            "Soft frontal lighting reduces visible cheekbone definition."
+          ],
+          "evidence": "The widest apparent facial area is around the upper-to-mid cheek region, without dramatic angular projection.",
+          "confidence": 0.57
+        },
+        "primary_shape": {
+          "value": "oval-oblong appearance",
+          "caveats": [
+            "Exact jaw/chin geometry is softened by facial hair and a single frontal view."
+          ],
+          "evidence": "The visible face appears longer than wide, with gently rounded cheek and jaw transitions.",
+          "confidence": 0.71
+        },
+        "face_shape_limitations": [
+          "One frontal view only; no profile or three-quarter view.",
+          "Short facial hair softens the lower-face outline.",
+          "Face-shape labels are descriptive styling shorthand, not precise anatomical classifications."
+        ],
+        "length_to_width_balance": {
+          "value": "appears moderately longer than wide",
+          "caveats": [
+            "Camera distance and head position can affect apparent proportions."
+          ],
+          "evidence": "The vertical forehead-to-chin span visibly exceeds the cheek-to-cheek width.",
+          "confidence": 0.76
+        },
+        "secondary_shape_influence": {
+          "value": "slight rectangular influence",
+          "caveats": [
+            "This remains a tentative visual impression rather than a measurement."
+          ],
+          "evidence": "The forehead-to-jaw outline appears relatively straight through the sides before tapering toward the chin.",
+          "confidence": 0.46
+        }
+      },
+      "color": {
+        "eye_color": {
+          "value": "dark brown appearance",
+          "caveats": [
+            "Resolution and lighting prevent a precise eye-color assessment."
+          ],
+          "evidence": "The irises appear dark in the front-facing view.",
+          "confidence": 0.58
+        },
+        "hair_color": {
+          "value": "dark brown",
+          "caveats": [
+            "Color remains subject to image processing."
+          ],
+          "evidence": "The visible hair reads dark brown rather than black under the portrait lighting.",
+          "confidence": 0.88
+        },
+        "skin_depth": {
+          "value": "light-to-medium",
+          "caveats": [
+            "Exposure and image processing may shift perceived depth."
+          ],
+          "evidence": "The face shows a moderate lightness value against the white background.",
+          "confidence": 0.63
+        },
+        "facial_contrast": {
+          "value": "medium apparent facial contrast",
+          "caveats": [
+            "Contrast may change with daylight, hair color variation, and garment color."
+          ],
+          "evidence": "Dark brown hair, darker brows and facial hair contrast noticeably with lighter visible skin.",
+          "confidence": 0.65
+        },
+        "chroma_direction": {
+          "value": "moderate/soft apparent chroma",
+          "caveats": [
+            "Chroma assessment is affected by the black garment and single lighting condition."
+          ],
+          "evidence": "Hair, skin, eyes, and black shirt create a defined but not highly vivid color impression.",
+          "confidence": 0.47
+        },
+        "undertone_hypothesis": {
+          "value": "Undertone is indeterminate; it may read neutral to slightly warm in this image.",
+          "caveats": [
+            "One uncalibrated photograph cannot establish undertone."
+          ],
+          "evidence": "The skin has a mild beige/peach cast in an otherwise near-neutral image.",
+          "confidence": 0.3
+        },
+        "temperature_direction": {
+          "value": "indeterminate, with a tentative neutral-to-warm reading",
+          "caveats": [
+            "White balance and processing may account for the effect."
+          ],
+          "evidence": "Recorded facial skin has modest warmth relative to the background.",
+          "confidence": 0.3
+        },
+        "visible_skin_surface_tone": {
+          "value": "Recorded skin surface appears light-to-medium in depth under neutral-looking lighting.",
+          "caveats": [
+            "This describes recorded image appearance, not ethnicity or a definitive natural complexion."
+          ],
+          "evidence": "Visible facial skin reads neither very pale nor deep in the supplied image.",
+          "confidence": 0.66
+        },
+        "seasonal_palette_hypothesis": {
+          "value": null,
+          "caveats": [
+            "Controlled daylight images and garment-color comparisons are needed."
+          ],
+          "evidence": "A definitive seasonal palette is not supportable from one uncontrolled portrait.",
+          "confidence": 0
+        },
+        "preliminary_palette_direction": {
+          "value": "Test medium-to-deep, moderately muted neutrals and colors first; verify warm versus cool bias in controlled daylight.",
+          "caveats": [
+            "This is a testing direction, not a confirmed palette."
+          ],
+          "evidence": "The image presents medium facial contrast, dark hair, and a potentially neutral-to-warm skin reading.",
+          "confidence": 0.43
+        }
+      },
+      "body_proportions": {
+        "stance": {
+          "value": null,
+          "caveats": [
+            "Lower body is outside the frame."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "posture": {
+          "value": null,
+          "caveats": [
+            "A close headshot cannot support posture assessment."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "leg_line": {
+          "value": null,
+          "caveats": [
+            "Legs are outside the frame."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "visual_frame": {
+          "value": null,
+          "caveats": [
+            "Face-only coverage and close crop do not show the body frame."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "shoulder_slope": {
+          "value": null,
+          "caveats": [
+            "Shoulder endpoints are cropped."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "vertical_balance": {
+          "value": null,
+          "caveats": [
+            "Full-body landmarks are outside the frame."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "apparent_symmetry": {
+          "value": "front-facing presentation appears broadly symmetrical",
+          "caveats": [
+            "This is pose-specific and not a structural assessment."
+          ],
+          "evidence": "The head is held nearly square to the camera, with no conspicuous asymmetry in pose.",
+          "confidence": 0.6
+        },
+        "body_shape_summary": {
+          "value": null,
+          "caveats": [
+            "Face-only coverage; clothing and crop conceal relevant landmarks."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "relative_arm_length": {
+          "value": null,
+          "caveats": [
+            "Arms are not sufficiently visible."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "torso_to_leg_balance": {
+          "value": null,
+          "caveats": [
+            "Torso and legs are not visible."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "neck_length_and_width": {
+          "value": "only partially visible; no reliable assessment",
+          "caveats": [
+            "Do not use this image for collar or neckline proportion decisions."
+          ],
+          "evidence": "The crew-neck collar and close crop conceal much of the neck.",
+          "confidence": 0.15
+        },
+        "shoulder_width_relative": {
+          "value": null,
+          "caveats": [
+            "Only partial shoulders are visible; no body-width comparison is possible."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "waist_to_hip_relationship": {
+          "value": null,
+          "caveats": [
+            "Waist and hips are not visible."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "chest_to_waist_relationship": {
+          "value": null,
+          "caveats": [
+            "Chest and waist are not visible."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "visible_muscular_distribution": {
+          "value": null,
+          "caveats": [
+            "Clothing and framing do not reveal muscular distribution."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        }
+      },
+      "hair_and_grooming": {
+        "hair_length": {
+          "value": "short on the sides with a longer top",
+          "caveats": [],
+          "evidence": "The sides are closely tapered while the top has visibly greater length and volume.",
+          "confidence": 0.93
+        },
+        "eyewear_geometry": {
+          "value": null,
+          "caveats": [
+            "No eyewear is worn in the image."
+          ],
+          "evidence": "not observable from supplied images",
+          "confidence": 0
+        },
+        "facial_hair_style": {
+          "value": "short, even stubble beard and moustache",
+          "caveats": [
+            "Density and edge work are only visible from the front."
+          ],
+          "evidence": "Closely cropped facial hair is visible across the moustache, chin, jaw, and cheeks.",
+          "confidence": 0.92
+        },
+        "grooming_cohesion": {
+          "value": "clean, cohesive, and understated",
+          "caveats": [
+            "This assesses the visible presentation only."
+          ],
+          "evidence": "The haircut is deliberately shaped and the short facial hair appears generally even and maintained.",
+          "confidence": 0.81
+        },
+        "hair_texture_pattern": {
+          "value": "appears straight to lightly wavy",
+          "caveats": [
+            "Styling product may alter the visible texture."
+          ],
+          "evidence": "The top is styled with soft directional separation and slight natural movement.",
+          "confidence": 0.74
+        },
+        "visible_hair_density": {
+          "value": "full-looking in the visible frontal and top areas",
+          "caveats": [
+            "This is not a diagnosis and does not assess areas outside the frame."
+          ],
+          "evidence": "The styled top and visible frontal hairline show consistent coverage.",
+          "confidence": 0.7
+        },
+        "current_haircut_shape": {
+          "value": "textured, swept-back top with short tapered sides",
+          "caveats": [
+            "The rear and side profile are not visible."
+          ],
+          "evidence": "Hair is directed upward/back from the forehead, with compact sides around the temples and ears.",
+          "confidence": 0.91
+        },
+        "visible_facial_hair_density": {
+          "value": "light-to-medium, fairly even visible density",
+          "caveats": [
+            "Lighting and resolution limit close assessment of density variation."
+          ],
+          "evidence": "Stubble is clearly visible throughout the central lower face and jaw area.",
+          "confidence": 0.69
+        }
+      },
+      "current_style_signals": {
+        "formality": {
+          "value": "casual",
+          "caveats": [
+            "The image does not show the complete outfit or setting."
+          ],
+          "evidence": "A plain black crew-neck T-shirt is visible.",
+          "confidence": 0.88
+        },
+        "silhouette": {
+          "value": "not assessable beyond a close-fitting crew-neck upper garment at the neckline",
+          "caveats": [
+            "The crop prevents overall silhouette analysis."
+          ],
+          "evidence": "Only the neckline and upper shoulder area are visible.",
+          "confidence": 0.2
+        },
+        "color_story": {
+          "value": "monochrome black at the visible garment level",
+          "caveats": [
+            "No other outfit colors are visible."
+          ],
+          "evidence": "The visible shirt is black or near-black.",
+          "confidence": 0.94
+        },
+        "outfit_cohesion": {
+          "value": "visibly cohesive at the portrait level",
+          "caveats": [
+            "Cohesion of the complete outfit cannot be assessed."
+          ],
+          "evidence": "The simple black top creates a clean backdrop for the dark hair and groomed appearance.",
+          "confidence": 0.67
+        },
+        "aesthetic_signals": {
+          "value": "minimal, clean casual presentation",
+          "caveats": [
+            "A single headshot cannot establish broader personal style."
+          ],
+          "evidence": "The visible outfit is a plain dark crew-neck paired with tidy, contemporary grooming.",
+          "confidence": 0.72
+        },
+        "apparent_fit_intent": {
+          "value": "likely standard close-to-body T-shirt neckline rather than intentionally oversized styling",
+          "caveats": [
+            "Most of the garment is cropped; fit intent is uncertain."
+          ],
+          "evidence": "The collar sits close to the neck and the visible upper chest fabric appears smooth.",
+          "confidence": 0.43
+        }
+      }
+    },
+    "follow_up_questions": [
+      {
+        "id": "goal_1",
+        "category": "goal",
+        "priority": "required",
+        "question": "Why are you refining your style now, and what three words should your professional appearance communicate?",
+        "why_needed": "Sets the image target before translating visual observations into wardrobe choices.",
+        "answer_type": "free_text"
+      },
+      {
+        "id": "audience_1",
+        "category": "audience",
+        "priority": "required",
+        "question": "Who are your most important professional audiences, and what settings matter most (for example office, client meetings, presentations, networking, creative work, travel)?",
+        "why_needed": "Professional formality and credibility signals must fit the actual audience.",
+        "answer_type": "free_text"
+      },
+      {
+        "id": "lifestyle_1",
+        "category": "lifestyle",
+        "priority": "required",
+        "question": "What do you wear in a typical week, including required dress codes and how often you need business formal, business casual, smart casual, or casual clothing?",
+        "why_needed": "Determines the wardrobe mix and priority purchases.",
+        "answer_type": "free_text"
+      },
+      {
+        "id": "taste_1",
+        "category": "taste",
+        "priority": "important",
+        "question": "List two outfits you feel best in, two you avoid, and any saved style references; say what you like or dislike about each.",
+        "why_needed": "Reveals taste and avoids imposing a generic style direction.",
+        "answer_type": "free_text"
+      },
+      {
+        "id": "fit_1",
+        "category": "fit_preference",
+        "priority": "required",
+        "question": "What fit problems recur in shirts, jackets, trousers, and shoes, and do you prefer trim, regular, relaxed, or mixed ease?",
+        "why_needed": "Needed to distinguish desired ease from actual fit issues.",
+        "answer_type": "free_text"
+      },
+      {
+        "id": "comfort_1",
+        "category": "comfort",
+        "priority": "important",
+        "question": "Do you have fabric sensitivities, heat/cold concerns, mobility needs, or footwear comfort requirements?",
+        "why_needed": "Ensures recommendations are wearable in practice.",
+        "answer_type": "free_text"
+      },
+      {
+        "id": "budget_1",
+        "category": "budget",
+        "priority": "important",
+        "question": "What is your total starting budget and your approximate ceiling for a shirt, trousers, shoes, jacket, and suit?",
+        "why_needed": "Determines viable quality, tailoring, and shopping strategies.",
+        "answer_type": "free_text"
+      },
+      {
+        "id": "maintenance_1",
+        "category": "maintenance",
+        "priority": "important",
+        "question": "What is your tolerance for ironing, dry-cleaning, tailoring, and garment care?",
+        "why_needed": "Directs fabric and construction recommendations.",
+        "answer_type": "free_text"
+      }
+    ],
+    "missing_information": [
+      {
+        "field": "Full-body visual proportions and lower-body fit",
+        "priority": "important",
+        "reason_missing": "Requested face coverage was achieved, but the image is cropped at the upper chest.",
+        "impact_on_recommendations": "Prevents responsible advice on jacket length, trouser rise and shape, hem/break, footwear, and overall silhouette."
+      },
+      {
+        "field": "Controlled color information",
+        "priority": "important",
+        "reason_missing": "Only one near-neutral but uncalibrated portrait is supplied.",
+        "impact_on_recommendations": "Prevents confirmation of undertone, ideal color temperature, chroma, and seasonal palette."
+      },
+      {
+        "field": "Style goals, work context, and lifestyle",
+        "priority": "required",
+        "reason_missing": "No preferences, audience, dress codes, or weekly use cases were declared.",
+        "impact_on_recommendations": "Prevents recommendations from being tailored to practical professional needs."
+      },
+      {
+        "field": "Fit preferences and measurements",
+        "priority": "required",
+        "reason_missing": "No declared sizing, body measurements, or comfort preferences were supplied.",
+        "impact_on_recommendations": "Prevents specific garment sizing, cut, and tailoring guidance."
+      }
+    ],
+    "declared_context_used": {
+      "supplied": true,
+      "facts_used": [
+        "Requested coverage: face."
+      ],
+      "conflicts_or_ambiguities": []
+    },
+    "requested_measurements": [
+      {
+        "unit": "descriptive",
+        "reason": "Provides context for sizing and future wardrobe planning without inferring either from the image.",
+        "priority": "important",
+        "instruction": "State height, current weight if comfortable, and whether your size is stable, increasing, decreasing, or fluctuating.",
+        "measurement": "Height and recent weight trend (declared, not photo-estimated)"
+      },
+      {
+        "unit": "cm",
+        "reason": "Supports shirt-collar sizing.",
+        "priority": "important",
+        "instruction": "Measure around the base of the neck, comfortably snug.",
+        "measurement": "Neck circumference"
+      },
+      {
+        "unit": "cm",
+        "reason": "Supports shirt, knitwear, jacket, and outerwear sizing.",
+        "priority": "important",
+        "instruction": "Measure around the fullest chest point with arms relaxed.",
+        "measurement": "Chest circumference"
+      },
+      {
+        "unit": "cm",
+        "reason": "Needed for trouser rise and waist-fit recommendations once full-body styling begins.",
+        "priority": "important",
+        "instruction": "Measure at the navel; separately state whether you normally wear trousers low, mid, or high on the waist.",
+        "measurement": "Waist at navel and preferred trouser-waist position"
+      },
+      {
+        "unit": "descriptive",
+        "reason": "Needed for future trouser, jacket, and footwear recommendations.",
+        "priority": "important",
+        "instruction": "Provide cm measurements where available; state shoe size system and width if known.",
+        "measurement": "Seat/hips, thigh, inseam, sleeve length, shoe size, and shoe width"
+      },
+      {
+        "unit": "cm",
+        "reason": "Garment measurements often provide a more useful starting point than tag sizes.",
+        "priority": "optional",
+        "instruction": "Lay each garment flat and provide labeled measurements, noting brand, tagged size, and what fits well.",
+        "measurement": "Measurements of one best-fitting shirt, trouser, and jacket"
+      }
+    ],
+    "requested_additional_photos": [
+      {
+        "photo": "Controlled daylight color reference",
+        "purpose": "Improves confidence in recorded coloring and color-direction testing.",
+        "priority": "important",
+        "instructions": "Take one unfiltered front-facing photo near a north-facing window or in open shade, without strong colored surroundings; include the face, neck, and a plain white/grey reference if available."
+      },
+      {
+        "photo": "Full-body front, side, and back fit photos",
+        "purpose": "Enables responsible assessment of visual proportions, posture, silhouette, and trouser/jacket fit.",
+        "priority": "important",
+        "instructions": "Use a level camera at mid-torso height, step back to avoid wide-angle distortion, wear a fitted T-shirt or shirt and well-fitting trousers, keep a natural stance, and include footwear."
+      },
+      {
+        "photo": "Professional outfit photos",
+        "purpose": "Identifies practical fit issues and builds recommendations around the real wardrobe.",
+        "priority": "important",
+        "instructions": "Provide front and side views of 1–3 outfits you actually wear for work, ideally including jacket or overshirt, trousers, and shoes where relevant."
+      },
+      {
+        "photo": "Hair and facial-hair side/profile views",
+        "purpose": "Refines haircut shape and beard-line recommendations.",
+        "priority": "optional",
+        "instructions": "Take relaxed left and right three-quarter or side views in the same neutral light, with hair styled as usual."
+      }
+    ],
+    "preliminary_styling_implications": [
+      {
+        "area": "hair",
+        "based_on": [
+          "Face length-to-width appears moderately long.",
+          "Current haircut has short sides with a textured, swept-back top."
+        ],
+        "guidance": "The current short tapered sides and textured, swept-back top are a coherent baseline; retain some controlled height and texture rather than making the top completely flat.",
+        "direction": "prefer",
+        "rationale": "The visible face reads moderately longer than wide, and the present cut already has balanced, compact side proportions.",
+        "confidence": 0.61,
+        "provisional": true
+      },
+      {
+        "area": "facial_hair",
+        "based_on": [
+          "Visible short stubble beard and moustache.",
+          "Jaw contour is partly masked by facial hair."
+        ],
+        "guidance": "For a sharper professional presentation, test maintaining the present short stubble with deliberately clean cheek and neckline boundaries; compare this with a slightly shorter, more even stubble length.",
+        "direction": "explore",
+        "rationale": "Facial hair currently creates a cohesive, understated lower-face frame, though it softens exact jaw definition.",
+        "confidence": 0.64,
+        "provisional": true
+      },
+      {
+        "area": "eyewear",
+        "based_on": [
+          "Preliminary oval-oblong face appearance.",
+          "No eyewear is visible."
+        ],
+        "guidance": "If eyewear is relevant, test medium-width frames with softly angular or gently squared geometry in person; assess against a straight-on and three-quarter photo before choosing.",
+        "direction": "verify_first",
+        "rationale": "The face appears oval-oblong with a mild rectangular influence, but eyewear fit depends on bridge width, temple fit, prescription needs, and personal preference.",
+        "confidence": 0.42,
+        "provisional": true
+      },
+      {
+        "area": "color",
+        "based_on": [
+          "Dark brown hair.",
+          "Medium apparent facial contrast.",
+          "Undertone remains indeterminate."
+        ],
+        "guidance": "Use the current black as a comparison rather than assuming it is optimal. Test deep navy, charcoal, espresso, olive, and muted blue-green or burgundy near the face in controlled daylight.",
+        "direction": "verify_first",
+        "rationale": "Dark hair and medium apparent contrast may support deeper colors, while the warm-versus-cool skin direction is not yet established.",
+        "confidence": 0.41,
+        "provisional": true
+      },
+      {
+        "area": "tops",
+        "based_on": [
+          "Visible black crew-neck T-shirt.",
+          "Neck and torso are only partly visible."
+        ],
+        "guidance": "For professional casual use, compare a refined crew neck with a modest open collar, polo, or soft-collared shirt; choose after neck, shoulder, torso, and desired-image information are available.",
+        "direction": "explore",
+        "rationale": "The current crew neck reads clean and casual, but the crop cannot establish which neckline best supports the full proportions or professional context.",
+        "confidence": 0.39,
+        "provisional": true
+      }
+    ]
+  },
+  "user_review": {
+    "notes": [],
+    "corrections": [
+      {
+        "path": "visible_profile.color.visible_skin_surface_tone",
+        "previous_value": "Recorded skin surface appears light-to-medium in depth under neutral-looking lighting.",
+        "corrected_value": "Medium"
+      },
+      {
+        "path": "visible_profile.color.undertone_hypothesis",
+        "previous_value": "Undertone is indeterminate; it may read neutral to slightly warm in this image.",
+        "corrected_value": "Neutral"
+      },
+      {
+        "path": "visible_profile.color.facial_contrast",
+        "previous_value": "medium apparent facial contrast",
+        "corrected_value": "Medium"
+      },
+      {
+        "path": "visible_profile.color.eye_color",
+        "previous_value": "dark brown appearance",
+        "corrected_value": "Hazel"
+      },
+      {
+        "path": "visible_profile.color.hair_color",
+        "previous_value": "dark brown",
+        "corrected_value": "Light brown"
+      },
+      {
+        "path": "visible_profile.face.primary_shape",
+        "previous_value": "oval-oblong appearance",
+        "corrected_value": "Oblong"
+      },
+      {
+        "path": "visible_profile.hair_and_grooming.hair_length",
+        "previous_value": "short on the sides with a longer top",
+        "corrected_value": "Short"
+      },
+      {
+        "path": "visible_profile.hair_and_grooming.facial_hair_style",
+        "previous_value": "short, even stubble beard and moustache",
+        "corrected_value": "Stubble"
+      }
+    ],
+    "submitted_at": "2026-09-02T14:42:55.927Z",
+    "confirmed_body": {
+      "height_cm": 180,
+      "weight_kg": 82,
+      "body_type": "average",
+      "muscularity": "moderate",
+      "body_shape": "inverted_triangle",
+      "bust_fullness": null,
+      "leg_line": "even"
+    },
+    "rejected_paths": [],
+    "confirmed_paths": []
+  },
+  "questionnaire_answers": {
+    "identity": {
+      "gender_presentation": "menswear",
+      "age_years": 25,
+      "age_range": "25-34",
+      "style_era": "23_29",
+      "style_era_label": "23–29 · First-paycheck era"
+    },
+    "lifestyle": {
+      "week_is": "working_home,own_thing",
+      "week_is_label": "working_home,own_thing",
+      "weekends_are": "friends,nightlife,travel",
+      "weekends_are_label": "Out with friends, Nightlife, Traveling",
+      "kids": "none",
+      "kids_label": "No kids",
+      "lifestyle_tags": [
+        "deep_in_career",
+        "running_the_show"
+      ]
+    },
+    "climate": "four_seasons",
+    "climate_label": "Four seasons",
+    "location": {
+      "city": "New York",
+      "country": "United States"
+    },
+    "budget": {
+      "currency": "USD",
+      "philosophy": "best_value,premium",
+      "philosophy_label": "best_value,premium"
+    },
+    "taste": {
+      "style_era": "23_29",
+      "style_era_label": "23–29 · First-paycheck era",
+      "honesty": "3",
+      "honesty_label": "Give it to me straight",
+      "honest_corner": {
+        "friction": "i d like to stay within the same style but look a bit more unique",
+        "become": "know the exact colors i need, and how to layer things"
+      },
+      "style_mix": {
+        "axes": [
+          {
+            "label": "Minimal",
+            "percent": 40
+          },
+          {
+            "label": "Boho",
+            "percent": 40
+          },
+          {
+            "label": "Sporty",
+            "percent": 20
+          }
+        ],
+        "headingToward": "Know the exact colors i need, and how to",
+        "headingPercent": 25
+      }
+    }
+  },
+  "measurements": {
+    "body": {
+      "height_cm": 180,
+      "weight_kg": 82,
+      "body_type": "average",
+      "muscularity": "moderate",
+      "body_shape": "inverted_triangle",
+      "leg_line": "even"
+    },
+    "sensitivities": [
+      "no skinny jeans"
+    ],
+    "confirmation_source": "user_scan_review"
+  },
+  "wardrobe_inventory": {
+    "worn": [
+      "boho",
+      "clean",
+      "coastal",
+      "effortless",
+      "effortless minimal",
+      "effortless_minimal",
+      "holiday",
+      "hoodie",
+      "joggers",
+      "linen",
+      "minimal",
+      "neutral",
+      "quiet",
+      "resort",
+      "resort and holiday",
+      "resort_holiday",
+      "sneakers",
+      "sporty"
+    ],
+    "honest_corner": {
+      "friction": "i d like to stay within the same style but look a bit more unique",
+      "become": "know the exact colors i need, and how to layer things"
+    },
+    "brands_like": [
+      "Gymshark",
+      "Adidas",
+      "Nike",
+      "Carhartt WIP"
+    ],
+    "brands_avoid": [
+      "Farfetch",
+      "Bottega Veneta",
+      "Quince",
+      "neon"
+    ],
+    "brands": [
+      {
+        "brand": "Gymshark",
+        "sentiment": "love"
+      },
+      {
+        "brand": "Adidas",
+        "sentiment": "love"
+      },
+      {
+        "brand": "Nike",
+        "sentiment": "love"
+      },
+      {
+        "brand": "Carhartt WIP",
+        "sentiment": "love"
+      },
+      {
+        "brand": "Farfetch",
+        "sentiment": "avoid"
+      },
+      {
+        "brand": "Bottega Veneta",
+        "sentiment": "avoid"
+      },
+      {
+        "brand": "Quince",
+        "sentiment": "avoid"
+      }
+    ],
+    "style_vetoes": [
+      {
+        "value": "neon",
+        "reason": "taste"
+      }
+    ],
+    "comfort": [
+      {
+        "value": "no skinny jeans",
+        "note": "comfort",
+        "reason": "other"
+      }
+    ],
+    "style_mix": {
+      "axes": [
+        {
+          "label": "Minimal",
+          "percent": 40
+        },
+        {
+          "label": "Boho",
+          "percent": 40
+        },
+        {
+          "label": "Sporty",
+          "percent": 20
+        }
+      ],
+      "headingToward": "Know the exact colors i need, and how to",
+      "headingPercent": 25
+    }
+  },
+  "application_context": {
+    "market": "United States",
+    "city": "New York",
+    "preferred_size_systems": [
+      "cm"
+    ],
+    "honesty": "3"
+  }
+}

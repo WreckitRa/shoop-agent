@@ -24,8 +24,10 @@ export function CookieBanner() {
   if (!prefs || prefs.decidedAt) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] p-4">
-      <div className="pointer-events-auto mx-auto max-w-[640px] rounded-[20px] border border-[var(--fitting-line)] bg-white p-4 shadow-[0_18px_40px_-18px_rgba(14,14,17,0.45)]">
+    <div className="shoop-sheet-root" role="dialog" aria-label="Cookie choices">
+      <div className="shoop-sheet-dim" aria-hidden />
+      <div className="shoop-sheet">
+        <div className="shoop-sheet__grab" aria-hidden />
         <p className="text-[13px] leading-[1.5] text-[#3A3A44]">
           We use essential cookies to keep you signed in and remember this
           choice. No advertising cookies. Read the{" "}

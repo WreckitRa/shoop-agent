@@ -15,7 +15,7 @@ type Props = {
 
 /**
  * Home find UI — left column (desktop Mirror lives in ChatLayout).
- * Mobile uses the tab bar for Mirror / Board instead of a stacked card.
+ * Mobile chrome (peek + tabs) lives in AppShell.
  */
 export function EmptyChatState({ onPreview, compact }: Props) {
   const greetLine = useChatGreeting();
@@ -24,11 +24,11 @@ export function EmptyChatState({ onPreview, compact }: Props) {
     <div
       className={cn(
         "flex min-h-full flex-col",
-        compact ? "shoop-onboard-home" : "py-6 lg:py-7",
+        compact ? "shoop-onboard-home" : "py-5 lg:py-7",
       )}
     >
       <div className={cn("flex min-w-0 flex-col", !compact && "lg:pt-1")}>
-        <p className="shoop-hero-eyebrow">{greetLine}</p>
+        <p className="shoop-hero-eyebrow hidden lg:block">{greetLine}</p>
         <h1 className={cn("shoop-greeting-h1", compact ? "mt-1" : "mt-1.5")}>
           What are we
           <br />
@@ -46,8 +46,9 @@ export function EmptyChatState({ onPreview, compact }: Props) {
 
         <ChatComposer homeVariant="hero" />
 
+        <p className="shoop-find-lab">Try these</p>
         <div className={compact ? "mt-2.5" : "mt-3.5"}>
-          <HomeQuickActions />
+          <HomeQuickActions className="shoop-week" />
         </div>
 
         {compact ? null : <HomeTodayOnYou onPreview={onPreview} />}

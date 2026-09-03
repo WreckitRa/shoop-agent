@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildReadingView,
+  cardVoiceIssues,
+  countEvidenceClauses,
   readingMix,
   readingPalette,
   readingSteps,
@@ -271,6 +273,205 @@ describe("verdict-reading", () => {
     assert.equal(mix[0]?.label, "Minimal");
   });
 
+  it("puts needs/test/risk strings in the check bucket, never under dont", () => {
+    const view = buildReadingView({
+      verdict: stubVerdict({
+        size_and_fit: {
+          sizing_confidence: 0.4,
+          universal_size_warning: "Labels vary.",
+          verified_measurements: [],
+          known_good_garments: [],
+          preferred_ease: [],
+          starting_sizes: [],
+          alteration_priorities: [],
+          recurring_fit_risks: ["Cling through the mid"],
+          product_size_selection_protocol: ["Start true to size on tops"],
+          measurements_still_needed: ["Chest", "neck", "natural waist"],
+        },
+      }),
+    });
+    const fit = view.areas.find((a) => a.id === "fit");
+    assert.ok(fit);
+    const dontTitles = fit!.recs.filter((r) => r.kind === "dont").map((r) => r.title);
+    const shown = [
+      ...fit!.recs.filter((r) => r.kind === "check").map((r) => r.title),
+      ...fit!.metrics.map((m) => m.value),
+    ];
+    for (const s of ["Chest", "neck", "natural waist", "Cling through the mid"]) {
+      assert.equal(dontTitles.some((t) => t.includes(s)), false, s);
+      assert.ok(shown.some((t) => t.includes(s)), s);
+    }
+    const proportion = view.areas.find((a) => a.id === "proportion");
+    assert.ok(proportion?.recs.some((r) => r.kind === "check" && /low rise/i.test(r.title)));
+    assert.equal(
+      proportion?.recs.some((r) => r.kind === "dont" && /low rise/i.test(r.title)),
+      false,
+    );
+  });
+
+  it("dedupes a repeated string inside one area; insight drops when it matches the subtitle", () => {
+    const view = buildReadingView({
+      verdict: stubVerdict({
+        proportion_and_silhouette: {
+          strategy_summary: "Defined waist",
+          preferred_overall_silhouette: ["Defined waist"],
+          structure_level: "Soft structure",
+          preferred_visual_lines: [],
+          length_strategy: [],
+          volume_distribution: [],
+          proportion_priorities: ["Defined waist"],
+          posture_or_mobility_considerations: [],
+          test_in_fitting: [],
+          based_on: [],
+        },
+      }),
+    });
+    const area = view.areas.find((a) => a.id === "proportion");
+    assert.ok(area);
+    const keys = [
+      ...area!.metrics.map((m) => m.value),
+      ...area!.recs.map((r) => r.title),
+      area!.insight,
+    ]
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    assert.equal(keys.filter((k) => k === "defined waist").length, 1);
+    assert.equal(area!.insight, "");
+  });
+
+  it("names every swatch and writes a palette line", () => {
+    const view = buildReadingView({ verdict: stubVerdict() });
+    assert.ok(view.palette.every((s) => s.name.trim().length > 0));
+    assert.ok(view.avoid.every((s) => s.name.trim().length > 0 && s.use.trim().length > 0));
+    assert.match(view.paletteLine, /near your face/i);
+    assert.match(view.paletteLine, /skip/i);
+  });
+
+  it("badges FIX FIRST when there is a genuine avoid, CHECK when checks dominate", () => {
+    const view = buildReadingView({ verdict: stubVerdict() });
+    const colour = view.areas.find((a) => a.id === "colour");
+    assert.equal(colour?.verdict, "n");
+    assert.equal(colour?.vlab, "FIX FIRST");
+    const fitOnlyCheck = buildReadingView({
+      verdict: stubVerdict({
+        size_and_fit: {
+          sizing_confidence: 0.4,
+          universal_size_warning: "",
+          verified_measurements: [],
+          known_good_garments: [],
+          preferred_ease: [],
+          starting_sizes: [],
+          alteration_priorities: [],
+          recurring_fit_risks: ["Sleeve length"],
+          product_size_selection_protocol: [],
+          measurements_still_needed: ["Chest"],
+        },
+      }),
+    });
+    const fit = fitOnlyCheck.areas.find((a) => a.id === "fit");
+    assert.equal(fit?.verdict, "c");
+    assert.equal(fit?.vlab, "CHECK");
+  });
+
+  it("holds exactly three rules: two dos and one dont", () => {
+    const view = buildReadingView({ verdict: stubVerdict() });
+    assert.equal(view.rules.length, 3);
+    assert.equal(view.rules.filter((r) => r.ok).length, 2);
+    assert.equal(view.rules.filter((r) => !r.ok).length, 1);
+  });
+
+  it("strips a trailing period from the headline", () => {
+    const view = buildReadingView({
+      verdict: stubVerdict({
+        executive_verdict: {
+          headline: "Warm and structured.",
+          profile_summary: "You read warm and mid-depth.",
+          signature_style_statement: "",
+          desired_impression: [],
+          strongest_assets: [],
+          biggest_opportunities: [],
+          non_negotiables: [],
+          top_priorities: [],
+        },
+      }),
+    });
+    assert.equal(view.headline, "Warm and structured");
+  });
+
+  it("asserts opening caps and two evidence clauses on a voice fixture", () => {
+    const opening =
+      "You already have the tees. What's costing you is the black on top. Because you told me you live in worn knits and because you said no heels, we keep colour near the face — and your vetoes stay locked.";
+    const view = buildReadingView({
+      verdict: stubVerdict({
+        user_facing_verdict: {
+          title: "Your reading",
+          opening,
+          golden_rules: ["Tuck your tops in", "Warm colour near the face"],
+          mistakes_to_avoid: ["Not black on top"],
+          first_five_actions: [
+            "One overshirt changes it",
+            "Tuck and go high-waist",
+            "Add a soft jacket",
+          ],
+          confidence_note: "",
+          review_trigger: "",
+        },
+      }),
+    });
+    assert.ok(view.opening.split(/\s+/).length <= 55);
+    assert.ok(countEvidenceClauses(view.opening) >= 2);
+    assert.equal(
+      cardVoiceIssues(view).filter((i) => i === "opening_evidence" || i.startsWith("opening_")).length,
+      0,
+    );
+    assert.equal(view.steps[0]!.name, "One overshirt changes it");
+  });
+
+  it("does not clip opening, rules, or from lines", () => {
+    const opening = Array.from({ length: 62 }, (_, i) => `word${i}`).join(" ");
+    const longDo =
+      "Tuck every top that can be tucked so the waist actually shows on you";
+    const longDont =
+      "Do not park black at the neck unless the knit is warm and mid-depth";
+    const view = buildReadingView({
+      verdict: stubVerdict({
+        user_facing_verdict: {
+          title: "Your reading",
+          opening,
+          golden_rules: [longDo, "Warm colour near the face"],
+          mistakes_to_avoid: [longDont],
+          first_five_actions: [
+            "One overshirt changes it",
+            "Tuck and go high-waist",
+            "Add a soft jacket",
+          ],
+          confidence_note: "",
+          review_trigger: "",
+        },
+        style_identity: {
+          primary_direction: "Quiet and simple",
+          secondary_direction: "One bold thing",
+          style_descriptors: ["clean"],
+          style_axes: [],
+          signature_elements: ["soft jackets"],
+          reference_patterns: [],
+          aesthetic_boundaries: ["Not logo-heavy"],
+          evolution_strategy: "Push one step toward polish.",
+          based_on: [
+            "identity: menswear, age 25, first-paycheck life-stage context",
+          ],
+        },
+      }),
+    });
+    assert.equal(view.opening, opening);
+    assert.equal(view.rules[0]?.text, longDo);
+    assert.equal(view.rules[2]?.text, longDont);
+    assert.equal(
+      view.from[0],
+      "identity: menswear, age 25, first-paycheck life-stage context",
+    );
+  });
+
   it("readingMix falls back to worn / steal / lean", () => {
     const mix = readingMix(null, {
       wornLabels: ["Jeans"],
@@ -282,5 +483,29 @@ describe("verdict-reading", () => {
       mix.reduce((s, a) => s + a.percent, 0),
       100,
     );
+  });
+
+  it("copies style_identity.based_on onto from", () => {
+    const view = buildReadingView({
+      verdict: stubVerdict({
+        style_identity: {
+          primary_direction: "Quiet and simple",
+          secondary_direction: "One bold thing",
+          style_descriptors: ["clean"],
+          style_axes: [],
+          signature_elements: ["soft jackets"],
+          reference_patterns: [],
+          aesthetic_boundaries: ["Not logo-heavy"],
+          evolution_strategy: "Push one step toward polish.",
+          based_on: [
+            "identity: menswear, age 25, first-paycheck life-stage context",
+            "lifestyle: working mixed weeks",
+          ],
+        },
+      }),
+    });
+    assert.equal(view.from.length, 2);
+    assert.match(view.from[0] ?? "", /identity:/);
+    assert.ok(!cardVoiceIssues(view).includes("internal_vocab"));
   });
 });

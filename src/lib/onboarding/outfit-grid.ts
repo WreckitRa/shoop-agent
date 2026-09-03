@@ -13,8 +13,10 @@ export {
   buildOutfitGridDeck,
   countInhouseCoverage,
   genderBucketFromPresentation,
+  lookVariantGroup,
   scoreLookForContext,
   selectInhouseDeck,
+  uniqueOutfitCards,
 } from "./outfit-grid-inhouse";
 
 export type {

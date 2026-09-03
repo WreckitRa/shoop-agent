@@ -18,7 +18,22 @@ describe("guest session tokens", () => {
       assert.equal(parseGuestSessionId(UUID), UUID);
       assert.equal(parseGuestSessionId("not-a-uuid"), null);
       assert.equal(isValidGuestSessionToken(UUID), true);
-      assert.equal(guestUserIdFromSessionId(UUID).startsWith("guest-"), true);
+      assert.equal(guestUserIdFromSessionId(UUID), `guest-${UUID}`);
+    } finally {
+      if (prev) process.env.GUEST_SESSION_HMAC_SECRET = prev;
+      else delete process.env.GUEST_SESSION_HMAC_SECRET;
+    }
+  });
+
+  it("maps a signed token and a parsed uuid to the same guest user id", () => {
+    const prev = process.env.GUEST_SESSION_HMAC_SECRET;
+    process.env.GUEST_SESSION_HMAC_SECRET = "unit-test-guest-secret";
+    try {
+      const token = signGuestSessionId(UUID);
+      const expected = `guest-${UUID}`;
+      assert.equal(guestUserIdFromSessionId(token), expected);
+      assert.equal(guestUserIdFromSessionId(UUID), expected);
+      assert.equal(guestUserIdFromSessionId(expected), expected);
     } finally {
       if (prev) process.env.GUEST_SESSION_HMAC_SECRET = prev;
       else delete process.env.GUEST_SESSION_HMAC_SECRET;

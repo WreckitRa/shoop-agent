@@ -108,12 +108,12 @@ export const useInlineFittingStore = create<InlineFittingState>((set, get) => ({
     });
   },
   requestDismiss: () => {
-    const { columnOpen, onboardingActive } = get();
+    const { columnOpen, stageLocked } = get();
     if (
       guestNeedsOnboardingLeaveWarning({
         accessMode: useAppSessionStore.getState().mode,
         columnOpen,
-        onboardingActive,
+        stageLocked,
       })
     ) {
       set({ pendingLeave: true });

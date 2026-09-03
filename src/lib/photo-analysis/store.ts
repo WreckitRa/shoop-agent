@@ -14,6 +14,7 @@ import {
   type PhotoAnalysisPublic,
 } from "./types";
 import { parseStylistVerdict, VERDICT_STALE_MS, type StylistVerdict } from "./verdict";
+import type { PhotoUsageTokens } from "./openai";
 
 /**
  * PhotoAnalysis is queried via SQL, not the Prisma delegate.
@@ -32,6 +33,7 @@ export type PhotoAnalysisRow = {
   verdictError: string | null;
   verdictMs: number | null;
   verdictModel: string | null;
+  verdictTokens: unknown;
   error: string | null;
   ms: number | null;
   model: string | null;
@@ -69,6 +71,7 @@ function mapRow(raw: Record<string, unknown>): PhotoAnalysisRow {
     verdictError: raw.verdictError == null ? null : String(raw.verdictError),
     verdictMs: asInt(raw.verdictMs),
     verdictModel: raw.verdictModel == null ? null : String(raw.verdictModel),
+    verdictTokens: raw.verdictTokens ?? null,
     error: raw.error == null ? null : String(raw.error),
     ms: asInt(raw.ms),
     model: raw.model == null ? null : String(raw.model),
@@ -149,6 +152,7 @@ export async function upsertRunning(userId: string, photoHash: string) {
       "verdictError" = NULL,
       "verdictMs" = NULL,
       "verdictModel" = NULL,
+      "verdictTokens" = NULL,
       error = NULL,
       ms = NULL,
       model = NULL,
@@ -162,6 +166,26 @@ export async function upsertRunning(userId: string, photoHash: string) {
   const row = rows[0];
   if (!row) throw new Error("PhotoAnalysis upsert returned no row.");
   return row;
+}
+
+/** Preflight + analysis hang-safety (170s) plus a short after() buffer. */
+const ANALYSIS_STALE_MS = 190_000;
+
+/** If after() died mid-analysis, surface a timeout instead of polling forever. */
+export async function expireStaleRunningAnalysis(
+  row: PhotoAnalysisRow,
+): Promise<PhotoAnalysisRow> {
+  if (row.status !== "running") return row;
+  const age = Date.now() - row.updatedAt.getTime();
+  if (age < ANALYSIS_STALE_MS) return row;
+  await saveError(row.id, PHOTO_ERROR.timeout, age, row.model);
+  return {
+    ...row,
+    status: "done",
+    error: PHOTO_ERROR.timeout,
+    ms: age,
+    updatedAt: new Date(),
+  };
 }
 
 /** If after() died mid-verdict, surface a timeout instead of polling forever. */
@@ -225,6 +249,10 @@ export async function saveReview(id: string, review: StyleUserReview) {
         WHEN "verdictStatus" = 'running' THEN "verdictModel"
         ELSE NULL
       END,
+      "verdictTokens" = CASE
+        WHEN "verdictStatus" = 'running' THEN "verdictTokens"
+        ELSE NULL
+      END,
       "updatedAt" = NOW()
     WHERE id = ${id}
   `;
@@ -245,6 +273,7 @@ export async function saveVerdict(
   verdict: StylistVerdict,
   ms: number,
   model: string,
+  tokens?: PhotoUsageTokens | null,
 ) {
   await prisma.$executeRaw`
     UPDATE "PhotoAnalysis" SET
@@ -253,6 +282,7 @@ export async function saveVerdict(
       "verdictError" = NULL,
       "verdictMs" = ${ms},
       "verdictModel" = ${model},
+      "verdictTokens" = ${jsonSql(tokens ?? null)},
       "updatedAt" = NOW()
     WHERE id = ${id}
   `;
@@ -272,6 +302,7 @@ export async function saveVerdictError(
       "verdictError" = ${error},
       "verdictMs" = ${ms},
       "verdictModel" = ${model},
+      "verdictTokens" = NULL,
       "updatedAt" = NOW()
     WHERE id = ${id}
   `;

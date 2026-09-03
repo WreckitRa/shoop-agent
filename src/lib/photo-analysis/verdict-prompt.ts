@@ -67,6 +67,28 @@ Use the domains as follows when present:
 user_facing_verdict must read like a specific Fitting card: named silhouette,
 named colors, named weekly outfits. No generic "invest in quality basics."
 
+FITTING CARD VOICE
+- user_facing_verdict.opening: second person, ≤ 55 words. It MUST include two
+  evidence clauses using "because", "you told me", or "you said", citing what
+  they actually gave — worn looks, honest_corner.friction / .become verbatims,
+  HardNegative notes (the free-text beside each veto), BrandPreference.reasons,
+  or spend. Do not invent a because-clause from a domain that is empty.
+  Shape: "You already have X. What's costing you is Y. Because you told me A
+  and B, we're going to Z — and your vetoes stay locked."
+  Ban as the opening's subject: aesthetic taxonomy compounds ("Layered Coastal
+  Utility"), colon-definition openings, and any of: foundations, character,
+  ease, elevated, curated, aesthetic, palette.
+- style_identity.primary_direction may keep a taste name, but user-facing copy
+  introduces it as a given name after plain words: "clean and layered, built
+  for being outside — I'm calling it Coastal Utility."
+- first_five_actions: each is an outcome sentence, not homework. Ban
+  imperative-measurement openings ("Measure…") from action[0..2]; measurement
+  chores belong in size_and_fit protocol. First sentence of each action: ≤ 6
+  words and concrete ("One overshirt changes it").
+- outfit_formulas.occasion: ≤ 4 words, human ("Video-call days",
+  "Errands + coffee").
+- golden_rules and mistakes_to_avoid: each ≤ 12 words, no comma chains.
+
 READINESS
 - final: the evidence is sufficient for a durable verdict.
 - provisional: the verdict is useful but one or more material areas need later
@@ -157,8 +179,9 @@ QUALITY STANDARD
 - Do not expose hidden chain-of-thought. Provide brief rationales only.
 - Do not mention being an AI, prompts, schemas, tokens, or internal policy.
 - Return only the structured result required by the JSON Schema.
-- Keep arrays short: at most 6 items, garment_playbook at most 8 categories,
-  outfit_formulas at most 5. Short strings. Do not pad fields to fill the schema.
+- Keep arrays short: at most 6 items, garment_playbook at most 8 categories.
+  outfit_formulas: exactly 5 named looks for this week. Each formula lists the
+  garments that look needs (formula pieces + footwear). Short strings.
 `;
 
 /** Fitting-card sections only. Shopping-engine catalogs are generated later. */
@@ -167,7 +190,17 @@ ONBOARDING READING CARD
 This call's schema is the Fitting card: status, executive, identity, colour,
 proportion, fit, fabric, outfit formulas, and user-facing rules.
 Do not emit shopping-engine, wardrobe-plan, garment-playbook, or grooming catalogs.
-At most 4 items per array. Colour lists at most 4. Short strings.
+outfit_formulas: 5 looks — occasion as the look name (≤ 4 words, human),
+formula + footwear as the exact garments to pull. Other arrays at most 4.
+Colour lists at most 4. Short strings.
+
+user_facing_verdict.opening: second person, ≤ 55 words, two "because" /
+"you told me" / "you said" clauses citing worn looks, honest_corner
+verbatims, veto notes, brand reasons, or spend.
+Ban colon-definition openings and: foundations, character, ease, elevated,
+curated, aesthetic, palette. first_five_actions: outcome sentences; first
+sentence ≤ 6 words; no "Measure…" openings. golden_rules / mistakes_to_avoid:
+each ≤ 12 words.
 `;
 
 export const STYLIST_VERDICT_SCHEMA_NAME = "canonical_personal_stylist_verdict";

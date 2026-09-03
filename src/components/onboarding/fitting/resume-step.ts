@@ -58,8 +58,8 @@ export function firstIncompleteFittingStep(
   if (status.onboarding.completed) return "photo";
   if (!status.onboarding.started) return "consent";
   const profile = status.profile;
+  if (!hasYou(profile)) return "photo";
   if (!status.sizing?.heightCm && !status.sizing?.bodyType) return "fit";
-  if (!hasYou(profile)) return "name";
   if (!hasLife(profile)) return "life";
   if (!profile?.valuePhilosophy?.trim()) return "spend";
   if (!hasCategory(status.tasteTags, "worn")) return "worn";

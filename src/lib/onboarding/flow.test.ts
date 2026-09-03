@@ -118,7 +118,7 @@ describe("onboarding flow resume after each save", () => {
     const afterFit = status({
       sizing: { heightCm: 170, bodyType: "average" },
     });
-    assert.equal(firstIncompleteFittingStep(afterFit), "name");
+    assert.equal(firstIncompleteFittingStep(afterFit), "photo");
 
     const afterName = status({
       profile: you,
@@ -451,8 +451,8 @@ describe("back and forth through Fitting", () => {
     assert.deepEqual(seen.slice().reverse(), [
       "consent",
       "photo",
-      "fit",
       "name",
+      "fit",
       "life",
       "spend",
       "worn",

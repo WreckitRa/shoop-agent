@@ -20,7 +20,10 @@ import type {
 } from "@/lib/tryon/types";
 import type { BuildKey } from "./types";
 import type { PhotoCoverage } from "@/lib/photo-analysis/result";
-import { resolveVisualDefinition } from "./bodySilhouetteGeometry";
+import {
+  DEFAULT_SILHOUETTE_HEIGHT_CM,
+  resolveVisualDefinition,
+} from "./bodySilhouetteGeometry";
 
 export type LegLineBand = "long_torso" | "even" | "long_leg";
 
@@ -46,14 +49,17 @@ export type FittingPhotoValues = {
 };
 
 /** Convert the fit-step fields. Blank until they type a height — never a default. */
-export function heightCmFromPhotoValues(
-  v: FittingPhotoValues,
-): number | null {
+export function heightCmFromPhotoValues(v: FittingPhotoValues): number | null {
   if (v.heightUnit === "cm") {
     return v.heightCm != null && v.heightCm > 0 ? v.heightCm : null;
   }
   if (v.heightFt == null) return null;
   return Math.round((v.heightFt * 12 + (v.heightIn ?? 0)) * 2.54);
+}
+
+/** Twin mint only — never persist this as a declared measurement. */
+export function heightCmForTwinMint(v: FittingPhotoValues): number {
+  return heightCmFromPhotoValues(v) ?? DEFAULT_SILHOUETTE_HEIGHT_CM;
 }
 
 type Props = {
@@ -181,8 +187,7 @@ function NumBox({
   placeholder?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const display =
-    draft !== null ? draft : value == null ? "" : String(value);
+  const display = draft !== null ? draft : value == null ? "" : String(value);
 
   function commitClamp(n: number | null) {
     if (n == null) {
@@ -290,7 +295,10 @@ export function FittingPhotoStep({
     if (next === values.heightUnit) return;
     if (next === "cm") {
       const cm = heightCmFromPhotoValues({ ...values, heightUnit: "ft" });
-      onChange("heightCm", cm == null ? null : Math.min(210, Math.max(140, cm)));
+      onChange(
+        "heightCm",
+        cm == null ? null : Math.min(210, Math.max(140, cm)),
+      );
     } else if (values.heightCm != null) {
       const totalIn = values.heightCm / 2.54;
       const ft = Math.floor(totalIn / 12);
@@ -308,13 +316,8 @@ export function FittingPhotoStep({
     if (next === values.weightUnit) return;
     if (values.weightValue != null) {
       const converted =
-        next === "kg"
-          ? lbToKg(values.weightValue)
-          : kgToLb(values.weightValue);
-      onChange(
-        "weightValue",
-        Math.min(250, Math.max(35, converted)),
-      );
+        next === "kg" ? lbToKg(values.weightValue) : kgToLb(values.weightValue);
+      onChange("weightValue", Math.min(250, Math.max(35, converted)));
     }
     onChange("weightUnit", next);
   }
@@ -337,10 +340,7 @@ export function FittingPhotoStep({
                 { text: "The photo doesn't" },
                 { text: "round %%down.%%", red: true },
               ]
-            : [
-                { text: "A few" },
-                { text: "%%numbers.%%", red: true },
-              ]
+            : [{ text: "A few" }, { text: "%%numbers.%%", red: true }]
         }
       />
       {scan ? (
@@ -361,18 +361,15 @@ export function FittingPhotoStep({
       )}
 
       {scan ? twinSlot : null}
+      {scan && twinSlot && !values.photoPreview ? (
+        <p className="mt-3 text-center text-[12px] text-[var(--fitting-quiet)] lg:hidden">
+          Tap to take it · or choose from your camera roll
+        </p>
+      ) : null}
 
       {scan ? (
         <>
-          {!values.photoPreview ? (
-            <button
-              type="button"
-              onClick={onSkipPhoto}
-              className="mt-1 border-0 border-b border-[var(--fitting-line)] bg-transparent pb-0.5 text-[12.5px] font-semibold text-[var(--fitting-quiet)]"
-            >
-              skip... you can add it at the Mirror
-            </button>
-          ) : (
+          {values.photoPreview ? (
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -392,7 +389,7 @@ export function FittingPhotoStep({
                 }}
               />
             </div>
-          )}
+          ) : null}
 
           <OnboardingWhy>
             Face the light, just you, no heavy filters.{" "}
@@ -401,226 +398,217 @@ export function FittingPhotoStep({
             </b>
             ... delete anytime.
           </OnboardingWhy>
+
+          {!values.photoPreview ? (
+            <button
+              type="button"
+              onClick={onSkipPhoto}
+              className="mx-auto mt-5 block border-0 bg-transparent p-0 text-center text-[12px] font-semibold text-[var(--fitting-quiet)] hover:text-[var(--fitting-ink)] lg:mx-0 lg:text-left lg:text-[11px] lg:font-medium lg:tracking-[0.01em] lg:text-[#D0D0D6] lg:hover:text-[var(--fitting-quiet)]"
+            >
+              skip for now
+            </button>
+          ) : null}
         </>
       ) : null}
 
       {scan ? null : (
         <>
-      <FittingQlbl>How tall are you?</FittingQlbl>
-      <div className="flex flex-wrap items-center gap-3">
-        {values.heightUnit === "ft" ? (
-          <div className="flex flex-wrap gap-2.5">
-            <NumBox
-              unit="ft"
-              value={values.heightFt}
-              min={4}
-              max={7}
-              minDigits={1}
-              onChange={(n) => onChange("heightFt", n)}
+          <FittingQlbl>How tall are you?</FittingQlbl>
+          <div className="flex flex-wrap items-center gap-3">
+            {values.heightUnit === "ft" ? (
+              <div className="flex flex-wrap gap-2.5">
+                <NumBox
+                  unit="ft"
+                  value={values.heightFt}
+                  min={4}
+                  max={7}
+                  minDigits={1}
+                  onChange={(n) => onChange("heightFt", n)}
+                />
+                <NumBox
+                  unit="in"
+                  value={values.heightIn}
+                  min={0}
+                  max={11}
+                  minDigits={1}
+                  onChange={(n) => onChange("heightIn", n)}
+                />
+              </div>
+            ) : (
+              <NumBox
+                unit="cm"
+                value={values.heightCm}
+                min={140}
+                max={210}
+                minDigits={3}
+                onChange={(n) => onChange("heightCm", n)}
+              />
+            )}
+            <UnitSeg
+              value={values.heightUnit}
+              onChange={(id) => setHeightUnit(id as "ft" | "cm")}
+              options={[
+                { id: "ft", label: "ft / in" },
+                { id: "cm", label: "cm" },
+              ]}
             />
+          </div>
+          <OnboardingWhy>
+            type it... and watch the card, the figure grows with you
+          </OnboardingWhy>
+
+          <FittingQlbl hint="helps the fit math... never shown, never judged">
+            And your weight?
+          </FittingQlbl>
+          <div className="flex flex-wrap items-center gap-3">
             <NumBox
-              unit="in"
-              value={values.heightIn}
-              min={0}
-              max={11}
-              minDigits={1}
-              onChange={(n) => onChange("heightIn", n)}
+              unit={values.weightUnit}
+              value={values.weightSkipped ? null : values.weightValue}
+              min={35}
+              max={250}
+              minDigits={2}
+              placeholder="—"
+              onChange={(n) => {
+                onChange("weightSkipped", false);
+                onChange("weightValue", n);
+              }}
             />
+            <UnitSeg
+              value={values.weightUnit}
+              onChange={(id) => setWeightUnit(id as "lb" | "kg")}
+              options={[
+                { id: "lb", label: "lb" },
+                { id: "kg", label: "kg" },
+              ]}
+            />
+            <OnboardingChip
+              selected={values.weightSkipped}
+              onClick={() => {
+                onChange("weightSkipped", !values.weightSkipped);
+                if (!values.weightSkipped) onChange("weightValue", null);
+              }}
+            >
+              Prefer not to say
+            </OnboardingChip>
           </div>
-        ) : (
-          <NumBox
-            unit="cm"
-            value={values.heightCm}
-            min={140}
-            max={210}
-            minDigits={3}
-            onChange={(n) => onChange("heightCm", n)}
-          />
-        )}
-        <UnitSeg
-          value={values.heightUnit}
-          onChange={(id) => setHeightUnit(id as "ft" | "cm")}
-          options={[
-            { id: "ft", label: "ft / in" },
-            { id: "cm", label: "cm" },
-          ]}
-        />
-      </div>
-      <OnboardingWhy>
-        type it... and watch the card, the figure grows with you
-      </OnboardingWhy>
 
-      <FittingQlbl hint="helps the fit math... never shown, never judged">
-        And your weight?
-      </FittingQlbl>
-      <div className="flex flex-wrap items-center gap-3">
-        <NumBox
-          unit={values.weightUnit}
-          value={values.weightSkipped ? null : values.weightValue}
-          min={35}
-          max={250}
-          minDigits={2}
-          placeholder="—"
-          onChange={(n) => {
-            onChange("weightSkipped", false);
-            onChange("weightValue", n);
-          }}
-        />
-        <UnitSeg
-          value={values.weightUnit}
-          onChange={(id) => setWeightUnit(id as "lb" | "kg")}
-          options={[
-            { id: "lb", label: "lb" },
-            { id: "kg", label: "kg" },
-          ]}
-        />
-        <OnboardingChip
-          selected={values.weightSkipped}
-          onClick={() => {
-            onChange("weightSkipped", !values.weightSkipped);
-            if (!values.weightSkipped) onChange("weightValue", null);
-          }}
-        >
-          Prefer not to say
-        </OnboardingChip>
-      </div>
+          {showBody ? (
+            <>
+              <FittingQlbl hint="honesty beats flattery... true fit is the whole point">
+                Your build
+              </FittingQlbl>
+              <div className="flex max-w-[620px] flex-wrap gap-2.5">
+                {BUILDS.map((b) => (
+                  <OnboardingChip
+                    key={b.value}
+                    selected={values.build === b.value}
+                    onClick={() => onChange("build", b.value)}
+                  >
+                    {b.label}
+                  </OnboardingChip>
+                ))}
+              </div>
 
-      {showBody ? (
-        <>
-      <FittingQlbl hint="honesty beats flattery... true fit is the whole point">
-        Your build
-      </FittingQlbl>
-      <div className="flex max-w-[620px] flex-wrap gap-2.5">
-        {BUILDS.map((b) => (
-          <OnboardingChip
-            key={b.value}
-            selected={values.build === b.value}
-            onClick={() => onChange("build", b.value)}
-          >
-            {b.label}
-          </OnboardingChip>
-        ))}
-      </div>
+              <FittingQlbl hint="Used to shape your twin — soft, toned, or defined">
+                Definition
+              </FittingQlbl>
+              <div className="flex max-w-[620px] flex-wrap gap-2.5">
+                {MUSCLE.map((m) => (
+                  <OnboardingChip
+                    key={m.value}
+                    selected={values.muscularity === m.value}
+                    onClick={() =>
+                      onChange(
+                        "muscularity",
+                        values.muscularity === m.value ? null : m.value,
+                      )
+                    }
+                  >
+                    {m.label}
+                  </OnboardingChip>
+                ))}
+              </div>
 
-      <FittingQlbl hint="Used to shape your twin — soft, toned, or defined">
-        Definition
-      </FittingQlbl>
-      <div className="flex max-w-[620px] flex-wrap gap-2.5">
-        {MUSCLE.map((m) => (
-          <OnboardingChip
-            key={m.value}
-            selected={values.muscularity === m.value}
-            onClick={() =>
-              onChange(
-                "muscularity",
-                values.muscularity === m.value ? null : m.value,
-              )
-            }
-          >
-            {m.label}
-          </OnboardingChip>
-        ))}
-      </div>
+              <FittingQlbl hint="where weight sits — shoulders, hips, middle. Skip if unsure.">
+                Shape
+              </FittingQlbl>
+              <div className="flex max-w-[620px] flex-wrap gap-2.5">
+                {BODY_SHAPES.map((s) => (
+                  <OnboardingChip
+                    key={s.value}
+                    selected={values.bodyShape === s.value}
+                    onClick={() =>
+                      onChange(
+                        "bodyShape",
+                        values.bodyShape === s.value ? null : s.value,
+                      )
+                    }
+                  >
+                    {s.label}
+                  </OnboardingChip>
+                ))}
+              </div>
 
-      <FittingQlbl hint="where weight sits — shoulders, hips, middle. Skip if unsure.">
-        Shape
-      </FittingQlbl>
-      <div className="flex max-w-[620px] flex-wrap gap-2.5">
-        {BODY_SHAPES.map((s) => (
-          <OnboardingChip
-            key={s.value}
-            selected={values.bodyShape === s.value}
-            onClick={() =>
-              onChange(
-                "bodyShape",
-                values.bodyShape === s.value ? null : s.value,
-              )
-            }
-          >
-            {s.label}
-          </OnboardingChip>
-        ))}
-      </div>
+              {showBust ? (
+                <>
+                  <FittingQlbl hint="visual only — for the twin, never cup sizes">
+                    Bust
+                  </FittingQlbl>
+                  <div className="flex max-w-[620px] flex-wrap gap-2.5">
+                    {BUST.map((b) => (
+                      <OnboardingChip
+                        key={b.value}
+                        selected={values.bustFullness === b.value}
+                        onClick={() =>
+                          onChange(
+                            "bustFullness",
+                            values.bustFullness === b.value ? null : b.value,
+                          )
+                        }
+                      >
+                        {b.label}
+                      </OnboardingChip>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </>
+          ) : null}
 
-      {showBust ? (
-        <>
-          <FittingQlbl hint="visual only — for the twin, never cup sizes">
-            Bust
-          </FittingQlbl>
-          <div className="flex max-w-[620px] flex-wrap gap-2.5">
-            {BUST.map((b) => (
-              <OnboardingChip
-                key={b.value}
-                selected={values.bustFullness === b.value}
-                onClick={() =>
-                  onChange(
-                    "bustFullness",
-                    values.bustFullness === b.value ? null : b.value,
-                  )
-                }
-              >
-                {b.label}
-              </OnboardingChip>
-            ))}
-          </div>
-        </>
-      ) : null}
-        </>
-      ) : null}
-
-      {showLegs ? (
-        <>
-          <FittingQlbl hint="where the vertical splits — rise vs inseam">
-            Legs
-          </FittingQlbl>
-          <div className="flex max-w-[620px] flex-wrap gap-2.5">
-            {LEG_LINES.map((l) => (
-              <OnboardingChip
-                key={l.value}
-                selected={values.legLine === l.value}
-                onClick={() =>
-                  onChange(
-                    "legLine",
-                    values.legLine === l.value ? null : l.value,
-                  )
-                }
-              >
-                {l.label}
-              </OnboardingChip>
-            ))}
-          </div>
-        </>
-      ) : null}
+          {showLegs ? (
+            <>
+              <FittingQlbl hint="where the vertical splits — rise vs inseam">
+                Legs
+              </FittingQlbl>
+              <div className="flex max-w-[620px] flex-wrap gap-2.5">
+                {LEG_LINES.map((l) => (
+                  <OnboardingChip
+                    key={l.value}
+                    selected={values.legLine === l.value}
+                    onClick={() =>
+                      onChange(
+                        "legLine",
+                        values.legLine === l.value ? null : l.value,
+                      )
+                    }
+                  >
+                    {l.label}
+                  </OnboardingChip>
+                ))}
+              </div>
+            </>
+          ) : null}
         </>
       )}
 
       {showContinue ? (
         scan && values.photoPreview ? (
-          <div className="sticky bottom-0 z-[4] mt-8 bg-gradient-to-t from-white via-white/95 to-transparent pt-6">
+          <div className="fitting-nav max-lg:fixed max-lg:inset-x-[22px] max-lg:bottom-[calc(20px+env(safe-area-inset-bottom,0px))] max-lg:z-[8] max-lg:mt-0 max-lg:bg-transparent sticky bottom-0 z-[4] mt-8 bg-white pt-5 lg:relative lg:bg-gradient-to-t lg:from-white lg:via-white/95 lg:to-transparent lg:pt-6">
             <FittingCta onClick={onContinue} disabled={busy}>
               {busy ? "Saving…" : "Keep going... it's developing"}
             </FittingCta>
-            <button
-              type="button"
-              onClick={onSkipPhoto}
-              disabled={busy}
-              className="mt-3 border-0 bg-transparent p-0 font-sans text-[12.5px] font-semibold text-[var(--fitting-quiet)] underline decoration-[#C4C4CC] underline-offset-4 hover:text-[var(--fitting-ink)]"
-            >
-              Skip for now
-            </button>
           </div>
-        ) : scan ? (
-          <div className="sticky bottom-0 z-[4] mt-8 bg-gradient-to-t from-white via-white/95 to-transparent pt-6">
-            <button
-              type="button"
-              onClick={onSkipPhoto}
-              disabled={busy}
-              className="border-0 bg-transparent p-0 font-sans text-[12.5px] font-semibold text-[var(--fitting-quiet)] underline decoration-[#C4C4CC] underline-offset-4 hover:text-[var(--fitting-ink)]"
-            >
-              Skip for now
-            </button>
-          </div>
-        ) : (
+        ) : scan ? null : (
           <FittingNavRow
             onNext={onContinue}
             busy={busy}

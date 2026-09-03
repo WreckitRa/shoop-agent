@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { FittingFlash } from "@/components/onboarding/fitting/FittingFlash";
 import { FittingMirror } from "@/components/onboarding/fitting/FittingMirror";
 import {
   FittingPhotoStep,
   defaultMuscularityForBuild,
+  heightCmForTwinMint,
   heightCmFromPhotoValues,
   type FittingPhotoValues,
 } from "@/components/onboarding/fitting/FittingPhotoStep";
@@ -26,7 +27,7 @@ import {
   BiometricConsentSheet,
   notifyBiometricConsent,
 } from "@/components/legal/BiometricConsentSheet";
-import { FittingShell } from "@/components/onboarding/fitting/FittingShell";
+import { FittingShell, TwinReadyOverlay } from "@/components/onboarding/fitting/FittingShell";
 import { FittingVerdictStep } from "@/components/onboarding/fitting/FittingVerdictStep";
 import {
   FittingAnalysisPanel,
@@ -64,6 +65,7 @@ import {
   TasteOutfitGridStep,
   type OutfitGridCard,
 } from "@/components/onboarding/TasteOutfitGridStep";
+import { uniqueOutfitCards } from "@/lib/onboarding/outfit-grid";
 import { TasteSpendStep } from "@/components/onboarding/TasteSpendStep";
 import {
   YouIdentityStep,
@@ -538,7 +540,20 @@ function developPctFromFlags(flags: {
   return pct;
 }
 
+const MOBILE_FITTING = "(max-width: 1023px)";
+
+function subscribeMobileFitting(onChange: () => void) {
+  const mq = window.matchMedia(MOBILE_FITTING);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
 export function OnboardingGate() {
+  const mobileFitting = useSyncExternalStore(
+    subscribeMobileFitting,
+    () => window.matchMedia(MOBILE_FITTING).matches,
+    () => false,
+  );
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -565,6 +580,7 @@ export function OnboardingGate() {
   const setStageLocked = useInlineFittingStore((s) => s.setStageLocked);
   const requestDismiss = useInlineFittingStore((s) => s.requestDismiss);
   const stageLocked = useInlineFittingStore((s) => s.stageLocked);
+  const columnOpen = useInlineFittingStore((s) => s.columnOpen);
   const setTwinDock = useInlineFittingStore((s) => s.setTwinDock);
   const [flash, setFlash] = useState<{
     status: string;
@@ -577,6 +593,7 @@ export function OnboardingGate() {
 
   const submissionLockRef = useRef(false);
   const reviewRequestKeyRef = useRef<string | null>(null);
+  const scanBodyRequestKeyRef = useRef<string | null>(null);
   const wornDeckInFlightRef = useRef(false);
   const aspirationalDeckInFlightRef = useRef(false);
   const wornDeckRef = useRef<OutfitGridCard[]>([]);
@@ -599,11 +616,35 @@ export function OnboardingGate() {
     useState<MirrorState["scanActivity"]>("idle");
   const [scanNotes, setScanNotes] = useState<MirrorState["scanNotes"]>([]);
   const handleScanUi = useCallback((ui: ScanUiPayload) => {
-    setScanActivity(ui.activity);
+    setScanActivity((prev) => (prev === ui.activity ? prev : ui.activity));
     setScanNotes((prev) =>
       JSON.stringify(prev) === JSON.stringify(ui.notes) ? prev : ui.notes,
     );
   }, []);
+  const handleScanComplete = useCallback(
+    (row: PhotoAnalysisPublic) => {
+      setStylistVerdict(row.verdict);
+      finaleRef.current = "card";
+      setFinale("card");
+      writeOnboardingUiSession({
+        step: "verdict",
+        finale: "card",
+        locked: true,
+      });
+      handleScanUi({ activity: "idle", notes: [] });
+    },
+    [handleScanUi],
+  );
+  const handleScanSkip = useCallback(() => {
+    finaleRef.current = "card";
+    setFinale("card");
+    writeOnboardingUiSession({
+      step: "verdict",
+      finale: "card",
+      locked: true,
+    });
+    handleScanUi({ activity: "idle", notes: [] });
+  }, [handleScanUi]);
   /** Prevent double FASHN spend. */
   const mintInFlightRef = useRef(false);
   const mintDoneRef = useRef(false);
@@ -694,18 +735,44 @@ export function OnboardingGate() {
   const [twinStatus, setTwinStatus] = useState<MirrorState["twinStatus"]>(
     "idle",
   );
+  const [twinReadyToast, setTwinReadyToast] = useState(false);
+  const prevTwinStatusRef = useRef<MirrorState["twinStatus"]>("idle");
+  const enteredScanRef = useRef(false);
   const [twinError, setTwinError] = useState<string | null>(null);
   const [twinBuildPct, setTwinBuildPct] = useState(0);
   const [twinBuildLabel, setTwinBuildLabel] = useState("");
   const [twinBuildElapsedSec, setTwinBuildElapsedSec] = useState(0);
-  /** FASHN dress of a worn style onto the twin (verdict step). */
-  const [dressedAvatarUrl, setDressedAvatarUrl] = useState<string | null>(null);
-  const [dressStatus, setDressStatus] = useState<
-    "idle" | "dressing" | "ready" | "error"
-  >("idle");
-  const [dressError, setDressError] = useState<string | null>(null);
-  const [dressStyleLabel, setDressStyleLabel] = useState<string | null>(null);
-  const dressKickRef = useRef(false);
+  const dressStatus = "idle" as const;
+  const dressError = null;
+  const dressStyleLabel = null;
+
+  useEffect(() => {
+    const prev = prevTwinStatusRef.current;
+    prevTwinStatusRef.current = twinStatus;
+    if (!mobileFitting) return;
+    if (prev !== "developing" || twinStatus !== "ready" || !twinAvatarUrl) {
+      return;
+    }
+    if (step === "verdict" || step === "circle") return;
+    setTwinReadyToast(true);
+    const id = window.setTimeout(() => setTwinReadyToast(false), 2800);
+    return () => window.clearTimeout(id);
+  }, [mobileFitting, twinStatus, twinAvatarUrl, step]);
+
+  useLayoutEffect(() => {
+    const onScan =
+      mobileFitting &&
+      step === "verdict" &&
+      finale === "scan" &&
+      biometricAccepted === true;
+    if (!onScan) {
+      enteredScanRef.current = false;
+      return;
+    }
+    if (enteredScanRef.current) return;
+    enteredScanRef.current = true;
+    setScanActivity("reading");
+  }, [mobileFitting, step, finale, biometricAccepted]);
   const [persistedFlags, setPersistedFlags] = useState({
     identity: false,
     life: false,
@@ -1150,11 +1217,7 @@ export function OnboardingGate() {
   useLayoutEffect(() => {
     const session = readOnboardingUiSession();
     if (!session || session.dismissed) return;
-    setStep(session.step);
-    if (session.step === "verdict") setHoldOpen(true);
-    if (isMagicFittingStep(session.step)) {
-      useInlineFittingStore.getState().setStageLocked(true);
-    }
+    if (!isMagicFittingStep(session.step)) setStep(session.step);
     if (session.finale === "scan" || session.finale === "card") {
       setFinale(session.finale);
     }
@@ -1275,6 +1338,65 @@ export function OnboardingGate() {
     setFinale("scan");
     setStylistVerdict(null);
   }, [replayFitting, loading, status]);
+
+  const savingLooksRef = useRef(false);
+
+  async function saveReadingLooksAndGoToCircle(jobIds: string[]) {
+    if (savingLooksRef.current) return;
+    savingLooksRef.current = true;
+    setBusy(true);
+    try {
+      if (jobIds.length) {
+        await guestFetch("/api/onboarding/reading-looks/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobIds }),
+        });
+      }
+      writeOnboardingUiSession({
+        step: "circle",
+        finale: "card",
+        locked: true,
+        saveLooks: false,
+        lookJobIds: [],
+      });
+      setStep("circle");
+    } finally {
+      savingLooksRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  function handleSaveLooks(jobIds: string[]) {
+    writeOnboardingUiSession({
+      step: "verdict",
+      finale: "card",
+      locked: true,
+      saveLooks: true,
+      lookJobIds: jobIds,
+    });
+    if (accountReady) {
+      void saveReadingLooksAndGoToCircle(jobIds);
+      return;
+    }
+    openAuthModal("signup");
+  }
+
+  useEffect(() => {
+    if (accountReady) {
+      const session = readOnboardingUiSession();
+      if (session?.saveLooks) {
+        void saveReadingLooksAndGoToCircle(session.lookJobIds ?? []);
+      }
+    }
+    const onAuth = () => {
+      const session = readOnboardingUiSession();
+      if (!session?.saveLooks) return;
+      void saveReadingLooksAndGoToCircle(session.lookJobIds ?? []);
+    };
+    window.addEventListener("shoop-auth-changed", onAuth);
+    return () => window.removeEventListener("shoop-auth-changed", onAuth);
+  }, [accountReady]);
 
   const lifestyleTags = useMemo(() => {
     const derived = lifestyleTagsFromLife({ weekIs, kids });
@@ -1455,13 +1577,7 @@ export function OnboardingGate() {
         if (more) {
           const seen = new Set(currentDeck.map((c) => c.id));
           const added = next.filter((c) => c.id && !seen.has(c.id));
-          setDeck((prev) => {
-            const prevSeen = new Set(prev.map((c) => c.id));
-            return [
-              ...prev,
-              ...added.filter((c) => c.id && !prevSeen.has(c.id)),
-            ];
-          });
+          setDeck((prev) => uniqueOutfitCards([...prev, ...added]));
           // Prefer server flag; never keep "See more" if this page added nothing.
           const serverHasMore = json.hasMore;
           setHasMore(
@@ -1472,7 +1588,7 @@ export function OnboardingGate() {
                 : added.length >= 9,
           );
         } else {
-          setDeck(next);
+          setDeck(uniqueOutfitCards(next));
           const serverHasMore = json.hasMore;
           setHasMore(
             typeof serverHasMore === "boolean"
@@ -1947,6 +2063,16 @@ export function OnboardingGate() {
             { rateLimited: true as const, response: genRes },
           );
         }
+        if (
+          genRes.status === 502 ||
+          genRes.status === 503 ||
+          /fetch failed|busy — try again/i.test(genBody.error ?? "")
+        ) {
+          throw Object.assign(
+            new Error(genBody.error ?? "Twin generation failed."),
+            { transient: true as const, response: genRes },
+          );
+        }
         throw new Error(genBody.error ?? "Twin generation failed.");
       }
 
@@ -2003,16 +2129,24 @@ export function OnboardingGate() {
         e instanceof Error &&
         "rateLimited" in e &&
         (e as { rateLimited?: boolean }).rateLimited === true;
+      const transient =
+        e instanceof Error &&
+        "transient" in e &&
+        (e as { transient?: boolean }).transient === true;
       const res =
         e instanceof Error && "response" in e
           ? (e as { response?: Response }).response
           : undefined;
 
-      if (rateLimited && retryPass < 1) {
+      if ((rateLimited || transient) && retryPass < 1) {
         const wait = res ? retryAfterMs(res, retryPass) : 5_000;
         twinPrintStartedAtRef.current = 0;
         setTwinBuildLabel("waiting to retry");
-        setTwinError("Busy building your twin — retrying in a moment…");
+        setTwinError(
+          rateLimited
+            ? "Busy building your twin — retrying in a moment…"
+            : "Printer hiccup — retrying your twin…",
+        );
         setTwinStatus("developing");
         window.setTimeout(() => {
           void kickBackgroundMint(opts, retryPass + 1);
@@ -2038,8 +2172,8 @@ export function OnboardingGate() {
     mintAbortRef.current = false;
     const stored = lastMintOptsRef.current;
     const personId = stored?.personId ?? selfPersonId;
-    const heightCm = stored?.heightCm ?? heightCmFromPhoto(photoValues);
-    if (!personId || heightCm == null) return;
+    const heightCm = stored?.heightCm ?? heightCmForTwinMint(photoValues);
+    if (!personId) return;
     void kickBackgroundMint({
       personId,
       heightCm,
@@ -2306,17 +2440,18 @@ export function OnboardingGate() {
 
       // Start twin mint as soon as fit numbers land — never block the quiz on
       // photo attach or FASHN. Mirror shows developing immediately.
+      // Height is skippable; mint uses the silhouette default, not a fake save.
       const pending = pendingPhotoFileRef.current;
+      const mintHeight = heightCmForTwinMint(photoValues);
       const canMint =
-        heightCm != null &&
         canProcessPhotoRef.current &&
         Boolean(personId) &&
         (photoReadyRef.current || Boolean(pending)) &&
         !mintDoneRef.current;
-      if (canMint && personId && heightCm != null) {
+      if (canMint && personId) {
         const mintOpts = {
           personId,
-          heightCm,
+          heightCm: mintHeight,
           build,
           muscularity: photoValues.muscularity,
           bodyShape: photoValues.bodyShape,
@@ -2363,7 +2498,7 @@ export function OnboardingGate() {
     }
   }
 
-  async function persistScanBody(): Promise<boolean> {
+  async function persistScanBody(): Promise<string | null> {
     try {
       const heightCm = heightCmFromPhoto(photoValues);
       const weightKg = weightKgFromPhoto(photoValues);
@@ -2371,18 +2506,31 @@ export function OnboardingGate() {
       if (heightCm != null) sizing.heightCm = heightCm;
       if (photoValues.build) sizing.bodyType = photoValues.build;
       if (weightKg != null) sizing.weightKg = weightKg;
-      if (Object.keys(sizing).length === 0) return true;
+      const profile: Record<string, unknown> = {};
+      if (genderPresentation.trim()) {
+        profile.genderPresentation = genderPresentation.trim();
+      }
+      const patch: Record<string, unknown> = {};
+      if (Object.keys(sizing).length) patch.sizing = sizing;
+      if (Object.keys(profile).length) patch.profile = profile;
+      if (Object.keys(patch).length === 0) return null;
+      const requestKey =
+        scanBodyRequestKeyRef.current ??
+        (scanBodyRequestKeyRef.current = crypto.randomUUID());
       const res = await guestFetch("/api/onboarding/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patch: { sizing },
-          requestKey: crypto.randomUUID(),
-        }),
+        body: JSON.stringify({ patch, requestKey }),
       });
-      return res.ok;
-    } catch {
-      return false;
+      if (res.ok) return null;
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      return json?.error?.trim() || "Couldn’t save your measurements.";
+    } catch (e) {
+      return e instanceof Error
+        ? e.message
+        : "Couldn’t save your measurements.";
     }
   }
 
@@ -2521,8 +2669,8 @@ export function OnboardingGate() {
     }
   }
 
-  async function completeOnboarding() {
-    if (submissionLockRef.current) return;
+  async function completeOnboarding(): Promise<boolean> {
+    if (submissionLockRef.current) return false;
     submissionLockRef.current = true;
     setBusy(true);
     setError(null);
@@ -2538,7 +2686,15 @@ export function OnboardingGate() {
       await waitForMintIfRunning(15_000);
       submissionLockRef.current = true;
 
-      // Ensure final taste is on server before completing
+      // Re-save identity onto the account — guest→signup can leave the
+      // server profile empty even when the Fitting already has the answers.
+      submissionLockRef.current = false;
+      const identityOk = await saveIdentity();
+      submissionLockRef.current = true;
+      if (!identityOk) {
+        throw new Error("Could not save your name before finishing.");
+      }
+
       submissionLockRef.current = false;
       const tasteOk = await saveTaste(false, "final");
       submissionLockRef.current = true;
@@ -2559,15 +2715,9 @@ export function OnboardingGate() {
       const next = (await res.json()) as OnboardingStatus & { error?: string };
       useInlineFittingStore.getState().clearReplay();
       if (!res.ok) {
-        submissionLockRef.current = false;
-        const tasteRes = await saveTaste(true, "final");
-        submissionLockRef.current = true;
-        if (!tasteRes) {
-          throw new Error(next.error ?? "Could not finish onboarding.");
-        }
-      } else {
-        hydrateFromStatus(next);
+        throw new Error(next.error ?? "Could not finish onboarding.");
       }
+      hydrateFromStatus(next);
       useUserProfileStore.getState().setOnboardingCompleted(true);
       void useUserProfileStore.getState().hydrate({ force: true });
       if (twinAvatarUrl) useSelfAvatarStore.getState().markReady(twinAvatarUrl);
@@ -2578,10 +2728,12 @@ export function OnboardingGate() {
       setStageLocked(false);
       useInlineFittingStore.getState().dismissColumn();
       useInlineFittingStore.getState().setOnboardingActive(false);
+      return true;
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not finish onboarding.",
       );
+      return false;
     } finally {
       hideLoading();
       submissionLockRef.current = false;
@@ -2596,24 +2748,24 @@ export function OnboardingGate() {
       return;
     }
     if (current === "photo") {
-      setStep("fit");
+      setStep("name");
+      return;
+    }
+    if (current === "name") {
+      await runWithLoading({
+        nextStep: "fit",
+        work: () => saveIdentity(),
+      });
       return;
     }
     if (current === "fit") {
       await runWithLoading({
-        nextStep: "name",
+        nextStep: "life",
         work: async () => {
           const ok = await savePhotoAndAttrs();
           if (!ok) return false;
           return true;
         },
-      });
-      return;
-    }
-    if (current === "name") {
-      await runWithLoading({
-        nextStep: "life",
-        work: () => saveIdentity(),
       });
       return;
     }
@@ -2674,6 +2826,12 @@ export function OnboardingGate() {
             finale: nextFinale,
             locked: true,
           });
+          if (
+            photoReadyRef.current &&
+            (twinStatus === "idle" || twinStatus === "error")
+          ) {
+            retryTwinMint();
+          }
           return true;
         },
       });
@@ -2881,17 +3039,13 @@ export function OnboardingGate() {
     tasteFinal: persistedFlags.tasteFinal,
     circleSaved: persistedFlags.circleSaved,
     verdict: step === "verdict",
-    dressed: dressStatus === "ready" && Boolean(dressedAvatarUrl),
+    dressed: false,
   });
 
-  /**
-   * Reload: a finished verdict shows the card. Anything else with a photo
-   * stays on scan so she still confirms. Missing analysis is not a skip.
-   */
+  const hasPhoto = Boolean(photoValues.photoPreview);
   useEffect(() => {
     if (step !== "verdict") return;
     let cancelled = false;
-    const hasPhoto = Boolean(photoValues.photoPreview);
 
     void (async () => {
       try {
@@ -2903,12 +3057,11 @@ export function OnboardingGate() {
           analysis: PhotoAnalysisPublic | null;
         };
         if (cancelled) return;
-        // Skip/complete pin the card on the ref immediately so this
-        // in-flight GET cannot yank THE SCAN back up.
         const next = pinVerdictFinale(
           finaleRef.current,
           verdictUiFinale(json.analysis, hasPhoto),
         );
+        if (next === finaleRef.current) return;
         if (next === "scan") {
           setFinale("scan");
           writeOnboardingUiSession({ step: "verdict", finale: "scan" });
@@ -2927,134 +3080,8 @@ export function OnboardingGate() {
     return () => {
       cancelled = true;
     };
-  }, [step, photoValues.photoPreview]);
+  }, [step, hasPhoto]);
 
-  /**
-   * On the verdict step: pick one worn style and FASHN-dress it onto the minted twin.
-   * Uses image provenance (in-house style photo, not Shopify).
-   */
-  useEffect(() => {
-    if (step !== "verdict" || finale !== "card") return;
-    if (dressKickRef.current) return;
-    if (twinStatus !== "ready" || !twinAvatarUrl) return;
-    if (dressStatus === "ready" || dressStatus === "dressing") return;
-
-    const pick =
-      wornPicks.find((p) => Boolean(p.imageUrl?.trim())) ??
-      (closetImages[0]
-        ? {
-            id: closetImages[0].match(/\/([^/]+)\.\w+$/)?.[1] ?? "worn-0",
-            label: "your worn pick",
-            imageUrl: closetImages[0],
-          }
-        : null);
-    if (!pick?.imageUrl?.trim()) {
-      dressKickRef.current = true;
-      return;
-    }
-
-    dressKickRef.current = true;
-    const styleId = pick.id;
-    const title = pick.label || "worn look";
-    const imageUrl = pick.imageUrl.trim();
-
-    void (async () => {
-      setDressStatus("dressing");
-      setDressError(null);
-      setDressStyleLabel(title);
-      try {
-        const absolute = /^https?:\/\//i.test(imageUrl)
-          ? imageUrl
-          : `${window.location.origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
-        const res = await guestFetch("/api/tryon/fitting-room", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            items: [
-              {
-                provenance: {
-                  kind: "image",
-                  imageUrl: absolute,
-                  styleId,
-                  title,
-                  garment: `${title} styled full outfit dress look`,
-                },
-              },
-            ],
-          }),
-        });
-        const body = (await res.json()) as { error?: string; jobId?: string };
-        if (!res.ok || !body.jobId) {
-          throw new Error(body.error ?? "Could not start dress.");
-        }
-        const startedAt = Date.now();
-        let finalUrl: string | null = null;
-        while (Date.now() - startedAt <= TRYON_CLIENT_POLL_MAX_MS) {
-          const pollRes = await guestFetch(
-            `/api/tryon/fitting-room/${body.jobId}`,
-          );
-          const pollBody = (await pollRes.json()) as {
-            error?: string;
-            tryon_look?: {
-              status?: string;
-              final_image_url?: string;
-              partial_note?: string;
-              compare?: boolean;
-              variants?: Array<{ image_url?: string; status?: string }>;
-            };
-          };
-          if (!pollRes.ok) {
-            throw new Error(pollBody.error ?? "Dress poll failed.");
-          }
-          const look = pollBody.tryon_look;
-          if (look?.status === "completed" && look.final_image_url) {
-            finalUrl = look.final_image_url;
-            break;
-          }
-          if (look?.compare) {
-            const any =
-              look.final_image_url ||
-              look.variants?.find((v) => v.image_url)?.image_url;
-            const settled = (look.variants ?? []).every(
-              (v) => v.status === "completed" || v.status === "failed",
-            );
-            if (any && settled) {
-              finalUrl = any;
-              break;
-            }
-            if (look.status === "failed" && !any) {
-              throw new Error(
-                look.partial_note ?? "Could not dress this look.",
-              );
-            }
-          } else if (look?.status === "failed") {
-            throw new Error(
-              look.partial_note ?? "Could not dress this look.",
-            );
-          }
-          await new Promise((r) => setTimeout(r, TRYON_CLIENT_POLL_MS));
-        }
-        if (!finalUrl) {
-          throw new Error("Dress timed out — open the Mirror later.");
-        }
-        setDressedAvatarUrl(finalUrl);
-        setDressStatus("ready");
-      } catch (e) {
-        setDressStatus("error");
-        setDressError(
-          e instanceof Error ? e.message : "Could not dress your twin.",
-        );
-      }
-    })();
-  }, [
-    step,
-    finale,
-    twinStatus,
-    twinAvatarUrl,
-    wornPicks,
-    closetImages,
-    dressStatus,
-  ]);
 
   const mirror = useMemo<MirrorState>(() => {
     const eraShorts = styleEras.map((e) => {
@@ -3079,10 +3106,7 @@ export function OnboardingGate() {
     const spendLabel = spendBits.join(" · ");
     const lean = leanFromPicks(wornPicks, aspirationalPicks, styleMix);
     const vetoN = hardAvoids.length + brandAvoids.length;
-    const displayTwinUrl =
-      dressStatus === "ready" && dressedAvatarUrl
-        ? dressedAvatarUrl
-        : twinAvatarUrl;
+    const displayTwinUrl = twinAvatarUrl;
 
     return {
       ...EMPTY_MIRROR,
@@ -3121,10 +3145,7 @@ export function OnboardingGate() {
       dressStyleLabel,
       closetImages,
       serial: selfPersonId ? printSerialFromId(selfPersonId) : "——",
-      foil:
-        step === "verdict" &&
-        twinStatus === "ready" &&
-        dressStatus === "ready",
+      foil: false,
       scanActivity,
       scanNotes,
     };
@@ -3143,7 +3164,6 @@ export function OnboardingGate() {
     circleNames,
     localFacePreview,
     twinAvatarUrl,
-    dressedAvatarUrl,
     photoValues,
     genderPresentation,
     developPct,
@@ -3171,7 +3191,8 @@ export function OnboardingGate() {
   useLayoutEffect(() => {
     if (loading) return;
     setOnboardingActive(incomplete);
-  }, [incomplete, loading, setOnboardingActive]);
+    if (incomplete && isMagicFittingStep(step)) setStageLocked(true);
+  }, [incomplete, loading, setOnboardingActive, setStageLocked, step]);
 
   const progressPct =
     step === "verdict" || step === "circle"
@@ -3216,7 +3237,10 @@ export function OnboardingGate() {
     />
   );
 
-  const fullscreen = stageLocked || isMagicFittingStep(step);
+  const fullscreen =
+    stageLocked ||
+    isMagicFittingStep(step) ||
+    (mobileFitting && columnOpen && incomplete);
   const bodyHost =
     typeof document !== "undefined" ? document.body : null;
 
@@ -3294,6 +3318,21 @@ export function OnboardingGate() {
           twinStatus === "error" ? retryTwinMint : undefined
         }
         onDismiss={fullscreen ? requestDismiss : undefined}
+        hideMirror={
+          step === "circle" || (step === "verdict" && finale === "card")
+        }
+        phoneStage={
+          mobileFitting &&
+          step === "verdict" &&
+          finale === "scan" &&
+          biometricAccepted === true &&
+          (scanActivity === "reading" || scanActivity === "writing")
+        }
+        overlay={
+          twinReadyToast ? (
+            <TwinReadyOverlay avatarUrl={twinAvatarUrl} />
+          ) : null
+        }
       >
         {step === "circle" ||
         (step === "verdict" && finale === "card") ||
@@ -3362,9 +3401,19 @@ export function OnboardingGate() {
             showContinue
             twinSlot={
               twinInFlow ? (
-                <div className="mt-5 h-[min(58vh,480px)] overflow-hidden rounded-[18px] border border-[var(--fitting-line)] bg-[#FAFAFB]">
-                  {mirrorPane}
-                </div>
+                mobileFitting ? (
+                  <FittingMirror
+                    layout="figure"
+                    mirror={mirror}
+                    onPickPhoto={pickFacePhoto}
+                    photoPickLocked={biometricAccepted !== true}
+                    photoCta="figure"
+                  />
+                ) : (
+                  <div className="fitting-ob-shot mt-5 h-[min(58vh,480px)] overflow-hidden rounded-[18px] border border-[var(--fitting-line)] bg-[#FAFAFB]">
+                    {mirrorPane}
+                  </div>
+                )
               ) : null
             }
           />
@@ -3551,6 +3600,7 @@ export function OnboardingGate() {
         biometricAccepted === true ? (
           <FittingAnalysisPanel
             enabled
+            phoneStage={mobileFitting}
             photoFile={analysisPhotoFile}
             photoPreview={photoValues.photoPreview}
             requestedCoverage="face"
@@ -3558,27 +3608,8 @@ export function OnboardingGate() {
             onBodyChange={photoOnChange}
             onPersistBody={() => persistScanBody()}
             onScanUi={handleScanUi}
-            onComplete={(row) => {
-              setStylistVerdict(row.verdict);
-              finaleRef.current = "card";
-              setFinale("card");
-              writeOnboardingUiSession({
-                step: "verdict",
-                finale: "card",
-                locked: true,
-              });
-              handleScanUi({ activity: "idle", notes: [] });
-            }}
-            onSkip={() => {
-              finaleRef.current = "card";
-              setFinale("card");
-              writeOnboardingUiSession({
-                step: "verdict",
-                finale: "card",
-                locked: true,
-              });
-              handleScanUi({ activity: "idle", notes: [] });
-            }}
+            onComplete={handleScanComplete}
+            onSkip={handleScanSkip}
           />
         ) : null}
 
@@ -3600,18 +3631,27 @@ export function OnboardingGate() {
             styleMix={styleMix}
             developPct={mirror.developPct}
             circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
-            dressStatus={dressStatus}
-            dressStyleLabel={dressStyleLabel}
-            dressedLookUrl={
-              dressStatus === "ready" ? dressedAvatarUrl : null
-            }
+            twinReady={twinStatus === "ready" && Boolean(twinAvatarUrl)}
             busy={busy}
-            ctaLabel="Who do you actually ask?"
+            accountReady={accountReady}
+            onSaveLooks={handleSaveLooks}
+            onAskCircle={() => {
+              writeOnboardingUiSession({
+                step: "circle",
+                finale: "card",
+                locked: true,
+                saveLooks: false,
+                lookJobIds: [],
+              });
+              void advanceFrom("verdict");
+            }}
             onMeetTwin={() => {
               writeOnboardingUiSession({
                 step: "circle",
                 finale: "card",
                 locked: true,
+                saveLooks: false,
+                lookJobIds: [],
               });
               void advanceFrom("verdict");
             }}

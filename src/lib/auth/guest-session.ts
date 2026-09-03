@@ -65,8 +65,17 @@ export function isValidGuestSessionToken(token: string): boolean {
   return SIGNED_TOKEN_RE.test(t);
 }
 
+/**
+ * App user id for a guest session. Always `guest-{uuid}` — never the HMAC
+ * token. Auth records consent against the parsed uuid; migrate must too.
+ */
 export function guestUserIdFromSessionId(sessionId: string): string {
-  return `${GUEST_USER_ID_PREFIX}${sessionId}`;
+  const token = sessionId.startsWith(GUEST_USER_ID_PREFIX)
+    ? sessionId.slice(GUEST_USER_ID_PREFIX.length)
+    : sessionId.trim();
+  const uuid =
+    parseGuestSessionId(token) ?? (UUID_RE.test(token) ? token : null);
+  return `${GUEST_USER_ID_PREFIX}${uuid ?? token}`;
 }
 
 export function isGuestUserId(userId: string): boolean {

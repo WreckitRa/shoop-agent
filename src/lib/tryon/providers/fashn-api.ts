@@ -1,4 +1,5 @@
 import { FASHN_API_BASE, FASHN_TIMEOUT_MS } from "../config";
+import { isTransientTryonStorageError } from "../storage";
 
 type FashnRunResponse = {
   id?: string;
@@ -35,9 +36,39 @@ async function fetchWithTimeout(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("FASHN request timed out");
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
+}
+
+const RUN_RETRY_DELAYS_MS = [400, 1200];
+
+async function postFashnRun(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  let last: unknown;
+  for (let attempt = 0; attempt <= RUN_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await fetchWithTimeout(url, init, timeoutMs);
+    } catch (err) {
+      last = err;
+      if (
+        attempt >= RUN_RETRY_DELAYS_MS.length ||
+        !isTransientTryonStorageError(err)
+      ) {
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, RUN_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+  throw last;
 }
 
 export async function pollFashnPrediction(
@@ -87,7 +118,7 @@ export async function runFashnPrediction(params: {
   const timeoutMs = params.timeoutMs ?? FASHN_TIMEOUT_MS;
   const started = Date.now();
 
-  const runRes = await fetchWithTimeout(
+  const runRes = await postFashnRun(
     `${FASHN_API_BASE}/run`,
     {
       method: "POST",

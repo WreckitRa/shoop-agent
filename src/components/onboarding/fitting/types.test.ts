@@ -12,17 +12,18 @@ import {
   knotNowIndex,
   sewnThroughIndex,
   printSerialFromId,
+  shortEraLabel,
   wornTrackerLabels,
 } from "@/components/onboarding/fitting/types";
 import { backfillFittingTellFromText } from "@/lib/onboarding/fitting-tell";
 
 describe("fitting circle step model", () => {
-  it("places consent, photo, then fit before name", () => {
+  it("places consent, photo, then name before fit", () => {
     assert.deepEqual(FITTING_Q_STEPS.slice(0, 6), [
       "consent",
       "photo",
-      "fit",
       "name",
+      "fit",
       "life",
       "spend",
     ]);
@@ -36,6 +37,26 @@ describe("fitting circle step model", () => {
     assert.ok(STITCH_KNOTS.some((k) => k.id === "circle"));
     assert.equal(STITCH_KNOTS.at(-1)?.id, "circle");
     assert.equal(STITCH_KNOTS.at(-2)?.id, "mint");
+    assert.equal(
+      STITCH_KNOTS.find((k) => k.id === "photo")?.label,
+      "Your photo",
+    );
+    assert.equal(
+      STITCH_KNOTS.find((k) => k.id === "corner")?.label,
+      "What you'd change",
+    );
+    assert.equal(
+      STITCH_KNOTS.find((k) => k.id === "nolist")?.label,
+      "Never again",
+    );
+    assert.equal(
+      STITCH_KNOTS.find((k) => k.id === "mint")?.label,
+      "Your reading",
+    );
+    assert.equal(
+      STITCH_KNOTS.find((k) => k.id === "circle")?.label,
+      "Your circle",
+    );
     assert.equal(isMagicFittingStep("honesty"), false);
     assert.equal(isMagicFittingStep("nolist"), false);
     assert.equal(isMagicFittingStep("verdict"), true);
@@ -54,8 +75,8 @@ describe("fitting circle step model", () => {
   it("maps honesty/verdict to mint and circle last, unsewn until asked", () => {
     assert.equal(knotNowIndex("consent"), 0);
     assert.equal(knotNowIndex("photo"), 0);
-    assert.equal(knotNowIndex("fit"), 1);
-    assert.equal(knotNowIndex("name"), 2);
+    assert.equal(knotNowIndex("name"), 1);
+    assert.equal(knotNowIndex("fit"), 2);
     assert.equal(knotNowIndex("life"), 3);
     assert.equal(knotNowIndex("worn"), 5);
     assert.equal(knotNowIndex("corner"), 6);
@@ -65,8 +86,8 @@ describe("fitting circle step model", () => {
     assert.equal(knotNowIndex("circle"), 9);
     assert.equal(sewnThroughIndex("consent"), -1);
     assert.equal(sewnThroughIndex("photo"), -1);
-    assert.equal(sewnThroughIndex("fit"), 0);
-    assert.equal(sewnThroughIndex("name"), 1);
+    assert.equal(sewnThroughIndex("name"), 0);
+    assert.equal(sewnThroughIndex("fit"), 1);
     assert.equal(sewnThroughIndex("corner"), 5);
     assert.equal(sewnThroughIndex("verdict"), 7);
     assert.equal(sewnThroughIndex("circle"), 8);
@@ -90,6 +111,13 @@ describe("fitting circle step model", () => {
     assert.equal(circleMirrorLabel(["Maya", "Jordan", "Sam"]), "Maya, Jordan +1");
   });
 
+  it("renders era labels, not ids", () => {
+    assert.equal(shortEraLabel("23–29 · First-paycheck era"), "First paycheck");
+    assert.equal(shortEraLabel("FIRST-PAYCHECK"), "First paycheck");
+    assert.equal(shortEraLabel("23_29"), "First paycheck");
+    assert.equal(shortEraLabel("30s · Prime era"), "Prime");
+  });
+
   it("derives a stable 6-digit print serial from person id", () => {
     assert.equal(printSerialFromId("abc"), printSerialFromId("abc"));
     assert.equal(printSerialFromId("abc").length, 6);
@@ -99,8 +127,8 @@ describe("fitting circle step model", () => {
   it("walks back through quiz steps and the locked mint without skipping ahead", () => {
     assert.equal(fittingBackTarget({ step: "consent" }), null);
     assert.deepEqual(fittingBackTarget({ step: "photo" }), { step: "consent" });
-    assert.deepEqual(fittingBackTarget({ step: "fit" }), { step: "photo" });
-    assert.deepEqual(fittingBackTarget({ step: "name" }), { step: "fit" });
+    assert.deepEqual(fittingBackTarget({ step: "name" }), { step: "photo" });
+    assert.deepEqual(fittingBackTarget({ step: "fit" }), { step: "name" });
     assert.deepEqual(fittingBackTarget({ step: "honesty" }), { step: "nolist" });
     assert.equal(
       fittingBackTarget({ step: "verdict", finale: "scan", hasPhoto: true }),

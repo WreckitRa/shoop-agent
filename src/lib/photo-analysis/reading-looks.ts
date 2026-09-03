@@ -1,12 +1,12 @@
 /**
  * Turns a stylist verdict into catalog search queries for the reading card.
  * Pure / client-safe — search I/O lives in run-reading-looks.ts.
- * Palette swatches stay hex/name — they are not catalog queries.
  */
 
 import type { StylistVerdict } from "./verdict";
+import { readingPalette } from "./verdict-reading";
 
-export type ReadingLookKind = "buy" | "look";
+export type ReadingLookKind = "buy" | "look" | "swatch" | "avoid";
 
 export type ReadingLookQuery = {
   key: string;
@@ -14,6 +14,8 @@ export type ReadingLookQuery = {
   query: string;
   lookId?: string;
   lookLabel?: string;
+  /** Formula piece without the colour prefix — used for a colourless retry. */
+  piece?: string;
 };
 
 export type ReadingLookProduct = {
@@ -21,6 +23,8 @@ export type ReadingLookProduct = {
   title: string;
   imageUrl: string;
   price: { amount: number; currency: string } | null;
+  /** Formula piece used to search — FASHN garment type, not the catalog title. */
+  garment?: string;
 };
 
 export type ReadingLookItem = ReadingLookQuery & {
@@ -78,7 +82,25 @@ function pushQuery(
   out.push({ ...q, query });
 }
 
+export function wardrobePlanHasBuys(
+  verdict: StylistVerdict | null | undefined,
+): boolean {
+  if (!verdict) return false;
+  const plan = asRecord(verdict.wardrobe_plan);
+  if (!plan) return false;
+  const prios = Array.isArray(plan.shopping_priorities)
+    ? plan.shopping_priorities
+    : [];
+  if (prios.some((raw) => asStr(asRecord(raw)?.item))) return true;
+  const actions = Array.isArray(plan.actions) ? plan.actions : [];
+  return actions.some((raw) => {
+    const o = asRecord(raw);
+    return asStr(o?.action) === "add" && Boolean(asStr(o?.item_or_category));
+  });
+}
+
 function buyQueries(verdict: StylistVerdict): ReadingLookQuery[] {
+  if (!wardrobePlanHasBuys(verdict)) return [];
   const out: ReadingLookQuery[] = [];
   const keys = new Set<string>();
   const plan = asRecord(verdict.wardrobe_plan);
@@ -139,7 +161,8 @@ function lookQueries(verdict: StylistVerdict): ReadingLookQuery[] {
   formulas.slice(0, LOOK_COUNT).forEach((raw, i) => {
     const o = asRecord(raw);
     if (!o) return;
-    const occasion = asStr(o.occasion) || `Look ${i + 1}`;
+    const occasion =
+      asStr(o.occasion) || asStr(o.name) || `Look ${i + 1}`;
     const color = asStrArr(o.color_options)[0];
     const pieces = [
       ...asStrArr(o.formula).slice(0, 3),
@@ -158,6 +181,7 @@ function lookQueries(verdict: StylistVerdict): ReadingLookQuery[] {
         lookId: `look-${i}`,
         lookLabel: occasion,
         query: clipQuery([color, piece]),
+        piece,
       });
       slot += 1;
     }
@@ -165,14 +189,70 @@ function lookQueries(verdict: StylistVerdict): ReadingLookQuery[] {
   return out;
 }
 
-/** Looks first (full outfits), then leftover buy slots. Colours are not searched. */
+function catalogColorQuery(name: string): string {
+  const n = name.replace(/[_-]+/g, " ").trim();
+  if (/neon/i.test(n)) return "neon";
+  if (/pastel|icy/i.test(n)) return "light pastel";
+  if (/bright\s*white|optic/i.test(n)) return "white";
+  if (/chartreuse|yellow[\s-]*green/i.test(n)) return "olive";
+  if (/\b(fuchsia|magenta|hot pink)\b/i.test(n)) return "bright pink";
+  const stripped = n
+    .replace(/\b(colors?|tones?|undertones?|family)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return stripped || n;
+}
+
+function faceGarment(use: string): string {
+  const u = use.replace(/\s+/g, " ").trim();
+  if (!u || u.length > 22 || /\b(the|this|your|keep|off|avoid|never)\b/i.test(u)) {
+    return "crew neck";
+  }
+  if (/\b(neck|tee|polo|crew|knit|collar|shirt|turtleneck)\b/i.test(u)) return u;
+  return "crew neck";
+}
+
+function faceGarmentQuery(name: string, use: string): string {
+  return clipQuery([catalogColorQuery(name), faceGarment(use)]);
+}
+
+function swatchQueries(verdict: StylistVerdict): ReadingLookQuery[] {
+  const { palette, avoid } = readingPalette(verdict);
+  const out: ReadingLookQuery[] = [];
+  const keys = new Set<string>();
+  palette.forEach((s, i) => {
+    const garment = faceGarment(s.use);
+    pushQuery(out, keys, {
+      key: `swatch:${i}`,
+      kind: "swatch",
+      lookId: `swatch-${i}`,
+      lookLabel: s.name,
+      query: faceGarmentQuery(s.name, s.use),
+      piece: garment,
+    });
+  });
+  avoid.forEach((s, i) => {
+    pushQuery(out, keys, {
+      key: `avoid:${i}`,
+      kind: "avoid",
+      lookId: `avoid-${i}`,
+      lookLabel: s.name,
+      query: clipQuery([catalogColorQuery(s.name), "crew neck"]),
+      piece: "crew neck",
+    });
+  });
+  return out;
+}
+
+/** Looks first (full outfits), then leftover buy slots, then face-colour pieces. */
 export function readingLookQueries(
   verdict: StylistVerdict | null | undefined,
 ): ReadingLookQuery[] {
   if (!verdict) return [];
   const looks = lookQueries(verdict);
   const room = Math.max(0, MAX_QUERIES - looks.length);
-  return room ? [...looks, ...buyQueries(verdict).slice(0, room)] : looks;
+  const buys = room ? buyQueries(verdict).slice(0, room) : [];
+  return [...looks, ...buys, ...swatchQueries(verdict)];
 }
 
 export function pickLookProduct(
@@ -221,4 +301,81 @@ export function productForStep(
     if (tokens.some((t) => hay.includes(t))) return item.product;
   }
   return null;
+}
+
+export function fallbackLookQuery(query: string, piece?: string): string | null {
+  const p = (piece ?? "").trim();
+  if (!p) return null;
+  const q = query.trim();
+  if (!q || q.toLowerCase() === p.toLowerCase()) return null;
+  return p;
+}
+
+/** Face-colour miss: drop the garment and search the colour alone. */
+export function fallbackFaceQuery(query: string, piece?: string): string | null {
+  const p = (piece ?? "").trim();
+  if (!p) return null;
+  const q = query.trim();
+  if (!q) return null;
+  const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const without = q.replace(new RegExp(`\\s*${escaped}\\s*$`, "i"), "").trim();
+  if (!without || without.toLowerCase() === q.toLowerCase()) return null;
+  return without;
+}
+
+export type ReadingLookGroup = {
+  id: string;
+  label: string;
+  formula: string;
+  products: ReadingLookProduct[];
+};
+
+const MIN_LOOK_PRODUCTS = 1;
+
+export function groupReadingLooks(items: ReadingLookItem[]): {
+  looks: ReadingLookGroup[];
+  buys: ReadingLookProduct[];
+  droppedLookCount: number;
+} {
+  const groups: ReadingLookGroup[] = [];
+  const byId = new Map<string, ReadingLookGroup>();
+  const piecesByLook = new Map<string, string[]>();
+  for (const item of items) {
+    if (item.kind !== "look" || !item.lookId) continue;
+    let group = byId.get(item.lookId);
+    if (!group) {
+      group = {
+        id: item.lookId,
+        label: item.lookLabel || "A look",
+        formula: "",
+        products: [],
+      };
+      byId.set(item.lookId, group);
+      groups.push(group);
+    }
+    if (item.product) group.products.push(item.product);
+    const piece = item.piece?.trim() || item.product?.garment?.trim();
+    if (piece) {
+      const list = piecesByLook.get(item.lookId) ?? [];
+      list.push(piece);
+      piecesByLook.set(item.lookId, list);
+    }
+  }
+  for (const group of groups) {
+    group.products = uniqueLookProducts(group.products);
+    const pieces = [...new Set(piecesByLook.get(group.id) ?? [])];
+    group.formula = pieces.join(" · ");
+  }
+  const kept = groups;
+  const buys = uniqueLookProducts(
+    items
+      .filter((item) => item.kind === "buy" && item.product)
+      .map((item) => item.product!),
+  );
+  return {
+    looks: kept,
+    buys,
+    droppedLookCount: groups.filter((g) => g.products.length < MIN_LOOK_PRODUCTS)
+      .length,
+  };
 }

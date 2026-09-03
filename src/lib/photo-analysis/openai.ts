@@ -101,9 +101,54 @@ export type PhotoJsonSchemaCall = {
   incompleteError?: string;
 };
 
+export type PhotoUsageTokens = {
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  reasoning_tokens: number | null;
+};
+
+export type PhotoJsonSchemaResult = {
+  value: unknown;
+  usage: PhotoUsageTokens | null;
+};
+
+function asFinite(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+export function photoUsageTokens(payload: unknown): PhotoUsageTokens | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const usage = (payload as { usage?: unknown }).usage;
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  const u = usage as Record<string, unknown>;
+  const details =
+    u.output_tokens_details &&
+    typeof u.output_tokens_details === "object" &&
+    !Array.isArray(u.output_tokens_details)
+      ? (u.output_tokens_details as Record<string, unknown>)
+      : null;
+  const out: PhotoUsageTokens = {
+    input_tokens: asFinite(u.input_tokens),
+    output_tokens: asFinite(u.output_tokens),
+    total_tokens: asFinite(u.total_tokens),
+    reasoning_tokens: details ? asFinite(details.reasoning_tokens) : null,
+  };
+  if (
+    out.input_tokens == null &&
+    out.output_tokens == null &&
+    out.total_tokens == null
+  ) {
+    return null;
+  }
+  return out;
+}
+
 export async function callPhotoJsonSchema(
   opts: PhotoJsonSchemaCall,
-): Promise<unknown> {
+): Promise<PhotoJsonSchemaResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not set");
@@ -176,5 +221,5 @@ export async function callPhotoJsonSchema(
   if (!parsed) {
     throw new Error(PHOTO_ERROR.non_json);
   }
-  return parsed.value;
+  return { value: parsed.value, usage: photoUsageTokens(payload) };
 }

@@ -6,6 +6,8 @@ import { useChatStore } from "@/components/chat/chat-store";
 type Props = {
   onSelect?: (prompt: string) => void;
   className?: string;
+  /** Overlay composer: italic TRY rows, matching the Find mock. */
+  variant?: "chips" | "hints";
 };
 
 type Chip = {
@@ -36,7 +38,7 @@ function revealComposer() {
   });
 }
 
-export function HomeQuickActions({ onSelect, className }: Props) {
+export function HomeQuickActions({ onSelect, className, variant = "chips" }: Props) {
   const setInput = useChatStore((s) => s.setInput);
   const requestComposerFocus = useChatStore((s) => s.requestComposerFocus);
 
@@ -52,7 +54,10 @@ export function HomeQuickActions({ onSelect, className }: Props) {
 
   return (
     <div
-      className={cn("flex flex-wrap gap-2", className)}
+      className={cn(
+        variant === "hints" ? "shoop-comp-hints" : "flex flex-wrap gap-2",
+        className,
+      )}
       role="group"
       aria-label="Quick starts"
     >
@@ -61,9 +66,16 @@ export function HomeQuickActions({ onSelect, className }: Props) {
           key={chip.label}
           type="button"
           onClick={() => select(chip.prompt)}
-          className="shoop-a-chip"
+          className={variant === "hints" ? "shoop-comp-hint" : "shoop-a-chip"}
         >
-          {chip.label}
+          {variant === "hints" ? (
+            <>
+              <b>TRY</b>
+              {chip.prompt}
+            </>
+          ) : (
+            chip.label
+          )}
         </button>
       ))}
     </div>

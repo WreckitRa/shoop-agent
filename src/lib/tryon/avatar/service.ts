@@ -28,6 +28,7 @@ import { aggregateCompareStatus } from "../compare-variants";
 import {
   createSignedUrl,
   deletePrivateObjects,
+  downloadPrivateObject,
   persistProviderImage,
   uploadPrivateObject,
 } from "../storage";
@@ -258,7 +259,12 @@ export async function generateAvatarPreview(params: {
   }
 
   let photoUrl: string | undefined;
+  let photoBytes: Uint8Array | undefined;
+  let photoContentType: string | undefined;
   if (draft.photo_path) {
+    const downloaded = await downloadPrivateObject(draft.photo_path);
+    photoBytes = downloaded.bytes;
+    photoContentType = downloaded.contentType;
     photoUrl = await createSignedUrl(draft.photo_path, 600);
   }
 
@@ -297,6 +303,8 @@ export async function generateAvatarPreview(params: {
       userId: params.userId,
       personId: params.personId,
       photoUrl,
+      photoBytes,
+      photoContentType,
       attributes: mergedAttributes!,
       providerKeys,
     });
@@ -310,6 +318,8 @@ export async function generateAvatarPreview(params: {
     personId: params.personId,
     providerKey,
     photoUrl,
+    photoBytes,
+    photoContentType,
     attributes: mergedAttributes!,
   });
 
@@ -337,6 +347,8 @@ async function runAvatarProviderLeg(params: {
   personId: string;
   providerKey: AvatarProviderKey;
   photoUrl?: string;
+  photoBytes?: Uint8Array;
+  photoContentType?: string;
   attributes: AvatarAttributes;
   parentJobId?: string;
 }): Promise<AvatarCompareVariant> {
@@ -374,6 +386,8 @@ async function runAvatarProviderLeg(params: {
   try {
     const result = await provider.createAvatar({
       photoUrl: params.photoUrl,
+      photoBytes: params.photoBytes,
+      photoContentType: params.photoContentType,
       attributes: params.attributes,
     });
     const persisted = await persistProviderImage({
@@ -535,6 +549,8 @@ async function processAvatarCompareJob(params: {
   userId: string;
   personId: string;
   photoUrl?: string;
+  photoBytes?: Uint8Array;
+  photoContentType?: string;
   attributes: AvatarAttributes;
   providerKeys: AvatarProviderKey[];
 }): Promise<void> {
@@ -547,6 +563,8 @@ async function processAvatarCompareJob(params: {
         personId: params.personId,
         providerKey,
         photoUrl: params.photoUrl,
+        photoBytes: params.photoBytes,
+        photoContentType: params.photoContentType,
         attributes: params.attributes,
         parentJobId: params.parentJobId,
       });

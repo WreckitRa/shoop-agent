@@ -12,7 +12,7 @@ export function OnboardingWhy({ children }: { children: React.ReactNode }) {
 
 export function FittingWhisper({ children }: { children: React.ReactNode }) {
   return (
-    <p className="fitting-whisper mb-5 mt-2.5 max-w-[530px] text-[14.5px] leading-[1.62] text-[var(--fitting-quiet)] [&_b]:font-semibold [&_b]:text-[var(--fitting-ink)]">
+    <p className="fitting-whisper mb-5 mt-3 max-w-[530px] font-[family-name:var(--font-fraunces)] text-[14px] italic leading-[1.4] text-[var(--fitting-quiet)] lg:mt-2.5 lg:text-[14.5px] lg:leading-[1.62] [&_b]:font-semibold [&_b]:not-italic [&_b]:text-[var(--fitting-ink)]">
       {children}
     </p>
   );
@@ -20,7 +20,7 @@ export function FittingWhisper({ children }: { children: React.ReactNode }) {
 
 export function FittingKick({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2.5 font-display text-[9.5px] font-extrabold tracking-[0.16em] text-[var(--fitting-red)]">
+    <div className="fitting-kick mb-3.5 font-display text-[10px] font-extrabold tracking-[0.16em] text-[var(--fitting-red)] lg:mb-2.5 lg:text-[9.5px]">
       {children}
     </div>
   );
@@ -32,7 +32,7 @@ export function FittingTitle({
   lines: Array<{ text: string; red?: boolean; delay?: string }>;
 }) {
   return (
-    <h1 className="max-w-[640px] font-display text-[clamp(22px,2.8vw,32px)] font-black leading-[1.05] tracking-[-0.04em] text-[var(--fitting-ink)]">
+    <h1 className="max-w-[640px] font-display text-[clamp(28px,8.4vw,38px)] font-black leading-[0.98] tracking-[-0.045em] text-[var(--fitting-ink)] lg:text-[clamp(22px,2.8vw,32px)] lg:leading-[1.05] lg:tracking-[-0.04em]">
       {lines.map((line, i) => (
         <span key={i} className="block">
           <span
@@ -69,8 +69,11 @@ export function FittingCount({
   total: number;
 }) {
   return (
-    <div className="fitting-count mb-3 text-[9.5px] font-extrabold tracking-[0.14em] text-[var(--fitting-quiet)]">
-      {n} <span className="text-[#C4C4CC]">OF {total}</span>
+    <div className="fitting-count mb-3.5 font-display text-[10px] font-black tracking-[0.16em] text-[var(--fitting-red)] lg:mb-3 lg:text-[9.5px] lg:tracking-[0.14em] lg:text-[var(--fitting-quiet)] lg:font-extrabold">
+      {String(n).padStart(2, "0")}{" "}
+      <span className="text-[var(--fitting-red)] lg:text-[#C4C4CC]">
+        · OF {String(total).padStart(2, "0")}
+      </span>
     </div>
   );
 }
@@ -106,10 +109,10 @@ export function FittingCta({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex h-[52px] w-full max-w-[400px] items-center justify-center rounded-[14px] border-0 px-5 text-center font-display text-[14.5px] font-extrabold transition-transform duration-150 hover:-translate-y-0.5 disabled:hover:translate-y-0",
+        "inline-flex h-[54px] w-full max-w-none items-center justify-center rounded-[16px] border-0 px-5 text-center font-display text-[14px] font-black transition-transform duration-150 hover:-translate-y-0.5 disabled:hover:translate-y-0 lg:h-[52px] lg:max-w-[400px] lg:rounded-[14px] lg:text-[14.5px] lg:font-extrabold",
         inverse
           ? "bg-white text-[var(--fitting-ink)] disabled:bg-white/20 disabled:text-white/40"
-          : "bg-[var(--fitting-ink)] text-white disabled:bg-[var(--fitting-g3)] disabled:text-[#A8A8B0]",
+          : "bg-[var(--fitting-ink)] text-white shadow-[0_16px_32px_-18px_rgba(26,26,46,1)] disabled:bg-[var(--fitting-g3)] disabled:text-[#A8A8B0] disabled:shadow-none",
       )}
     >
       {children}
@@ -131,7 +134,7 @@ export function FittingNavRow({
   skip?: { label: string; onClick: () => void };
 }) {
   return (
-    <div className="sticky bottom-0 z-[4] mt-8 -mx-1 flex flex-wrap items-center gap-4 bg-gradient-to-t from-white via-white/95 to-transparent pb-1 pt-6">
+    <div className="fitting-nav max-lg:fixed max-lg:inset-x-[22px] max-lg:bottom-[calc(20px+env(safe-area-inset-bottom,0px))] max-lg:z-[8] max-lg:mt-0 max-lg:bg-transparent sticky bottom-0 z-[4] mt-8 -mx-1 flex flex-col items-stretch gap-3.5 bg-white pb-1 pt-5 lg:relative lg:inset-auto lg:flex-row lg:flex-wrap lg:items-center lg:gap-4 lg:bg-gradient-to-t lg:from-white lg:via-white/95 lg:to-transparent lg:pt-6">
       <FittingCta onClick={onNext} disabled={busy}>
         {busy ? "Saving…" : nextLabel}
       </FittingCta>
@@ -140,13 +143,13 @@ export function FittingNavRow({
           type="button"
           onClick={skip.onClick}
           disabled={busy}
-          className="border-0 bg-transparent p-0 font-sans text-[12.5px] font-semibold text-[var(--fitting-quiet)] underline decoration-[#C4C4CC] underline-offset-4 hover:text-[var(--fitting-ink)]"
+          className="self-center border-0 bg-transparent p-0 font-sans text-[12px] font-semibold text-[var(--fitting-quiet)] lg:self-auto lg:text-[12.5px] lg:underline lg:decoration-[#C4C4CC] lg:underline-offset-4 hover:text-[var(--fitting-ink)]"
         >
           {skip.label}
         </button>
       ) : null}
       {enterHint ? (
-        <span className="text-[11px] font-semibold tracking-[0.06em] text-[#C4C4CC]">
+        <span className="hidden text-[11px] font-semibold tracking-[0.06em] text-[#C4C4CC] lg:inline">
           or press enter
         </span>
       ) : null}
@@ -173,7 +176,7 @@ export function FittingField({
       placeholder={placeholder}
       autoFocus={autoFocus}
       autoComplete="given-name"
-      className="w-full max-w-[440px] border-0 border-b-[2.5px] border-[var(--fitting-ink)] bg-transparent py-1.5 font-display text-[30px] font-black text-[var(--fitting-ink)] outline-none placeholder:font-black placeholder:text-[#D9D9DE] focus:border-[var(--fitting-red)]"
+      className="mt-6 w-full max-w-[440px] border-0 border-b-2 border-[var(--fitting-g3)] bg-transparent py-3.5 font-display text-[26px] font-black tracking-[-0.03em] text-[var(--fitting-ink)] outline-none placeholder:font-black placeholder:text-[#D9D9DE] focus:border-[var(--fitting-red)] lg:mt-0 lg:border-b-[2.5px] lg:border-[var(--fitting-ink)] lg:py-1.5 lg:text-[30px] lg:tracking-normal"
     />
   );
 }
@@ -232,6 +235,11 @@ export function FittingCounted({
   );
 }
 
+const CHIP_INSET =
+  "shadow-[inset_0_3px_5px_-1px_rgba(14,14,17,0.18),inset_0_1px_2px_rgba(14,14,17,0.08)]";
+const CHIP_INSET_ON =
+  "shadow-[inset_0_3px_6px_-1px_rgba(14,14,17,0.28),inset_0_1px_2px_rgba(14,14,17,0.12)]";
+
 export function OnboardingChip({
   selected,
   onClick,
@@ -243,7 +251,7 @@ export function OnboardingChip({
   onClick?: () => void;
   children: React.ReactNode;
   disabled?: boolean;
-  /** love = heart prefix, no = veto, pressed = soft inset */
+  /** love = heart prefix, no = veto */
   variant?: "default" | "love" | "no" | "pressed";
 }) {
   return (
@@ -252,20 +260,28 @@ export function OnboardingChip({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "select-none rounded-xl border-[1.5px] px-[15px] py-2.5 text-[13.5px] font-semibold tracking-[0.01em] transition-all duration-150",
-        "hover:-translate-y-0.5 hover:border-[var(--fitting-ink)]",
+        "select-none rounded-[14px] border px-4 py-[13px] text-[14px] font-semibold tracking-[0.01em] transition-[box-shadow,border-color,background-color,color] duration-150 lg:rounded-xl lg:px-[15px] lg:py-2.5 lg:text-[13.5px]",
         !selected &&
           variant === "no" &&
-          "border-[#F0C9CC] bg-white text-[#B3454C]",
+          cn(
+            CHIP_INSET,
+            "border-[#eec9cb] bg-[#fffcfc] text-[#b3454c] lg:border-[#F0C9CC] lg:bg-white",
+          ),
         !selected &&
           variant !== "no" &&
-          "border-[var(--fitting-line)] bg-white text-[var(--fitting-ink)]",
+          cn(
+            CHIP_INSET,
+            "border-[var(--fitting-line)] bg-white text-[var(--fitting-ink)]",
+          ),
         selected &&
           variant === "no" &&
-          "border-[var(--fitting-red)] bg-[var(--fitting-red)] text-white",
+          "border-[var(--fitting-red)] bg-[var(--fitting-red)] text-white shadow-[inset_0_3px_6px_-1px_rgba(80,10,14,0.35)]",
         selected &&
           variant !== "no" &&
-          "translate-y-px border-[var(--fitting-ink)] bg-[#F4F4F6] text-[var(--fitting-ink)] shadow-[inset_0_2px_4px_rgba(14,14,17,0.18)]",
+          cn(
+            CHIP_INSET_ON,
+            "border-[var(--fitting-ink)] bg-[#F4F4F6] text-[var(--fitting-ink)]",
+          ),
         disabled && "opacity-50",
       )}
     >
@@ -294,10 +310,13 @@ export function OnboardingTile({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative overflow-hidden rounded-2xl border-2 border-[var(--fitting-line)] bg-white p-[16px_15px] text-left transition-all duration-150",
-        "hover:-translate-y-[3px] hover:shadow-[0_16px_30px_-20px_rgba(26,26,46,0.4)]",
-        selected &&
-          "translate-y-px border-[var(--fitting-ink)] bg-[#F4F4F6] text-[var(--fitting-ink)] shadow-[inset_0_2px_4px_rgba(14,14,17,0.18)]",
+        "relative overflow-hidden rounded-2xl border p-[16px_15px] text-left transition-[box-shadow,border-color,background-color] duration-150",
+        selected
+          ? cn(
+              CHIP_INSET_ON,
+              "border-[var(--fitting-ink)] bg-[#F4F4F6] text-[var(--fitting-ink)]",
+            )
+          : cn(CHIP_INSET, "border-[var(--fitting-line)] bg-white"),
       )}
     >
       <span

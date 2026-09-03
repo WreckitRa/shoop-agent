@@ -27,7 +27,7 @@ export function OnboardingLeaveFomo() {
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-[rgba(14,14,17,0.45)] p-4 backdrop-blur-md sm:items-center"
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-[rgba(14,14,17,0.45)] lg:items-center lg:p-4 lg:backdrop-blur-md"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="onboarding-leave-title"
@@ -39,7 +39,8 @@ export function OnboardingLeaveFomo() {
         className="absolute inset-0"
         onClick={cancelLeave}
       />
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[20px] border-2 border-[var(--fitting-ink)] bg-white p-0 shadow-[0_0_100px_-40px_rgba(26,26,46,.45)] sm:p-0">
+      <div className="relative z-10 w-full max-w-none overflow-hidden rounded-t-[22px] border border-[#c8c8ce] border-b-0 bg-white shadow-[0_-18px_50px_rgba(14,14,17,0.28)] lg:max-w-md lg:rounded-[20px] lg:border-2 lg:border-[var(--fitting-ink)] lg:shadow-[0_0_100px_-40px_rgba(26,26,46,.45)]">
+        <div className="mx-auto mt-2 h-1 w-9 rounded-full bg-[#d4d4dc] lg:hidden" />
         <div className="bg-[var(--fitting-ink)] px-6 py-5 text-white">
           <FittingKick>
             <span className="text-[#FF8A90]">STILL ON THE HANGER</span>
@@ -51,7 +52,7 @@ export function OnboardingLeaveFomo() {
             Walk away and this fitting isn&apos;t yours yet.
           </h2>
         </div>
-        <div className="p-6 sm:p-7">
+        <div className="p-6 pb-[max(24px,env(safe-area-inset-bottom))] lg:p-7">
         <p
           id="onboarding-leave-desc"
           className="max-w-[28rem] text-[14px] leading-[1.66] text-[var(--fitting-quiet)] [&_b]:font-semibold [&_b]:text-[var(--fitting-ink)]"

@@ -38,7 +38,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "photo hash required." }, { status: 400 });
   }
 
-  const assembled = await assembleVerdictInput(auth.userId, hash);
+  const extraBody = parseConfirmedBody(body?.declared_body);
+  const assembled = await assembleVerdictInput(auth.userId, hash, extraBody);
   if (!assembled.row || !assembled.analysis || !assembled.review) {
     return Response.json(
       {
@@ -57,24 +58,6 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
-
-  const extraBody = parseConfirmedBody(body?.declared_body);
-  const measurements = extraBody
-    ? {
-        ...assembled.measurements,
-        body: {
-          ...((assembled.measurements.body as Record<string, unknown> | undefined) ??
-            {}),
-          height_cm: extraBody.height_cm ?? undefined,
-          weight_kg: extraBody.weight_kg ?? undefined,
-          body_type: extraBody.body_type ?? undefined,
-          muscularity: extraBody.muscularity ?? undefined,
-          body_shape: extraBody.body_shape ?? undefined,
-          bust_fullness: extraBody.bust_fullness ?? undefined,
-          leg_line: extraBody.leg_line ?? undefined,
-        },
-      }
-    : assembled.measurements;
 
   const row = await expireStaleRunningVerdict(assembled.row);
   if (
@@ -106,16 +89,16 @@ export async function POST(req: Request) {
   after(async () => {
     const started = Date.now();
     try {
-      const verdict = await generateStylistVerdict({
+      const { verdict, tokens } = await generateStylistVerdict({
         photoAnalysis,
         userReview,
         questionnaireAnswers,
-        measurements,
+        measurements: assembled.measurements,
         wardrobeInventory,
         applicationContext,
         safetyIdentifier,
       });
-      await saveVerdict(rowId, verdict, Date.now() - started, model);
+      await saveVerdict(rowId, verdict, Date.now() - started, model, tokens);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Stylist verdict failed";

@@ -7,6 +7,9 @@ import type { BuildKey, SilhouetteForm } from "./types";
 
 export type LegLineVisual = "long_torso" | "even" | "long_leg";
 
+/** Silhouette + twin mint when fit height is skipped. */
+export const DEFAULT_SILHOUETTE_HEIGHT_CM = 170;
+
 export type BodyGeometry = {
   shoulder: number;
   chest: number;
@@ -205,7 +208,7 @@ export function resolveVisualDefinition(
 }
 
 export function heightScale(heightCm: number | null): number {
-  const cm = heightCm ?? 170;
+  const cm = heightCm ?? DEFAULT_SILHOUETTE_HEIGHT_CM;
   return clamp(1 + (cm - 170) / 500, 0.95, 1.05);
 }
 

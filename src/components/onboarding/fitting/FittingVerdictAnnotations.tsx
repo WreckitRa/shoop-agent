@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { cn } from "@/lib/ai-chat/cn";
 
 export type VerdictAnnoRegion = {
@@ -19,7 +19,7 @@ export const VERDICT_ANNO_REGIONS: readonly VerdictAnnoRegion[] = [
     id: "face",
     region: "Face",
     x: 51,
-    y: 13,
+    y: 12,
     side: "left",
     phrases: [
       "undertone lives here",
@@ -32,7 +32,7 @@ export const VERDICT_ANNO_REGIONS: readonly VerdictAnnoRegion[] = [
     id: "shoulders",
     region: "Shoulders",
     x: 67,
-    y: 25.5,
+    y: 24,
     side: "right",
     phrases: [
       "everything hangs from here",
@@ -45,7 +45,7 @@ export const VERDICT_ANNO_REGIONS: readonly VerdictAnnoRegion[] = [
     id: "body",
     region: "Body",
     x: 46,
-    y: 45,
+    y: 46,
     side: "left",
     phrases: [
       "waist is a proportion",
@@ -58,7 +58,7 @@ export const VERDICT_ANNO_REGIONS: readonly VerdictAnnoRegion[] = [
     id: "legs",
     region: "Legs",
     x: 54,
-    y: 64,
+    y: 86,
     side: "right",
     phrases: [
       "hem is a proportion",
@@ -69,8 +69,8 @@ export const VERDICT_ANNO_REGIONS: readonly VerdictAnnoRegion[] = [
   },
 ];
 
+const REVEAL_MS = 2000;
 const SHUFFLE_MS = 2400;
-const STAGGER_MS = 520;
 
 function prefersReducedMotion(): boolean {
   return (
@@ -84,32 +84,30 @@ export function FittingVerdictAnnotations({
 }: {
   compact?: boolean;
 }) {
-  const [indexes, setIndexes] = useState(() =>
-    VERDICT_ANNO_REGIONS.map(() => 0),
-  );
+  const [revealed, setRevealed] = useState(1);
+  const [phraseTick, setPhraseTick] = useState(0);
+
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      setRevealed(VERDICT_ANNO_REGIONS.length);
+      return;
+    }
+    const step = window.setInterval(() => {
+      setRevealed((n) => Math.min(n + 1, VERDICT_ANNO_REGIONS.length));
+    }, REVEAL_MS);
+    return () => window.clearInterval(step);
+  }, []);
 
   useEffect(() => {
     if (prefersReducedMotion()) return;
-    const intervals: number[] = [];
-    const starts = VERDICT_ANNO_REGIONS.map((_, i) =>
-      window.setTimeout(() => {
-        intervals.push(
-          window.setInterval(() => {
-            setIndexes((prev) => {
-              const next = [...prev];
-              const phrases = VERDICT_ANNO_REGIONS[i]!.phrases;
-              next[i] = ((next[i] ?? 0) + 1) % phrases.length;
-              return next;
-            });
-          }, SHUFFLE_MS),
-        );
-      }, 700 + i * STAGGER_MS),
-    );
-    return () => {
-      for (const id of starts) window.clearTimeout(id);
-      for (const id of intervals) window.clearInterval(id);
-    };
-  }, []);
+    if (revealed < VERDICT_ANNO_REGIONS.length) return;
+    const shuffle = window.setInterval(() => {
+      setPhraseTick((t) => t + 1);
+    }, SHUFFLE_MS);
+    return () => window.clearInterval(shuffle);
+  }, [revealed]);
+
+  const visible = VERDICT_ANNO_REGIONS.slice(0, revealed);
 
   return (
     <div
@@ -121,14 +119,10 @@ export function FittingVerdictAnnotations({
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
       >
-        {VERDICT_ANNO_REGIONS.map((r, i) => {
+        {visible.map((r) => {
           const endX = r.side === "left" ? 7 : 93;
           return (
-            <g
-              key={r.id}
-              className="fitting-anno__lead"
-              style={{ animationDelay: `${140 + i * 140}ms` }}
-            >
+            <g key={r.id} className="fitting-anno__lead">
               <path
                 d={`M ${r.x} ${r.y} L ${endX} ${r.y}`}
                 pathLength={1}
@@ -151,17 +145,14 @@ export function FittingVerdictAnnotations({
         })}
       </svg>
 
-      {VERDICT_ANNO_REGIONS.map((r, i) => {
-        const phrase = r.phrases[indexes[i] ?? 0] ?? r.phrases[0]!;
+      {visible.map((r) => {
+        const line =
+          r.phrases[phraseTick % r.phrases.length] ?? r.phrases[0]!;
         return (
-          <div key={r.id}>
+          <Fragment key={r.id}>
             <i
               className="fitting-anno__dot"
-              style={{
-                left: `${r.x}%`,
-                top: `${r.y}%`,
-                animationDelay: `${80 + i * 140}ms`,
-              }}
+              style={{ left: `${r.x}%`, top: `${r.y}%` }}
             />
             <div
               className={cn(
@@ -169,16 +160,14 @@ export function FittingVerdictAnnotations({
                 r.side === "left"
                   ? "fitting-anno__tag--l"
                   : "fitting-anno__tag--r",
+                r.id === "legs" && "fitting-anno__tag--legs",
               )}
-              style={{
-                top: `${r.y}%`,
-                animationDelay: `${220 + i * 140}ms`,
-              }}
+              style={{ top: `${r.y}%` }}
             >
               <b>{r.region}</b>
-              <em key={`${r.id}-${indexes[i] ?? 0}`}>{phrase}</em>
+              <em key={`${r.id}-${phraseTick}`}>{line}</em>
             </div>
-          </div>
+          </Fragment>
         );
       })}
     </div>

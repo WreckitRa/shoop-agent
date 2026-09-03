@@ -13,6 +13,8 @@ import {
   type CatalogSearchFilters,
 } from "@/lib/shopify/catalog";
 import {
+  fallbackLookQuery,
+  fallbackFaceQuery,
   pickLookProduct,
   productTitleKey,
   readingLookQueries,
@@ -20,9 +22,52 @@ import {
   type ReadingLookProduct,
 } from "./reading-looks";
 import type { StylistVerdict } from "./verdict";
+import { logVerdict } from "./verdict-log";
 
 const SEARCH_LIMIT = 8;
 const SEARCH_TIMEOUT_MS = 8_000;
+const SEARCH_CONCURRENCY = 2;
+const RATE_LIMIT_RETRIES = 4;
+
+function isRateLimited(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /rate limit/i.test(msg);
+}
+
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next;
+      next += 1;
+      out[i] = await fn(items[i]!, i);
+    }
+  }
+  const n = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: n }, () => worker()));
+  return out;
+}
+
+async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      reject(new Error("aborted"));
+    };
+    if (signal?.aborted) {
+      clearTimeout(t);
+      reject(new Error("aborted"));
+      return;
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 function productFromHit(
   hit: CatalogProductSummary,
@@ -62,6 +107,13 @@ export async function runReadingLooks(opts: {
   signal?: AbortSignal;
 }): Promise<ReadingLookItem[]> {
   const queries = readingLookQueries(opts.verdict);
+  logVerdict("looks-search start", {
+    queries: queries.length,
+    looks: queries.filter((q) => q.kind === "look").length,
+    buys: queries.filter((q) => q.kind === "buy").length,
+    swatches: queries.filter((q) => q.kind === "swatch").length,
+    avoids: queries.filter((q) => q.kind === "avoid").length,
+  });
   if (!queries.length) return [];
 
   const token = await accessTokenForCatalogMcp();
@@ -89,44 +141,118 @@ export async function runReadingLooks(opts: {
   const scope = createAbortScope(opts.signal);
   const search = resolveSearchCatalog();
 
-  const rows = await Promise.all(
-    queries.map(async (q) => {
-      const query =
-        opts.department && opts.department !== "mixed"
-          ? ensureDepartmentQueryPrefix(q.query, opts.department)
-          : q.query;
-      try {
-        const res = await search(token, query, filters, {
-          limit: SEARCH_LIMIT,
-          context,
-          signal: abortSignalWithTimeout(scope.fork(), SEARCH_TIMEOUT_MS),
-        });
-        return { q, hits: res.products ?? [] };
-      } catch {
-        return { q, hits: [] as CatalogProductSummary[] };
+  const rows = await mapLimit(queries, SEARCH_CONCURRENCY, async (q) => {
+    const prefixed = (raw: string) =>
+      opts.department && opts.department !== "mixed"
+        ? ensureDepartmentQueryPrefix(raw, opts.department)
+        : raw;
+
+    const runSearch = async (query: string) => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await search(token, prefixed(query), filters, {
+            limit: SEARCH_LIMIT,
+            context,
+            signal: abortSignalWithTimeout(scope.fork(), SEARCH_TIMEOUT_MS),
+          });
+        } catch (err) {
+          if (
+            !isRateLimited(err) ||
+            attempt >= RATE_LIMIT_RETRIES ||
+            opts.signal?.aborted
+          ) {
+            throw err;
+          }
+          const wait = 700 * 2 ** attempt;
+          logVerdict("looks-search wait", {
+            kind: q.kind,
+            id: q.lookId ?? q.key,
+            q: query,
+            attempt: attempt + 1,
+            ms: wait,
+          });
+          await sleep(wait, opts.signal);
+        }
       }
-    }),
-  );
+    };
+
+    try {
+      const first = await runSearch(q.query);
+      let hits = first.products ?? [];
+      let retried = false;
+      const retry =
+        q.kind === "swatch" || q.kind === "avoid"
+          ? fallbackFaceQuery(q.query, q.piece)
+          : fallbackLookQuery(q.query, q.piece);
+      if (!hits.length && retry) {
+        retried = true;
+        const second = await runSearch(retry);
+        hits = second.products ?? [];
+      }
+      return { q, hits, retried };
+    } catch (err) {
+      logVerdict("looks-search error", {
+        kind: q.kind,
+        id: q.lookId ?? q.key,
+        q: q.query,
+        error: err instanceof Error ? err.message : "unknown",
+      });
+      return {
+        q,
+        hits: [] as CatalogProductSummary[],
+        retried: false,
+      };
+    }
+  });
 
   const usedIds = new Set<string>();
   const usedTitlesByLook = new Map<string, Set<string>>();
-  return rows.map(({ q, hits }) => {
+  const usedSwatchIds = new Set<string>();
+  const usedAvoidIds = new Set<string>();
+  const items = rows.map(({ q, hits, retried }) => {
     const lookKey = q.lookId ?? q.key;
     let usedTitles = usedTitlesByLook.get(lookKey);
     if (!usedTitles) {
       usedTitles = new Set();
       usedTitlesByLook.set(lookKey, usedTitles);
     }
-    const product = pickLookProduct(
-      candidatesFromHits(hits),
-      usedIds,
-      usedTitles,
-    );
+    const usedFace =
+      q.kind === "avoid"
+        ? usedAvoidIds
+        : q.kind === "swatch"
+          ? usedSwatchIds
+          : usedIds;
+    const candidates = candidatesFromHits(hits);
+    const product = pickLookProduct(candidates, usedFace, usedTitles);
     if (product) {
-      usedIds.add(product.id);
+      usedFace.add(product.id);
       const titleKey = productTitleKey(product.title);
       if (titleKey) usedTitles.add(titleKey);
     }
-    return { ...q, product } satisfies ReadingLookItem;
+    logVerdict("looks-search", {
+      kind: q.kind,
+      id: q.lookId ?? q.key,
+      q: q.query,
+      hits: hits.length,
+      usable: candidates.length,
+      retry: retried || undefined,
+      picked: product?.title ?? null,
+      miss: product
+        ? undefined
+        : hits.length
+          ? "duplicate"
+          : "no_hits",
+    });
+    return {
+      ...q,
+      product: product
+        ? { ...product, garment: q.piece || q.query }
+        : null,
+    } satisfies ReadingLookItem;
   });
-}
+    logVerdict("looks-search done", {
+      hit: items.filter((item) => item.product).length,
+      miss: items.filter((item) => !item.product).length,
+    });
+    return items;
+  }

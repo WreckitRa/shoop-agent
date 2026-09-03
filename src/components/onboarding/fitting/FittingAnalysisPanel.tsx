@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   FittingCta,
   FittingKick,
@@ -32,6 +32,8 @@ import { writeOnboardingUiSession } from "./ui-session";
 import type { MirrorState } from "./types";
 
 const POLL_MS = 2000;
+/** Phone scan/verdict stage — always show the card for a beat, even if the scan is already done. */
+const PHONE_STAGE_HOLD_MS = 2800;
 
 export type ScanUiPayload = {
   activity: MirrorState["scanActivity"];
@@ -76,6 +78,7 @@ export function FittingAnalysisPanel({
   onSkip,
   onPersistBody,
   onScanUi,
+  phoneStage = false,
 }: {
   enabled: boolean;
   photoFile: File | null;
@@ -88,8 +91,10 @@ export function FittingAnalysisPanel({
   ) => void;
   onComplete: (row: PhotoAnalysisPublic) => void;
   onSkip: () => void;
-  onPersistBody: () => Promise<boolean>;
+  onPersistBody: () => Promise<string | null>;
   onScanUi?: (ui: ScanUiPayload) => void;
+  /** Mobile: full-page twin card as the wait UI; hold a fake scan even if analysis is ready. */
+  phoneStage?: boolean;
 }) {
   const [analysis, setAnalysis] = useState<PhotoAnalysisPublic | null>(null);
   const [photoHash, setPhotoHash] = useState<string | null>(null);
@@ -98,6 +103,13 @@ export function FittingAnalysisPanel({
   const [genError, setGenError] = useState<string | null>(null);
   const completedRef = useRef(false);
   const kickOnceRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const photoHashRef = useRef(photoHash);
+  photoHashRef.current = photoHash;
+  const genErrorRef = useRef(genError);
+  genErrorRef.current = genError;
+  const [minHold, setMinHold] = useState(phoneStage);
   const kickVerdictRef = useRef<(row: PhotoAnalysisPublic) => Promise<void>>(
     async () => undefined,
   );
@@ -123,10 +135,9 @@ export function FittingAnalysisPanel({
     let id = 0;
 
     async function tick() {
+      const hash = photoHashRef.current;
       try {
-        const qs = photoHash
-          ? `?hash=${encodeURIComponent(photoHash)}`
-          : "";
+        const qs = hash ? `?hash=${encodeURIComponent(hash)}` : "";
         const res = await guestFetch(`/api/onboarding/photo-analysis${qs}`);
         if (!res.ok) return;
         const json = (await res.json()) as {
@@ -134,22 +145,27 @@ export function FittingAnalysisPanel({
         };
         if (cancelled) return;
         const row = json.analysis;
-        if (photoHash && row && row.photoHash !== photoHash) return;
-        if (!photoHash && row?.photoHash) setPhotoHash(row.photoHash);
+        if (hash && row && row.photoHash !== hash) return;
+        if (!hash && row?.photoHash) setPhotoHash(row.photoHash);
         setAnalysis(row);
-        if (photoHash) setPolled(true);
+        if (hash) setPolled(true);
         const phase = photoScanPhase(row);
         if (phase === "done" && row?.verdict && !completedRef.current) {
           completedRef.current = true;
           setGenerating(false);
-          onComplete(row);
+          onCompleteRef.current(row);
+          window.clearInterval(id);
           return;
         }
-        if (phase === "writing") {
+        if (
+          phase === "writing" &&
+          !genErrorRef.current &&
+          !kickOnceRef.current &&
+          row &&
+          row.verdictStatus !== "running"
+        ) {
           setGenerating(true);
-          if (row && row.verdictStatus !== "running") {
-            void kickVerdictRef.current(row);
-          }
+          void kickVerdictRef.current(row);
         }
         if (phase === "done" || phase === "error") {
           window.clearInterval(id);
@@ -167,15 +183,34 @@ export function FittingAnalysisPanel({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [enabled, photoHash, onComplete]);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled || !phoneStage) {
+      setMinHold(false);
+      return;
+    }
+    setMinHold(true);
+    const id = window.setTimeout(() => setMinHold(false), PHONE_STAGE_HOLD_MS);
+    return () => window.clearTimeout(id);
+  }, [enabled, phoneStage]);
+
+  useLayoutEffect(() => {
     if (!onScanUi) return;
     if (!enabled) {
       onScanUi({ activity: "idle", notes: [] });
       return;
     }
     const phase = photoScanPhase(analysis);
+    if (genError || analysis?.verdictError) {
+      onScanUi({ activity: "idle", notes: [] });
+      return;
+    }
+    const holding = phoneStage && minHold && phase === "reading";
+    if (holding) {
+      onScanUi({ activity: "reading", notes: [] });
+      return;
+    }
     if (generating || phase === "writing") {
       onScanUi({ activity: "writing", notes: [] });
       return;
@@ -202,7 +237,15 @@ export function FittingAnalysisPanel({
         };
       });
     onScanUi({ activity: "review", notes });
-  }, [enabled, generating, analysis, onScanUi]);
+  }, [
+    enabled,
+    generating,
+    analysis,
+    onScanUi,
+    phoneStage,
+    minHold,
+    genError,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -226,10 +269,9 @@ export function FittingAnalysisPanel({
         ...body,
         ...resolveScanCheckBody(body, row.result),
       });
-      const savedBody = await onPersistBody();
-      if (!savedBody) {
-        kickOnceRef.current = false;
-        setGenError("Couldn’t save your measurements.");
+      const persistError = await onPersistBody();
+      if (persistError) {
+        setGenError(persistError);
         setGenerating(false);
         return;
       }
@@ -247,23 +289,30 @@ export function FittingAnalysisPanel({
           error?: string;
         } | null;
         if (!res.ok || !json?.analysis) {
-          kickOnceRef.current = false;
-          setGenError(json?.error || "Couldn’t write the verdict.");
+          const missing = (
+            json as { missing?: { reason?: string }[] } | null
+          )?.missing
+            ?.map((m) => m.reason)
+            .filter((r): r is string => Boolean(r?.trim()));
+          setGenError(
+            [json?.error || "Couldn’t write the verdict.", missing?.join(" ")]
+              .filter(Boolean)
+              .join(" "),
+          );
           setGenerating(false);
           return;
         }
         setAnalysis(json.analysis);
         if (json.analysis.verdict && json.analysis.verdictStatus === "done") {
           completedRef.current = true;
-          onComplete(json.analysis);
+          onCompleteRef.current(json.analysis);
         }
       } catch {
-        kickOnceRef.current = false;
         setGenError("Couldn’t write the verdict.");
         setGenerating(false);
       }
     },
-    [photoHash, body, onPersistBody, onComplete],
+    [photoHash, body, onPersistBody],
   );
 
   useEffect(() => {
@@ -277,12 +326,20 @@ export function FittingAnalysisPanel({
   const usable = Boolean(
     analysis?.result?.analysis_status.usable && (photoHash || analysis?.photoHash),
   );
+  const failed = Boolean(genError || analysis?.verdictError);
+  const faking =
+    phoneStage && minHold && phase === "reading" && !failed;
 
-  if (
-    generating ||
-    phase === "writing" ||
-    Boolean(analysis?.verdictError)
-  ) {
+  if (!faking && (generating || phase === "writing" || failed)) {
+    if (phoneStage && !failed) {
+      return (
+        <FittingWaitProgress
+          compact
+          steps={VERDICT_WAIT_STEPS}
+          expectedMs={45_000}
+        />
+      );
+    }
     return (
       <section>
         <FittingKick>THE VERDICT</FittingKick>
@@ -292,13 +349,13 @@ export function FittingAnalysisPanel({
             { text: "what %%suits you.%%", red: true },
           ]}
         />
-        {genError || analysis?.verdictError ? null : (
+        {failed ? null : (
           <FittingWhisper>
             Your approved scan, body, era, week, and taste — turned into rules
-            you can shop with. Watch your twin — that&apos;s the only picture.
+            you can shop with.
           </FittingWhisper>
         )}
-        {!genError && !analysis?.verdictError ? (
+        {!failed ? (
           <FittingWaitProgress
             steps={VERDICT_WAIT_STEPS}
             expectedMs={45_000}
@@ -343,7 +400,16 @@ export function FittingAnalysisPanel({
     );
   }
 
-  if (running) {
+  if (faking || running) {
+    if (phoneStage) {
+      return (
+        <FittingWaitProgress
+          compact
+          steps={SCAN_WAIT_STEPS}
+          expectedMs={28_000}
+        />
+      );
+    }
     return (
       <section>
         <FittingKick>THE SCAN</FittingKick>
@@ -354,8 +420,8 @@ export function FittingAnalysisPanel({
           ]}
         />
         <FittingWhisper>
-          Checking the photo on your twin. We&apos;ll ask you to confirm a few
-          things when it&apos;s ready.
+          Checking the photo. We&apos;ll ask you to confirm a few things when
+          it&apos;s ready.
         </FittingWhisper>
         <FittingWaitProgress steps={SCAN_WAIT_STEPS} expectedMs={28_000} />
       </section>

@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { PHOTO_ERROR } from "./errors";
-import { callPhotoJsonSchema, withPhotoGptLock } from "./openai";
+import {
+  callPhotoJsonSchema,
+  withPhotoGptLock,
+  type PhotoUsageTokens,
+} from "./openai";
 import {
   STYLIST_READING_INSTRUCTIONS,
   STYLIST_READING_SCHEMA,
@@ -10,7 +14,11 @@ import {
 } from "./verdict-prompt";
 
 export const DEFAULT_STYLIST_VERDICT_MODEL = "gpt-5.6-sol";
-/** Hang-safety for the reading-card call. Not a quality budget. */
+/**
+ * Hang-safety for the reading-card call. Not a quality budget.
+ * If the P4 judge bar (≥4) fails after two copy iterations, raise this
+ * before switching reasoning effort off `low`.
+ */
 export const VERDICT_TIMEOUT_MS = 90_000;
 export const VERDICT_STALE_MS = VERDICT_TIMEOUT_MS + 20_000;
 const VERDICT_MAX_OUTPUT_TOKENS = 16_000;
@@ -187,7 +195,10 @@ export async function generateStylistVerdict({
   wardrobeInventory = {},
   applicationContext = {},
   safetyIdentifier,
-}: GenerateStylistVerdictInput): Promise<StylistVerdict> {
+}: GenerateStylistVerdictInput): Promise<{
+  verdict: StylistVerdict;
+  tokens: PhotoUsageTokens | null;
+}> {
   const present_domains = listPresentDomains({
     questionnaireAnswers,
     measurements,
@@ -215,7 +226,7 @@ export async function generateStylistVerdict({
   return withPhotoGptLock(async () => {
     const remaining = VERDICT_TIMEOUT_MS - (Date.now() - started);
     if (remaining < 8_000) throw new Error(PHOTO_ERROR.timeout);
-    const raw = await callPhotoJsonSchema({
+    const { value: raw, usage } = await callPhotoJsonSchema({
       model: stylistVerdictModel(),
       // low: medium + the full catalog schema burned the 16k cap and sat
       // on the Fitting screen past five minutes. Reading-card schema only.
@@ -236,7 +247,7 @@ export async function generateStylistVerdict({
     });
     const verdict = parseStylistVerdict(raw);
     if (!verdict) throw new Error(PHOTO_ERROR.non_json);
-    return verdict;
+    return { verdict, tokens: usage };
   });
 }
 

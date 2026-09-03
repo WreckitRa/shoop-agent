@@ -22,6 +22,7 @@ import { useInlineProductStore } from "@/components/chat/inline-product-store";
 import { buildInlineProductState } from "@/lib/shared/productPanelParams";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { useCartStore } from "@/components/cart/cart-store";
+import { useUserIdentity } from "@/hooks/useUserIdentity";
 import { cartContainsVariant } from "@/lib/cart/variant-id";
 import {
   FITTING_HANGER_MIME,
@@ -313,6 +314,7 @@ export function FittingStage({
   const [actionHint, setActionHint] = useState<string | null>(null);
   const [inlineOk, setInlineOk] = useState(true);
   const addCartItem = useCartStore((s) => s.addItem);
+  const { initials } = useUserIdentity();
 
   const activeItems = activeIds
     .map((id) => itemsById[id])
@@ -722,16 +724,27 @@ export function FittingStage({
       )}
     >
           <div className="shoop-croom__mhead">
+            <div className="shoop-croom__lg">SHOOP</div>
             <div className="shoop-croom__mlbl">
               <span className="shoop-croom__dot" aria-hidden />
               <h2>The Mirror</h2>
             </div>
             <div className="shoop-croom__mhead-actions">
+              <span className="shoop-croom__pill">
+                <b>
+                  {rackItems.length || activeItems.length}
+                </b>
+                {rackItems.length
+                  ? ` waiting`
+                  : activeItems.length
+                    ? ` on you`
+                    : ` to hang`}
+              </span>
               <span className="shoop-croom__dressed">{dressedLabel}</span>
               {lookReady && scanLive ? (
                 <button
                   type="button"
-                  className="rounded-full bg-ink px-3 py-1.5 text-[11px] font-extrabold text-white transition hover:bg-ink/90"
+                  className="hidden rounded-full bg-ink px-3 py-1.5 text-[11px] font-extrabold text-white transition hover:bg-ink/90 lg:inline-flex"
                   onClick={() =>
                     useTryOnDrawerStore.getState().requestAskShare()
                   }
@@ -739,6 +752,9 @@ export function FittingStage({
                   Ask friends
                 </button>
               ) : null}
+              <span className="shoop-croom__avi" aria-hidden>
+                {initials}
+              </span>
               <button
                 type="button"
                 className="shoop-croom-close"
@@ -871,10 +887,20 @@ export function FittingStage({
               )
             ) : null}
 
+            <div className="shoop-twin__halo" aria-hidden />
+
             {dropGlow ? (
               <div className="shoop-twin__dropcue" aria-hidden>
                 <span>Drop it on me</span>
               </div>
+            ) : null}
+
+            {!busy && !lookReady && !dropGlow ? (
+              <p className="shoop-twin__cue">
+                {rackItems.length
+                  ? "flick a piece onto me"
+                  : "hang a find, then drop it on me"}
+              </p>
             ) : null}
 
             {!lookReady ? (
@@ -959,19 +985,42 @@ export function FittingStage({
     </section>
   );
 
+  const dockItems = rackItems.slice(0, 3);
+  const dock =
+    overlay && dockItems.length > 0 ? (
+      <div className="shoop-flick-dock" aria-label="Fitting room, first pieces">
+        {dockItems.map((item) => (
+          <RailHanger
+            key={`dock-${item.id}`}
+            item={item}
+            wearing={activeIds.includes(item.id)}
+            hearted={heartedIds.has(item.id)}
+            onHeart={() => heartItem(item.id)}
+            onWear={() => dressItem(item.id)}
+            onUnwear={() => removeFromAvatar(item.id)}
+            onDragStart={onDragStart}
+          />
+        ))}
+      </div>
+    ) : null;
+
   if (overlay) {
     return (
       <div className="shoop-croom-overlay" role="presentation">
         <div
           ref={panelRef}
           role="dialog"
-          aria-label="Changing room"
+          aria-label="The Flick"
           aria-modal="true"
-          className="shoop-croom relative"
+          className={cn(
+            "shoop-croom relative",
+            rackItems.length === 0 && "shoop-croom--empty",
+          )}
           data-tryon-drawer
         >
           {rail}
           {mirror}
+          {dock}
         </div>
       </div>
     );

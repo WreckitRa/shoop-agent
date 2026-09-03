@@ -2,16 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/ai-chat/cn";
-import { FittingCta, FittingKick, FittingWhisper } from "@/components/onboarding/onboarding-ui";
+import { FittingCta, FittingKick } from "@/components/onboarding/onboarding-ui";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import type { StyleMix } from "@/lib/onboarding/style-mix";
 import {
+  groupReadingLooks,
   productForStep,
   uniqueLookProducts,
+  wardrobePlanHasBuys,
   type ReadingLookItem,
   type ReadingLookProduct,
 } from "@/lib/photo-analysis/reading-looks";
 import { buildReadingView } from "@/lib/photo-analysis/verdict-reading";
+import type { ReadingRec } from "@/lib/photo-analysis/verdict-reading";
+import { trackClientEvent } from "@/lib/analytics/client";
 import type { StylistVerdict } from "@/lib/photo-analysis/verdict";
 import { catalogDisplayImageUrl, CATALOG_IMAGE_PX } from "@/lib/shopify/catalog-display-image";
 import {
@@ -32,11 +36,13 @@ type Props = {
   styleMix?: StyleMix | null;
   developPct: number;
   circleNames?: string[];
-  dressStatus?: "idle" | "dressing" | "ready" | "error";
-  dressStyleLabel?: string | null;
-  dressedLookUrl?: string | null;
+  /** Twin minted — dress looks on you, not catalog stills. */
+  twinReady?: boolean;
   busy?: boolean;
-  onMeetTwin: () => void;
+  accountReady?: boolean;
+  onSaveLooks?: (jobIds: string[]) => void;
+  onAskCircle?: () => void;
+  onMeetTwin?: () => void;
   ctaLabel?: string;
   onShare?: (selectedCircle: string[]) => void;
   shareCopied?: boolean;
@@ -61,7 +67,9 @@ type LookOnYou = "loading" | "error" | string;
 async function pollLookJob(jobId: string): Promise<string | null> {
   const startedAt = Date.now();
   while (Date.now() - startedAt <= TRYON_CLIENT_POLL_MAX_MS) {
-    const pollRes = await guestFetch(`/api/tryon/fitting-room/${jobId}`);
+    const pollRes = await guestFetch(
+      `/api/tryon/fitting-room/${jobId}?source=verdict`,
+    );
     const pollBody = (await pollRes.json()) as {
       error?: string;
       tryon_look?: {
@@ -94,27 +102,90 @@ async function pollLookJob(jobId: string): Promise<string | null> {
   return null;
 }
 
-async function dressLookOnYou(
-  products: ReadingLookProduct[],
-): Promise<string | null> {
-  const items = products.slice(0, 6).map((product) => ({
-    provenance: {
-      kind: "image" as const,
-      imageUrl: product.imageUrl,
-      title: product.title,
-      garment: product.title,
-      styleId: product.id,
-    },
-  }));
+async function fetchReadingLooks(): Promise<ReadingLookItem[]> {
+  const res = await guestFetch("/api/onboarding/reading-looks");
+  if (!res.ok) return [];
+  const json = (await res.json()) as { items?: ReadingLookItem[] };
+  return Array.isArray(json.items) ? json.items : [];
+}
+
+function productsForLookId(
+  items: ReadingLookItem[],
+  id: string,
+): ReadingLookProduct[] {
+  return uniqueLookProducts(
+    items
+      .filter((item) => item.lookId === id && item.product)
+      .map((item) => item.product!),
+  );
+}
+
+function traceVerdict(event: string, payload: Record<string, unknown> = {}) {
+  void guestFetch("/api/onboarding/verdict-log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event, ...payload }),
+  }).catch(() => {});
+}
+
+function isDressedUrl(value: LookOnYou | undefined): value is string {
+  return Boolean(value) && value !== "loading" && value !== "error";
+}
+
+async function startDressJob(
+  items: Array<{ provenance: Record<string, unknown> }>,
+): Promise<{ url: string; jobId: string } | null> {
   if (!items.length) return null;
   const res = await guestFetch("/api/tryon/fitting-room", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-shoop-verdict": "1",
+    },
     body: JSON.stringify({ items }),
   });
   const body = (await res.json()) as { error?: string; jobId?: string };
   if (!res.ok || !body.jobId) return null;
-  return pollLookJob(body.jobId);
+  const url = await pollLookJob(body.jobId);
+  if (!url) return null;
+  return { url, jobId: body.jobId };
+}
+
+/** Same garments the reading pull found — catalog product first, image+piece if that fails. */
+async function dressLookOnYou(
+  products: ReadingLookProduct[],
+): Promise<{ url: string; jobId: string } | null> {
+  const slice = products.slice(0, 6);
+  if (!slice.length) return null;
+  const started = Date.now();
+  const byProduct = await startDressJob(
+    slice.map((product) => ({
+      provenance: { kind: "product" as const, productId: product.id },
+    })),
+  );
+  if (byProduct) {
+    trackClientEvent("twin_render_completed", {
+      source: "reading_look",
+      ms: Date.now() - started,
+    });
+    return byProduct;
+  }
+  const byImage = await startDressJob(
+    slice.map((product) => ({
+      provenance: {
+        kind: "image" as const,
+        imageUrl: product.imageUrl,
+        title: product.title,
+        garment: product.garment || product.title,
+        styleId: product.id,
+      },
+    })),
+  );
+  trackClientEvent(byImage ? "twin_render_completed" : "twin_render_failed", {
+    source: "reading_look",
+    ms: Date.now() - started,
+  });
+  return byImage;
 }
 
 function TasteDonut({
@@ -211,105 +282,212 @@ function TasteDonut({
   );
 }
 
-function formatLookPrice(
-  price: ReadingLookProduct["price"],
-): string | null {
-  if (!price || !Number.isFinite(price.amount)) return null;
-  const value = price.amount / 100;
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: price.currency,
-      maximumFractionDigits: value % 1 === 0 ? 0 : 2,
-    }).format(value);
-  } catch {
-    return null;
-  }
-}
-
-function ReadingProductTile({
-  product,
-  caption,
-}: {
-  product: ReadingLookProduct;
-  caption?: string;
-}) {
-  const price = formatLookPrice(product.price);
-  return (
-    <figure className="min-w-0">
-      <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-[#F3F3F5]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={catalogDisplayImageUrl(product.imageUrl, CATALOG_IMAGE_PX.stack)}
-          alt=""
-          className="size-full object-cover"
-        />
-      </div>
-      <figcaption className="mt-2">
-        <p className="line-clamp-2 font-display text-[12px] font-extrabold leading-[1.3] text-[var(--fitting-ink)]">
-          {product.title}
-        </p>
-        {caption ? (
-          <p className="mt-0.5 text-[10.5px] leading-[1.4] text-[var(--fitting-quiet)]">
-            {caption}
-          </p>
-        ) : null}
-        {price ? (
-          <p className="mt-0.5 text-[11px] font-semibold text-[var(--fitting-quiet)]">
-            {price}
-          </p>
-        ) : null}
-      </figcaption>
-    </figure>
-  );
-}
 function ColorSwatch({
   hex,
-  name,
-  use,
+  photo,
   struck,
+  caption,
+  canRetry,
+  onRetry,
+  onImageFail,
 }: {
   hex: string;
-  name: string;
-  use: string;
+  photo?: LookOnYou;
   struck?: boolean;
+  caption?: string;
+  canRetry?: boolean;
+  onRetry?: () => void;
+  onImageFail?: () => void;
 }) {
+  const dressed = isDressedUrl(photo);
+  const loading = !dressed;
   return (
     <div className="min-w-0">
       <div
         className={cn(
-          "relative aspect-[4/5] overflow-hidden rounded-xl",
+          "relative aspect-[4/5] overflow-hidden rounded-xl bg-[#F4F4F6]",
           struck && "saturate-[0.85]",
         )}
-        style={{
-          background: `radial-gradient(80% 60% at 50% 18%, #FDFDFE 0%, ${hex}55 50%, ${hex} 100%)`,
-        }}
       >
-        <div
-          className="absolute inset-x-[18%] bottom-[22%] top-[38%] rounded-t-[40%]"
-          style={{ background: hex }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(26,26,46,0.42)]" />
+        {dressed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photo}
+            alt=""
+            onError={onImageFail}
+            className="absolute inset-0 size-full object-cover object-top"
+          />
+        ) : (
+          <div
+            className={cn("absolute inset-0", loading && "animate-pulse")}
+            style={{
+              background: `radial-gradient(80% 60% at 50% 18%, #FDFDFE 0%, ${hex}55 50%, ${hex} 100%)`,
+            }}
+          />
+        )}
         {struck ? (
           <div
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "linear-gradient(135deg, transparent calc(50% - 1px), rgba(220,38,38,0.5) 50%, transparent calc(50% + 1px))",
+                "linear-gradient(135deg, transparent calc(50% - 1px), rgba(220,38,38,0.55) 50%, transparent calc(50% + 1px))",
             }}
           />
         ) : null}
-        <span className="absolute bottom-2 left-2.5 right-2 font-display text-[9.5px] font-extrabold tracking-[0.11em] text-white drop-shadow">
-          {name}
-        </span>
+        {!dressed ? (
+          <div
+            className={cn(
+              "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent px-1.5 pt-8",
+              canRetry ? "pb-9" : "pb-2",
+            )}
+          >
+            <p className="text-center text-[10px] font-bold leading-[1.3] text-white">
+              {photo === "error"
+                ? "Couldn’t dress this on you."
+                : "Dressing this colour on you…"}
+            </p>
+          </div>
+        ) : null}
+        {canRetry && onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="absolute inset-x-2 bottom-2 rounded-full bg-white/92 px-2 py-1 text-[10px] font-extrabold tracking-[0.04em] text-[var(--fitting-ink)] shadow-sm"
+          >
+            Retry
+          </button>
+        ) : null}
       </div>
-      {use && use.toUpperCase() !== name.toUpperCase() ? (
-        <p className="mt-2 text-[11px] leading-[1.45] text-[var(--fitting-quiet)]">
-          {use}
+      {caption ? (
+        <p
+          className={cn(
+            "mt-1.5 text-[11px] font-semibold leading-[1.3]",
+            struck ? "text-[#DC2626]" : "text-[var(--fitting-ink)]",
+          )}
+        >
+          {caption}
         </p>
       ) : null}
     </div>
   );
+}
+
+function LooksOnYouRail({
+  fiveLooks,
+  lookOnYou,
+  pulling,
+  twinReady,
+  onRetry,
+  onImageFail,
+}: {
+  fiveLooks: Array<{
+    id: string;
+    label: string;
+    formula: string;
+    products: ReadingLookProduct[];
+  }>;
+  lookOnYou: Record<string, LookOnYou>;
+  pulling: boolean;
+  twinReady: boolean;
+  onRetry: (id: string) => void;
+  onImageFail: (id: string) => void;
+}) {
+  const slots =
+    pulling && !fiveLooks.length
+      ? Array.from({ length: LOOKS_ON_YOU }, (_, i) => ({
+          id: `pending-${i}`,
+          label: `Look ${i + 1}`,
+          formula: "",
+          products: [] as ReadingLookProduct[],
+        }))
+      : fiveLooks;
+
+  const stillWorking =
+    pulling ||
+    slots.some((group) => {
+      const onYou = lookOnYou[group.id];
+      return (
+        onYou === "loading" ||
+        (!twinReady && group.products.length > 0 && !isDressedUrl(onYou))
+      );
+    });
+
+  return (
+    <div>
+      <FittingKick>FIVE LOOKS ON YOU</FittingKick>
+      <p className="mt-1.5 text-[12.5px] leading-[1.45] text-[var(--fitting-quiet)]">
+        {stillWorking
+          ? twinReady
+            ? "Dressing each look on you — this can take a minute."
+            : "Waiting for your twin, then dressing each look on you."
+          : null}
+      </p>
+      <div className="mt-3 -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">
+        {slots.map((group) => {
+          const onYou = lookOnYou[group.id];
+          const dressed = isDressedUrl(onYou);
+          const canRetry = !dressed && onYou !== "loading" && !pulling;
+          const status = !twinReady
+            ? "Waiting for your twin…"
+            : onYou === "error"
+              ? "Couldn’t dress this on you."
+              : pulling || !group.products.length
+                ? "Finding this look…"
+                : "Dressing this on you…";
+          return (
+            <div
+              key={group.id}
+              className="w-[min(220px,70vw)] shrink-0 snap-start"
+            >
+              <div className="mb-1.5 font-display text-[12.5px] font-extrabold leading-[1.2] tracking-[-0.02em]">
+                {group.label}
+              </div>
+              {dressed ? (
+                <div className="overflow-hidden rounded-2xl bg-[#F4F4F6]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={onYou}
+                    alt=""
+                    onError={() => onImageFail(group.id)}
+                    className="aspect-[3/4] w-full object-cover object-top"
+                  />
+                </div>
+              ) : (
+                <div className="relative overflow-hidden rounded-2xl border border-[var(--fitting-line)] bg-[#F7F7F8]">
+                  <div className="aspect-[3/4] w-full animate-pulse bg-[#E8E8EC]" />
+                  <div className="absolute inset-0 flex flex-col items-center justify-end bg-gradient-to-t from-black/45 via-black/10 to-transparent px-3 pb-3 pt-10">
+                    <p className="text-center text-[12px] font-semibold leading-[1.35] text-white">
+                      {status}
+                    </p>
+                    {canRetry ? (
+                      <button
+                        type="button"
+                        onClick={() => onRetry(group.id)}
+                        className="mt-2 rounded-full border border-white/70 bg-white px-2.5 py-1 text-[10.5px] font-extrabold tracking-[0.04em] text-[var(--fitting-ink)]"
+                      >
+                        Retry
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+              {group.formula ? (
+                <p className="mt-1.5 text-[11px] leading-[1.4] text-[var(--fitting-quiet)]">
+                  {group.formula}
+                </p>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function recIcon(kind: ReadingRec["kind"]) {
+  if (kind === "do") return { mark: "✓", cls: "bg-[rgba(22,163,74,0.14)] text-[var(--fitting-good)]" };
+  if (kind === "dont") return { mark: "✕", cls: "bg-[rgba(220,38,38,0.12)] text-[#DC2626]" };
+  return { mark: "○", cls: "bg-[#EEE] text-[var(--fitting-quiet)]" };
 }
 
 export function FittingVerdictStep({
@@ -322,27 +500,22 @@ export function FittingVerdictStep({
   vetoCount,
   verdict = null,
   styleMix = null,
-  developPct,
-  circleNames = [],
-  dressStatus = "idle",
-  dressStyleLabel = null,
-  dressedLookUrl = null,
+  developPct: _developPct,
+  circleNames: _circleNames = [],
+  twinReady = false,
   busy,
+  accountReady = false,
+  onSaveLooks,
+  onAskCircle,
   onMeetTwin,
-  ctaLabel,
-  onShare,
-  shareCopied,
+  ctaLabel: _ctaLabel,
+  onShare: _onShare,
+  shareCopied: _shareCopied,
 }: Props) {
-  const cleanedCircle = circleNames.map((n) => n.trim()).filter(Boolean);
-  const cleanedKey = cleanedCircle.join("\0");
-  const [selectedCircle, setSelectedCircle] = useState<string[]>(cleanedCircle);
   const [openArea, setOpenArea] = useState<string | null>(null);
+  const [fullReadingOpen, setFullReadingOpen] = useState(false);
   const [looks, setLooks] = useState<ReadingLookItem[] | null>(null);
-
-  useEffect(() => {
-    setSelectedCircle(cleanedCircle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when names change
-  }, [cleanedKey]);
+  const looksInflight = useRef<Promise<ReadingLookItem[]> | null>(null);
 
   const first =
     preferredName.trim().charAt(0).toUpperCase() +
@@ -382,531 +555,642 @@ export function FittingVerdictStep({
 
   useEffect(() => {
     if (!verdict) return;
-    let cancelled = false;
-    void guestFetch("/api/onboarding/reading-looks")
-      .then(async (res) => {
-        if (!res.ok) return [] as ReadingLookItem[];
-        const json = (await res.json()) as { items?: ReadingLookItem[] };
-        return Array.isArray(json.items) ? json.items : [];
-      })
+    if (!looksInflight.current) {
+      looksInflight.current = fetchReadingLooks();
+    }
+    const req = looksInflight.current;
+    let live = true;
+    traceVerdict("looks-fetch");
+    void req
       .catch(() => [] as ReadingLookItem[])
       .then((items) => {
-        if (!cancelled) setLooks(items);
+        if (!live) return;
+        traceVerdict("looks-fetch-ok", {
+          n: items.length,
+          withProduct: items.filter((item) => item.product).length,
+        });
+        setLooks(items);
+        setLookOnYou((prev) => {
+          const next = { ...prev };
+          for (const item of items) {
+            if (item.kind !== "swatch" && item.kind !== "avoid") continue;
+            if (!item.lookId || item.product) continue;
+            if (next[item.lookId] === "loading" || isDressedUrl(next[item.lookId])) {
+              continue;
+            }
+            next[item.lookId] = "error";
+          }
+          return next;
+        });
       });
     return () => {
-      cancelled = true;
+      live = false;
     };
   }, [verdict]);
-
-  function toggleCircle(name: string) {
-    setSelectedCircle((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-    );
-  }
 
   function toggleArea(id: string) {
     setOpenArea((prev) => (prev === id ? null : id));
   }
 
-  const lookGroups = useMemo(() => {
-    const groups: Array<{
-      id: string;
-      label: string;
-      products: ReadingLookProduct[];
-    }> = [];
-    const byId = new Map<string, (typeof groups)[number]>();
-    for (const item of looks ?? []) {
-      if (item.kind !== "look" || !item.product || !item.lookId) continue;
-      let group = byId.get(item.lookId);
-      if (!group) {
-        group = {
-          id: item.lookId,
-          label: item.lookLabel || "A look",
-          products: [],
-        };
-        byId.set(item.lookId, group);
-        groups.push(group);
-      }
-      group.products.push(item.product);
-    }
-    for (const group of groups) {
-      group.products = uniqueLookProducts(group.products);
-    }
-    const buys = (looks ?? [])
-      .filter((item) => item.kind === "buy" && item.product)
-      .map((item) => item.product!);
-    const used = new Set(groups.flatMap((g) => g.products.map((p) => p.id)));
-    const leftover = uniqueLookProducts(buys.filter((p) => !used.has(p.id)));
-    if (leftover.length) {
-      groups.push({
-        id: "buy",
-        label: "First to get",
-        products: leftover,
-      });
-    }
-    return groups;
-  }, [looks]);
-
-  const fiveLooks = useMemo(
-    () => lookGroups.filter((group) => group.id !== "buy").slice(0, LOOKS_ON_YOU),
-    [lookGroups],
+  const groupedLooks = useMemo(
+    () => groupReadingLooks(looks ?? []),
+    [looks],
   );
+  const fiveLooks = useMemo(
+    () => groupedLooks.looks.slice(0, LOOKS_ON_YOU),
+    [groupedLooks],
+  );
+  const dressJobs = useMemo(() => {
+    const outfits = fiveLooks.filter((group) => group.products.length);
+    const faces = (looks ?? [])
+      .filter(
+        (item) =>
+          (item.kind === "swatch" || item.kind === "avoid") &&
+          item.product &&
+          item.lookId,
+      )
+      .map((item) => ({
+        id: item.lookId!,
+        label: item.lookLabel || "",
+        products: [item.product!],
+      }));
+    return [...outfits, ...faces];
+  }, [fiveLooks, looks]);
   const [lookOnYou, setLookOnYou] = useState<Record<string, LookOnYou>>({});
   const dressedLooksRef = useRef(new Set<string>());
+  const lookJobIdsRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
-    const pending = fiveLooks.filter(
+    if (!twinReady) {
+      if (dressJobs.length) {
+        traceVerdict("dress-wait", { jobs: dressJobs.length });
+      }
+      return;
+    }
+    const pending = dressJobs.filter(
       (group) => group.products.length && !dressedLooksRef.current.has(group.id),
     );
-    if (!pending.length) return;
+    if (!pending.length) {
+      if (dressJobs.length) {
+        traceVerdict("dress-skip", {
+          jobs: dressJobs.length,
+          already: dressedLooksRef.current.size,
+        });
+      }
+      return;
+    }
     let cancelled = false;
+    const started = pending.map((group) => group.id);
+    traceVerdict("dress-pending", { ids: started });
     void (async () => {
-      for (const group of pending) {
-        if (cancelled) return;
-        dressedLooksRef.current.add(group.id);
-        setLookOnYou((prev) => ({ ...prev, [group.id]: "loading" }));
-        try {
-          const url = await dressLookOnYou(group.products);
-          if (cancelled) return;
-          setLookOnYou((prev) => ({
-            ...prev,
-            [group.id]: url ?? "error",
-          }));
-        } catch {
-          if (!cancelled) {
+      await Promise.all(
+        pending.map(async (group) => {
+          dressedLooksRef.current.add(group.id);
+          setLookOnYou((prev) => ({ ...prev, [group.id]: "loading" }));
+          try {
+            const dressed = await dressLookOnYou(group.products);
+            if (cancelled) {
+              traceVerdict("dress-cancelled", { id: group.id });
+              return;
+            }
+            if (dressed && group.id.startsWith("look-")) {
+              lookJobIdsRef.current[group.id] = dressed.jobId;
+            }
+            traceVerdict("dress-done", {
+              id: group.id,
+              ok: Boolean(dressed),
+              jobId: dressed?.jobId,
+            });
+            setLookOnYou((prev) => ({
+              ...prev,
+              [group.id]: dressed?.url ?? "error",
+            }));
+          } catch (err) {
+            if (cancelled) {
+              traceVerdict("dress-cancelled", { id: group.id });
+              return;
+            }
+            traceVerdict("dress-fail", {
+              id: group.id,
+              error: err instanceof Error ? err.message : "unknown",
+            });
             setLookOnYou((prev) => ({ ...prev, [group.id]: "error" }));
           }
-        }
-      }
+        }),
+      );
     })();
     return () => {
       cancelled = true;
+      for (const id of started) dressedLooksRef.current.delete(id);
     };
-  }, [fiveLooks]);
+  }, [dressJobs, twinReady]);
 
-  const noteCount = Math.max(
-    reading.areas.filter((a) => a.verdict === "n").length,
-    reading.steps.length,
-    3,
-  );
+  function failImage(id: string) {
+    setLookOnYou((prev) => {
+      if (!isDressedUrl(prev[id])) return prev;
+      return { ...prev, [id]: "error" };
+    });
+  }
+
+  function retryDress(id: string) {
+    if (lookOnYou[id] === "loading") return;
+    setLookOnYou((prev) => ({ ...prev, [id]: "loading" }));
+    void (async () => {
+      try {
+        let products =
+          dressJobs.find((group) => group.id === id)?.products ?? [];
+        if (!products.length) {
+          looksInflight.current = null;
+          const items = await fetchReadingLooks();
+          looksInflight.current = Promise.resolve(items);
+          setLooks(items);
+          products = productsForLookId(items, id);
+        }
+        if (!products.length) {
+          setLookOnYou((prev) => ({ ...prev, [id]: "error" }));
+          return;
+        }
+        dressedLooksRef.current.add(id);
+        const dressed = await dressLookOnYou(products);
+        if (dressed && id.startsWith("look-")) {
+          lookJobIdsRef.current[id] = dressed.jobId;
+        }
+        setLookOnYou((prev) => ({ ...prev, [id]: dressed?.url ?? "error" }));
+      } catch {
+        setLookOnYou((prev) => ({ ...prev, [id]: "error" }));
+      }
+    })();
+  }
+
+  const askCircle = onAskCircle ?? onMeetTwin;
 
   return (
-    <section className="max-w-[720px] pb-4">
+    <section className="max-w-[920px] pb-4">
       <FittingKick>DONE</FittingKick>
-      <h1 className="font-display text-[clamp(26px,3.6vw,40px)] font-black leading-[0.97] tracking-[-0.045em] text-[var(--fitting-ink)]">
+      <h1 className="font-display text-[clamp(26px,7.6vw,33px)] font-black leading-[1] tracking-[-0.042em] text-[var(--fitting-ink)] lg:text-[clamp(26px,3.6vw,40px)] lg:leading-[0.97] lg:tracking-[-0.045em]">
         {first ? `${first}, here's` : "Here's"}
         <br />
         what I <span className="text-[var(--fitting-red)]">see.</span>
       </h1>
-      <p className="mt-3 max-w-[530px] text-[14.5px] leading-[1.62] text-[var(--fitting-quiet)] [&_b]:font-semibold [&_b]:text-[var(--fitting-ink)]">
+      <p className="mt-3 font-[family-name:var(--font-fraunces)] text-[14px] italic leading-[1.45] text-[var(--fitting-quiet)] lg:mt-3 lg:font-sans lg:text-[14.5px] lg:not-italic lg:leading-[1.62] [&_b]:font-semibold [&_b]:text-[var(--fitting-ink)]">
         {reading.headline ? (
           <>
             <b>{reading.headline}.</b>{" "}
           </>
         ) : null}
-        {reading.opening}{" "}
-        <b>Open any area</b> for the rest of what I found there.
-        {vetoCount > 0 ? (
-          <>
-            {" "}
-            Your <b>{vetoCount} hard vetoes</b> stay locked.
-          </>
-        ) : null}
+        {reading.opening}
       </p>
 
-        {fiveLooks.length || (verdict && looks === null) ? (
-          <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
-            <div className="mb-1 font-display text-[10px] font-black tracking-[0.14em] text-[#C4C4CC]">
-              FIRST
-            </div>
-            <FittingKick>YOUR WEEK, DRESSED</FittingKick>
-            <h2 className="mb-4 font-display text-[clamp(22px,2.6vw,28px)] font-black leading-[1.08] tracking-[-0.03em]">
-              Five looks on you — not catalog stills.
-            </h2>
-            {fiveLooks.length ? (
-              <div className="flex flex-col gap-6">
-                {fiveLooks.map((group) => {
-                  const onYou = lookOnYou[group.id];
-                  return (
-                  <div key={group.id}>
-                    <div className="mb-3 font-display text-[13px] font-extrabold tracking-[-0.02em]">
-                      {group.label}
-                    </div>
-                    {typeof onYou === "string" ? (
-                      <div className="mb-2.5 overflow-hidden rounded-2xl bg-[#F4F4F6]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={onYou}
-                          alt=""
-                          className="aspect-[3/4] w-full object-cover object-top"
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <p className="mb-2.5 font-whisper text-[14px] italic text-[var(--fitting-quiet)]">
-                          {onYou === "error"
-                            ? "Couldn’t dress this one on you — the pieces are below."
-                            : "Dressing this look on you…"}
-                        </p>
-                        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                          {group.products.map((product) => (
-                            <ReadingProductTile
-                              key={product.id}
-                              product={product}
-                            />
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="font-whisper text-[15px] italic text-[var(--fitting-quiet)]">
-                Dressing the looks on your twin…
-              </p>
-            )}
-          </div>
-        ) : null}
+      <div className="mt-6">
+        <LooksOnYouRail
+          fiveLooks={fiveLooks}
+          lookOnYou={lookOnYou}
+          pulling={Boolean(verdict) && looks === null}
+          twinReady={twinReady}
+          onRetry={retryDress}
+          onImageFail={failImage}
+        />
+      </div>
 
-        {reading.steps.length >= 2 ? (
-          <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
-            <div className="mb-1 font-display text-[10px] font-black tracking-[0.14em] text-[#C4C4CC]">
-              ONE OF FIVE
-            </div>
-            <FittingKick>THE DIFFERENCE</FittingKick>
-            <h2 className="mb-4 font-display text-[clamp(22px,2.6vw,28px)] font-black leading-[1.08] tracking-[-0.03em] text-[var(--fitting-ink)]">
-              {noteCount} ways to move from what you wear now.
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {reading.steps.map((s) => {
-                const piece = productForStep(s.why, looks ?? []);
-                return (
-                <div
-                  key={s.step}
-                  className="rounded-2xl border border-[var(--fitting-line)] bg-[#FAFAFB] p-3.5"
-                >
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="font-display text-[9px] font-extrabold tracking-[0.16em] text-[var(--fitting-red)]">
-                      {s.label}
-                    </span>
-                    <span className="grid size-[22px] place-items-center rounded-full bg-white font-display text-[11px] font-black text-[var(--fitting-ink)] shadow-sm">
-                      {s.step}
-                    </span>
-                  </div>
-                  {piece ? (
-                    <div className="mb-3 overflow-hidden rounded-xl bg-white">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={catalogDisplayImageUrl(
-                          piece.imageUrl,
-                          CATALOG_IMAGE_PX.stack,
-                        )}
-                        alt={piece.title}
-                        className="aspect-[3/4] w-full object-cover"
-                      />
-                      <p className="line-clamp-2 px-2 py-1.5 font-display text-[11px] font-extrabold leading-[1.3]">
-                        {piece.title}
-                      </p>
-                    </div>
-                  ) : null}
-                  <div className="font-display text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.02em]">
-                    {s.name}
-                  </div>
-                  {s.why !== s.name ? (
-                    <p className="mt-2 text-[12px] leading-[1.55] text-[var(--fitting-quiet)]">
-                      {s.why}
-                    </p>
-                  ) : null}
-                </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        {reading.areas.length ? (
-          <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
-            <div className="mb-1 font-display text-[10px] font-black tracking-[0.14em] text-[#C4C4CC]">
-              FOUR OF FIVE
-            </div>
-            <FittingKick>WHAT YOU CAN AND CANNOT</FittingKick>
-            <h2 className="mb-4 font-display text-[clamp(22px,2.6vw,28px)] font-black leading-[1.08] tracking-[-0.03em]">
-              {reading.areas.length} areas. Open any of them.
-            </h2>
-            <div className="flex flex-col gap-2">
-              {reading.areas.map((a) => {
-                const open = openArea === a.id;
-                return (
-                  <div
-                    key={a.id}
-                    className={cn(
-                      "overflow-hidden rounded-2xl border border-[var(--fitting-line)] transition",
-                      open &&
-                        "border-[#D6D6D9] shadow-[0_16px_34px_-22px_rgba(14,14,17,0.35)]",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleArea(a.id)}
-                      className="flex w-full items-center gap-3.5 p-3.5 text-left hover:bg-[#F7F7F8]"
-                    >
-                      <span
-                        className="grid h-[52px] w-11 shrink-0 place-items-center overflow-hidden rounded-[9px]"
-                        style={{
-                          background: `linear-gradient(165deg, ${a.thumb}22, ${a.thumb}55)`,
-                        }}
-                      >
-                        <span
-                          className="block h-10 w-[30px] rounded-md"
-                          style={{ background: a.thumb }}
-                        />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <b className="block font-display text-[15px] font-extrabold">
-                          {a.name}
-                        </b>
-                        <em className="mt-0.5 block text-xs not-italic text-[var(--fitting-quiet)]">
-                          {a.sum}
-                        </em>
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full px-2.5 py-1 font-display text-[10px] font-black tracking-[0.08em]",
-                          a.verdict === "y"
-                            ? "bg-[rgba(22,163,74,0.12)] text-[var(--fitting-good)]"
-                            : "bg-[rgba(220,38,38,0.1)] text-[#DC2626]",
-                        )}
-                      >
-                        {a.vlab}
-                      </span>
-                      <span
-                        className={cn(
-                          "text-[13px] text-[#C2C2C6] transition-transform",
-                          open && "rotate-180",
-                        )}
-                      >
-                        ▾
-                      </span>
-                    </button>
-                    {open ? (
-                      <div className="px-3.5 pb-4 pt-0">
-                        <div className="mb-3.5 rounded-xl border border-[var(--fitting-line)] bg-[#F7F7F8] px-3.5">
-                          {a.metrics.map((m) => (
-                            <div
-                              key={m.label}
-                              className="flex items-center justify-between gap-3 border-b border-[var(--fitting-line)] py-2.5 text-[12.5px] last:border-0"
-                            >
-                              <span className="font-semibold text-[var(--fitting-quiet)]">
-                                {m.label}
-                              </span>
-                              <span
-                                className={cn(
-                                  "font-display text-[13px] font-black",
-                                  m.tone === "hi" && "text-[var(--fitting-good)]",
-                                  m.tone === "lo" && "text-[#DC2626]",
-                                )}
-                              >
-                                {m.value}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mb-3">
-                          <div className="mb-2 font-display text-[10px] font-extrabold tracking-[0.13em] text-[var(--fitting-red)]">
-                            WHAT THIS MEANS
-                          </div>
-                          <p className="text-[13px] leading-[1.65] text-[var(--fitting-quiet)]">
-                            {a.insight}
-                          </p>
-                        </div>
-                        {a.recs.length ? (
-                          <div>
-                            <div className="mb-2 font-display text-[10px] font-extrabold tracking-[0.13em] text-[var(--fitting-red)]">
-                              WHAT TO DO ABOUT IT
-                            </div>
-                            <ul className="list-none">
-                              {a.recs.map((r) => (
-                                <li
-                                  key={`${r.ok}-${r.title}`}
-                                  className="flex gap-2.5 border-t border-[var(--fitting-line)] py-2.5 text-[12.5px] leading-[1.5]"
-                                >
-                                  <i
-                                    className={cn(
-                                      "mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-full text-[10px] font-extrabold not-italic",
-                                      r.ok
-                                        ? "bg-[rgba(22,163,74,0.14)] text-[var(--fitting-good)]"
-                                        : "bg-[rgba(220,38,38,0.12)] text-[#DC2626]",
-                                    )}
-                                  >
-                                    {r.ok ? "✓" : "✕"}
-                                  </i>
-                                  <span>
-                                    <b className="mb-0.5 block font-display text-[13px] font-extrabold">
-                                      {r.title}
-                                    </b>
-                                    {r.detail ? (
-                                      <span className="text-[var(--fitting-quiet)]">
-                                        {r.detail}
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        {reading.palette.length ? (
-          <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
-            <div className="mb-1 font-display text-[10px] font-black tracking-[0.14em] text-[#C4C4CC]">
-              TWO OF FIVE
-            </div>
-            <FittingKick>FROM YOUR OWN SKIN, HAIR AND EYES</FittingKick>
-            <h2 className="mb-4 font-display text-[clamp(22px,2.6vw,28px)] font-black leading-[1.08] tracking-[-0.03em]">
-              {reading.palette.length} that suit you.
-            </h2>
-            <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
-              {reading.palette.map((s) => (
-                <ColorSwatch key={s.name} hex={s.hex} name={s.name} use={s.use} />
-              ))}
-            </div>
-            {reading.avoid.length ? (
-              <div className="mt-5 border-t border-dashed border-[#D4D4D7] pt-5">
-                <div className="mb-3 flex items-center gap-2 font-display text-[9.5px] font-extrabold tracking-[0.15em] text-[#DC2626]">
-                  <i className="grid size-4 place-items-center rounded-full bg-[rgba(220,38,38,0.11)] text-[9px] font-extrabold not-italic">
-                    ✕
-                  </i>
-                  AND THESE, NEVER NEXT TO YOUR FACE
-                </div>
-                <div className="grid max-w-[280px] grid-cols-2 gap-2.5">
-                  {reading.avoid.map((s) => (
-                    <ColorSwatch
-                      key={s.name}
-                      hex={s.hex}
-                      name={s.name}
-                      use={s.use}
-                      struck
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <p className="mt-3.5 text-[13px] leading-[1.65] text-[var(--fitting-quiet)] [&_b]:font-bold [&_b]:text-[var(--fitting-ink)]">
-              Shown where they matter, <b>right up at your face</b> — that is
-              where colour does the work.
+      {reading.palette.length ? (
+        <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
+          <FittingKick>YOUR COLORS, FROM YOUR FACE</FittingKick>
+          {looks === null ||
+          reading.palette.some(
+            (_, i) =>
+              lookOnYou[`swatch-${i}`] === "loading" ||
+              (lookOnYou[`swatch-${i}`] !== "error" &&
+                !isDressedUrl(lookOnYou[`swatch-${i}`])),
+          ) ? (
+            <p className="mt-1.5 text-[12.5px] leading-[1.45] text-[var(--fitting-quiet)]">
+              Dressing each colour on you — not a product photo.
             </p>
+          ) : null}
+          <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-6">
+            {reading.palette.map((s, i) => (
+              <ColorSwatch
+                key={s.name}
+                hex={s.hex}
+                photo={lookOnYou[`swatch-${i}`]}
+                caption={s.name}
+                canRetry={
+                  looks !== null &&
+                  lookOnYou[`swatch-${i}`] !== "loading" &&
+                  !isDressedUrl(lookOnYou[`swatch-${i}`]) &&
+                  (lookOnYou[`swatch-${i}`] === "error" ||
+                    !looks.some(
+                      (item) => item.lookId === `swatch-${i}` && item.product,
+                    ))
+                }
+                onRetry={() => retryDress(`swatch-${i}`)}
+                onImageFail={() => failImage(`swatch-${i}`)}
+              />
+            ))}
           </div>
-        ) : null}
-
-        {reading.mix.length ? (
-          <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
-            <div className="mb-1 font-display text-[10px] font-black tracking-[0.14em] text-[#C4C4CC]">
-              YOUR MIX
-            </div>
-            <FittingKick>THE TASTE YOU PICKED</FittingKick>
-            <h2 className="mb-4 font-display text-[clamp(22px,2.6vw,28px)] font-black leading-[1.08] tracking-[-0.03em]">
-              This is the mix you picked.
-            </h2>
-            <TasteDonut mix={reading.mix} />
-          </div>
-        ) : null}
-
-        <footer className="mt-8 overflow-hidden rounded-[20px] bg-[var(--fitting-ink)] px-6 py-7 text-white">
-          <FittingKick>
-            <span className="text-[#FF8A90]">NOW IT BECOMES YOURS</span>
-          </FittingKick>
-          <h3 className="font-display text-[25px] font-black tracking-[-0.035em]">
-            That&apos;s you. Now the clothes.
-          </h3>
-          <p className="mt-2 text-[13.5px] leading-[1.6] text-[#B4B4C0]">
-            Outfits for the week you&apos;ve actually got, on your own body.
-            Every one follows what&apos;s above — and when something breaks a
-            rule, I&apos;ll say so.
-          </p>
-
-          {cleanedCircle.length ? (
-            <div className="mt-4">
-              <div className="mb-2 font-display text-[10px] font-extrabold tracking-[0.14em] text-[#FF8A90]">
-                SEND IT TO YOUR TRUSTED CIRCLE
+          {reading.avoid.length ? (
+            <div className="mt-5">
+              <div className="mb-3 font-display text-[9.5px] font-extrabold tracking-[0.15em] text-[#DC2626]">
+                NEVER NEXT TO YOUR FACE
               </div>
-              <div className="flex flex-wrap">
-                {cleanedCircle.map((name) => {
-                  const on = selectedCircle.includes(name);
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => toggleCircle(name)}
-                      className={cn(
-                        "mb-1.5 mr-1.5 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-white/30 py-1.5 pl-1.5 pr-3.5 text-[12.5px] font-bold text-white transition-all",
-                        on && "border-white bg-white text-[var(--fitting-ink)]",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "grid size-[22px] place-items-center rounded-full bg-white/16 text-[10px] font-extrabold",
-                          on && "bg-[var(--fitting-ink)] text-white",
-                        )}
-                      >
-                        {name.charAt(0).toUpperCase()}
-                      </span>
-                      {name}
-                    </button>
-                  );
-                })}
+              <div className="grid max-w-[280px] grid-cols-2 gap-2.5">
+                {reading.avoid.map((s, i) => (
+                  <ColorSwatch
+                    key={s.name}
+                    hex={s.hex}
+                    photo={lookOnYou[`avoid-${i}`]}
+                    struck
+                    caption={s.use ? `${s.name} — ${s.use}` : s.name}
+                    canRetry={
+                      looks !== null &&
+                      lookOnYou[`avoid-${i}`] !== "loading" &&
+                      !isDressedUrl(lookOnYou[`avoid-${i}`]) &&
+                      (lookOnYou[`avoid-${i}`] === "error" ||
+                        !looks.some(
+                          (item) => item.lookId === `avoid-${i}` && item.product,
+                        ))
+                    }
+                    onRetry={() => retryDress(`avoid-${i}`)}
+                    onImageFail={() => failImage(`avoid-${i}`)}
+                  />
+                ))}
               </div>
             </div>
           ) : null}
+          {reading.paletteLine ? (
+            <p className="mt-3.5 text-[13px] leading-[1.65] text-[var(--fitting-quiet)]">
+              {reading.paletteLine}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
-          <div className="mt-[18px] flex flex-wrap gap-2.5">
-            <FittingCta onClick={onMeetTwin} disabled={busy} inverse>
-              {busy ? "Opening…" : ctaLabel ?? "Show me my looks"}
-            </FittingCta>
-            {onShare ? (
-              <button
-                type="button"
-                onClick={() => onShare(selectedCircle)}
-                className="h-12 rounded-xl border-[1.5px] border-white/30 bg-transparent px-5 font-display text-[13px] font-extrabold text-white transition hover:border-white hover:bg-white hover:text-[var(--fitting-ink)]"
+      {reading.rules.length ? (
+        <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
+          <FittingKick>THREE RULES I&apos;LL HOLD YOU TO</FittingKick>
+          <ul className="mt-3 list-none">
+            {reading.rules.map((r) => (
+              <li
+                key={`${r.ok}-${r.text}`}
+                className="flex gap-2.5 border-t border-[var(--fitting-line)] py-3 text-[13.5px] leading-[1.45] first:border-0"
               >
-                {shareCopied
-                  ? "Copied ✓"
-                  : cleanedCircle.length && selectedCircle.length
-                    ? "Ask my circle"
-                    : "Share this"}
-              </button>
-            ) : null}
-          </div>
-        </footer>
+                <i
+                  className={cn(
+                    "mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-full text-[10px] font-extrabold not-italic",
+                    r.ok
+                      ? "bg-[rgba(22,163,74,0.14)] text-[var(--fitting-good)]"
+                      : "bg-[rgba(220,38,38,0.12)] text-[#DC2626]",
+                  )}
+                >
+                  {r.ok ? "✓" : "✕"}
+                </i>
+                <span className="font-display text-[15px] font-extrabold">
+                  {r.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {vetoCount > 0 ? (
+            <p className="mt-3 text-[13px] text-[var(--fitting-quiet)]">
+              Your <b className="text-[var(--fitting-ink)]">{vetoCount} vetoes</b> stay locked.
+            </p>
+          ) : null}
+        </div>
+      ) : vetoCount > 0 ? (
+        <p className="mt-6 text-[13px] text-[var(--fitting-quiet)]">
+          Your <b className="text-[var(--fitting-ink)]">{vetoCount} vetoes</b> stay locked.
+        </p>
+      ) : null}
 
-      <FittingWhisper>
-        {dressStatus === "dressing" ? (
-          <>
-            Shoop is putting{" "}
-            <b>{dressStyleLabel ?? "your worn look"}</b> on your twin right
-            now... {developPct}% and counting.
-          </>
-        ) : dressStatus === "ready" ? (
-          <>
-            {developPct}% · dressed in{" "}
-            <b>{dressStyleLabel ?? "your worn look"}</b> on your twin.
-          </>
-        ) : (
-          <>
-            {developPct}% developed... your twin is on the right.{" "}
-            <b>Your print gets a first-edition serial.</b>
-          </>
-        )}
-      </FittingWhisper>
+      <footer className="mt-8 overflow-hidden rounded-[20px] bg-[var(--fitting-ink)] px-6 py-7 text-white">
+        <FittingKick>
+          <span className="text-[#FF8A90]">KEEP THESE LOOKS</span>
+        </FittingKick>
+        <h3 className="font-display text-[25px] font-black tracking-[-0.035em]">
+          {accountReady
+            ? "Save these looks to your moodboard"
+            : "Save progress and log in"}
+        </h3>
+        <p className="mt-2 text-[13.5px] leading-[1.6] text-[#B4B4C0]">
+          {accountReady
+            ? "I’ll keep every look on your moodboard — in your size, with what we need to check out. Then we’ll ask your circle before we close the Fitting."
+            : "Log in so I can save these looks to your moodboard — in your size, ready to buy. After that we ask your circle, then we close the Fitting."}
+        </p>
+        <div className="mt-[18px] flex flex-wrap items-center gap-2.5">
+          <FittingCta
+            onClick={() => {
+              const jobIds = Object.values(lookJobIdsRef.current);
+              if (onSaveLooks) {
+                onSaveLooks(jobIds);
+                return;
+              }
+              askCircle?.();
+            }}
+            disabled={busy}
+            inverse
+          >
+            {busy
+              ? "Saving…"
+              : accountReady
+                ? "Save looks and continue"
+                : "Save progress and log in"}
+          </FittingCta>
+          {askCircle ? (
+            <button
+              type="button"
+              onClick={askCircle}
+              className="text-[12.5px] font-semibold text-[#B4B4C0] underline-offset-2 hover:text-white hover:underline"
+            >
+              Skip to your circle
+            </button>
+          ) : null}
+        </div>
+      </footer>
+
+      {reading.areas.length ||
+      reading.steps.length >= 2 ||
+      reading.mix.length ||
+      reading.from.length ||
+      groupedLooks.buys.length ? (
+        <div className="mt-8 border-t border-[var(--fitting-line)] pt-5">
+          <button
+            type="button"
+            onClick={() => setFullReadingOpen((v) => !v)}
+            className="w-full rounded-2xl border-2 border-dashed border-[#C8C8CC] bg-[#FAFAFB] px-4 py-4 text-left transition hover:border-[var(--fitting-ink)] hover:bg-white"
+            aria-expanded={fullReadingOpen}
+          >
+            <span className="flex items-center gap-3">
+              <span className="min-w-0 flex-1">
+                <span className="block font-display text-[17px] font-extrabold tracking-[-0.02em]">
+                  {fullReadingOpen ? "Hide the full reading" : "The full reading"}
+                </span>
+                <span className="mt-0.5 block text-[13px] font-semibold leading-[1.4] text-[var(--fitting-red)]">
+                  {fullReadingOpen
+                    ? "Colour, fit, and the taste you picked"
+                    : "Tap to expand — colour, fit, and the taste you picked"}
+                </span>
+              </span>
+              <span
+                className={cn(
+                  "grid size-10 shrink-0 place-items-center rounded-full border border-[var(--fitting-line)] bg-white text-[18px] leading-none text-[var(--fitting-ink)] transition-transform",
+                  fullReadingOpen && "rotate-180",
+                )}
+                aria-hidden
+              >
+                ▾
+              </span>
+            </span>
+            {!fullReadingOpen ? (
+              <span className="relative mt-3 block max-h-[4.6em] overflow-hidden rounded-xl bg-white/80 px-3 py-2.5 text-[13px] leading-[1.5] text-[var(--fitting-quiet)]">
+                {reading.paletteLine ||
+                  reading.opening ||
+                  "More on colour, fit, and the mix you picked."}
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#FAFAFB] to-transparent" />
+              </span>
+            ) : null}
+          </button>
+          {fullReadingOpen ? (
+            <div className="pt-4">
+              {reading.from.length ? (
+                <p className="mb-6 text-[11px] leading-[1.55] text-[#A8A8B0]">
+                  from: {reading.from.join(" · ")}
+                </p>
+              ) : null}
+              {reading.steps.length >= 2 ? (
+                <div className="mb-8">
+                  <FittingKick>THE DIFFERENCE</FittingKick>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    {reading.steps.map((s) => {
+                      const piece = wardrobePlanHasBuys(verdict)
+                        ? productForStep(s.why, looks ?? [])
+                        : null;
+                      return (
+                        <div
+                          key={s.step}
+                          className="rounded-2xl border border-[var(--fitting-line)] bg-[#FAFAFB] p-3.5"
+                        >
+                          <div className="mb-2 font-display text-[9px] font-extrabold tracking-[0.16em] text-[var(--fitting-red)]">
+                            {s.label}
+                          </div>
+                          {piece ? (
+                            <div className="mb-3 overflow-hidden rounded-xl bg-white">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={catalogDisplayImageUrl(
+                                  piece.imageUrl,
+                                  CATALOG_IMAGE_PX.stack,
+                                )}
+                                alt={piece.title}
+                                className="aspect-[3/4] w-full object-cover"
+                              />
+                            </div>
+                          ) : null}
+                          <div className="font-display text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.02em]">
+                            {s.name}
+                          </div>
+                          {s.why !== s.name ? (
+                            <p className="mt-2 text-[12px] leading-[1.55] text-[var(--fitting-quiet)]">
+                              {s.why}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {groupedLooks.buys.length ? (
+                <div className="mb-8">
+                  <FittingKick>FIRST TO GET</FittingKick>
+                  <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                    {groupedLooks.buys.slice(0, 6).map((piece) => (
+                      <figure
+                        key={piece.id}
+                        className="overflow-hidden rounded-2xl border border-[var(--fitting-line)] bg-[#FAFAFB]"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={catalogDisplayImageUrl(
+                            piece.imageUrl,
+                            CATALOG_IMAGE_PX.stack,
+                          )}
+                          alt={piece.title}
+                          className="aspect-[3/4] w-full object-cover"
+                        />
+                        <figcaption className="p-2.5 font-display text-[12px] font-extrabold leading-[1.3] tracking-[-0.02em]">
+                          {piece.title}
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {reading.areas.length ? (
+                <div className="mb-8">
+                  <FittingKick>WHAT YOU CAN AND CANNOT</FittingKick>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {reading.areas.map((a) => {
+                      const open = openArea === a.id;
+                      const dos = a.recs.filter((r) => r.kind === "do");
+                      const donts = a.recs.filter((r) => r.kind === "dont");
+                      const checks = a.recs.filter((r) => r.kind === "check");
+                      return (
+                        <div
+                          key={a.id}
+                          className={cn(
+                            "overflow-hidden rounded-2xl border border-[var(--fitting-line)] transition",
+                            open &&
+                              "border-[#D6D6D9] shadow-[0_16px_34px_-22px_rgba(14,14,17,0.35)]",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleArea(a.id)}
+                            className="flex w-full items-center gap-3.5 p-3.5 text-left hover:bg-[#F7F7F8]"
+                          >
+                            <span className="min-w-0 flex-1">
+                              <b className="block font-display text-[15px] font-extrabold">
+                                {a.name}
+                              </b>
+                              <em className="mt-0.5 block text-xs not-italic text-[var(--fitting-quiet)]">
+                                {a.sum}
+                              </em>
+                            </span>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded-full px-2.5 py-1 font-display text-[10px] font-black tracking-[0.08em]",
+                                a.verdict === "y" &&
+                                  "bg-[rgba(22,163,74,0.12)] text-[var(--fitting-good)]",
+                                a.verdict === "n" &&
+                                  "bg-[rgba(220,38,38,0.1)] text-[#DC2626]",
+                                a.verdict === "c" &&
+                                  "bg-[#F0EFE8] text-[#6B5E3C]",
+                              )}
+                            >
+                              {a.vlab}
+                            </span>
+                            <span
+                              className={cn(
+                                "text-[13px] text-[#C2C2C6] transition-transform",
+                                open && "rotate-180",
+                              )}
+                            >
+                              ▾
+                            </span>
+                          </button>
+                          {open ? (
+                            <div className="px-3.5 pb-4 pt-0">
+                              <div className="mb-3.5 rounded-xl border border-[var(--fitting-line)] bg-[#F7F7F8] px-3.5">
+                                {a.metrics.map((m) => (
+                                  <div
+                                    key={m.label}
+                                    className="flex items-start justify-between gap-3 border-b border-[var(--fitting-line)] py-2.5 text-[12.5px] last:border-0"
+                                  >
+                                    <span className="shrink-0 font-semibold text-[var(--fitting-quiet)]">
+                                      {m.label}
+                                    </span>
+                                    <span
+                                      className={cn(
+                                        "min-w-0 text-right font-display text-[13px] font-black break-words",
+                                        m.tone === "hi" &&
+                                          "text-[var(--fitting-good)]",
+                                        m.tone === "lo" && "text-[#DC2626]",
+                                      )}
+                                    >
+                                      {m.value}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              {a.insight ? (
+                                <div className="mb-3">
+                                  <div className="mb-2 font-display text-[10px] font-extrabold tracking-[0.13em] text-[var(--fitting-red)]">
+                                    WHAT THIS MEANS
+                                  </div>
+                                  <p className="text-[13px] leading-[1.65] text-[var(--fitting-quiet)]">
+                                    {a.insight}
+                                  </p>
+                                </div>
+                              ) : null}
+                              {[dos, donts].some((list) => list.length) ? (
+                                <ul className="list-none">
+                                  {[...dos, ...donts].map((r) => {
+                                    const icon = recIcon(r.kind);
+                                    return (
+                                      <li
+                                        key={`${r.kind}-${r.title}`}
+                                        className="flex gap-2.5 border-t border-[var(--fitting-line)] py-2.5 text-[12.5px] leading-[1.5]"
+                                      >
+                                        <i
+                                          className={cn(
+                                            "mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-full text-[10px] font-extrabold not-italic",
+                                            icon.cls,
+                                          )}
+                                        >
+                                          {icon.mark}
+                                        </i>
+                                        <span>
+                                          <b className="mb-0.5 block font-display text-[13px] font-extrabold">
+                                            {r.title}
+                                          </b>
+                                        </span>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              ) : null}
+                              {checks.length ? (
+                                <div className="mt-3">
+                                  <div className="mb-2 font-display text-[10px] font-extrabold tracking-[0.13em] text-[var(--fitting-quiet)]">
+                                    CHECK ON THE PIECE:
+                                  </div>
+                                  <ul className="list-none">
+                                    {checks.map((r) => {
+                                      const icon = recIcon("check");
+                                      return (
+                                        <li
+                                          key={`check-${r.title}`}
+                                          className="flex gap-2.5 border-t border-[var(--fitting-line)] py-2.5 text-[12.5px] leading-[1.5]"
+                                        >
+                                          <i
+                                            className={cn(
+                                              "mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-full text-[10px] font-extrabold not-italic",
+                                              icon.cls,
+                                            )}
+                                          >
+                                            {icon.mark}
+                                          </i>
+                                          <span className="font-display text-[13px] font-extrabold">
+                                            {r.title}
+                                          </span>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {reading.mix.length ? (
+                <div>
+                  <FittingKick>THE TASTE YOU PICKED</FittingKick>
+                  <div className="mt-3">
+                    <TasteDonut mix={reading.mix} />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

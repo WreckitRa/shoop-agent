@@ -449,7 +449,7 @@ ALWAYS extract every actionable field, even if it doesn't match the current step
 (e.g. brands on the name step, height on the photo step, hard nos before the no-list).
 Return ONE JSON object only (no markdown, no prose outside JSON).
 
-FITTING STEPS (order): photo → name → life → spend → fit (height/build) → worn looks → honest corner → brands/nolist → honesty → trusted circle → verdict
+FITTING STEPS (order): consent → photo → name → fit (height/build) → life → spend → worn looks → honest corner → brands/nolist → honesty → verdict → trusted circle
 
 RULES
 - Only set fields the user actually communicated. Omit unknowns entirely (do not invent).

@@ -6,6 +6,7 @@ import {
   HONESTY_OPTIONS,
   KIDS_OPTIONS,
   WEEK_IS_OPTIONS,
+  WEEKEND_OPTIONS,
   ageYearsFromBirthDate,
   styleEraLabel,
 } from "@/lib/onboarding/form-options";
@@ -23,8 +24,6 @@ export function verdictReadiness(opts: {
   analysisUsable: boolean;
   reviewSubmitted: boolean;
   genderPresentation: string | null | undefined;
-  lifestyle: string | null | undefined;
-  heightCm: number | null | undefined;
 }): VerdictMissing[] {
   const missing: VerdictMissing[] = [];
   if (!opts.analysisUsable) {
@@ -43,18 +42,6 @@ export function verdictReadiness(opts: {
     missing.push({
       field: "gender_presentation",
       reason: "How you dress is still missing.",
-    });
-  }
-  if (!opts.lifestyle?.trim()) {
-    missing.push({
-      field: "lifestyle",
-      reason: "How your week actually looks is still missing.",
-    });
-  }
-  if (opts.heightCm == null || !Number.isFinite(opts.heightCm) || opts.heightCm <= 0) {
-    missing.push({
-      field: "height",
-      reason: "A declared height is still missing.",
     });
   }
   return missing;
@@ -113,6 +100,19 @@ function labelOf(
   return options.find((o) => o.value === raw)?.label ?? raw;
 }
 
+function csvLabels(
+  options: readonly { value: string; label: string }[],
+  raw: string | null,
+): string | null {
+  if (!raw) return null;
+  const parts = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) return null;
+  return parts.map((p) => labelOf(options, p) ?? p).join(", ");
+}
+
 function ageYears(profile: unknown): number | null {
   const birth =
     pickStr(profile, "birthDate", "birthDate") ??
@@ -140,6 +140,7 @@ export function buildVerdictPayload(input: {
 } {
   const { profile, sizing, confirmedBody } = input;
   const weekIs = pickStr(profile, "weekIs", "weekIs");
+  const weekendsAre = pickStr(profile, "weekendsAre", "weekendsAre");
   const dressingFor = pickStr(profile, "dressingFor", "dressingFor");
   const styleEra = pickStr(profile, "styleEra", "styleEra");
   const climate = pickStr(profile, "climate");
@@ -156,23 +157,29 @@ export function buildVerdictPayload(input: {
 
   const likes: string[] = [];
   const brandAvoids: string[] = [];
+  const brandNotes: Record<string, unknown>[] = [];
   for (const b of input.brands) {
     const brand = pickStr(b, "brand");
     if (!brand) continue;
     const sentiment = pickStr(b, "sentiment", "sentiment")?.toLowerCase();
+    const reasons = pickStrs(b, "reasons");
+    brandNotes.push(compact({ brand, sentiment, reasons }));
     if (sentiment === "like" || sentiment === "love") likes.push(brand);
     if (sentiment === "avoid" || sentiment === "hate") brandAvoids.push(brand);
   }
 
-  const styleVetoes: string[] = [];
-  const comfort: string[] = [];
+  const styleVetoes: Record<string, unknown>[] = [];
+  const comfort: Record<string, unknown>[] = [];
   for (const h of input.hardNegatives) {
     const value = pickStr(h, "value");
     if (!value) continue;
-    const note = pickStr(h, "note", "note")?.toLowerCase();
-    const scope = pickStr(h, "scope", "scope")?.toLowerCase();
-    if (note === "comfort" || scope === "fit") comfort.push(value);
-    else styleVetoes.push(value);
+    const note = pickStr(h, "note");
+    const reason = pickStr(h, "reason");
+    const entry = compact({ value, note, reason });
+    const noteKey = note?.toLowerCase();
+    const scope = pickStr(h, "scope")?.toLowerCase();
+    if (noteKey === "comfort" || scope === "fit") comfort.push(entry);
+    else styleVetoes.push(entry);
   }
 
   const worn: string[] = [];
@@ -207,6 +214,8 @@ export function buildVerdictPayload(input: {
     lifestyle: compact({
       week_is: weekIs,
       week_is_label: labelOf(WEEK_IS_OPTIONS, weekIs),
+      weekends_are: weekendsAre,
+      weekends_are_label: csvLabels(WEEKEND_OPTIONS, weekendsAre),
       kids: pickStr(profile, "kids"),
       kids_label: labelOf(KIDS_OPTIONS, pickStr(profile, "kids")),
       occupation: pickStr(profile, "occupation", "occupation"),
@@ -277,9 +286,18 @@ export function buildVerdictPayload(input: {
       become: styleBecome,
     }),
     brands_like: likes,
-    brands_avoid: [...brandAvoids, ...styleVetoes],
+    brands_avoid: [
+      ...brandAvoids,
+      ...styleVetoes.flatMap((v) =>
+        typeof v.value === "string" && v.value ? [v.value] : [],
+      ),
+    ],
+    brands: brandNotes,
     style_vetoes: styleVetoes,
-    comfort: [...comfort, ...comfortTags],
+    comfort: [
+      ...comfort,
+      ...comfortTags.map((value) => compact({ value })),
+    ],
     style_mix: styleMix,
   });
 
@@ -302,7 +320,11 @@ export function buildVerdictPayload(input: {
   };
 }
 
-export async function assembleVerdictInput(userId: string, photoHash: string) {
+export async function assembleVerdictInput(
+  userId: string,
+  photoHash: string,
+  extraBody?: ConfirmedBody | null,
+) {
   const [row, profile, sizing, brands, hardNegatives, tasteTags] =
     await Promise.all([
       findByHash(userId, photoHash),
@@ -315,20 +337,31 @@ export async function assembleVerdictInput(userId: string, photoHash: string) {
 
   const analysis = parseStylePhotoAnalysis(row?.result);
   const review = parseStyleUserReview(row?.userReview);
-  const lifestyle =
-    pickStr(profile, "weekIs", "weekIs") ||
-    pickStr(profile, "dressingFor", "dressingFor") ||
-    pickStrs(profile, "lifestyleTags", "lifestyleTags").join(", ") ||
-    null;
+  const confirmedBody = extraBody
+    ? {
+        height_cm:
+          extraBody.height_cm ?? review?.confirmed_body?.height_cm ?? null,
+        weight_kg:
+          extraBody.weight_kg ?? review?.confirmed_body?.weight_kg ?? null,
+        body_type:
+          extraBody.body_type ?? review?.confirmed_body?.body_type ?? null,
+        muscularity:
+          extraBody.muscularity ?? review?.confirmed_body?.muscularity ?? null,
+        body_shape:
+          extraBody.body_shape ?? review?.confirmed_body?.body_shape ?? null,
+        bust_fullness:
+          extraBody.bust_fullness ??
+          review?.confirmed_body?.bust_fullness ??
+          null,
+        leg_line:
+          extraBody.leg_line ?? review?.confirmed_body?.leg_line ?? null,
+      }
+    : review?.confirmed_body;
 
   const missing = verdictReadiness({
     analysisUsable: analysis?.analysis_status.usable === true,
     reviewSubmitted: review != null,
     genderPresentation: pickStr(profile, "genderPresentation", "genderPresentation"),
-    lifestyle,
-    heightCm:
-      review?.confirmed_body?.height_cm ??
-      pickNum(sizing, "heightCm", "heightCm"),
   });
 
   const payload = buildVerdictPayload({
@@ -337,7 +370,7 @@ export async function assembleVerdictInput(userId: string, photoHash: string) {
     brands,
     hardNegatives,
     tasteTags,
-    confirmedBody: review?.confirmed_body,
+    confirmedBody,
   });
 
   return {

@@ -4,6 +4,7 @@ import { startFittingRoomRender } from "@/lib/tryon/run-fitting-room";
 import { MAX_FITTING_ROOM_ITEMS } from "@/lib/tryon/fitting-room-types";
 import { tryonErrorResponse } from "@/lib/tryon/resolve-person";
 import { requireAvatarOwner } from "@/lib/tryon/avatar/request-auth";
+import { logVerdict } from "@/lib/photo-analysis/verdict-log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,14 +58,38 @@ export async function POST(req: Request) {
     );
   }
 
+  const fromVerdict = req.headers.get("x-shoop-verdict") === "1";
+  const kinds = parsed.data.items.map((item) => item.provenance.kind);
+  const refs = parsed.data.items.map((item) => {
+    const p = item.provenance;
+    if (p.kind === "product") return p.productId;
+    if (p.kind === "image") return p.styleId || p.title || p.garment || "image";
+    return p.ref;
+  });
+  if (fromVerdict) {
+    logVerdict("dress-start", { n: parsed.data.items.length, kinds, refs });
+  }
+
   try {
     const result = await startFittingRoomRender({
       userId: owner.userId,
       searchUserId: auth.userId,
       descriptors: parsed.data.items,
     });
+    if (fromVerdict) {
+      logVerdict("dress-queued", {
+        jobId: result.jobId,
+        n: parsed.data.items.length,
+      });
+    }
     return Response.json({ ok: true, ...result });
   } catch (error) {
+    if (fromVerdict) {
+      logVerdict("dress-error", {
+        error: error instanceof Error ? error.message : "unknown",
+        kinds,
+      });
+    }
     return tryonErrorResponse(error);
   }
 }

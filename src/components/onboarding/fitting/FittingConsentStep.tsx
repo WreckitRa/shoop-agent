@@ -73,7 +73,7 @@ export function FittingConsentStep({
         ) : null}
       </div>
 
-      <div className="sticky bottom-0 z-[4] mt-8 bg-gradient-to-t from-white via-white/95 to-transparent pt-6">
+      <div className="fitting-nav max-lg:fixed max-lg:inset-x-[22px] max-lg:bottom-[calc(20px+env(safe-area-inset-bottom,0px))] max-lg:z-[8] max-lg:mt-0 max-lg:bg-transparent sticky bottom-0 z-[4] mt-8 bg-white pt-5 lg:relative lg:bg-gradient-to-t lg:from-white lg:via-white/95 lg:to-transparent lg:pt-6">
         <FittingCta
           disabled={!ready || busy}
           onClick={() =>
@@ -84,7 +84,7 @@ export function FittingConsentStep({
             })
           }
         >
-          {busy ? "Saving…" : "Continue to photo"}
+          {busy ? "Saving…" : "Next"}
         </FittingCta>
       </div>
       {error ? (
@@ -106,7 +106,7 @@ function Tick({
   label: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border-2 border-[var(--fitting-line)] bg-white px-3.5 py-3">
+    <label className="flex cursor-pointer items-start gap-3 py-2.5 lg:rounded-2xl lg:border-2 lg:border-[var(--fitting-line)] lg:bg-white lg:px-3.5 lg:py-3">
       <input
         type="checkbox"
         checked={checked}

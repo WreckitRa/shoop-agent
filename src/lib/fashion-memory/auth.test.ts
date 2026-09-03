@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { signGuestSessionId } from "@/lib/auth/guest-session";
 import {
   fashionOwnerUserId,
   isFashionMemoryGuestUserId,
@@ -19,6 +20,18 @@ describe("fashionOwnerUserId", () => {
     assert.equal(isFashionMemoryGuestUserId(guest), true);
     assert.equal(isSupabaseAuthUserId(guest), false);
     assert.equal(fashionOwnerUserId(guest), UUID);
+  });
+
+  it("strips a signed guest token leftover", () => {
+    const prev = process.env.GUEST_SESSION_HMAC_SECRET;
+    process.env.GUEST_SESSION_HMAC_SECRET = "unit-test-guest-secret";
+    try {
+      const token = signGuestSessionId(UUID);
+      assert.equal(fashionOwnerUserId(`guest-${token}`), UUID);
+    } finally {
+      if (prev) process.env.GUEST_SESSION_HMAC_SECRET = prev;
+      else delete process.env.GUEST_SESSION_HMAC_SECRET;
+    }
   });
 
   it("rejects junk", () => {

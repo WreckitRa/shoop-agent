@@ -2,7 +2,6 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { getSupabaseAdminClient } from "@/lib/auth/supabase-admin";
 import { getResendClient, getResendFrom } from "@/lib/auth/resend";
-import { getSiteUrl } from "@/lib/seo/site";
 
 export const VERIFY_EMAIL_COOKIE = "shoop_verify_email";
 const VERIFY_COOKIE_MAX_AGE_SEC = 60 * 60;
@@ -92,14 +91,6 @@ export function verifyEmailCookieOptions() {
   };
 }
 
-function confirmUrl(tokenHash: string, type: string): string {
-  const origin = getSiteUrl().origin;
-  const url = new URL("/auth/confirm", origin);
-  url.searchParams.set("token_hash", tokenHash);
-  url.searchParams.set("type", type);
-  return url.toString();
-}
-
 export async function issueSignupVerification(args: {
   email: string;
   password: string;
@@ -140,10 +131,6 @@ export async function issueSignupVerification(args: {
   await sendVerificationEmail({
     email: args.email,
     code: properties.email_otp,
-    confirmHref: confirmUrl(
-      properties.hashed_token,
-      properties.verification_type || "signup",
-    ),
   });
   return { ok: true };
 }
@@ -164,10 +151,6 @@ export async function issueExistingVerification(
   await sendVerificationEmail({
     email,
     code: properties.email_otp,
-    confirmHref: confirmUrl(
-      properties.hashed_token,
-      properties.verification_type || "magiclink",
-    ),
   });
   return { ok: true };
 }
@@ -175,16 +158,14 @@ export async function issueExistingVerification(
 async function sendVerificationEmail(args: {
   email: string;
   code: string;
-  confirmHref: string;
 }): Promise<void> {
   const { error } = await getResendClient().emails.send({
     from: getResendFrom(),
     to: args.email,
     subject: "Your Shoop confirmation code",
-    html: verificationHtml(args),
+    html: verificationHtml(args.code),
     text: [
       `Your Shoop code is ${args.code}.`,
-      `Or confirm here: ${args.confirmHref}`,
       "",
       "If you didn't ask for a Shoop account, ignore this email.",
     ].join("\n"),
@@ -194,7 +175,7 @@ async function sendVerificationEmail(args: {
   }
 }
 
-function verificationHtml(args: { code: string; confirmHref: string }): string {
+function verificationHtml(code: string): string {
   return `<!doctype html>
 <html>
   <body style="margin:0;background:#f5f5f7;font-family:ui-sans-serif,system-ui,sans-serif;color:#0e0e11;">
@@ -202,12 +183,9 @@ function verificationHtml(args: { code: string; confirmHref: string }): string {
       <p style="margin:0 0 8px;font-size:11px;font-weight:800;letter-spacing:.14em;color:#e42831;">SHOOP</p>
       <h1 style="margin:0 0 12px;font-size:26px;letter-spacing:-.03em;">Confirm it's you.</h1>
       <p style="margin:0 0 22px;font-size:15px;line-height:1.55;color:#8a8a93;">
-        Enter this code in the app, or tap the button. Nobody else can finish signup without it.
+        Enter this code in the app. Nobody else can finish signup without it.
       </p>
-      <p style="margin:0 0 22px;font-size:32px;font-weight:800;letter-spacing:.28em;text-align:center;">${args.code}</p>
-      <p style="text-align:center;margin:0 0 22px;">
-        <a href="${args.confirmHref}" style="display:inline-block;background:#0e0e11;color:#fff;text-decoration:none;font-weight:800;font-size:14px;padding:14px 22px;border-radius:12px;">Confirm email</a>
-      </p>
+      <p style="margin:0 0 22px;font-size:32px;font-weight:800;letter-spacing:.28em;text-align:center;">${code}</p>
       <p style="margin:0;font-size:12px;line-height:1.5;color:#8a8a93;">
         If you didn't ask for a Shoop account, ignore this. The code expires in about an hour.
       </p>

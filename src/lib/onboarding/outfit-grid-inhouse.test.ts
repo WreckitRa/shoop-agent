@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 import {
   buildOutfitGridDeck,
   countInhouseCoverage,
+  lookVariantGroup,
   scoreLookForContext,
   selectInhouseDeck,
+  uniqueOutfitCards,
 } from "./outfit-grid-inhouse";
 import { buildCastingMatrix, STYLE_MIX_AXES } from "./outfit-grid-matrix";
 import { INHOUSE_OUTFIT_LOOKS } from "./outfit-style-catalog";
@@ -196,6 +198,51 @@ describe("inhouse outfit catalog", () => {
       return look?.family;
     });
     assert.equal(new Set(families).size, families.length);
+  });
+
+  it("groups men photo variants so one shoot is one tile", () => {
+    assert.equal(
+      lookVariantGroup("m-dressy_occasion-5ed59845-0"),
+      lookVariantGroup("m-dressy_occasion-5ed59845-3"),
+    );
+    assert.notEqual(
+      lookVariantGroup("m-dressy_occasion-5ed59845-0"),
+      lookVariantGroup("m-utility_practical-4791bb95-0"),
+    );
+  });
+
+  it("never repeats a family, image, or variant group on worn or See more", () => {
+    const ctx = {
+      mode: "worn" as const,
+      genderPresentation: "masculine",
+      styleEra: "30s,23_29",
+      lifestyleTags: ["deep_in_career"],
+      valuePhilosophy: "premium",
+      shuffleSeed: "user-dup-check",
+    };
+    const first = selectInhouseDeck(ctx);
+    assert.ok(first.every((c) => c.imageUrl));
+    assert.equal(new Set(first.map((c) => c.imageUrl)).size, first.length);
+    assert.equal(new Set(first.map((c) => c.label)).size, first.length);
+    assert.equal(
+      new Set(first.map((c) => lookVariantGroup(c.id))).size,
+      first.length,
+    );
+
+    const second = selectInhouseDeck({
+      ...ctx,
+      excludeLookIds: first.map((c) => c.id),
+    });
+    const firstLabels = new Set(first.map((c) => c.label.toLowerCase()));
+    const firstUrls = new Set(first.map((c) => c.imageUrl));
+    const firstGroups = new Set(first.map((c) => lookVariantGroup(c.id)));
+    for (const card of second) {
+      assert.ok(!firstLabels.has(card.label.toLowerCase()), card.label);
+      assert.ok(!firstUrls.has(card.imageUrl));
+      assert.ok(!firstGroups.has(lookVariantGroup(card.id)));
+    }
+    const combined = uniqueOutfitCards([...first, ...second]);
+    assert.equal(combined.length, first.length + second.length);
   });
 
   it("See more pages exclude already-shown styles", async () => {

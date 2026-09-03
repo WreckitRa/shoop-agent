@@ -5,6 +5,7 @@ import { useChatStore } from "@/components/chat/chat-store";
 import { requestMirror } from "@/components/tryon/request-mirror";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { useInlineFittingStore } from "@/components/onboarding/inline-fitting-store";
+import { closeYouOverlays } from "@/lib/client/close-you-overlays";
 import { cn } from "@/lib/ai-chat/cn";
 import {
   conversationPath,
@@ -12,9 +13,9 @@ import {
   NEW_CHAT_PATH,
 } from "@/lib/shared/chatRoutes";
 
-type Tab = "stylist" | "mirror" | "board";
+type Tab = "flick" | "find" | "board" | "you";
 
-/** Persistent mobile chrome — chat, Mirror, moodboard, and the rest of the shell. */
+/** Persistent mobile chrome — The Flick, Find, Board, You. */
 export function AppTabBar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -26,57 +27,65 @@ export function AppTabBar() {
 
   const current: Tab =
     fittingColumnOpen || tryOnOpen
-      ? "mirror"
+      ? "flick"
       : pathname.startsWith("/moodboard")
         ? "board"
-        : "stylist";
+        : pathname.startsWith("/profile")
+          ? "you"
+          : "find";
 
-  function goStylist() {
-    useTryOnDrawerStore.getState().close();
+  function goFind() {
+    closeYouOverlays();
     if (isChatRoutePathname(pathname)) return;
     const id = useChatStore.getState().activeConversationId;
     router.push(id ? conversationPath(id) : NEW_CHAT_PATH);
   }
 
-  function goMirror() {
+  function goFlick() {
     if (tryOnOpen || fittingColumnOpen) return;
     requestMirror();
   }
 
   function goBoard() {
-    useTryOnDrawerStore.getState().close();
+    closeYouOverlays();
     if (pathname.startsWith("/moodboard")) return;
     router.push("/moodboard");
+  }
+
+  function goYou() {
+    closeYouOverlays();
+    if (pathname.startsWith("/profile")) return;
+    router.push("/profile");
   }
 
   return (
     <nav className="shoop-tabbar" aria-label="App">
       <button
         type="button"
-        className={cn("shoop-tabbar__tab", current === "stylist" && "is-on")}
-        aria-current={current === "stylist" ? "page" : undefined}
-        onClick={goStylist}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <path d="M4.5 18.5V7.8A2.3 2.3 0 016.8 5.5h10.4A2.3 2.3 0 0119.5 7.8v7.2a2.3 2.3 0 01-2.3 2.3H9.2L4.5 18.5z" />
-        </svg>
-        Stylist
-      </button>
-      <button
-        type="button"
-        className={cn("shoop-tabbar__tab", current === "mirror" && "is-on")}
-        aria-current={current === "mirror" ? "page" : undefined}
-        onClick={goMirror}
+        className={cn("shoop-tabbar__tab", current === "flick" && "is-on")}
+        aria-current={current === "flick" ? "page" : undefined}
+        onClick={goFlick}
       >
         <span className="relative">
           <svg viewBox="0 0 24 24" aria-hidden>
-            <rect x="6" y="3.5" width="12" height="17" rx="3.5" />
-            <circle cx="12" cy="10" r="2.4" />
-            <path d="M8.6 16.2c.9-1.5 2-2.2 3.4-2.2s2.5.7 3.4 2.2" />
+            <rect x="4" y="6" width="16" height="15" rx="3" />
+            <path d="M12 3v6M9 6l3-3 3 3" />
           </svg>
           {dressing ? <i className="shoop-tabbar__live" aria-hidden /> : null}
         </span>
-        Mirror
+        The Flick
+      </button>
+      <button
+        type="button"
+        className={cn("shoop-tabbar__tab", current === "find" && "is-on")}
+        aria-current={current === "find" ? "page" : undefined}
+        onClick={goFind}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-3.5-3.5" />
+        </svg>
+        Find
       </button>
       <button
         type="button"
@@ -91,6 +100,18 @@ export function AppTabBar() {
           <rect x="13" y="13" width="7" height="7" rx="1.6" />
         </svg>
         Board
+      </button>
+      <button
+        type="button"
+        className={cn("shoop-tabbar__tab", current === "you" && "is-on")}
+        aria-current={current === "you" ? "page" : undefined}
+        onClick={goYou}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4.5 20a7.5 7.5 0 0115 0" />
+        </svg>
+        You
       </button>
     </nav>
   );

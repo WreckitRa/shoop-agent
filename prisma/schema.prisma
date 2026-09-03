@@ -1258,6 +1258,8 @@ model PhotoAnalysis {
   verdictError  String?
   verdictMs     Int?
   verdictModel  String?
+  /// Persisted so J4 cost is queryable without another OpenAI round-trip.
+  verdictTokens Json?
   error         String?
   ms            Int?
   model         String?

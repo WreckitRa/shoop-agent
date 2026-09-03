@@ -3,12 +3,19 @@ import { describe, it } from "node:test";
 import { guestNeedsOnboardingLeaveWarning } from "./leave-warning";
 
 describe("guestNeedsOnboardingLeaveWarning", () => {
-  it("warns a guest who still has The Fitting open", () => {
+  it("warns a guest only while The Fitting overlay is on screen", () => {
     assert.equal(
       guestNeedsOnboardingLeaveWarning({
         accessMode: "guest",
         columnOpen: false,
-        onboardingActive: true,
+      }),
+      false,
+    );
+    assert.equal(
+      guestNeedsOnboardingLeaveWarning({
+        accessMode: "guest",
+        columnOpen: false,
+        stageLocked: true,
       }),
       true,
     );
@@ -16,7 +23,6 @@ describe("guestNeedsOnboardingLeaveWarning", () => {
       guestNeedsOnboardingLeaveWarning({
         accessMode: "loading",
         columnOpen: true,
-        onboardingActive: true,
       }),
       true,
     );
@@ -24,7 +30,6 @@ describe("guestNeedsOnboardingLeaveWarning", () => {
       guestNeedsOnboardingLeaveWarning({
         accessMode: "anonymous",
         columnOpen: true,
-        onboardingActive: false,
       }),
       true,
     );
@@ -35,7 +40,7 @@ describe("guestNeedsOnboardingLeaveWarning", () => {
       guestNeedsOnboardingLeaveWarning({
         accessMode: "authenticated",
         columnOpen: true,
-        onboardingActive: true,
+        stageLocked: true,
       }),
       false,
     );
@@ -43,7 +48,6 @@ describe("guestNeedsOnboardingLeaveWarning", () => {
       guestNeedsOnboardingLeaveWarning({
         accessMode: "local",
         columnOpen: true,
-        onboardingActive: true,
       }),
       false,
     );
@@ -51,7 +55,7 @@ describe("guestNeedsOnboardingLeaveWarning", () => {
       guestNeedsOnboardingLeaveWarning({
         accessMode: "guest",
         columnOpen: false,
-        onboardingActive: false,
+        stageLocked: false,
       }),
       false,
     );

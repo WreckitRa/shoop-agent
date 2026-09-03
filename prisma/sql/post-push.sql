@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS "PhotoAnalysis" (
   "verdictError" TEXT,
   "verdictMs" INTEGER,
   "verdictModel" TEXT,
+  "verdictTokens" JSONB,
   "error" TEXT,
   "ms" INTEGER,
   "model" TEXT,
@@ -118,6 +119,7 @@ ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictStatus" TEXT NOT NU
 ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictError" TEXT;
 ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictMs" INTEGER;
 ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictModel" TEXT;
+ALTER TABLE "PhotoAnalysis" ADD COLUMN IF NOT EXISTS "verdictTokens" JSONB;
 
 
 -- >>> supabase/migrations/20260824120000_legal_privacy_controls.sql

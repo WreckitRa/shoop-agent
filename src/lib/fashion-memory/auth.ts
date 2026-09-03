@@ -1,4 +1,7 @@
-import { GUEST_USER_ID_PREFIX } from "@/lib/auth/guest-session";
+import {
+  GUEST_USER_ID_PREFIX,
+  parseGuestSessionId,
+} from "@/lib/auth/guest-session";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -23,5 +26,6 @@ export function fashionOwnerUserId(userId: string): string | null {
   if (isSupabaseAuthUserId(userId)) return userId;
   if (!isFashionMemoryGuestUserId(userId)) return null;
   const rest = userId.slice(GUEST_USER_ID_PREFIX.length);
-  return UUID_RE.test(rest) ? rest : null;
+  if (UUID_RE.test(rest)) return rest;
+  return parseGuestSessionId(rest);
 }

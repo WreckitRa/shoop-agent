@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/ai-chat/db";
+import { Prisma } from "@prisma/client";
 import type { GuestLocalData } from "@/lib/client/guest-storage";
 import { guestUserIdFromSessionId } from "@/lib/auth/guest-session";
 import { fashionOwnerUserId } from "@/lib/fashion-memory/auth";
@@ -6,81 +7,151 @@ import { fashionMemoryDb } from "@/lib/fashion-memory/db";
 import { migrateGuestFashionMemoryToUser } from "@/lib/fashion-memory/migrate-guest";
 import { ensureSelfPerson } from "@/lib/fashion-memory/people";
 import type { PersonRow } from "@/lib/fashion-memory/types";
-import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
+import type { InputJsonValue, InteractiveTransactionClient } from "@/lib/ai-chat/prisma-types";
 import { personHasStoredAvatar } from "@/lib/tryon/avatar/service";
 import type { StoredAvatar } from "@/lib/tryon/types";
 
+function claimRowFields<T extends { userId: string; createdAt: Date; updatedAt: Date }>(
+  row: T,
+): Omit<T, "userId" | "createdAt" | "updatedAt"> {
+  return Object.fromEntries(
+    Object.entries(row).filter(
+      ([key]) => key !== "userId" && key !== "createdAt" && key !== "updatedAt",
+    ),
+  ) as Omit<T, "userId" | "createdAt" | "updatedAt">;
+}
+
+async function claimUserProfile(
+  tx: InteractiveTransactionClient,
+  guestUserId: string,
+  realUserId: string,
+) {
+  const guest = await tx.userProfile.findUnique({
+    where: { userId: guestUserId },
+  });
+  if (!guest) return;
+  const real = await tx.userProfile.findUnique({
+    where: { userId: realUserId },
+  });
+  if (!real) {
+    await tx.userProfile.update({
+      where: { userId: guestUserId },
+      data: { userId: realUserId },
+    });
+    return;
+  }
+
+  const guestFields = claimRowFields(guest);
+  await tx.userProfile.update({
+    where: { userId: realUserId },
+    data: {
+      ...guestFields,
+      ageAttestedAt: real.ageAttestedAt ?? guest.ageAttestedAt,
+      termsAcceptedAt: real.termsAcceptedAt ?? guest.termsAcceptedAt,
+      termsVersion: real.termsVersion ?? guest.termsVersion,
+      birthDate: real.birthDate ?? guest.birthDate,
+      onboardingStarted: guest.onboardingStarted || real.onboardingStarted,
+      onboardingCompleted: guest.onboardingCompleted || real.onboardingCompleted,
+    } as Prisma.UserProfileUpdateInput,
+  });
+  await tx.userProfile.delete({ where: { userId: guestUserId } });
+}
+
+async function claimSizingProfile(
+  tx: InteractiveTransactionClient,
+  guestUserId: string,
+  realUserId: string,
+) {
+  const guest = await tx.sizingProfile.findUnique({
+    where: { userId: guestUserId },
+  });
+  if (!guest) return;
+  const real = await tx.sizingProfile.findUnique({
+    where: { userId: realUserId },
+  });
+  if (!real) {
+    await tx.sizingProfile.update({
+      where: { userId: guestUserId },
+      data: { userId: realUserId },
+    });
+    return;
+  }
+
+  const guestFields = claimRowFields(guest);
+  await tx.sizingProfile.update({
+    where: { userId: realUserId },
+    data: guestFields as Prisma.SizingProfileUpdateInput,
+  });
+  await tx.sizingProfile.delete({ where: { userId: guestUserId } });
+}
+
 async function reassignGuestUserId(guestUserId: string, realUserId: string) {
-  await prisma.$transaction([
-    prisma.conversation.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.productInteraction.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.productCuration.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.cartSession.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.savedAddress.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.categoryPreference.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.brandPreference.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.recipient.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.shoppingIntent.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.tasteTag.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.hardNegative.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.ownedProduct.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.sizingProfile.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.userProfile.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.productEvent.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.biometricConsent.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-    prisma.photoAnalysis.updateMany({
-      where: { userId: guestUserId },
-      data: { userId: realUserId },
-    }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await claimUserProfile(tx, guestUserId, realUserId);
+    await claimSizingProfile(tx, guestUserId, realUserId);
+    await Promise.all([
+      tx.conversation.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.productInteraction.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.productCuration.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.cartSession.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.savedAddress.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.categoryPreference.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.brandPreference.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.recipient.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.shoppingIntent.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.tasteTag.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.hardNegative.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.ownedProduct.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.productEvent.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.biometricConsent.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+      tx.photoAnalysis.updateMany({
+        where: { userId: guestUserId },
+        data: { userId: realUserId },
+      }),
+    ]);
+  });
 }
 
 /** Import local guest conversations/messages that never reached the DB. */
@@ -247,9 +318,12 @@ export async function migrateGuestDataToUser(params: {
   avatarOnly?: boolean;
 }) {
   const guestUserId = guestUserIdFromSessionId(params.guestId);
-  await claimGuestAvatar(guestUserId, params.realUserId);
-  if (params.avatarOnly) return { guestUserId };
+  if (params.avatarOnly) {
+    await claimGuestAvatar(guestUserId, params.realUserId);
+    return { guestUserId };
+  }
   await reassignGuestUserId(guestUserId, params.realUserId);
+  await claimGuestAvatar(guestUserId, params.realUserId);
   if (params.localData) {
     await importLocalGuestData(params.realUserId, params.localData);
     if (params.localData.fashionMemory) {

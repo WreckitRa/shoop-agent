@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  heightCmForTwinMint,
   heightCmFromPhotoValues,
   type FittingPhotoValues,
 } from "./FittingPhotoStep";
+import { DEFAULT_SILHOUETTE_HEIGHT_CM } from "./bodySilhouetteGeometry";
 
 function photo(
   over: Partial<FittingPhotoValues> = {},
@@ -47,6 +49,16 @@ describe("heightCmFromPhotoValues", () => {
       heightCmFromPhotoValues(
         photo({ heightUnit: "cm", heightCm: 168 }),
       ),
+      168,
+    );
+  });
+});
+
+describe("heightCmForTwinMint", () => {
+  it("uses the silhouette default when fit height is skipped", () => {
+    assert.equal(heightCmForTwinMint(photo()), DEFAULT_SILHOUETTE_HEIGHT_CM);
+    assert.equal(
+      heightCmForTwinMint(photo({ heightUnit: "cm", heightCm: 168 })),
       168,
     );
   });

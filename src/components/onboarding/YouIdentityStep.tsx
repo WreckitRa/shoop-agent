@@ -80,8 +80,11 @@ export function YouIdentityStep({
         ]}
       />
       <FittingWhisper>
-        Your name claims it. Everything after develops it...{" "}
-        <b>watch the twin on the right.</b>
+        Your name claims it. Everything after develops it
+        <span className="hidden lg:inline">
+          ... <b>watch the twin on the right.</b>
+        </span>
+        <span className="lg:hidden">.</span>
       </FittingWhisper>
 
       <FittingField

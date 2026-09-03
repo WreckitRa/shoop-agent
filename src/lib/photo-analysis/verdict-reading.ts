@@ -14,22 +14,31 @@ export type ReadingMetric = {
   tone: ReadingTone;
 };
 
+export type ReadingRecKind = "do" | "dont" | "check";
+
 export type ReadingRec = {
-  ok: boolean;
+  kind: ReadingRecKind;
   title: string;
   detail: string;
 };
+
+export type ReadingAreaVerdict = "y" | "n" | "c";
 
 export type ReadingArea = {
   id: string;
   name: string;
   sum: string;
-  verdict: "y" | "n";
+  verdict: ReadingAreaVerdict;
   vlab: string;
   thumb: string;
   metrics: ReadingMetric[];
   insight: string;
   recs: ReadingRec[];
+};
+
+export type ReadingHeldRule = {
+  ok: boolean;
+  text: string;
 };
 
 export type ReadingSwatch = {
@@ -58,9 +67,80 @@ export type ReadingView = {
   areas: ReadingArea[];
   palette: ReadingSwatch[];
   avoid: ReadingSwatch[];
+  paletteLine: string;
   mix: ReadingMixAxis[];
   steps: ReadingStep[];
+  rules: ReadingHeldRule[];
+  /** style_identity.based_on — fold only, never the opening. */
+  from: string[];
 };
+
+export function normReadingKey(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function fullText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+export function stripTrailingPeriod(text: string): string {
+  return text.replace(/[.]+$/g, "").trim();
+}
+
+export function countEvidenceClauses(text: string): number {
+  return (text.match(/\bbecause\b/gi) ?? []).length
+    + (text.match(/\byou told me\b/gi) ?? []).length
+    + (text.match(/\byou said\b/gi) ?? []).length;
+}
+
+const OPENING_BAN = /\b(foundations|character|ease|elevated|curated|aesthetic|palette)\b/i;
+const CARD_BAN = /\b(mint|corner|no-list|nolist|developed|first-paycheck)\b/i;
+
+export function cardVoiceIssues(view: ReadingView): string[] {
+  const issues: string[] = [];
+  const openingWords = view.opening.trim().split(/\s+/).filter(Boolean);
+  if (openingWords.length > 55) {
+    issues.push(`opening_words:${openingWords.length}`);
+  }
+  if (view.opening && countEvidenceClauses(view.opening) < 2) {
+    issues.push("opening_evidence");
+  }
+  if (OPENING_BAN.test(view.opening)) issues.push("opening_banned_vocab");
+  const cardText = [
+    view.opening,
+    view.headline,
+    view.paletteLine,
+    ...view.rules.map((r) => r.text),
+    ...view.areas.flatMap((a) => [
+      a.name,
+      a.sum,
+      a.insight,
+      ...a.recs.map((r) => r.title),
+    ]),
+  ].join(" ");
+  if (CARD_BAN.test(cardText)) issues.push("internal_vocab");
+  if (view.rules.length !== 3) issues.push(`rules:${view.rules.length}`);
+  for (const swatch of [...view.palette, ...view.avoid]) {
+    if (!swatch.name.trim()) issues.push("unnamed_swatch");
+  }
+  for (const area of view.areas) {
+    const seen = new Set<string>();
+    for (const row of [
+      ...area.metrics.map((m) => m.value),
+      ...area.recs.map((r) => r.title),
+      area.insight,
+    ]) {
+      const k = normReadingKey(row);
+      if (!k) continue;
+      if (seen.has(k)) issues.push(`dup:${area.id}`);
+      seen.add(k);
+    }
+  }
+  return issues;
+}
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
@@ -76,12 +156,10 @@ function asStrArr(v: unknown): string[] {
   return v.map(asStr).filter(Boolean);
 }
 
-function firstSentence(text: string, max = 110): string {
-  const clean = text.replace(/\s+/g, " ").trim();
+function firstSentence(text: string): string {
+  const clean = fullText(text);
   if (!clean) return "";
-  const cut = clean.split(/(?<=[.!?])\s+/)[0] ?? clean;
-  if (cut.length <= max) return cut;
-  return `${cut.slice(0, max - 1).trimEnd()}…`;
+  return clean.split(/(?<=[.!?])\s+/)[0] ?? clean;
 }
 
 function normalizeHex(raw: string | null | undefined, fallback: string): string {
@@ -121,6 +199,73 @@ function colorItems(list: unknown): Array<{
   return out;
 }
 
+function recsFromLists(input: {
+  doList: string[];
+  dontList: string[];
+  checkList: string[];
+}): ReadingRec[] {
+  return [
+    ...input.doList.slice(0, 3).map((title) => ({
+      kind: "do" as const,
+      title,
+      detail: "",
+    })),
+    ...input.dontList.slice(0, 3).map((title) => ({
+      kind: "dont" as const,
+      title,
+      detail: "",
+    })),
+    ...input.checkList.slice(0, 4).map((title) => ({
+      kind: "check" as const,
+      title,
+      detail: "",
+    })),
+  ];
+}
+
+function areaBadge(input: {
+  doList: string[];
+  dontList: string[];
+  checkList: string[];
+  preferFix?: boolean;
+}): { verdict: ReadingAreaVerdict; vlab: string } {
+  const dontN = input.dontList.length;
+  const checkN = input.checkList.length;
+  const doN = input.doList.length;
+  if (input.preferFix || dontN > 0) {
+    return { verdict: "n", vlab: "FIX FIRST" };
+  }
+  if (checkN > doN) {
+    return { verdict: "c", vlab: "CHECK" };
+  }
+  return { verdict: "y", vlab: "WORKS FOR YOU" };
+}
+
+function dedupeArea(area: ReadingArea): ReadingArea {
+  const claimed = new Set<string>();
+  const metrics: ReadingMetric[] = [];
+  for (const m of area.metrics) {
+    const k = normReadingKey(m.value);
+    if (k && claimed.has(k)) continue;
+    if (k) claimed.add(k);
+    metrics.push(m);
+  }
+  const recs: ReadingRec[] = [];
+  for (const rec of area.recs) {
+    const k = normReadingKey(rec.title);
+    if (!k || claimed.has(k)) continue;
+    claimed.add(k);
+    recs.push(rec);
+  }
+  const insightKey = normReadingKey(area.insight);
+  const sumKey = normReadingKey(area.sum);
+  const insight =
+    !insightKey || insightKey === sumKey || claimed.has(insightKey)
+      ? ""
+      : area.insight;
+  return { ...area, metrics, recs, insight };
+}
+
 function areaFromDomain(input: {
   id: string;
   name: string;
@@ -130,34 +275,40 @@ function areaFromDomain(input: {
   metrics: ReadingMetric[];
   doList: string[];
   dontList: string[];
+  checkList?: string[];
   preferFix?: boolean;
 }): ReadingArea | null {
   const insight = input.insight.trim();
-  if (!insight && !input.doList.length && !input.dontList.length) return null;
-  const hasFix = input.preferFix || input.dontList.length > input.doList.length;
-  const recs: ReadingRec[] = [
-    ...input.doList.slice(0, 3).map((t) => ({
-      ok: true,
-      title: t,
-      detail: "",
-    })),
-    ...input.dontList.slice(0, 3).map((t) => ({
-      ok: false,
-      title: t,
-      detail: "",
-    })),
-  ];
-  return {
+  const checkList = input.checkList ?? [];
+  if (
+    !insight &&
+    !input.doList.length &&
+    !input.dontList.length &&
+    !checkList.length
+  ) {
+    return null;
+  }
+  const badge = areaBadge({
+    doList: input.doList,
+    dontList: input.dontList,
+    checkList,
+    preferFix: input.preferFix,
+  });
+  return dedupeArea({
     id: input.id,
     name: input.name,
     sum: input.sum || firstSentence(insight) || "open for the detail",
-    verdict: hasFix ? "n" : "y",
-    vlab: hasFix ? "FIX THIS" : "WORKS FOR YOU",
+    verdict: badge.verdict,
+    vlab: badge.vlab,
     thumb: input.thumb,
     metrics: input.metrics.slice(0, 4),
     insight: insight || input.sum,
-    recs,
-  };
+    recs: recsFromLists({
+      doList: input.doList,
+      dontList: input.dontList,
+      checkList,
+    }),
+  });
 }
 
 function buildColourArea(verdict: StylistVerdict): ReadingArea | null {
@@ -211,7 +362,7 @@ function buildColourArea(verdict: StylistVerdict): ReadingArea | null {
     ],
     doList,
     dontList: dont,
-    preferFix: dont.length > 0 && doList.length === 0,
+    preferFix: dont.length > 0,
   });
 }
 
@@ -252,7 +403,8 @@ function buildProportionArea(verdict: StylistVerdict): ReadingArea | null {
       },
     ],
     doList: [...sil.slice(0, 2), ...length.slice(0, 2), ...volume.slice(0, 1)],
-    dontList: asStrArr(p.test_in_fitting).slice(0, 2),
+    dontList: [],
+    checkList: asStrArr(p.test_in_fitting).slice(0, 4),
   });
 }
 
@@ -339,8 +491,9 @@ function buildFitArea(verdict: StylistVerdict): ReadingArea | null {
       .join(" "),
     metrics,
     doList: [...protocol.slice(0, 2), ...alters.slice(0, 2)],
-    dontList: [...needed.slice(0, 2), ...risks.slice(0, 2)],
-    preferFix: needed.length > 0 && sizeMetrics.length === 0,
+    dontList: [],
+    checkList: [...needed, ...risks].slice(0, 4),
+    preferFix: false,
   });
 }
 
@@ -374,6 +527,8 @@ function buildFabricArea(verdict: StylistVerdict): ReadingArea | null {
     ],
     doList: [...best.slice(0, 3), ...asStrArr(fab.useful_blends).slice(0, 1)],
     dontList: careful.slice(0, 3),
+    checkList: [],
+    preferFix: careful.length > 0,
   });
 }
 
@@ -410,6 +565,7 @@ function buildIdentityArea(verdict: StylistVerdict): ReadingArea | null {
     ],
     doList: [...sig.slice(0, 2), ...descriptors.slice(0, 2)],
     dontList: bounds.slice(0, 3),
+    preferFix: bounds.length > 0,
   });
 }
 
@@ -433,12 +589,12 @@ function buildRulesArea(verdict: StylistVerdict): ReadingArea | null {
       "These are the short rules from your fitting — everything else hangs off them.",
     metrics: rules.slice(0, 3).map((r, i) => ({
       label: `Rule ${i + 1}`,
-      value: firstSentence(r, 48),
+      value: fullText(r),
       tone: "hi" as const,
     })),
     doList: rules.slice(0, 4),
     dontList: mistakes.slice(0, 4),
-    preferFix: mistakes.length > rules.length,
+    preferFix: mistakes.length > 0,
   });
 }
 
@@ -492,7 +648,7 @@ export function readingSteps(verdict: StylistVerdict | null): ReadingStep[] {
     return actions.slice(0, 3).map((why, i) => ({
       step: i + 1,
       label: STEP_LABELS[i]!,
-      name: firstSentence(why, 120),
+      name: firstSentence(why),
       why,
     }));
   }
@@ -510,12 +666,58 @@ export function readingSteps(verdict: StylistVerdict | null): ReadingStep[] {
     fromFormulas.push({
       step: fromFormulas.length + 1,
       label: STEP_LABELS[fromFormulas.length] ?? `STEP ${fromFormulas.length + 1}`,
-      name: occasion || firstSentence(formula[0] ?? "A look", 42),
+      name: occasion || firstSentence(formula[0] ?? "A look"),
       why: notes || formula.join(" · ") || occasion,
     });
     if (fromFormulas.length >= 3) break;
   }
   return fromFormulas;
+}
+
+export function readingHeldRules(verdict: StylistVerdict | null): ReadingHeldRule[] {
+  if (!verdict) return [];
+  const face = verdict.user_facing_verdict;
+  const dos = (face?.golden_rules ?? []).map((s) => s.trim()).filter(Boolean);
+  const donts = (face?.mistakes_to_avoid ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out: ReadingHeldRule[] = [];
+  for (const text of dos.slice(0, 2)) {
+    out.push({ ok: true, text: fullText(text) });
+  }
+  if (donts[0]) out.push({ ok: false, text: fullText(donts[0]) });
+  if (out.length < 3) {
+    for (const text of dos.slice(2)) {
+      if (out.length >= 3) break;
+      out.push({ ok: true, text: fullText(text) });
+    }
+  }
+  if (out.length < 3) {
+    for (const text of donts.slice(1)) {
+      if (out.length >= 3) break;
+      out.push({ ok: false, text: fullText(text) });
+    }
+  }
+  return out.slice(0, 3);
+}
+
+function titleCaseName(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+}
+
+export function readingPaletteLine(
+  palette: ReadingSwatch[],
+  avoid: ReadingSwatch[],
+): string {
+  const near = palette[0]?.name.trim();
+  const skip = avoid[0]?.name.trim();
+  if (near && skip) {
+    return `${titleCaseName(near)} near your face; skip ${titleCaseName(skip).toLowerCase()}.`;
+  }
+  if (near) return `${titleCaseName(near)} near your face.`;
+  return "";
 }
 
 const MIX_DETAIL: Record<string, string> = {
@@ -596,12 +798,15 @@ export function buildReadingView(input: {
   const verdict = input.verdict;
   const face = verdict?.user_facing_verdict;
   const exec = verdict?.executive_verdict;
-  const opening =
+  const opening = fullText(
     face?.opening?.trim() ||
-    exec?.profile_summary?.trim() ||
-    input.buildFallbackCopy?.trim() ||
-    "Five things I'd change, taken from your fitting.";
-  const headline = exec?.headline?.trim() || face?.title?.trim() || "";
+      exec?.profile_summary?.trim() ||
+      input.buildFallbackCopy?.trim() ||
+      "Five things I'd change, taken from your fitting.",
+  );
+  const headline = stripTrailingPeriod(
+    exec?.headline?.trim() || face?.title?.trim() || "",
+  );
 
   const areas = verdict
     ? ([
@@ -621,6 +826,23 @@ export function buildReadingView(input: {
     leanLabel: input.leanLabel ?? "",
   });
   const steps = readingSteps(verdict);
+  const rules = readingHeldRules(verdict);
+  const identity = asRecord(verdict?.style_identity);
+  const from = asStrArr(identity?.based_on)
+    .map(fullText)
+    .filter(Boolean)
+    .slice(0, 4);
 
-  return { opening, headline, areas, palette, avoid, mix, steps };
+  return {
+    opening,
+    headline,
+    areas,
+    palette,
+    avoid,
+    paletteLine: readingPaletteLine(palette, avoid),
+    mix,
+    steps,
+    rules,
+    from,
+  };
 }

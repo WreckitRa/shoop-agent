@@ -6,6 +6,7 @@ import {
   generateAvatarPreview,
   getStoredAvatar,
 } from "@/lib/tryon/avatar/service";
+import { isTransientTryonStorageError } from "@/lib/tryon/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,8 +56,16 @@ export async function POST(req: Request) {
       avatar: fresh ?? avatar,
     });
   } catch (error) {
+    const transient = isTransientTryonStorageError(error);
     const message =
       error instanceof Error ? error.message : "Avatar action failed.";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      {
+        error: transient
+          ? "Twin generation is busy — try again."
+          : message,
+      },
+      { status: transient ? 503 : 500 },
+    );
   }
 }

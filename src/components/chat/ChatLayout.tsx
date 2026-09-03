@@ -9,7 +9,6 @@ import { MessageList } from "@/components/chat/MessageList";
 import { ScrollToBottomButton } from "@/components/chat/ScrollToBottomButton";
 import { EmptyChatState } from "@/components/chat/EmptyChatState";
 import { HomeMirrorCard } from "@/components/chat/HomeMirrorCard";
-import { MirrorPeek } from "@/components/chat/MirrorPeek";
 import { FittingStage } from "@/components/tryon/FittingStage";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import {
@@ -218,7 +217,7 @@ export const ChatLayout = memo(function ChatLayout() {
                         fittingColumnOpen
                           ? stageLocked
                             ? "grid-rows-1 lg:grid-cols-1"
-                            : "grid-rows-[minmax(108px,0.38fr)_minmax(0,1fr)] lg:grid-rows-1 lg:grid-cols-[minmax(220px,0.42fr)_minmax(0,1fr)]"
+                            : "grid-rows-1 lg:grid-cols-[minmax(220px,0.42fr)_minmax(0,1fr)]"
                           : "lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch lg:gap-9",
                       )}
                     >
@@ -226,7 +225,7 @@ export const ChatLayout = memo(function ChatLayout() {
                         className={cn(
                           "relative flex min-h-0 min-w-0 flex-col",
                           fittingColumnOpen &&
-                            "overflow-hidden bg-[#F7F7F8] lg:border-r lg:border-[var(--fitting-line)]",
+                            "overflow-hidden bg-[#F7F7F8] max-lg:hidden lg:border-r lg:border-[var(--fitting-line)]",
                           stageLocked && "hidden",
                         )}
                       >
@@ -239,7 +238,7 @@ export const ChatLayout = memo(function ChatLayout() {
                           fittingColumnOpen
                             ? twinDock === "flow"
                               ? "grid grid-rows-1"
-                              : "grid grid-rows-[minmax(0,1.5fr)_minmax(190px,0.65fr)] lg:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_minmax(230px,300px)]"
+                              : "grid grid-rows-1 lg:grid-cols-[minmax(0,1fr)_minmax(230px,300px)]"
                             : "hidden",
                         )}
                       >
@@ -249,7 +248,7 @@ export const ChatLayout = memo(function ChatLayout() {
                               type="button"
                               aria-label="Keep chatting"
                               onClick={closeFittingColumn}
-                              className="absolute right-2.5 top-2.5 z-20 grid size-8 place-items-center rounded-full border border-[var(--fitting-line)] bg-white text-[var(--fitting-quiet)] transition hover:text-[var(--fitting-ink)]"
+                              className="absolute right-2.5 top-2.5 z-20 hidden size-8 place-items-center rounded-full border border-[var(--fitting-line)] bg-white text-[var(--fitting-quiet)] transition hover:text-[var(--fitting-ink)] lg:grid"
                             >
                               <span aria-hidden className="text-lg leading-none">
                                 ×
@@ -263,7 +262,7 @@ export const ChatLayout = memo(function ChatLayout() {
                         </div>
                         <aside
                           className={cn(
-                            "flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-[var(--fitting-line)] lg:border-l lg:border-t-0",
+                            "hidden min-h-0 min-w-0 flex-col overflow-hidden border-t border-[var(--fitting-line)] lg:flex lg:border-l lg:border-t-0",
                             twinDock === "flow" && "hidden",
                           )}
                         >
@@ -284,8 +283,6 @@ export const ChatLayout = memo(function ChatLayout() {
                       )}
                     </div>
                   </div>
-
-                  {showEmpty || fittingColumnOpen ? null : <MirrorPeek />}
                 </>
               )}
             </div>

@@ -83,11 +83,14 @@ export function FittingWaitProgress({
   steps,
   expectedMs = 55_000,
   className,
+  compact = false,
 }: {
   steps: WaitStep[];
   /** Soft expectation for the bar (not a hard timeout). */
   expectedMs?: number;
   className?: string;
+  /** Phone stage overlay — current label + bar only. */
+  compact?: boolean;
 }) {
   const [elapsedMs, setElapsedMs] = useState(0);
 
@@ -102,6 +105,45 @@ export function FittingWaitProgress({
   const active = activeStepIndex(steps, elapsedMs);
   const pct = progressPct(elapsedMs, expectedMs);
   const current = steps[active]!;
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "rounded-[14px] border border-[var(--fitting-line)] bg-white/95 px-3 py-2.5 shadow-[0_10px_22px_-14px_rgba(14,14,17,.45)] backdrop-blur-[2px]",
+          className,
+        )}
+        role="status"
+        aria-live="polite"
+        aria-busy
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        aria-label={current.label}
+      >
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className="fitting-motion size-1.5 shrink-0 rounded-full bg-[var(--fitting-red)] [animation:fitting-blink_1.2s_ease-in-out_infinite]"
+              aria-hidden
+            />
+            <span className="truncate font-display text-[11px] font-extrabold text-[var(--fitting-ink)]">
+              {current.label}
+            </span>
+          </div>
+          <span className="shrink-0 font-mono text-[10px] font-semibold tabular-nums text-[var(--fitting-quiet)]">
+            {formatRemaining(elapsedMs, expectedMs)}
+          </span>
+        </div>
+        <div className="h-1 overflow-hidden rounded-full bg-[#E9E9EE]" aria-hidden>
+          <div
+            className="fitting-motion h-full rounded-full bg-[var(--fitting-red)] transition-[width] duration-500 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

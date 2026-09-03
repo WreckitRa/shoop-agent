@@ -443,6 +443,39 @@ function cardFromLook(
   };
 }
 
+/** One photo group — men variants share `{family}-{uuid}`, women share `{family}`. */
+export function lookVariantGroup(id: string): string {
+  const men = id.match(/^(m-[a-z_]+-[0-9a-f]+)-\d+$/i);
+  if (men?.[1]) return men[1];
+  const women = id.match(/^(f-[a-z_]+)-\d+$/i);
+  if (women?.[1]) return women[1];
+  return id;
+}
+
+export function uniqueOutfitCards<T extends { id: string; imageUrl: string; label: string }>(
+  cards: T[],
+): T[] {
+  const ids = new Set<string>();
+  const urls = new Set<string>();
+  const labels = new Set<string>();
+  const groups = new Set<string>();
+  const out: T[] = [];
+  for (const card of cards) {
+    if (!card.id || ids.has(card.id)) continue;
+    if (card.imageUrl && urls.has(card.imageUrl)) continue;
+    const label = card.label.trim().toLowerCase();
+    if (label && labels.has(label)) continue;
+    const group = lookVariantGroup(card.id);
+    if (groups.has(group)) continue;
+    ids.add(card.id);
+    if (card.imageUrl) urls.add(card.imageUrl);
+    if (label) labels.add(label);
+    groups.add(group);
+    out.push(card);
+  }
+  return out;
+}
+
 function lookDept(look: OutfitStyleLook): "f" | "m" | "x" {
   const f = look.genders.includes("feminine");
   const m = look.genders.includes("masculine");
@@ -499,40 +532,39 @@ export function selectInhouseDeck(
     if (!excludeIds.has(look.id)) continue;
     used.add(look.id);
     used.add(look.imageUrl);
+    used.add(lookVariantGroup(look.id));
+    usedFamilies.set(look.family, (usedFamilies.get(look.family) ?? 0) + 1);
   }
+
+  const taken = (look: OutfitStyleLook) =>
+    used.has(look.id) ||
+    used.has(look.imageUrl) ||
+    used.has(lookVariantGroup(look.id));
 
   for (const cell of matrix) {
     const pickWithDiversity = (ranked: Ranked[]): Ranked | null => {
-      const maxFamily = paging ? 3 : 1;
       const maxDept = paging || bucket !== "androgynous" ? 9 : 6;
       for (const row of ranked) {
-        if (used.has(row.look.id)) continue;
-        if (used.has(row.look.imageUrl)) continue;
+        if (taken(row.look)) continue;
+        if ((usedFamilies.get(row.look.family) ?? 0) >= 1) continue;
         const colorCount = usedColors.get(row.look.colorFamily) ?? 0;
         const formCount = usedFormality.get(row.look.formality) ?? 0;
-        const famCount = usedFamilies.get(row.look.family) ?? 0;
         const deptCount = usedDept.get(lookDept(row.look)) ?? 0;
-        if (
-          colorCount >= 3 ||
-          formCount >= 4 ||
-          famCount >= maxFamily ||
-          deptCount >= maxDept
-        ) {
+        if (colorCount >= 3 || formCount >= 4 || deptCount >= maxDept) {
           continue;
         }
         return row;
       }
       for (const row of ranked) {
-        if (used.has(row.look.id) || used.has(row.look.imageUrl)) continue;
-        if ((usedFamilies.get(row.look.family) ?? 0) >= maxFamily) continue;
+        if (taken(row.look)) continue;
+        if ((usedFamilies.get(row.look.family) ?? 0) >= 1) continue;
         if ((usedDept.get(lookDept(row.look)) ?? 0) >= maxDept) continue;
         return row;
       }
-      if (paging) {
-        for (const row of ranked) {
-          if (used.has(row.look.id) || used.has(row.look.imageUrl)) continue;
-          return row;
-        }
+      for (const row of ranked) {
+        if (taken(row.look)) continue;
+        if ((usedFamilies.get(row.look.family) ?? 0) >= 1) continue;
+        return row;
       }
       return null;
     };
@@ -549,8 +581,8 @@ export function selectInhouseDeck(
       const loose = pool
         .filter(
           (l) =>
-            !used.has(l.id) &&
-            !used.has(l.imageUrl) &&
+            !taken(l) &&
+            (usedFamilies.get(l.family) ?? 0) < 1 &&
             genderAllowed(l, bucket, false),
         )
         .map((look) => ({
@@ -567,21 +599,14 @@ export function selectInhouseDeck(
     if (!chosen) {
       const fallback = pool.find(
         (l) =>
-          !used.has(l.id) &&
-          !used.has(l.imageUrl) &&
+          !taken(l) &&
+          (usedFamilies.get(l.family) ?? 0) < 1 &&
           genderAllowed(l, bucket, false),
       );
       if (fallback) chosen = { look: fallback, score: 0 };
     }
 
     if (!chosen) {
-      // Last resort: already-used same-gender look rather than opposite gender
-      const wrap = pool.find((l) => genderAllowed(l, bucket, false));
-      if (wrap) chosen = { look: wrap, score: -1 };
-    }
-
-    if (!chosen) {
-      // Don't pad empty tiles on See-more pages — return only real looks.
       if (paging) continue;
       deck.push({
         id: `empty:${ctx.mode}:${cell.cell}`,
@@ -600,6 +625,11 @@ export function selectInhouseDeck(
 
     used.add(chosen.look.id);
     used.add(chosen.look.imageUrl);
+    used.add(lookVariantGroup(chosen.look.id));
+    usedColors.set(
+      chosen.look.colorFamily,
+      (usedColors.get(chosen.look.colorFamily) ?? 0) + 1,
+    );
     usedColors.set(
       chosen.look.colorFamily,
       (usedColors.get(chosen.look.colorFamily) ?? 0) + 1,
@@ -617,7 +647,7 @@ export function selectInhouseDeck(
     deck.push(cardFromLook(chosen.look, ctx, cell));
   }
 
-  return seededShuffle(deck, `${seed}:layout`);
+  return seededShuffle(uniqueOutfitCards(deck), `${seed}:layout`);
 }
 
 function outfitDeckHasMore(
@@ -630,9 +660,15 @@ function outfitDeckHasMore(
       .map((id) => id.trim())
       .filter(Boolean),
   );
+  const shownFamilies = new Set(
+    looks.filter((look) => shown.has(look.id)).map((look) => look.family),
+  );
   const bucket = genderBucketFromPresentation(ctx.genderPresentation);
   return looks.some(
-    (look) => !shown.has(look.id) && genderAllowed(look, bucket, false),
+    (look) =>
+      !shown.has(look.id) &&
+      !shownFamilies.has(look.family) &&
+      genderAllowed(look, bucket, false),
   );
 }
 

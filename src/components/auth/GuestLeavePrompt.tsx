@@ -36,7 +36,7 @@ export function GuestLeavePrompt() {
       const onboardingLeave = guestNeedsOnboardingLeaveWarning({
         accessMode: useAppSessionStore.getState().mode,
         columnOpen: fitting.columnOpen,
-        onboardingActive: fitting.onboardingActive,
+        stageLocked: fitting.stageLocked,
       });
       const message = onboardingLeave
         ? ONBOARDING_LEAVE_UNLOAD_MESSAGE

@@ -142,6 +142,31 @@ export async function createSignedUrl(
   });
 }
 
+export async function downloadPrivateObject(path: string): Promise<{
+  bytes: Uint8Array;
+  contentType: string;
+}> {
+  if (storageMode === "memory") {
+    const bytes = memoryStore.get(path);
+    if (!bytes) throw new Error(`memory object missing: ${path}`);
+    return { bytes, contentType: "image/jpeg" };
+  }
+  return withTryonStorageRetries(async () => {
+    await ensureTryonBucket();
+    const client = getSupabaseAdminClient();
+    const { data, error } = await client.storage
+      .from(TRYON_PRIVATE_BUCKET)
+      .download(path);
+    if (error || !data) {
+      throw new Error(error?.message ?? "tryon download failed");
+    }
+    return {
+      bytes: new Uint8Array(await data.arrayBuffer()),
+      contentType: data.type || "image/jpeg",
+    };
+  });
+}
+
 /**
  * Recover the private object path from a (possibly expired) signed URL.
  * createSignedUrl needs `userId/personId/tryon/file.jpg` — not the bucket prefix.

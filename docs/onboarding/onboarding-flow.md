@@ -3,6 +3,7 @@
 > **Audience:** engineer or AI reviewing what Shoop learns during onboarding.  
 > **Scope:** authenticated modal onboarding (`OnboardingGate`) — fitting-room style steps through complete, including storage and projection into fashion-memory.  
 > **Question script (copy + options, for agents):** [`questions-for-agents.md`](./questions-for-agents.md).  
+> **Verdict card — jobs, payloads, UI field map:** [`verdict-page-pipeline.md`](./verdict-page-pipeline.md).  
 > **Deep dive on outfit grids only:** [`outfit-grid-wear-steal-logic.md`](./outfit-grid-wear-steal-logic.md).  
 > **How onboarding feeds fashion search:** [`../fashion/before-ready-to-search.md`](../fashion/before-ready-to-search.md) §3.  
 > **Source of truth:** `src/components/onboarding/OnboardingGate.tsx`, `src/lib/onboarding/**`, `prisma/schema.prisma` (`UserProfile`, `SizingProfile`, …).  
@@ -27,13 +28,13 @@ Everything else is skippable.
 
 ## 2. Flow overview
 
-**Live UI** (`OnboardingGate` + fitting steps): consent → photo → fit → name → life → spend → worn → corner → nolist → honesty → **verdict** → circle.
+**Live UI** (`OnboardingGate` + fitting steps): consent → photo → name → fit → life → spend → worn → corner → nolist → honesty → **verdict** → circle.
 
 | Step | Screen |
 |------|--------|
 | `photo` | `FittingPhotoStep` (scan) |
-| `fit` | `FittingPhotoStep` (body) |
 | `name` | `YouIdentityStep` — clothing type Menswear / Womenswear / Both |
+| `fit` | `FittingPhotoStep` (body) |
 | `life` | `TasteLifeStep` — week days + week ends (not dating) |
 | `spend` | `TasteSpendStep` |
 | `worn` | `TasteOutfitGridStep` |

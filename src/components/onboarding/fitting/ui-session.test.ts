@@ -70,10 +70,23 @@ describe("onboarding ui session", () => {
     writeOnboardingUiSession({ step: "verdict", finale: "card" });
     assert.equal(isFinishingFitting(readOnboardingUiSession()), true);
     writeOnboardingUiSession({ step: "circle" });
-    assert.equal(isFinishingFitting(readOnboardingUiSession()), false);
+    assert.equal(isFinishingFitting(readOnboardingUiSession()), true);
     writeOnboardingUiSession({ step: "verdict" });
     markOnboardingUiDismissed();
     assert.equal(isFinishingFitting(readOnboardingUiSession()), false);
+  });
+
+  it("keeps Fitting open when looks are waiting to save after signup", () => {
+    writeOnboardingUiSession({
+      step: "verdict",
+      finale: "card",
+      saveLooks: true,
+      lookJobIds: ["job-1", "job-2"],
+    });
+    const session = readOnboardingUiSession();
+    assert.equal(session?.saveLooks, true);
+    assert.deepEqual(session?.lookJobIds, ["job-1", "job-2"]);
+    assert.equal(isFinishingFitting(session), true);
   });
 
   it("locks scan/verdict/circle as the fullscreen sequence", () => {

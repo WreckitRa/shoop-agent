@@ -2,6 +2,7 @@
 
 > **Use this file as the source of truth for what the live wizard asks.**  
 > Storage / APIs / fashion-memory projection: [`onboarding-flow.md`](./onboarding-flow.md).  
+> Verdict card pipeline (LLMs, catalog, try-on, field map): [`verdict-page-pipeline.md`](./verdict-page-pipeline.md).  
 > Outfit-grid ranking: [`outfit-grid-wear-steal-logic.md`](./outfit-grid-wear-steal-logic.md).  
 > Code: `src/components/onboarding/OnboardingGate.tsx`, step components, `src/lib/onboarding/form-options.ts`.
 
@@ -31,8 +32,8 @@ You are simulating, reviewing, extracting, or filling Shoop onboarding. Follow t
 |---|--------|--------|--------------------|
 | 1 | `consent` | Three yeses before a photo | All visible checkboxes |
 | 2 | `photo` | Face photograph | No — skip allowed |
-| 3 | `fit` | Height / weight / build / shape | No (defaults apply later) |
-| 4 | `name` | Identity print | Name + clothing type + ≥1 style era |
+| 3 | `name` | Identity print | Name + clothing type + ≥1 style era |
+| 4 | `fit` | Height / weight / build / shape | No (defaults apply later) |
 | 5 | `life` | Week days / week ends / kids / climate | No |
 | 6 | `spend` | How you buy | No |
 | 7 | `worn` | Looks you actually wear | No — max 3 |
@@ -66,7 +67,7 @@ Present on every question step except `verdict`. Not a numbered step.
 **Kick:** BEFORE WE START  
 **Whisper:** We measure you from one face photograph. No account yet — save at the end if you want to keep this. Full terms in Biometric Consent.
 
-All visible ticks must be true to continue. CTA: `Continue to photo`.
+All visible ticks must be true to continue. CTA: `Next`. Next step is `photo`.
 
 ### Q1.1 Age attestation
 
@@ -105,7 +106,7 @@ All visible ticks must be true to continue. CTA: `Continue to photo`.
 **Whisper (guest):** One face photograph — tap the face on the card. It stays on this device until you save your progress — we don’t process it until then. Height and build are typed facts after this.  
 **Whisper (signed in):** One face photograph — tap the face on the card. Height and build are typed facts after this — used for the twin, never shown, never judged.
 
-Height / build are **not** on this step. They are step 6 (`fit`).
+Height / build are **not** on this step. They are step 4 (`fit`).
 
 ### Q2.1 Face photograph
 
@@ -159,7 +160,7 @@ Client will not leave this step without name + clothing presentation + at least 
 
 Aliases accepted only via Tell-me / intake, not as extra chips: male/man/m → `masculine`; female/woman/f → `feminine`; non-binary/nb → `nonbinary`.
 
-Downstream: `feminine` shows Bust on step 6; outfit decks bucket `masculine` / `feminine` / else `androgynous`. Comfort and brand suggestions gate on masculine vs feminine.
+Downstream: `feminine` shows Bust on step 4; outfit decks bucket `masculine` / `feminine` / else `androgynous`. Comfort and brand suggestions gate on masculine vs feminine.
 
 ### Q3.3 Birthday
 
@@ -639,7 +640,7 @@ Confirm / edit (free-text, prefilled from photo analysis — only rows with a va
 | Hair length | hair length |
 | Facial hair | facial hair style |
 
-Then re-confirm Height, Weight, Build, Definition, Shape (same option sets as step 6).
+Then re-confirm Height, Weight, Build, Definition, Shape (same option sets as step 4).
 
 | CTA | |
 |-----|--|
@@ -650,7 +651,9 @@ If the photo yielded nothing: title **Not enough from the photo.** Skip to card.
 
 ### 12b The card (`finale: card`)
 
-Reveal: stylist verdict, style-mix donut, dressed twin. No new profile questions.
+Reveal: stylist verdict, style-mix donut, five looks dressed on the twin. No new profile questions.
+
+Jobs, payloads, and every on-screen field: [`verdict-page-pipeline.md`](./verdict-page-pipeline.md).
 
 | CTA | |
 |-----|--|

@@ -131,7 +131,8 @@ export function resetUserScopedClientState(opts?: {
       onboardingActive: keepFittingOpen,
       stageLocked: keepFittingOpen && locked,
       columnDismissed: false,
-      replayFitting: keepFittingOpen,
+      // Continue in place — replay means "start Fitting over from photo".
+      replayFitting: false,
       pendingLeave: false,
       twinDock: fitting.twinDock,
     });
@@ -278,7 +279,7 @@ async function resyncClientAfterIdentityChange(
     if (session?.dismissed !== true) {
       const fitting = useInlineFittingStore.getState();
       if (fitting.columnOpen || fitting.onboardingActive) {
-        useInlineFittingStore.getState().openColumn();
+        useInlineFittingStore.getState().resumeColumn();
         useInlineFittingStore.getState().setOnboardingActive(true);
       }
     }

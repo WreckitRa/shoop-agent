@@ -67,7 +67,7 @@ export async function preflightStylePhotos({
   }
 
   return withPhotoGptLock(async () => {
-    const raw = await callPhotoJsonSchema({
+    const { value: raw } = await callPhotoJsonSchema({
       model: photoPreflightModel(),
       reasoning: { effort: "none" },
       instructions: STYLE_PHOTO_PREFLIGHT_INSTRUCTIONS,
@@ -120,7 +120,7 @@ export async function analyzeStylePhotos({
   };
 
   return withPhotoGptLock(async () => {
-    const raw = await callPhotoJsonSchema({
+    const { value: raw } = await callPhotoJsonSchema({
       model: photoAnalysisModel(),
       reasoning: { effort: "medium" },
       instructions: STYLE_PHOTO_ANALYSIS_INSTRUCTIONS,

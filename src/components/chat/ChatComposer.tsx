@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowRight } from "lucide-react";
 import { ComposerReplyChip } from "@/components/chat/ComposerReplyChip";
+import { HomeQuickActions } from "@/components/chat/HomeQuickActions";
 import { ReceiptPlusButton } from "@/components/chat/ReceiptPlusButton";
 import { useChatStore } from "@/components/chat/chat-store";
 import { useSuggestedPrompt } from "@/components/chat/useSuggestedPrompt";
@@ -44,6 +46,7 @@ export function ChatComposer({
   );
   const composerLocked = useInlineFittingStore((s) => s.composerLocked);
   const [homePlaceholderIndex, setHomePlaceholderIndex] = useState(0);
+  const [compOpen, setCompOpen] = useState(false);
 
   const suggestedPlaceholder = useSuggestedPrompt();
   const isFirstMessage = messageCount === 0;
@@ -92,11 +95,45 @@ export function ChatComposer({
 
   useEffect(() => {
     if (isStreaming || !isNewChat) return;
+    if (
+      isHeroComposer &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 1023px)").matches
+    ) {
+      return;
+    }
     const frame = requestAnimationFrame(() => {
       ta.current?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [isNewChat, isStreaming, composerFocusNonce, activeConversationId]);
+  }, [
+    isNewChat,
+    isStreaming,
+    composerFocusNonce,
+    activeConversationId,
+    isHeroComposer,
+  ]);
+
+  useEffect(() => {
+    if (!compOpen) return;
+    const frame = requestAnimationFrame(() => {
+      ta.current?.focus({ preventScroll: true });
+    });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCompOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [compOpen]);
+
+  useEffect(() => {
+    if (!isHeroComposer || composerFocusNonce === 0) return;
+    if (!window.matchMedia("(max-width: 1023px)").matches) return;
+    setCompOpen(true);
+  }, [composerFocusNonce, isHeroComposer]);
 
   useEffect(() => {
     if (!composerReplyContext) return;
@@ -108,6 +145,7 @@ export function ChatComposer({
 
   const onSend = useCallback(() => {
     void sendMessage();
+    setCompOpen(false);
     requestAnimationFrame(() => {
       ta.current?.focus({ preventScroll: true });
       resize();
@@ -127,27 +165,38 @@ export function ChatComposer({
         ? HOME_PLACEHOLDERS[homePlaceholderIndex]
         : suggestedPlaceholder;
 
-  return (
+  const composerPanel = (
     <div
       className={
         isHeroComposer
-          ? "w-full max-w-[640px]"
-          : stage
-            ? "shrink-0 bg-transparent pb-3 pt-2"
-            : "shrink-0 bg-page pb-3 pt-3"
+          ? cn("shoop-comp flex w-full flex-col gap-2 sm:gap-3", compOpen && "is-on")
+          : cn(
+              "mx-auto flex w-full flex-col gap-3",
+              stage ? "max-w-none px-3 pb-3" : "max-w-page-narrow",
+              !nested && "shoop-page-x",
+            )
       }
     >
-      <div
-        className={
-          isHeroComposer
-            ? "flex w-full flex-col gap-2 sm:gap-3"
-            : cn(
-                "mx-auto flex w-full flex-col gap-3",
-                stage ? "max-w-none px-3 pb-3" : "max-w-page-narrow",
-                !nested && "shoop-page-x",
-              )
-        }
-      >
+        {isHeroComposer ? (
+          <>
+            <div className="shoop-comp__top">
+              <b>THE ASK</b>
+              <button
+                type="button"
+                className="shoop-comp__x"
+                aria-label="Close"
+                onClick={() => setCompOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <h2 className="shoop-comp__q">
+              Tell me the room
+              <br />
+              and <span>who&apos;s in it.</span>
+            </h2>
+          </>
+        ) : null}
         <div
           className={cn(
             "shoop-buybrief-box",
@@ -191,11 +240,25 @@ export function ChatComposer({
               className={cn(
                 "shoop-composer-textarea shoop-textarea-placeholder max-h-[200px] w-full resize-none overflow-hidden border-0 bg-transparent font-normal text-ink outline-none",
                 isHeroComposer
-                  ? "min-h-[44px] text-[15px] leading-[1.5] md:text-[15px]"
+                  ? "min-h-[44px] text-[15px] leading-[1.5] md:text-[15px] max-lg:min-h-[64px] max-lg:text-[19px] max-lg:font-medium max-lg:leading-[1.35]"
                   : "min-h-[28px] text-[16px] leading-[24px] md:text-[15px] md:leading-6",
               )}
             />
           </div>
+          {isHeroComposer ? (
+            <div className="shoop-comp__hints">
+              <HomeQuickActions
+                variant="hints"
+                onSelect={(prompt) => {
+                  setInput(prompt);
+                  requestAnimationFrame(() => {
+                    ta.current?.focus({ preventScroll: true });
+                    resize();
+                  });
+                }}
+              />
+            </div>
+          ) : null}
           <div
             className={cn(
               "mt-3 flex items-center justify-between gap-2",
@@ -272,7 +335,39 @@ export function ChatComposer({
             <LegalFooterLinks compact className="inline-flex" />
           </div>
         ) : null}
-      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={
+        isHeroComposer
+          ? "w-full max-w-[640px]"
+          : stage
+            ? "shrink-0 bg-transparent pb-3 pt-2"
+            : "shrink-0 bg-page pb-3 pt-3"
+      }
+    >
+      {isHeroComposer ? (
+        <button
+          type="button"
+          className="shoop-restbar lg:hidden"
+          onClick={() => setCompOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+          <span>Ask me for anything...</span>
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <rect x="9" y="3" width="6" height="11" rx="3" />
+            <path d="M5 12a7 7 0 0014 0M12 19v3" />
+          </svg>
+        </button>
+      ) : null}
+      {isHeroComposer && compOpen
+        ? createPortal(composerPanel, document.body)
+        : composerPanel}
     </div>
   );
 }

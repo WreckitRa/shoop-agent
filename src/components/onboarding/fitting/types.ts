@@ -15,8 +15,8 @@ export type FittingStep =
 export const FITTING_STEPS: FittingStep[] = [
   "consent",
   "photo",
-  "fit",
   "name",
+  "fit",
   "life",
   "spend",
   "worn",
@@ -59,8 +59,8 @@ export function fittingBackTarget(args: {
 export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
   "consent",
   "photo",
-  "fit",
   "name",
+  "fit",
   "life",
   "spend",
   "worn",
@@ -71,21 +71,21 @@ export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
 ];
 
 export const STITCH_KNOTS = [
-  { id: "photo", label: "Photo", top: "3%" },
-  { id: "fit", label: "Fit", top: "14%" },
-  { id: "name", label: "Name", top: "25%" },
+  { id: "photo", label: "Your photo", top: "3%" },
+  { id: "name", label: "Name", top: "14%" },
+  { id: "fit", label: "Fit", top: "25%" },
   { id: "life", label: "Life", top: "36%" },
   { id: "spend", label: "Spend", top: "47%" },
   { id: "worn", label: "Worn", top: "53%" },
-  { id: "corner", label: "Corner", top: "63%" },
-  { id: "nolist", label: "No-list", top: "73%" },
-  { id: "mint", label: "The mint", top: "85%", emphasis: true },
-  { id: "circle", label: "Circle", top: "96%" },
+  { id: "corner", label: "What you'd change", top: "63%" },
+  { id: "nolist", label: "Never again", top: "73%" },
+  { id: "mint", label: "Your reading", top: "85%", emphasis: true },
+  { id: "circle", label: "Your circle", top: "96%" },
 ] as const;
 
 /** Left-rail groups — same knots, sequential, mock tracker chrome. */
 export const TRACKER_GROUPS = [
-  { label: "LOOK", knotIds: ["photo", "fit", "name"] },
+  { label: "LOOK", knotIds: ["photo", "name", "fit"] },
   { label: "LIFE", knotIds: ["life"] },
   { label: "EVIDENCE", knotIds: ["spend", "worn", "corner", "nolist"] },
   { label: "DIRECTION", knotIds: ["mint"] },
@@ -107,8 +107,8 @@ export const STEP_META: Record<
 > = {
   consent: { n: 1, stage: "Before we start" },
   photo: { n: 2, stage: "Getting to know you" },
-  fit: { n: 3, stage: "Getting to know you" },
-  name: { n: 4, stage: "Getting to know you" },
+  name: { n: 3, stage: "Getting to know you" },
+  fit: { n: 4, stage: "Getting to know you" },
   life: { n: 5, stage: "Getting to know you" },
   spend: { n: 6, stage: "Getting to know you" },
   worn: { n: 7, stage: "Getting to know you" },
@@ -124,9 +124,9 @@ export function knotNowIndex(step: FittingStep): number {
     case "consent":
     case "photo":
       return 0;
-    case "fit":
-      return 1;
     case "name":
+      return 1;
+    case "fit":
       return 2;
     case "life":
       return 3;
@@ -153,9 +153,9 @@ export function sewnThroughIndex(step: FittingStep): number {
     case "consent":
     case "photo":
       return -1;
-    case "fit":
-      return 0;
     case "name":
+      return 0;
+    case "fit":
       return 1;
     case "life":
       return 2;
@@ -276,16 +276,25 @@ export function formFromGender(gender: string): SilhouetteForm {
 }
 
 export function shortEraLabel(label: string): string {
-  if (label.includes("First-paycheck") || label.includes("23"))
-    return "FIRST-PAYCHECK";
-  if (label.includes("30") || label.includes("Prime")) return "PRIME";
-  if (label.includes("40") || label.includes("Power")) return "POWER";
-  if (label.includes("Refine") || label.includes("50")) return "REFINED";
-  if (label.includes("Icon") || label.includes("65")) return "ICON";
-  if (label.includes("Campus") || label.includes("18")) return "CAMPUS";
-  if (label.includes("High-school") || label.includes("15")) return "SCHOOL";
-  if (label.includes("Figuring") || label.includes("13")) return "STARTING";
-  return label.toUpperCase().slice(0, 12);
+  const lower = label.toLowerCase();
+  if (
+    lower.includes("first-paycheck") ||
+    lower.includes("first paycheck") ||
+    lower === "23_29" ||
+    lower.includes("23–29") ||
+    lower.includes("23-29")
+  ) {
+    return "First paycheck";
+  }
+  if (lower.includes("prime") || lower === "30s") return "Prime";
+  if (lower.includes("power") || lower === "40s") return "Power";
+  if (lower.includes("refine") || lower.includes("50")) return "Refined";
+  if (lower.includes("icon") || lower.includes("65")) return "Icon";
+  if (lower.includes("campus") || lower.includes("18")) return "Campus";
+  if (lower.includes("high-school") || lower.includes("15")) return "School";
+  if (lower.includes("figuring") || lower.includes("13")) return "Starting";
+  const cleaned = label.replace(/^[\d–\-+\s·]+/, "").trim();
+  return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1, 22) : label;
 }
 
 export function spendShort(value: string): string {

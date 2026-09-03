@@ -12,10 +12,23 @@ export type OnboardingUiSession = {
   dismissed?: boolean;
   /** Scan/verdict/circle — Fitting owns the viewport. */
   locked?: boolean;
+  /** After signup, love the verdict looks then open Your circle. */
+  saveLooks?: boolean;
+  lookJobIds?: string[];
 };
 
 function isFittingStep(v: unknown): v is FittingStep {
   return typeof v === "string" && (FITTING_STEPS as string[]).includes(v);
+}
+
+function parseLookJobIds(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const ids = v
+    .filter((id): id is string => typeof id === "string")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0 && id.length < 80)
+    .slice(0, 8);
+  return ids.length ? ids : undefined;
 }
 
 function parseCircleNames(v: unknown): string[] | undefined {
@@ -43,6 +56,8 @@ function parseSession(raw: string | null): OnboardingUiSession | null {
       finale,
       dismissed: parsed.dismissed === true,
       locked: parsed.locked === true,
+      saveLooks: parsed.saveLooks === true,
+      lookJobIds: parseLookJobIds(parsed.lookJobIds),
     };
   } catch {
     return null;
@@ -97,6 +112,8 @@ export function writeOnboardingUiSession(
     finale: pos.finale ?? prev?.finale,
     dismissed: "dismissed" in pos ? pos.dismissed : prev?.dismissed,
     locked: "locked" in pos ? pos.locked : prev?.locked,
+    saveLooks: "saveLooks" in pos ? pos.saveLooks : prev?.saveLooks,
+    lookJobIds: "lookJobIds" in pos ? pos.lookJobIds : prev?.lookJobIds,
   };
   const raw = JSON.stringify(next);
   storageSet(window.localStorage, raw);
@@ -132,10 +149,14 @@ export function sessionIsMagicLocked(
   return session.locked === true || isMagicFittingStep(session.step);
 }
 
-/** Verdict card is the last save-before-circle beat — keep Fitting open after signup. */
+/** Verdict / circle (and a pending look-save) — keep Fitting open after signup. */
 export function isFinishingFitting(
   session: OnboardingUiSession | null,
 ): boolean {
   if (!session || session.dismissed === true) return false;
-  return session.step === "verdict";
+  return (
+    session.step === "verdict" ||
+    session.step === "circle" ||
+    session.saveLooks === true
+  );
 }
