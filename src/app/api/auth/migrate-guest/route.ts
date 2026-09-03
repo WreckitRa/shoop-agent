@@ -56,7 +56,8 @@ export async function POST(req: Request) {
     });
 
     return Response.json({ ok: true, migratedFrom: result.guestUserId });
-  } catch {
+  } catch (error) {
+    console.error("[shoop] migrate-guest failed", error);
     return Response.json({ error: "Migration failed." }, { status: 500 });
   }
 }

@@ -55,6 +55,7 @@ import {
   clearOnboardingUiSession,
   readOnboardingUiSession,
   writeOnboardingUiSession,
+  isFinishingFitting,
 } from "@/components/onboarding/fitting/ui-session";
 import { TasteCircleStep } from "@/components/onboarding/TasteCircleStep";
 import { TasteHonestyStep } from "@/components/onboarding/TasteHonestyStep";
@@ -1224,6 +1225,15 @@ export function OnboardingGate() {
     if (session.circleNames?.some((n) => n.trim())) {
       setCircleNames(session.circleNames);
     }
+    if (session.identity?.preferredName) {
+      setPreferredName(session.identity.preferredName);
+    }
+    if (session.identity?.genderPresentation) {
+      setGenderPresentation(normalizeGender(session.identity.genderPresentation));
+    }
+    if (session.identity?.styleEras?.length) {
+      setStyleEras((prev) => mergeLabelLists(prev, session.identity!.styleEras!));
+    }
   }, []);
 
   useEffect(() => {
@@ -1312,8 +1322,13 @@ export function OnboardingGate() {
       circleNames,
       finale,
       locked: isMagicFittingStep(step),
+      identity: {
+        preferredName: preferredName.trim() || undefined,
+        genderPresentation: genderPresentation.trim() || undefined,
+        styleEras: styleEras.length ? styleEras : undefined,
+      },
     });
-  }, [loading, status, step, circleNames, finale]);
+  }, [loading, status, step, circleNames, finale, preferredName, genderPresentation, styleEras]);
 
   const twinInFlow = twinDocksInFlow(
     step,
@@ -1382,17 +1397,37 @@ export function OnboardingGate() {
     openAuthModal("signup");
   }
 
+  function goToCircle() {
+    writeOnboardingUiSession({
+      step: "circle",
+      finale: "card",
+      locked: true,
+      saveLooks: false,
+      lookJobIds: [],
+    });
+    if (!accountReady) {
+      openAuthModal("signup");
+      return;
+    }
+    setStep("circle");
+  }
+
   useEffect(() => {
     if (accountReady) {
       const session = readOnboardingUiSession();
       if (session?.saveLooks) {
         void saveReadingLooksAndGoToCircle(session.lookJobIds ?? []);
+      } else if (session?.step === "circle") {
+        setStep("circle");
       }
     }
     const onAuth = () => {
       const session = readOnboardingUiSession();
-      if (!session?.saveLooks) return;
-      void saveReadingLooksAndGoToCircle(session.lookJobIds ?? []);
+      if (session?.saveLooks) {
+        void saveReadingLooksAndGoToCircle(session.lookJobIds ?? []);
+        return;
+      }
+      if (session?.step === "circle") setStep("circle");
     };
     window.addEventListener("shoop-auth-changed", onAuth);
     return () => window.removeEventListener("shoop-auth-changed", onAuth);
@@ -1681,10 +1716,18 @@ export function OnboardingGate() {
 
   async function saveIdentity(): Promise<boolean> {
     if (submissionLockRef.current) return false;
+    const held = readOnboardingUiSession()?.identity;
+    const name =
+      preferredName.trim() || held?.preferredName?.trim() || "";
+    const clothing =
+      genderPresentation.trim() ||
+      held?.genderPresentation?.trim() ||
+      "";
+    const eras = styleEras.length ? styleEras : held?.styleEras ?? [];
     const missing: string[] = [];
-    if (!preferredName.trim()) missing.push("name");
-    if (!genderPresentation.trim()) missing.push("clothing style");
-    const styleEraWire = joinCsvValues(styleEras);
+    if (!name) missing.push("name");
+    if (!clothing) missing.push("clothing style");
+    const styleEraWire = joinCsvValues(eras);
     if (
       birthDate.trim() &&
       !birthDateSkipped &&
@@ -1722,8 +1765,8 @@ export function OnboardingGate() {
         body: JSON.stringify({
           patch: {
             profile: {
-              preferredName: preferredName.trim(),
-              genderPresentation: genderPresentation.trim(),
+              preferredName: name,
+              genderPresentation: clothing,
               ageRange: normalizeAgeRange(ageRange) || ageRange,
               styleEra: styleEraWire,
               lifestyleTags,
@@ -1750,6 +1793,9 @@ export function OnboardingGate() {
         throw new Error(patchJson.error ?? "Could not save your profile.");
       }
       hydrateFromStatus(patchJson);
+      if (name) setPreferredName(name);
+      if (clothing) setGenderPresentation(normalizeGender(clothing));
+      if (eras.length) setStyleEras((prev) => mergeLabelLists(prev, eras));
       reviewRequestKeyRef.current = null;
       if (patchJson.selfPerson?.id) {
         setSelfPersonId(patchJson.selfPerson.id);
@@ -2626,8 +2672,8 @@ export function OnboardingGate() {
     try {
       const names = circleNames.map((n) => n.trim()).filter(Boolean);
       if (!accountReady) {
-        setPersistedFlags((f) => ({ ...f, circleSaved: true }));
-        return true;
+        openAuthModal("signup");
+        return false;
       }
       const res = await guestFetch("/api/onboarding/circle", {
         method: "POST",
@@ -2686,35 +2732,34 @@ export function OnboardingGate() {
       await waitForMintIfRunning(15_000);
       submissionLockRef.current = true;
 
-      // Re-save identity onto the account — guest→signup can leave the
-      // server profile empty even when the Fitting already has the answers.
+      // Circle is post-signup. Copy quiz answers onto the account if
+      // guest→user migrate missed them. Don't fail the circle step on a
+      // name re-save when identity is already persisted.
       submissionLockRef.current = false;
       const identityOk = await saveIdentity();
-      submissionLockRef.current = true;
       if (!identityOk) {
-        throw new Error("Could not save your name before finishing.");
-      }
-
-      submissionLockRef.current = false;
-      const tasteOk = await saveTaste(false, "final");
-      submissionLockRef.current = true;
-      if (!tasteOk) {
-        throw new Error("Could not save final taste before complete.");
-      }
-
-      if (accountReady && circleNames.some((n) => n.trim())) {
-        submissionLockRef.current = false;
-        const circleOk = await saveCircle();
-        submissionLockRef.current = true;
-        if (!circleOk) {
-          throw new Error("Could not save your trusted circle.");
+        if (isFinishingFitting(readOnboardingUiSession())) {
+          setStep("name");
         }
+        return false;
       }
+      if (!persistedFlags.tasteFinal) {
+        const tasteOk = await saveTaste(false, "final");
+        if (!tasteOk) return false;
+      }
+      submissionLockRef.current = true;
 
       const res = await guestFetch("/api/onboarding", { method: "POST" });
       const next = (await res.json()) as OnboardingStatus & { error?: string };
       useInlineFittingStore.getState().clearReplay();
       if (!res.ok) {
+        const missing = next.onboarding?.missingRequiredFields ?? [];
+        if (missing.length) {
+          setStep("name");
+          throw new Error(
+            "This account is missing your name, clothing style, or era. Confirm those — you don’t redo the quiz.",
+          );
+        }
         throw new Error(next.error ?? "Could not finish onboarding.");
       }
       hydrateFromStatus(next);
@@ -2752,8 +2797,9 @@ export function OnboardingGate() {
       return;
     }
     if (current === "name") {
+      const finishing = isFinishingFitting(readOnboardingUiSession());
       await runWithLoading({
-        nextStep: "fit",
+        nextStep: finishing ? "circle" : "fit",
         work: () => saveIdentity(),
       });
       return;
@@ -3635,26 +3681,8 @@ export function OnboardingGate() {
             busy={busy}
             accountReady={accountReady}
             onSaveLooks={handleSaveLooks}
-            onAskCircle={() => {
-              writeOnboardingUiSession({
-                step: "circle",
-                finale: "card",
-                locked: true,
-                saveLooks: false,
-                lookJobIds: [],
-              });
-              void advanceFrom("verdict");
-            }}
-            onMeetTwin={() => {
-              writeOnboardingUiSession({
-                step: "circle",
-                finale: "card",
-                locked: true,
-                saveLooks: false,
-                lookJobIds: [],
-              });
-              void advanceFrom("verdict");
-            }}
+            onAskCircle={goToCircle}
+            onMeetTwin={goToCircle}
             shareCopied={shareCopied}
             onShare={(selectedCircle) => {
               const circleBit = selectedCircle.length

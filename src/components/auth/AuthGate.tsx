@@ -127,9 +127,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const fittingLive = useInlineFittingStore(
     (s) => s.onboardingActive || s.stageLocked,
   );
-  const onboardingKey = fittingLive
-    ? "onboarding:fitting"
-    : `onboarding:${identityScope}`;
+  const finishingFitting = isFinishingFitting(readOnboardingUiSession());
+  const onboardingKey =
+    fittingLive || finishingFitting
+      ? "onboarding:fitting"
+      : `onboarding:${identityScope}`;
 
   const refreshGuest = useCallback(() => {
     setGuestActive(isGuestSessionActive());
@@ -142,10 +144,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setGuestClaimInFlight(true);
       try {
         if (migrateGuest) {
-          guestMigrateOnceRef.current = true;
-          await migrateGuestDataAfterAuth();
-        }
-        if (isGuestSessionActive()) {
+          const migrated = await migrateGuestDataAfterAuth();
+          if (migrated) guestMigrateOnceRef.current = true;
+        } else if (isGuestSessionActive()) {
           clearGuestSession();
         }
         refreshGuest();
@@ -412,23 +413,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (user) {
-    return (
-      <>
-        {children}
-        {!skipFittingChrome ? (
-          <BiometricReconsentGate key={`biometric:${identityScope}`} enabled />
-        ) : null}
-        {!skipFittingChrome ? (
-          <OnboardingGate key={onboardingKey} />
-        ) : null}
-        {!skipFittingChrome ? <OnboardingLeaveFomo /> : null}
-      </>
-    );
-  }
-
-  if (guestActive) {
-    const authForm = showAuthModal ? (
+  if (user || guestActive) {
+    const authForm =
+      !user && guestActive && showAuthModal ? (
       <AuthModal
         layout="overlay"
         mode={mode}
@@ -464,10 +451,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         {children}
+        {user && !skipFittingChrome ? (
+          <BiometricReconsentGate key={`biometric:${identityScope}`} enabled />
+        ) : null}
         {!skipFittingChrome ? (
           <OnboardingGate key={onboardingKey} />
         ) : null}
-        {!skipFittingChrome ? <GuestLeavePrompt /> : null}
+        {!user && guestActive && !skipFittingChrome ? (
+          <GuestLeavePrompt />
+        ) : null}
         {!skipFittingChrome ? <OnboardingLeaveFomo /> : null}
         {authForm ? (
           <AuthOverlay

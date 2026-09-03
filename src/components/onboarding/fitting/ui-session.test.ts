@@ -38,12 +38,22 @@ describe("onboarding ui session", () => {
   it("remembers step, scan finale, and dismissed across writes", () => {
     writeOnboardingUiSession({ step: "verdict", finale: "card" });
     writeOnboardingUiSession({ circleNames: ["Maya"] });
+    writeOnboardingUiSession({
+      identity: {
+        preferredName: "Maya",
+        genderPresentation: "menswear",
+        styleEras: ["30s"],
+      },
+    });
     markOnboardingUiDismissed();
     const session = readOnboardingUiSession();
     assert.equal(session?.step, "verdict");
     assert.equal(session?.finale, "card");
     assert.equal(session?.dismissed, true);
     assert.deepEqual(session?.circleNames, ["Maya", "", ""]);
+    assert.equal(session?.identity?.preferredName, "Maya");
+    assert.equal(session?.identity?.genderPresentation, "menswear");
+    assert.deepEqual(session?.identity?.styleEras, ["30s"]);
     markOnboardingUiResumed();
     assert.equal(readOnboardingUiSession()?.dismissed, false);
   });

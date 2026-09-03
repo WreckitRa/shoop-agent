@@ -4,6 +4,12 @@ export const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v4";
 
 export type OnboardingUiFinale = "scan" | "card";
 
+export type OnboardingUiIdentity = {
+  preferredName?: string;
+  genderPresentation?: string;
+  styleEras?: string[];
+};
+
 export type OnboardingUiSession = {
   step: FittingStep;
   circleNames?: string[];
@@ -15,6 +21,8 @@ export type OnboardingUiSession = {
   /** After signup, love the verdict looks then open Your circle. */
   saveLooks?: boolean;
   lookJobIds?: string[];
+  /** Name / clothing / era — survives guest→account remount. */
+  identity?: OnboardingUiIdentity;
 };
 
 function isFittingStep(v: unknown): v is FittingStep {
@@ -41,6 +49,32 @@ function parseCircleNames(v: unknown): string[] | undefined {
   return [names[0] ?? "", names[1] ?? "", names[2] ?? ""];
 }
 
+function parseIdentity(v: unknown): OnboardingUiIdentity | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const row = v as Record<string, unknown>;
+  const preferredName =
+    typeof row.preferredName === "string" ? row.preferredName.trim() : "";
+  const genderPresentation =
+    typeof row.genderPresentation === "string"
+      ? row.genderPresentation.trim()
+      : "";
+  const styleEras = Array.isArray(row.styleEras)
+    ? row.styleEras
+        .filter((e): e is string => typeof e === "string")
+        .map((e) => e.trim())
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+  if (!preferredName && !genderPresentation && !styleEras.length) {
+    return undefined;
+  }
+  return {
+    preferredName: preferredName || undefined,
+    genderPresentation: genderPresentation || undefined,
+    styleEras: styleEras.length ? styleEras : undefined,
+  };
+}
+
 function parseSession(raw: string | null): OnboardingUiSession | null {
   if (!raw) return null;
   try {
@@ -58,6 +92,7 @@ function parseSession(raw: string | null): OnboardingUiSession | null {
       locked: parsed.locked === true,
       saveLooks: parsed.saveLooks === true,
       lookJobIds: parseLookJobIds(parsed.lookJobIds),
+      identity: parseIdentity(parsed.identity),
     };
   } catch {
     return null;
@@ -114,6 +149,7 @@ export function writeOnboardingUiSession(
     locked: "locked" in pos ? pos.locked : prev?.locked,
     saveLooks: "saveLooks" in pos ? pos.saveLooks : prev?.saveLooks,
     lookJobIds: "lookJobIds" in pos ? pos.lookJobIds : prev?.lookJobIds,
+    identity: pos.identity ?? prev?.identity,
   };
   const raw = JSON.stringify(next);
   storageSet(window.localStorage, raw);

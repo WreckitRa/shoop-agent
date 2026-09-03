@@ -85,73 +85,97 @@ async function claimSizingProfile(
   await tx.sizingProfile.delete({ where: { userId: guestUserId } });
 }
 
+const REASSIGN_TX = { maxWait: 10_000, timeout: 20_000 } as const;
+
 async function reassignGuestUserId(guestUserId: string, realUserId: string) {
-  await prisma.$transaction(async (tx) => {
-    await claimUserProfile(tx, guestUserId, realUserId);
-    await claimSizingProfile(tx, guestUserId, realUserId);
-    await Promise.all([
-      tx.conversation.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.productInteraction.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.productCuration.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.cartSession.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.savedAddress.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.categoryPreference.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.brandPreference.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.recipient.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.shoppingIntent.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.tasteTag.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.hardNegative.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.ownedProduct.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.productEvent.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.biometricConsent.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-      tx.photoAnalysis.updateMany({
-        where: { userId: guestUserId },
-        data: { userId: realUserId },
-      }),
-    ]);
-  });
+  await prisma.$transaction(
+    async (tx) => {
+      await claimUserProfile(tx, guestUserId, realUserId);
+      await claimSizingProfile(tx, guestUserId, realUserId);
+      // Sequential: parallel updateMany on a remote DB blows the 5s default
+      // interactive-transaction timeout (pool wait stacks past 5s).
+      for (const run of [
+        () =>
+          tx.conversation.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.productInteraction.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.productCuration.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.cartSession.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.savedAddress.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.categoryPreference.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.brandPreference.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.recipient.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.shoppingIntent.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.tasteTag.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.hardNegative.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.ownedProduct.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.productEvent.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.biometricConsent.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+        () =>
+          tx.photoAnalysis.updateMany({
+            where: { userId: guestUserId },
+            data: { userId: realUserId },
+          }),
+      ]) {
+        await run();
+      }
+    },
+    REASSIGN_TX,
+  );
 }
 
 /** Import local guest conversations/messages that never reached the DB. */
