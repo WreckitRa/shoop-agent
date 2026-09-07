@@ -16,6 +16,8 @@ export type ReadingLookQuery = {
   lookLabel?: string;
   /** Formula piece without the colour prefix — used for a colourless retry. */
   piece?: string;
+  /** Never strip colour from the query on miss. */
+  keepColor?: boolean;
 };
 
 export type ReadingLookProduct = {
@@ -153,6 +155,31 @@ function buyQueries(verdict: StylistVerdict): ReadingLookQuery[] {
 }
 
 function lookQueries(verdict: StylistVerdict): ReadingLookQuery[] {
+  const contractLooks = verdict.contract?.looks;
+  if (contractLooks?.length) {
+    const out: ReadingLookQuery[] = [];
+    const keys = new Set<string>();
+    contractLooks.slice(0, LOOK_COUNT).forEach((look, i) => {
+      let slot = 0;
+      for (const piece of look.pieces) {
+        if (slot >= PIECES_PER_LOOK) break;
+        const pieceText = [piece.shade, piece.garment_type, ...piece.must_have]
+          .filter(Boolean)
+          .join(" ");
+        pushQuery(out, keys, {
+          key: `look:${i}:${slot}`,
+          kind: "look",
+          lookId: `look-${i}`,
+          lookLabel: look.name,
+          query: clipQuery([pieceText]),
+          piece: pieceText,
+          keepColor: true,
+        });
+        slot += 1;
+      }
+    });
+    return out;
+  }
   const out: ReadingLookQuery[] = [];
   const keys = new Set<string>();
   const formulas = Array.isArray(verdict.outfit_formulas)
@@ -203,6 +230,55 @@ function catalogColorQuery(name: string): string {
   return stripped || n;
 }
 
+const COLOR_STOP = /^(deep|dark|light|soft|pale|muted|ink|near|the|and)$/;
+const PATTERN_NOISE =
+  /\b(floral|stripe|striped|plaid|check|checked|print|printed|graphic|camp|paisley|hawaiian|camo|leopard)\b/i;
+
+/** Colour words we can match in a catalog title — drop shade poetry. */
+export function colorTokensFromLabel(label: string): string[] {
+  return label
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !COLOR_STOP.test(w));
+}
+
+export function titleMatchesFaceColor(title: string, label: string): boolean {
+  const t = title.toLowerCase();
+  return colorTokensFromLabel(label).some((tok) => t.includes(tok));
+}
+
+const FACE_COLOR_FAMILIES = new Set([
+  "black",
+  "white",
+  "grey",
+  "gray",
+  "beige",
+  "brown",
+  "navy",
+  "blue",
+  "green",
+  "olive",
+  "red",
+  "burgundy",
+  "pink",
+  "purple",
+  "orange",
+  "yellow",
+  "gold",
+  "silver",
+  "denim",
+  "charcoal",
+  "cream",
+  "ivory",
+]);
+
+function swatchColorTerm(name: string, use: string): string {
+  const family = use.replace(/\s+/g, " ").trim().toLowerCase();
+  if (FACE_COLOR_FAMILIES.has(family)) return family;
+  return catalogColorQuery(name);
+}
+
 function faceGarment(use: string): string {
   const u = use.replace(/\s+/g, " ").trim();
   if (!u || u.length > 22 || /\b(the|this|your|keep|off|avoid|never)\b/i.test(u)) {
@@ -213,11 +289,12 @@ function faceGarment(use: string): string {
 }
 
 function faceGarmentQuery(name: string, use: string): string {
-  return clipQuery([catalogColorQuery(name), faceGarment(use)]);
+  return clipQuery([swatchColorTerm(name, use), faceGarment(use)]);
 }
 
 function swatchQueries(verdict: StylistVerdict): ReadingLookQuery[] {
   const { palette, avoid } = readingPalette(verdict);
+  const keepColor = Boolean(verdict.contract);
   const out: ReadingLookQuery[] = [];
   const keys = new Set<string>();
   palette.forEach((s, i) => {
@@ -229,6 +306,7 @@ function swatchQueries(verdict: StylistVerdict): ReadingLookQuery[] {
       lookLabel: s.name,
       query: faceGarmentQuery(s.name, s.use),
       piece: garment,
+      keepColor,
     });
   });
   avoid.forEach((s, i) => {
@@ -239,6 +317,7 @@ function swatchQueries(verdict: StylistVerdict): ReadingLookQuery[] {
       lookLabel: s.name,
       query: clipQuery([catalogColorQuery(s.name), "crew neck"]),
       piece: "crew neck",
+      keepColor,
     });
   });
   return out;
@@ -267,6 +346,28 @@ export function pickLookProduct(
     return product;
   }
   return null;
+}
+
+/** Face-colour chips: title must say the colour, and not a print. */
+export function pickFaceColorProduct(
+  candidates: ReadingLookProduct[],
+  usedIds: Set<string>,
+  colorLabel: string,
+): ReadingLookProduct | null {
+  let best: { product: ReadingLookProduct; score: number } | null = null;
+  for (const product of candidates) {
+    if (usedIds.has(product.id)) continue;
+    const t = product.title.toLowerCase();
+    if (PATTERN_NOISE.test(t)) continue;
+    if (!titleMatchesFaceColor(product.title, colorLabel)) continue;
+    let score = 0;
+    if (/\b(crew|crewneck|tee|t-shirt|tshirt|polo|knit)\b/.test(t)) score += 3;
+    if (/\b(sweatshirt|hoodie)\b/.test(t)) score += 1;
+    if (/\bshirt\b/.test(t)) score -= 1;
+    if (score < 0) continue;
+    if (!best || score > best.score) best = { product, score };
+  }
+  return best?.product ?? null;
 }
 
 export function uniqueLookProducts(

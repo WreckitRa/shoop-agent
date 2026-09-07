@@ -2,6 +2,29 @@ import { getAnalyticsSessionId } from "@/lib/analytics/session-client";
 import { ANALYTICS_SESSION_HEADER } from "@/lib/analytics/constants";
 import { useAppSessionStore } from "@/lib/client/app-session";
 import { getGuestSessionId } from "@/lib/client/guest-storage";
+import { postFittingTraceEvent } from "@/components/onboarding/fitting/fitting-trace-log";
+import {
+  getFittingTraceId,
+  isFittingTracePublicEnabled,
+  summarizeFittingTraceBody,
+} from "@/components/onboarding/fitting/fitting-trace-id";
+import { FITTING_TRACE_HEADER } from "@/lib/onboarding/fitting-trace-shared";
+
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
+function shouldTraceFittingUrl(url: string): boolean {
+  return /\/api\/(onboarding|tryon|avatar)(\/|\?|$)/.test(url);
+}
+
+function shouldLogFittingFetch(url: string): boolean {
+  if (!isFittingTracePublicEnabled() || !getFittingTraceId()) return false;
+  if (url.includes("/api/onboarding/fitting-trace")) return false;
+  return shouldTraceFittingUrl(url);
+}
 
 /** Adds analytics session + guest session headers when applicable. */
 export function guestFetch(
@@ -20,7 +43,43 @@ export function guestFetch(
     headers.set("X-Guest-Session-Id", guestId);
   }
 
-  return fetch(input, { ...init, headers });
+  const url = requestUrl(input);
+  const traceId = getFittingTraceId();
+  if (
+    isFittingTracePublicEnabled() &&
+    traceId &&
+    shouldTraceFittingUrl(url)
+  ) {
+    headers.set(FITTING_TRACE_HEADER, traceId);
+  }
+
+  if (!shouldLogFittingFetch(url)) {
+    return fetch(input, { ...init, headers });
+  }
+
+  const started = Date.now();
+  const method = (init?.method ?? "GET").toUpperCase();
+  return fetch(input, { ...init, headers }).then(
+    (res) => {
+      postFittingTraceEvent("http.fetch", {
+        method,
+        url,
+        status: res.status,
+        ms: Date.now() - started,
+        body: summarizeFittingTraceBody(init?.body ?? null),
+      });
+      return res;
+    },
+    (error: unknown) => {
+      postFittingTraceEvent("http.fetch_error", {
+        method,
+        url,
+        ms: Date.now() - started,
+        error: error instanceof Error ? error.message : "fetch failed",
+      });
+      throw error;
+    },
+  );
 }
 
 function sleep(ms: number): Promise<void> {

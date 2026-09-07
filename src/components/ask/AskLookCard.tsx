@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ShoopIcon, ShoopLogo } from "@/components/brand/ShoopBrand";
 import { cn } from "@/lib/ai-chat/cn";
 import {
-  ASK_COMPARE_CHOICES,
   ASK_RATE_CHOICES,
   ASK_VOTE_LABELS,
   choicesForPollMode,
@@ -69,7 +68,7 @@ export function AskLookCard({ token, initialShare }: Props) {
   );
   const [noteDraft, setNoteDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [fullscreen, setFullscreen] = useState<"a" | "b" | false>(false);
+  const [fullscreen, setFullscreen] = useState<number | false>(false);
 
   const voterKey = useMemo(() => getAskVoterKey(), []);
 
@@ -253,9 +252,19 @@ export function AskLookCard({ token, initialShare }: Props) {
 
   if (!share) return null;
 
+  const looks =
+    share.looks.length > 0
+      ? share.looks
+      : [
+          {
+            imageUrl: share.imageUrl,
+            title: "Look 1",
+            choice: "a" as const,
+          },
+        ];
   const revealed = share.shoopRevealed;
-  const pollChoices = choicesForPollMode(share.pollMode);
-  const isCompare = share.pollMode === "compare" && Boolean(share.altImageUrl);
+  const isCompare = looks.length >= 2;
+  const pollChoices = choicesForPollMode(share.pollMode, looks.length);
   const totalHuman = pollChoices.reduce(
     (n, c) =>
       n +
@@ -286,27 +295,20 @@ export function AskLookCard({ token, initialShare }: Props) {
     <div className="shoop-ask-shell">
       <div className="shoop-ask-card">
         <div className="shoop-ask-scroll">
-        <div className="shoop-ask-im">
-          {isCompare && share.altImageUrl ? (
-            <div className="grid grid-cols-2 gap-1.5">
-              {(
-                [
-                  ["a", share.imageUrl, "Look A"],
-                  ["b", share.altImageUrl, "Look B"],
-                ] as const
-              ).map(([side, src, label]) => (
+        <div className={cn("shoop-ask-im", isCompare && "shoop-ask-im--row")}>
+          {isCompare ? (
+            <div className="shoop-ask-imrow">
+              {looks.map((look, i) => (
                 <button
-                  key={side}
+                  key={look.choice}
                   type="button"
-                  className="shoop-ask-imhit relative overflow-hidden rounded-lg"
-                  onClick={() => setFullscreen(side)}
-                  aria-label={`See ${label}`}
+                  className="shoop-ask-imhit"
+                  onClick={() => setFullscreen(i)}
+                  aria-label={`See ${look.title}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`${share.askerName} — ${label}`} />
-                  <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[9px] font-extrabold tracking-wide text-ink">
-                    {side.toUpperCase()}
-                  </span>
+                  <img src={look.imageUrl} alt={`${share.askerName} — ${look.title}`} />
+                  <span className="shoop-ask-imtag">{look.title}</span>
                 </button>
               ))}
             </div>
@@ -314,12 +316,12 @@ export function AskLookCard({ token, initialShare }: Props) {
             <button
               type="button"
               className="shoop-ask-imhit"
-              onClick={() => setFullscreen("a")}
+              onClick={() => setFullscreen(0)}
               aria-label="See full look"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={share.imageUrl}
+                src={looks[0]?.imageUrl ?? share.imageUrl}
                 alt={`${share.askerName} trying it on`}
               />
             </button>
@@ -337,7 +339,7 @@ export function AskLookCard({ token, initialShare }: Props) {
           <button
             type="button"
             className="shoop-ask-fullbtn"
-            onClick={() => setFullscreen("a")}
+            onClick={() => setFullscreen(0)}
           >
             Full look
           </button>
@@ -365,8 +367,13 @@ export function AskLookCard({ token, initialShare }: Props) {
                 <div className="s2">vote before you peek... no cheating</div>
               </div>
               {isCompare ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {ASK_COMPARE_CHOICES.map((c) => (
+                <div
+                  className="grid gap-2"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.min(pollChoices.length, 3)}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {pollChoices.map((c) => (
                     <button
                       key={c}
                       type="button"
@@ -374,7 +381,7 @@ export function AskLookCard({ token, initialShare }: Props) {
                       disabled={busy}
                       onClick={() => onVoteClick(c)}
                     >
-                      {c === "a" ? "Look A" : "Look B"}
+                      {ASK_VOTE_LABELS[c]}
                     </button>
                   ))}
                 </div>
@@ -417,11 +424,7 @@ export function AskLookCard({ token, initialShare }: Props) {
                   const pct =
                     juryTotal > 0 ? Math.round((n / juryTotal) * 100) : 0;
                   const voters = share.votes.filter((v) => v.choice === c);
-                  const choiceLabel = isCompare
-                    ? c === "a"
-                      ? "Look A"
-                      : "Look B"
-                    : ASK_VOTE_LABELS[c];
+                  const choiceLabel = ASK_VOTE_LABELS[c];
                   return (
                     <div
                       key={c}
@@ -660,8 +663,8 @@ export function AskLookCard({ token, initialShare }: Props) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={
-              fullscreen === "b" && share.altImageUrl
-                ? share.altImageUrl
+              typeof fullscreen === "number"
+                ? (looks[fullscreen]?.imageUrl ?? share.imageUrl)
                 : share.imageUrl
             }
             alt={`${share.askerName} — full look`}

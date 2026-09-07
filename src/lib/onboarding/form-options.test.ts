@@ -3,12 +3,17 @@ import { describe, it } from "node:test";
 import {
   ageYearsFromBirthDate,
   genderPresentationBucket,
+  labelsForCsvValues,
   lifestyleTagsFromLife,
   normalizeClimate,
   normalizeHonestyPreference,
   styleEraFromAge,
   styleEraToAgeRange,
   styleErasForAge,
+  CLIMATE_OPTIONS,
+  WEEK_IS_OPTIONS,
+  honestyToneChip,
+  whyHereLabel,
 } from "./form-options";
 
 describe("styleEraToAgeRange", () => {
@@ -80,6 +85,19 @@ describe("lifestyleTagsFromLife", () => {
   });
 });
 
+describe("labelsForCsvValues", () => {
+  it("maps quiz CSV tokens and other: custom text", () => {
+    assert.deepEqual(
+      labelsForCsvValues(CLIMATE_OPTIONS, "hot_humid,four_seasons"),
+      ["hot and humid", "four seasons"],
+    );
+    assert.deepEqual(
+      labelsForCsvValues(WEEK_IS_OPTIONS, "studying,other:freelance"),
+      ["studying", "freelance"],
+    );
+  });
+});
+
 describe("normalizeClimate", () => {
   it("accepts quiz ids and spaced aliases", () => {
     assert.equal(normalizeClimate("hot_humid"), "hot_humid");
@@ -97,6 +115,20 @@ describe("normalizeHonestyPreference", () => {
     assert.equal(normalizeHonestyPreference("1"), "1");
     assert.equal(normalizeHonestyPreference("4"), "4");
     assert.equal(normalizeHonestyPreference(""), "");
+  });
+});
+
+describe("honestyToneChip", () => {
+  it("maps honesty chips onto 1 / 3 / 5 and why-here labels", () => {
+    assert.equal(honestyToneChip("gentle"), "1");
+    assert.equal(honestyToneChip("2"), "1");
+    assert.equal(honestyToneChip("straight"), "3");
+    assert.equal(honestyToneChip(""), "3");
+    assert.equal(honestyToneChip("5"), "5");
+    assert.equal(whyHereLabel("work_polish"), "Look put together at work");
+    assert.equal(whyHereLabel("find_style"), "Figure out my style");
+    assert.equal(whyHereLabel("other:look sharper"), "look sharper");
+    assert.equal(whyHereLabel("dating"), "Dating");
   });
 });
 

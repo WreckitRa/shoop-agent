@@ -19,7 +19,7 @@ import {
 import type { CatalogMcpExchange } from "@/lib/shopify/catalog-mcp-audit";
 import { buildCatalogMcpJsonRpcBody } from "@/lib/shopify/catalog-mcp-audit";
 import { mcpToolsCallId } from "@/lib/shopify/mcp-request-id";
-import { retryTransientMcp, withMcpRetry } from "@/lib/shopify/mcp-retry";
+import { retryTransientMcp, withCatalogMcpLimit, withMcpRetry } from "@/lib/shopify/mcp-retry";
 import {
   CURATED_SHOP_IDS,
   isCuratedShopAllowlistEnabled,
@@ -48,6 +48,11 @@ export type CatalogSearchFilters = {
    * (e.g. `gid://shopify/TaxonomyCategory/aa-1-13-8`). Multiple values use OR logic.
    */
   categories?: string[];
+  /**
+   * Relative price band for the category. Values OR.
+   * @see https://shopify.dev/docs/agents/catalog/global-catalog-extension
+   */
+  price_tier?: Array<"low" | "medium" | "high">;
   /**
    * Shopify taxonomy attribute prefilter (Global Catalog extension).
    * Supported names: `Color`, `Size`, `Target gender`. Entries AND; values OR.
@@ -153,6 +158,8 @@ export type CatalogProductSummary = {
     top_features?: unknown;
     unique_selling_points?: unknown;
   };
+  /** Taxonomy GIDs when search returns them. */
+  categories?: Array<string | { id?: string }>;
 };
 
 export type CatalogSearchResult = {
@@ -657,32 +664,34 @@ async function callCatalogTool<T>(
       requestId,
     );
     try {
-      return await retryTransientMcp(
-        async () => {
-          const res = await withMcpRetry(
-            () =>
-              fetch(url, {
-                method: "POST",
-                headers: catalogHeaders(accessToken),
-                signal: options?.signal,
-                body: JSON.stringify(requestBody),
-              }),
-            3,
-            options?.signal,
-          );
-          const data = (await readJsonRpcFromResponse(
-            res,
-          )) as JsonRpcResponse<T>;
-          options?.onMcpExchange?.({
-            mcpUrl: url,
-            agentProfileUrl: profileUrl,
-            httpStatus: res.status,
-            requestBody,
-            responseBody: data,
-          });
-          return parseToolStructuredContent(data);
-        },
-        { signal: options?.signal },
+      return await withCatalogMcpLimit(() =>
+        retryTransientMcp(
+          async () => {
+            const res = await withMcpRetry(
+              () =>
+                fetch(url, {
+                  method: "POST",
+                  headers: catalogHeaders(accessToken),
+                  signal: options?.signal,
+                  body: JSON.stringify(requestBody),
+                }),
+              3,
+              options?.signal,
+            );
+            const data = (await readJsonRpcFromResponse(
+              res,
+            )) as JsonRpcResponse<T>;
+            options?.onMcpExchange?.({
+              mcpUrl: url,
+              agentProfileUrl: profileUrl,
+              httpStatus: res.status,
+              requestBody,
+              responseBody: data,
+            });
+            return parseToolStructuredContent(data);
+          },
+          { signal: options?.signal },
+        ),
       );
     } catch (error) {
       lastError = error;

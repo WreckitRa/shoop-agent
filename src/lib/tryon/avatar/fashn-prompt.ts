@@ -4,7 +4,7 @@ import type { AvatarAttributes } from "../types";
  * Versioned avatar prompt for FASHN face-to-model.
  * Bump when attribute→phrase maps or base-wardrobe / normalize rules change.
  */
-export const TRYON_AVATAR_PROMPT_VERSION = "v5" as const;
+export const TRYON_AVATAR_PROMPT_VERSION = "v6" as const;
 
 const BUILD_PHRASE: Record<NonNullable<AvatarAttributes["build"]>, string> = {
   slim: "slender frame, narrow shoulders and chest",
@@ -60,7 +60,7 @@ const HEIGHT_PHRASE: Record<
  * Anything busier (street clothes, scarf, jacket) causes clothes-on-clothes.
  */
 export const AVATAR_BASE_WARDROBE =
-  "plain fitted white crewneck t-shirt and simple dark fitted trousers only — no jacket, no coat, no scarf, no hat, no jewelry, no bag, no logos, no busy patterns, no layered outfits";
+  "plain mid-grey fitted crewneck t-shirt and dark grey fitted trousers only, plain light backdrop — no jacket, no coat, no scarf, no hat, no jewelry, no bag, no logos, no busy patterns, no layered outfits, not white";
 
 /** Stated silhouette only — FASHN infers body from the face unless we say otherwise. */
 export function buildFashnBodyGuidance(attributes: AvatarAttributes): string {
@@ -89,7 +89,7 @@ export function buildFashnAvatarPrompt(
     body,
     "Do not infer body type from the face",
     "neutral standing pose, arms relaxed at sides",
-    "plain fitted white crewneck t-shirt",
+    "plain fitted mid-grey crewneck t-shirt",
   ].join(". ");
 }
 

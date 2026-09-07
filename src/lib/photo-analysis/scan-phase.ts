@@ -13,8 +13,9 @@ export type VerdictUiFinale = "scan" | "card";
 export function photoScanPhase(
   row: PhotoAnalysisPublic | null | undefined,
 ): PhotoScanPhase {
-  if (!row || row.status === "running") return "reading";
+  if (!row) return "reading";
   if (row.error) return "error";
+  if (row.status === "running") return "reading";
   if (row.verdictStatus === "done" && row.verdict) return "done";
   if (row.verdictStatus === "done" && row.verdictError) return "error";
   if (row.verdictStatus === "running" || row.userReview) return "writing";

@@ -108,6 +108,14 @@ describe("fitting-tell", () => {
     assert.ok(filled.comfort?.includes("no heels"));
   });
 
+  it("backfills figure-out-my-style as why-here", () => {
+    const filled = backfillFittingTellFromText(
+      "I'm here to figure out my style. I don't have a style yet.",
+      { summary: "x" },
+    );
+    assert.equal(filled.dressingFor, "find_style");
+  });
+
   it("patches life fields onto the profile", () => {
     const patch = buildPatchFromFittingTell({
       weekIs: "studying",
@@ -124,5 +132,23 @@ describe("fitting-tell", () => {
     assert.ok(
       patch.hardNegatives?.some((h) => h.note === "comfort" && h.value === "no heels"),
     );
+  });
+
+  it("merges weekend CSV onto the profile patch", () => {
+    const filled = backfillFittingTellFromText(
+      "Weekends I go out with friends and nightlife.",
+      { summary: "x" },
+    );
+    assert.ok(filled.weekendsAre?.includes("friends"));
+    const patch = buildPatchFromFittingTell(
+      {
+        weekendsAre: "friends",
+        climate: "hot_humid,four_seasons",
+        summary: "Noted.",
+      },
+      { weekendsAre: "travel" },
+    );
+    assert.equal(patch.profile?.weekendsAre, "travel,friends");
+    assert.equal(patch.profile?.climate, "hot_humid,four_seasons");
   });
 });

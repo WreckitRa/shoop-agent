@@ -125,6 +125,24 @@ describe("context_line_renders", () => {
     assert.ok(profile.includes("aspires:"));
   });
 
+  it("renders CSV week, weekends, and climate in the context line", () => {
+    const context = composeContextLine({
+      age_range: "25-34",
+      style_era: "30s",
+      week_is: "working_mixed,studying",
+      weekends_are: "friends,nightlife",
+      kids: "young",
+      climate: "hot_humid,four_seasons",
+    });
+    assert.ok(context?.includes("mix of home and office"));
+    assert.ok(context?.includes("studying"));
+    assert.ok(context?.includes("out with friends"));
+    assert.ok(context?.includes("nightlife"));
+    assert.ok(context?.includes("young kids"));
+    assert.ok(context?.includes("hot and humid"));
+    assert.ok(context?.includes("four seasons"));
+  });
+
   it("omits context lines when onboarding meta absent", () => {
     const profile = formatRouterPersonProfile({
       person: person({ id: "p1" }),

@@ -4,27 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cartItemCount, useCartStore } from "@/components/cart/cart-store";
 import { MoodboardView } from "@/components/moodboard/MoodboardView";
-import { HoldView } from "@/components/moodboard/HoldView";
 import { CartPageView } from "@/components/moodboard/CartPageView";
 import { guestFetch } from "@/lib/client/guest-fetch";
 import { useClientIdentityScopeKey } from "@/lib/client/identity-sync";
 import { useGuestMode } from "@/hooks/useGuestMode";
 import { cn } from "@/lib/ai-chat/cn";
 
-export type DecideTab = "board" | "hold" | "cart";
+export type DecideTab = "board" | "cart";
 
-const TAB_META: Record<
-  DecideTab,
-  { label: string; lede: string; sig?: boolean }
-> = {
+const TAB_META: Record<DecideTab, { label: string; lede: string }> = {
   board: {
     label: "My moodboard",
     lede: "everything you didn't walk away from... no clock, no pressure",
-  },
-  hold: {
-    label: "The Hold",
-    lede: "Coming soon — when you say yes, I'll watch price, size, and delivery for seven days",
-    sig: true,
   },
   cart: {
     label: "My cart",
@@ -33,8 +24,7 @@ const TAB_META: Record<
 };
 
 function parseTab(raw: string | null): DecideTab {
-  if (raw === "hold" || raw === "cart" || raw === "board") return raw;
-  return "board";
+  return raw === "cart" ? "cart" : "board";
 }
 
 export function DecideHub() {
@@ -92,7 +82,6 @@ export function DecideHub() {
   const counts = useMemo(
     () => ({
       board: boardCount,
-      hold: 0,
       cart: cartCount,
     }),
     [boardCount, cartCount],
@@ -118,14 +107,7 @@ export function DecideHub() {
                 onClick={() => setTab(key)}
               >
                 <h2>{meta.label}</h2>
-                {key === "hold" ? (
-                  <span className="shoop-decide__tab-soon">Soon</span>
-                ) : (
-                  <span className="shoop-decide__tab-n">{counts[key]}</span>
-                )}
-                {meta.sig && !selected ? (
-                  <span className="shoop-decide__tab-sig" aria-hidden />
-                ) : null}
+                <span className="shoop-decide__tab-n">{counts[key]}</span>
               </button>
             );
           })}
@@ -140,19 +122,7 @@ export function DecideHub() {
           hidden={tab !== "board"}
         >
           {tab === "board" ? (
-            <MoodboardView
-              embedded
-              onCountChange={setBoardCount}
-              onAskHold={() => setTab("hold")}
-            />
-          ) : null}
-        </div>
-        <div
-          className={cn("shoop-decide__view", tab === "hold" && "is-on")}
-          hidden={tab !== "hold"}
-        >
-          {tab === "hold" ? (
-            <HoldView onGoBoard={() => setTab("board")} />
+            <MoodboardView embedded onCountChange={setBoardCount} />
           ) : null}
         </div>
         <div

@@ -5,7 +5,10 @@
  * Photos: public/onboarding/outfits/{id}.jpg → /onboarding/outfits/{id}.jpg
  */
 
-import type { CastingArchetype } from "./outfit-grid-matrix";
+import {
+  STYLE_MIX_AXES,
+  type CastingArchetype,
+} from "./outfit-grid-matrix";
 import type { StyleEraValue } from "./form-options";
 
 export type OutfitGenderBucket =
@@ -515,4 +518,64 @@ export const INHOUSE_OUTFIT_LOOKS: OutfitStyleLook[] = buildLooks();
 
 export function getInhouseOutfitLooks(): readonly OutfitStyleLook[] {
   return INHOUSE_OUTFIT_LOOKS;
+}
+
+const AXIS_SLUGS = new Set(
+  STYLE_MIX_AXES.map((a) => a.toLowerCase()),
+);
+
+/** Map a stored worn/wanted token onto the look label the user picked. */
+function styleFamilyLabelFromToken(
+  tag: string,
+  soup: boolean,
+): string | null {
+  const raw = tag.trim().toLowerCase();
+  if (!raw) return null;
+  const slug = raw.replace(/[\s-]+/g, "_");
+  const asLabel = raw.replace(/[_-]+/g, " ");
+  for (const id of Object.keys(FAMILIES) as StyleFamilyId[]) {
+    const fam = FAMILIES[id];
+    const labelLc = fam.label.toLowerCase();
+    const axisId = AXIS_SLUGS.has(id);
+    if (slug === id || raw === id) {
+      if (soup && axisId) return null;
+      return fam.label;
+    }
+    if (raw === labelLc || asLabel === labelLc) {
+      if (soup && axisId && !labelLc.includes(" ")) return null;
+      return fam.label;
+    }
+  }
+  return null;
+}
+
+/**
+ * Worn/wanted tags sent to the stylist must be the looks they selected,
+ * not the catalog crumbs (family id, archetype, tasteTags) exploded onto each card.
+ */
+export function selectedOutfitLookLabels(tags: string[]): string[] {
+  const cleaned: string[] = [];
+  const seenRaw = new Set<string>();
+  for (const tag of tags) {
+    const t = tag.trim();
+    if (t.length < 2) continue;
+    const k = t.toLowerCase();
+    if (seenRaw.has(k)) continue;
+    seenRaw.add(k);
+    cleaned.push(t);
+  }
+  const soup =
+    cleaned.length > 6 || cleaned.some((t) => t.includes("_"));
+  const mapped: string[] = [];
+  const seenLabel = new Set<string>();
+  for (const tag of cleaned) {
+    const label = styleFamilyLabelFromToken(tag, soup);
+    if (!label) continue;
+    const k = label.toLowerCase();
+    if (seenLabel.has(k)) continue;
+    seenLabel.add(k);
+    mapped.push(label);
+  }
+  if (soup) return mapped.length ? mapped : cleaned.slice(0, 6);
+  return mapped.length === cleaned.length ? mapped : cleaned;
 }

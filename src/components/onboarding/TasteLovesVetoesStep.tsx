@@ -401,7 +401,7 @@ export function TasteLovesVetoesStep({
                   addOwnVeto();
                 }
               }}
-              placeholder="type it and press enter"
+              placeholder="or type it…"
               className="w-[210px] rounded-xl border-[1.5px] border-dashed border-[var(--fitting-g3)] px-3.5 py-2.5 text-[13px] outline-none focus:border-solid focus:border-[var(--fitting-red)]"
             />
           </div>

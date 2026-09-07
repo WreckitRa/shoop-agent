@@ -4,6 +4,7 @@
  */
 
 import type { StyleMix } from "@/lib/onboarding/style-mix";
+import { FAMILY_DISPLAY_HEX, hexForSwatch, parseHexOrNull } from "./family-hex";
 import type { StylistVerdict } from "./verdict";
 
 export type ReadingTone = "hi" | "lo" | "—";
@@ -64,6 +65,13 @@ export type ReadingStep = {
 export type ReadingView = {
   opening: string;
   headline: string;
+  whoYouAre: string;
+  theShift: string;
+  thisWeek: string;
+  fullProfile: string;
+  silhouetteChips: string[];
+  fabricChips: string[];
+  patternChips: string[];
   areas: ReadingArea[];
   palette: ReadingSwatch[];
   avoid: ReadingSwatch[];
@@ -96,19 +104,22 @@ export function countEvidenceClauses(text: string): number {
     + (text.match(/\byou said\b/gi) ?? []).length;
 }
 
-const OPENING_BAN = /\b(foundations|character|ease|elevated|curated|aesthetic|palette)\b/i;
+const OPENING_BAN = /\b(foundations?|elevated|curated|aesthetic|effortless|timeless|capsule|foundation|invest in quality basics)\b/i;
 const CARD_BAN = /\b(mint|corner|no-list|nolist|developed|first-paycheck)\b/i;
 
 export function cardVoiceIssues(view: ReadingView): string[] {
   const issues: string[] = [];
-  const openingWords = view.opening.trim().split(/\s+/).filter(Boolean);
-  if (openingWords.length > 55) {
+  const lead = view.whoYouAre
+    ? `${view.whoYouAre} ${view.theShift}`.trim()
+    : view.opening;
+  const openingWords = lead.trim().split(/\s+/).filter(Boolean);
+  if (openingWords.length > 200) {
     issues.push(`opening_words:${openingWords.length}`);
   }
-  if (view.opening && countEvidenceClauses(view.opening) < 2) {
+  if (!view.whoYouAre && view.opening && countEvidenceClauses(view.opening) < 2) {
     issues.push("opening_evidence");
   }
-  if (OPENING_BAN.test(view.opening)) issues.push("opening_banned_vocab");
+  if (OPENING_BAN.test(lead)) issues.push("opening_banned_vocab");
   const cardText = [
     view.opening,
     view.headline,
@@ -162,19 +173,11 @@ function firstSentence(text: string): string {
   return clean.split(/(?<=[.!?])\s+/)[0] ?? clean;
 }
 
-function normalizeHex(raw: string | null | undefined, fallback: string): string {
-  const h = (raw ?? "").trim();
-  if (/^#[0-9A-Fa-f]{6}$/.test(h)) return h.toUpperCase();
-  if (/^#[0-9A-Fa-f]{3}$/.test(h)) {
-    const r = h[1]!;
-    const g = h[2]!;
-    const b = h[3]!;
-    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
-  }
-  return fallback;
+function normalizeHex(raw: string | null | undefined): string | null {
+  return parseHexOrNull(raw);
 }
 
-const MIX_COLORS = ["#1A1A2E", "#8E8E99", "#E42831", "#3B4E6B", "#B8894F"] as const;
+const MIX_COLORS = ["#1A1A2E", "#8E8E99", "#E42831", "#3B4E6B", "#C4A574"] as const;
 
 function colorItems(list: unknown): Array<{
   name: string;
@@ -192,7 +195,7 @@ function colorItems(list: unknown): Array<{
     const notes = asStr(o.notes);
     out.push({
       name,
-      hex: normalizeHex(asStr(o.representative_hex) || null, "#B8894F"),
+      hex: normalizeHex(asStr(o.representative_hex) || null) ?? FAMILY_DISPLAY_HEX.beige,
       use: uses[0] || notes || name,
     });
   }
@@ -340,7 +343,7 @@ function buildColourArea(verdict: StylistVerdict): ReadingArea | null {
   return areaFromDomain({
     id: "colour",
     name: "Your colouring",
-    thumb: near[0]?.hex ?? "#B8894F",
+    thumb: near[0]?.hex ?? FAMILY_DISPLAY_HEX.beige,
     sum: [seasonal, temp !== "—" ? `${temp} undertone` : "", depth !== "—" ? depth : ""]
       .filter(Boolean)
       .join(" · ")
@@ -603,6 +606,35 @@ export function readingPalette(verdict: StylistVerdict | null): {
   avoid: ReadingSwatch[];
 } {
   if (!verdict) return { palette: [], avoid: [] };
+  const contract = verdict.contract;
+  if (contract) {
+    const seen = new Set<string>();
+    const palette: ReadingSwatch[] = [];
+    for (const s of [
+      ...contract.palette.near_face,
+      ...contract.palette.core,
+      ...contract.palette.neutrals,
+      ...contract.palette.accents,
+    ]) {
+      const key = s.shade.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      palette.push({
+        hex: hexForSwatch(s),
+        name: s.shade.toUpperCase(),
+        use: s.family,
+      });
+      if (palette.length >= 6) break;
+    }
+    const avoid: ReadingSwatch[] = contract.palette.avoid_near_face
+      .slice(0, 2)
+      .map((s) => ({
+        hex: hexForSwatch(s),
+        name: s.shade.toUpperCase(),
+        use: [s.why, s.fix].filter(Boolean).join(" — "),
+      }));
+    return { palette, avoid };
+  }
   const cs = asRecord(verdict.color_system);
   if (!cs) return { palette: [], avoid: [] };
 
@@ -676,6 +708,12 @@ export function readingSteps(verdict: StylistVerdict | null): ReadingStep[] {
 
 export function readingHeldRules(verdict: StylistVerdict | null): ReadingHeldRule[] {
   if (!verdict) return [];
+  if (verdict.reading?.rules.length) {
+    return verdict.reading.rules.slice(0, 3).map((r) => ({
+      ok: true,
+      text: r.why ? `${r.rule} — ${r.why}` : r.rule,
+    }));
+  }
   const face = verdict.user_facing_verdict;
   const dos = (face?.golden_rules ?? []).map((s) => s.trim()).filter(Boolean);
   const donts = (face?.mistakes_to_avoid ?? [])
@@ -796,46 +834,89 @@ export function buildReadingView(input: {
   buildFallbackCopy?: string;
 }): ReadingView {
   const verdict = input.verdict;
+  const fitting = verdict?.reading;
+  const whoYouAre = fullText(fitting?.who_you_are ?? "");
+  const theShift = fullText(fitting?.the_shift ?? "");
+  const thisWeek = fullText(fitting?.this_week ?? "");
+  const fullProfile = fullText(fitting?.full_profile ?? "");
   const face = verdict?.user_facing_verdict;
   const exec = verdict?.executive_verdict;
   const opening = fullText(
-    face?.opening?.trim() ||
-      exec?.profile_summary?.trim() ||
-      input.buildFallbackCopy?.trim() ||
-      "Five things I'd change, taken from your fitting.",
+    whoYouAre
+      ? [whoYouAre, theShift].filter(Boolean).join(" ")
+      : face?.opening?.trim() ||
+          exec?.profile_summary?.trim() ||
+          input.buildFallbackCopy?.trim() ||
+          "Five things I'd change, taken from your fitting.",
   );
   const headline = stripTrailingPeriod(
-    exec?.headline?.trim() || face?.title?.trim() || "",
+    fitting?.headline?.trim() ||
+      exec?.headline?.trim() ||
+      face?.title?.trim() ||
+      "",
   );
 
-  const areas = verdict
-    ? ([
-        buildColourArea(verdict),
-        buildProportionArea(verdict),
-        buildFitArea(verdict),
-        buildFabricArea(verdict),
-        buildIdentityArea(verdict),
-        buildRulesArea(verdict),
-      ].filter(Boolean) as ReadingArea[])
-    : [];
+  const areas = fitting
+    ? []
+    : verdict
+      ? ([
+          buildColourArea(verdict),
+          buildProportionArea(verdict),
+          buildFitArea(verdict),
+          buildFabricArea(verdict),
+          buildIdentityArea(verdict),
+          buildRulesArea(verdict),
+        ].filter(Boolean) as ReadingArea[])
+      : [];
 
   const { palette, avoid } = readingPalette(verdict);
-  const mix = readingMix(input.styleMix, {
-    wornLabels: input.wornLabels ?? [],
-    stealLabels: input.stealLabels ?? [],
-    leanLabel: input.leanLabel ?? "",
-  });
-  const steps = readingSteps(verdict);
+  const mix = fitting
+    ? []
+    : readingMix(input.styleMix, {
+        wornLabels: input.wornLabels ?? [],
+        stealLabels: input.stealLabels ?? [],
+        leanLabel: input.leanLabel ?? "",
+      });
+  const steps = fitting ? [] : readingSteps(verdict);
   const rules = readingHeldRules(verdict);
   const identity = asRecord(verdict?.style_identity);
-  const from = asStrArr(identity?.based_on)
-    .map(fullText)
-    .filter(Boolean)
-    .slice(0, 4);
+  const from = fitting
+    ? []
+    : asStrArr(identity?.based_on)
+        .map(fullText)
+        .filter(Boolean)
+        .slice(0, 4);
+  const contract = verdict?.contract;
+  const silhouetteChips = contract
+    ? [
+        `${contract.silhouette.top_fit} top`,
+        `${contract.silhouette.bottom_fit} bottom`,
+        `${contract.silhouette.rise} rise`,
+        contract.silhouette.structure,
+        ...contract.silhouette.length_notes,
+      ].filter(Boolean)
+    : [];
+  const fabricChips = contract
+    ? [...contract.fabrics.yes.map((f) => f), ...contract.fabrics.no.map((f) => `not ${f}`)]
+    : [];
+  const patternChips = contract
+    ? [
+        contract.patterns.scale === "none" ? "plain" : `${contract.patterns.scale} pattern`,
+        ...contract.patterns.yes,
+        ...contract.patterns.no.map((p) => `not ${p}`),
+      ]
+    : [];
 
   return {
     opening,
     headline,
+    whoYouAre,
+    theShift,
+    thisWeek,
+    fullProfile,
+    silhouetteChips,
+    fabricChips,
+    patternChips,
     areas,
     palette,
     avoid,

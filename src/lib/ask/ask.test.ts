@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { mapVerdictToShoopVote } from "./map-shoop-vote";
 import { buildLookAskPublic, tallyVotes } from "./public-payload";
+import { askLookLabel } from "./types";
 import type { LookScanVerdict } from "@/lib/tryon/look-scan-types";
 
 function verdict(
@@ -173,6 +174,9 @@ describe("buildLookAskPublic reveal gating", () => {
     });
     assert.equal(sealed.pollMode, "compare");
     assert.equal(sealed.altImageUrl, "/api/ask/abc/image?side=alt");
+    assert.equal(sealed.looks.length, 2);
+    assert.equal(sealed.looks[0]?.title, "Look 1");
+    assert.equal(sealed.looks[1]?.title, "Look 2");
     assert.equal(sealed.shoopRevealed, false);
 
     const revealed = buildLookAskPublic({
@@ -308,7 +312,40 @@ describe("buildLookAskPublic reveal gating", () => {
         { choice: "love" },
         { choice: "nope" },
       ]),
-      { no: 0, meh: 0, almost: 0, love: 2, a: 0, b: 0 },
+      { no: 0, meh: 0, almost: 0, love: 2, a: 0, b: 0, c: 0, d: 0, e: 0 },
     );
+  });
+
+  it("lays out extra looks with garment titles", () => {
+    const sealed = buildLookAskPublic({
+      share: {
+        ...baseShare,
+        pollMode: "compare",
+        lookTitle: "Navy blazer",
+        altImageUrl: "path:alt.jpg",
+        extraLooks: [
+          { generationId: "g2", imageUrl: "path:alt.jpg", title: "Silk slip" },
+          { generationId: "g3", imageUrl: "path:third.jpg", title: "fitting-room:x" },
+        ],
+        shoopVote: "a",
+      },
+      viewerUserId: null,
+      viewerVoterKey: "guest:x",
+    });
+    assert.equal(sealed.pollMode, "compare");
+    assert.equal(sealed.looks.length, 3);
+    assert.equal(sealed.looks[0]?.title, "Navy blazer");
+    assert.equal(sealed.looks[1]?.title, "Silk slip");
+    assert.equal(sealed.looks[2]?.title, "Look 3");
+    assert.equal(sealed.looks[2]?.imageUrl, "/api/ask/abc/image?side=2");
+  });
+});
+
+describe("askLookLabel", () => {
+  it("uses garment titles and falls back to Look N", () => {
+    assert.equal(askLookLabel(0, "Navy blazer"), "Navy blazer");
+    assert.equal(askLookLabel(0, "fitting-room:dress"), "Look 1");
+    assert.equal(askLookLabel(1, "Saved look"), "Look 2");
+    assert.equal(askLookLabel(2, ""), "Look 3");
   });
 });

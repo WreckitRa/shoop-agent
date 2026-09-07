@@ -330,6 +330,15 @@ export async function applyOnboardingPatch(
     );
   }
 
+  const replaceCategories = new Set(
+    (input.tasteTags ?? [])
+      .map((t) => t.category?.trim())
+      .filter((c): c is string => c === "worn" || c === "aspirational"),
+  );
+  for (const category of replaceCategories) {
+    await prisma.tasteTag.deleteMany({ where: { userId, category } });
+  }
+
   const seenTaste = new Set<string>();
   for (const t of input.tasteTags ?? []) {
     const tag = t.tag.trim();

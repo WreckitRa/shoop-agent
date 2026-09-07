@@ -111,7 +111,7 @@ export function CartPageView() {
     return (
       <div>
         <p className="shoop-decide__empty">Your cart is empty.</p>
-        <div className="shoop-decide__hold-ctas">
+        <div className="shoop-decide__empty-ctas">
           <Link
             href={NEW_CHAT_PATH}
             className="shoop-decide__mini shoop-decide__mini--solid"

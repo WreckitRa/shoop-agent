@@ -28,6 +28,8 @@ export type PhotoAnalysisPublic = {
 
 export const PHOTO_ANALYSIS_ENGINE_VERSION = "style-photo-v4";
 export const DEFAULT_TARGET_PERSON = "the only person in all images";
+/** PhotoAnalysis row when the face photo was skipped. */
+export const NOPHOTO_HASH = "nophoto";
 
 export function fillPhotoAnalysisForm(
   form: FormData,

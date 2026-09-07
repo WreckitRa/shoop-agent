@@ -9,6 +9,7 @@ export type ResumeStatus = {
     ageRange: string | null;
     weekIs: string | null;
     dressingFor: string | null;
+    weekendsAre: string | null;
     kids: string | null;
     climate: string | null;
     valuePhilosophy: string | null;
@@ -38,6 +39,7 @@ function hasLife(profile: ResumeStatus["profile"]): boolean {
   if (!profile) return false;
   return Boolean(
     profile.weekIs?.trim() ||
+      profile.weekendsAre?.trim() ||
       profile.dressingFor?.trim() ||
       profile.kids?.trim() ||
       profile.climate?.trim(),

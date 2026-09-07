@@ -20,6 +20,7 @@ src/lib/fashion-memory/eval-memory/runs/**
 
 # Local scratch
 scripts/tmp-*
+/tmp/fitting-traces/
 
 # next.js
 /.next/

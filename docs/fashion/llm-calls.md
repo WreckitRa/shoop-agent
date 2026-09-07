@@ -1401,7 +1401,7 @@ Also: `extraction_runs` (begin/finish + watermark), request-event corroboration.
 
 ### Fetch
 
-Caller passes `known` already collected on the Fitting form (name, gender, eras, spend, brands, no-list, honesty, circle, height, build) plus `currentStep`.
+Caller passes `known` already collected on the Fitting form (name, gender, eras, spend, brands, no-list, honesty, height, build) plus `currentStep`.
 
 ### User message
 
@@ -1426,7 +1426,7 @@ ALWAYS extract every actionable field, even if it doesn't match the current step
 (e.g. brands on the name step, height on spend step, hard nos before the no-list).
 Return ONE JSON object only (no markdown, no prose outside JSON).
 
-FITTING STEPS (order): name → spend → photo → worn looks → wanted looks → brands/nolist → honesty → trusted circle → verdict
+FITTING STEPS (order): name → spend → photo → worn looks → wanted looks → brands/nolist → honesty → verdict
 
 RULES
 - Only set fields the user actually communicated. Omit unknowns entirely (do not invent).
@@ -1449,8 +1449,6 @@ RULES
 - hardAvoids: hard style bans as short phrase array (e.g. ["logos", "neon", "skinny jeans"])
 - styleLikes / styleAvoids: style descriptors (minimal, Parisian, preppy…)
 - honestyPreference: gentle | straight | no_mercy (only if they request feedback tone)
-- circleNames: up to 3 first names of people they ask for style opinions
-  ("I ask Maya and Jordan" → ["Maya","Jordan"])
 - summary: warm 1-sentence confirmation. If some facts belong to later steps, say so plainly
   e.g. "Got it — Alex. Locked Everlane + no logos for brands later. Height noted for photo."
   If nothing actionable: say so briefly and leave other fields omitted.
@@ -1483,7 +1481,6 @@ Omit unknowns. `summary` always required (salvage `"Noted — keep going."`).
   "styleLikes": ["minimal"],
   "styleAvoids": [],
   "honestyPreference": "gentle|straight|no_mercy",
-  "circleNames": ["Maya"],
   "summary": "Got it — Alex. Locked Everlane + no logos for brands later."
 }
 ```

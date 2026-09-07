@@ -42,6 +42,17 @@ describe("buildPatchFromTastePicks", () => {
     assert.ok(patch.tasteTags?.some((t) => t.category === "aspirational"));
     assert.ok(patch.tasteTags?.some((t) => t.category === "compliment"));
     assert.deepEqual(
+      patch.tasteTags
+        ?.filter((t) => t.category === "worn")
+        .map((t) => t.tag)
+        .sort(),
+      ["all black", "jeans + knit"],
+    );
+    assert.equal(
+      patch.tasteTags?.filter((t) => t.category === "worn").length,
+      2,
+    );
+    assert.deepEqual(
       patch.brands?.map((b) => b.brand).sort(),
       ["COS", "FastBrand", "Zara"],
     );
@@ -78,5 +89,7 @@ describe("buildPatchFromTastePicks", () => {
     assert.equal(honestyPreferenceForSave("nolist", "5"), undefined);
     assert.equal(honestyPreferenceForSave("final", ""), "3");
     assert.equal(honestyPreferenceForSave("final", "5"), "5");
+    assert.equal(honestyPreferenceForSave("final", "2"), "2");
+    assert.equal(honestyPreferenceForSave("final", "4"), "4");
   });
 });

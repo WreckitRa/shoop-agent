@@ -1,4 +1,5 @@
 import { FITTING_STEPS, isMagicFittingStep, type FittingStep } from "./types";
+import { FITTING_TRACE_STORAGE_KEY } from "@/lib/onboarding/fitting-trace-shared";
 
 export const ONBOARDING_UI_SESSION_KEY = "shoop.onboarding.ui.v4";
 
@@ -12,21 +13,30 @@ export type OnboardingUiIdentity = {
 
 export type OnboardingUiSession = {
   step: FittingStep;
-  circleNames?: string[];
   finale?: OnboardingUiFinale;
   /** User closed The Fitting — do not auto-reopen on refresh. */
   dismissed?: boolean;
-  /** Scan/verdict/circle — Fitting owns the viewport. */
+  /** Scan/verdict — Fitting owns the viewport. */
   locked?: boolean;
-  /** After signup, love the verdict looks then open Your circle. */
+  /** After signup, save verdict looks then close The Fitting. */
   saveLooks?: boolean;
   lookJobIds?: string[];
+  /** After signup, close The Fitting without saving looks. */
+  completeAfterAuth?: boolean;
   /** Name / clothing / era — survives guest→account remount. */
   identity?: OnboardingUiIdentity;
+  /** Debug: NEXT_PUBLIC_FITTING_TRACE session id. */
+  fittingTraceId?: string;
 };
 
 function isFittingStep(v: unknown): v is FittingStep {
   return typeof v === "string" && (FITTING_STEPS as string[]).includes(v);
+}
+
+/** Leftover "circle" sessions land on the verdict card. */
+function parseStep(v: unknown): FittingStep | null {
+  if (v === "circle") return "verdict";
+  return isFittingStep(v) ? v : null;
 }
 
 function parseLookJobIds(v: unknown): string[] | undefined {
@@ -39,14 +49,14 @@ function parseLookJobIds(v: unknown): string[] | undefined {
   return ids.length ? ids : undefined;
 }
 
-function parseCircleNames(v: unknown): string[] | undefined {
-  if (!Array.isArray(v)) return undefined;
-  const names = v
-    .filter((n): n is string => typeof n === "string")
-    .map((n) => n.trim())
-    .slice(0, 3);
-  if (!names.some(Boolean)) return undefined;
-  return [names[0] ?? "", names[1] ?? "", names[2] ?? ""];
+function parseFittingTraceId(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const id = v.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    id,
+  )
+    ? id
+    : undefined;
 }
 
 function parseIdentity(v: unknown): OnboardingUiIdentity | undefined {
@@ -78,21 +88,26 @@ function parseIdentity(v: unknown): OnboardingUiIdentity | undefined {
 function parseSession(raw: string | null): OnboardingUiSession | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as Partial<OnboardingUiSession>;
-    if (!isFittingStep(parsed.step)) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const rawStep = parsed.step;
+    const step = parseStep(rawStep);
+    if (!step) return null;
     const finale =
       parsed.finale === "scan" || parsed.finale === "card"
         ? parsed.finale
-        : undefined;
+        : rawStep === "circle"
+          ? "card"
+          : undefined;
     return {
-      step: parsed.step,
-      circleNames: parseCircleNames(parsed.circleNames),
+      step,
       finale,
       dismissed: parsed.dismissed === true,
       locked: parsed.locked === true,
       saveLooks: parsed.saveLooks === true,
       lookJobIds: parseLookJobIds(parsed.lookJobIds),
+      completeAfterAuth: parsed.completeAfterAuth === true,
       identity: parseIdentity(parsed.identity),
+      fittingTraceId: parseFittingTraceId(parsed.fittingTraceId),
     };
   } catch {
     return null;
@@ -126,6 +141,18 @@ function storageRemove(store: Storage | undefined) {
   }
 }
 
+function readStoredFittingTraceId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    return (
+      parseFittingTraceId(window.sessionStorage.getItem(FITTING_TRACE_STORAGE_KEY)) ??
+      parseFittingTraceId(window.localStorage.getItem(FITTING_TRACE_STORAGE_KEY))
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 /** localStorage first (survives refresh); sessionStorage as a one-tab fallback. */
 export function readOnboardingUiSession(): OnboardingUiSession | null {
   if (typeof window === "undefined") return null;
@@ -143,13 +170,20 @@ export function writeOnboardingUiSession(
   if (!step) return;
   const next: OnboardingUiSession = {
     step,
-    circleNames: pos.circleNames ?? prev?.circleNames,
     finale: pos.finale ?? prev?.finale,
     dismissed: "dismissed" in pos ? pos.dismissed : prev?.dismissed,
     locked: "locked" in pos ? pos.locked : prev?.locked,
     saveLooks: "saveLooks" in pos ? pos.saveLooks : prev?.saveLooks,
     lookJobIds: "lookJobIds" in pos ? pos.lookJobIds : prev?.lookJobIds,
+    completeAfterAuth:
+      "completeAfterAuth" in pos
+        ? pos.completeAfterAuth
+        : prev?.completeAfterAuth,
     identity: pos.identity ?? prev?.identity,
+    fittingTraceId:
+      parseFittingTraceId(pos.fittingTraceId) ??
+      prev?.fittingTraceId ??
+      readStoredFittingTraceId(),
   };
   const raw = JSON.stringify(next);
   storageSet(window.localStorage, raw);
@@ -177,7 +211,7 @@ export function markOnboardingUiResumed() {
   writeOnboardingUiSession({ ...prev, dismissed: false });
 }
 
-/** Scan/verdict/friends owns the viewport until they log in or quit. */
+/** Scan/verdict owns the viewport until they log in or quit. */
 export function sessionIsMagicLocked(
   session: OnboardingUiSession | null,
 ): boolean {
@@ -185,14 +219,14 @@ export function sessionIsMagicLocked(
   return session.locked === true || isMagicFittingStep(session.step);
 }
 
-/** Verdict / circle (and a pending look-save) — keep Fitting open after signup. */
+/** Verdict (and a pending look-save) — keep Fitting open after signup. */
 export function isFinishingFitting(
   session: OnboardingUiSession | null,
 ): boolean {
   if (!session || session.dismissed === true) return false;
   return (
     session.step === "verdict" ||
-    session.step === "circle" ||
-    session.saveLooks === true
+    session.saveLooks === true ||
+    session.completeAfterAuth === true
   );
 }

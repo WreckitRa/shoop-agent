@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   EMPTY_IMAGE_PREFLIGHT,
+  facePhotoAccepted,
+  facePhotoGateMessage,
   parseStylePhotoAnalysis,
   parseStylePhotoPreflight,
   rescueClearFaceGate,
@@ -140,5 +142,25 @@ describe("style photo preflight", () => {
   it("does not rescue a gate with no visible person", () => {
     const empty = rescueClearFaceGate(EMPTY_IMAGE_PREFLIGHT);
     assert.equal(empty.next_action, "stop");
+  });
+
+  it("accepts a face photo only when Luna asks for full analysis", () => {
+    assert.equal(facePhotoAccepted(null), false);
+    assert.equal(
+      facePhotoAccepted({ next_action: "ask_for_better_photos" }),
+      false,
+    );
+    assert.equal(
+      facePhotoAccepted({ next_action: "run_full_analysis" }),
+      true,
+    );
+    assert.equal(
+      facePhotoGateMessage({ user_message: "  " }),
+      "Need a clear photo of your face — just you, facing the light.",
+    );
+    assert.equal(
+      facePhotoGateMessage({ user_message: "No face in this shot." }),
+      "No face in this shot.",
+    );
   });
 });

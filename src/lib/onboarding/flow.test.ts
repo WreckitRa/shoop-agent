@@ -13,7 +13,6 @@ import {
 import { GET as onboardingGET, POST as onboardingPOST } from "@/app/api/onboarding/route";
 import { POST as reviewPOST } from "@/app/api/onboarding/review/route";
 import { GET as tasteGET, POST as tastePOST } from "@/app/api/onboarding/taste/route";
-import { POST as circlePOST } from "@/app/api/onboarding/circle/route";
 import { POST as tellPOST } from "@/app/api/onboarding/fitting-tell/route";
 import { GET as brandsGET, POST as brandsPOST } from "@/app/api/onboarding/brands/route";
 import { POST as verdictPOST } from "@/app/api/onboarding/stylist-verdict/route";
@@ -21,7 +20,6 @@ import { GET as photoGET } from "@/app/api/onboarding/photo-analysis/route";
 import { GET as looksGET } from "@/app/api/onboarding/reading-looks/route";
 import {
   brandsPostSchema,
-  circlePostSchema,
   fittingTellPostSchema,
   reviewPostSchema,
   tasteDeckQuerySchema,
@@ -30,7 +28,6 @@ import {
 import { onboardingPatchSchema } from "./status";
 import { honestyPreferenceForSave } from "./taste-persist";
 import { missingRequiredOnboardingFields } from "./status";
-import { normalizeCircleNames } from "./trusted-circle";
 import {
   isAtLeastAge,
   joinCsvValues,
@@ -62,6 +59,7 @@ function status(partial: {
             ageRange: null,
             weekIs: null,
             dressingFor: null,
+            weekendsAre: null,
             kids: null,
             climate: null,
             valuePhilosophy: null,
@@ -178,7 +176,7 @@ describe("onboarding flow resume after each save", () => {
       brandPreferences: [{ brand: "COS" }],
     });
     assert.equal(firstIncompleteFittingStep(afterHonesty), "verdict");
-    assert.equal(resolveFittingResumeStep(afterHonesty, "circle"), "circle");
+    assert.equal(resolveFittingResumeStep(afterHonesty, "verdict"), "verdict");
   });
 
   it("does not let a premature honesty default clamp past no-list", () => {
@@ -217,7 +215,7 @@ describe("skippable vs required fitting steps", () => {
     assert.equal(isAtLeastAge("2020-01-01"), false);
   });
 
-  it("allows empty life, spend, photo, corner, no-list, and circle", () => {
+  it("allows empty life, spend, photo, corner, and no-list", () => {
     assert.equal(heightCmFromPhotoValues({
       photoPreview: null,
       photoCoverage: "face",
@@ -234,13 +232,8 @@ describe("skippable vs required fitting steps", () => {
       bustFullness: null,
       legLine: null,
     }), null);
-    assert.deepEqual(normalizeCircleNames(["", "  "]), []);
     assert.equal(tastePostSchema.safeParse({ wornPicks: [] }).success, true);
     assert.equal(tastePostSchema.safeParse({ brandLikes: [] }).success, true);
-    assert.equal(
-      circlePostSchema.safeParse({ names: ["", "", ""] }).success,
-      true,
-    );
     assert.equal(
       reviewPostSchema.safeParse({
         patch: { profile: { weekIs: null, kids: null } },
@@ -252,7 +245,7 @@ describe("skippable vs required fitting steps", () => {
 });
 
 describe("onboarding API request contracts", () => {
-  it("rejects invalid review, taste, tell, brands, and circle bodies", () => {
+  it("rejects invalid review, taste, tell, and brands bodies", () => {
     assert.equal(
       reviewPostSchema.safeParse({ patch: {}, requestKey: "short" }).success,
       false,
@@ -288,7 +281,6 @@ describe("onboarding API request contracts", () => {
       false,
     );
     assert.equal(brandsPostSchema.safeParse({ name: "" }).success, false);
-    assert.equal(circlePostSchema.safeParse({ names: 3 }).success, false);
     assert.equal(
       tasteDeckQuerySchema.safeParse({ mode: "nope" }).success,
       false,
@@ -340,10 +332,38 @@ describe("onboarding API request contracts", () => {
     };
     assert.equal(tastePostSchema.safeParse(wornBody).success, true);
     assert.equal(wornBody.honestyPreference, undefined);
+    assert.equal(honestyPreferenceForSave("final", "4"), "4");
     assert.equal(
       tastePostSchema.safeParse({
         honestyPreference: honestyPreferenceForSave("final", "4"),
         complete: false,
+      }).success,
+      true,
+    );
+    const allClimates = "hot_humid,hot_dry,four_seasons,mild_wet,cold";
+    assert.ok(allClimates.length > 40);
+    assert.equal(
+      reviewPostSchema.safeParse({
+        patch: {
+          profile: {
+            weekIs: "working_mixed,studying",
+            weekendsAre: "friends,nightlife,travel",
+            kids: "none",
+            climate: allClimates,
+          },
+        },
+        requestKey: crypto.randomUUID(),
+      }).success,
+      true,
+    );
+    assert.equal(
+      fittingTellPostSchema.safeParse({
+        text: "Weekends I go out with friends",
+        known: {
+          currentStep: "life",
+          weekendsAre: "friends,nightlife",
+          climate: allClimates,
+        },
       }).success,
       true,
     );
@@ -357,9 +377,6 @@ describe("onboarding API handlers", () => {
         await onboardingGET(),
         await onboardingPOST(),
         await tasteGET(new Request("http://local/api/onboarding/taste")),
-        await circlePOST(
-          jsonRequest("http://local/api/onboarding/circle", { names: [] }),
-        ),
         await brandsGET(new Request("http://local/api/onboarding/brands")),
         await photoGET(
           new Request("http://local/api/onboarding/photo-analysis"),
@@ -438,7 +455,7 @@ describe("onboarding API handlers", () => {
 describe("back and forth through Fitting", () => {
   it("can reverse every quiz step and re-enter scan from the card", () => {
     const quiz = FITTING_STEPS.filter(
-      (s) => s !== "verdict" && s !== "circle" && s !== "consent",
+      (s) => s !== "verdict" && s !== "consent",
     );
     let step: FittingStep = "honesty";
     const seen: FittingStep[] = [step];

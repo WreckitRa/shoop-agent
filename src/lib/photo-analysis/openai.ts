@@ -1,21 +1,11 @@
 import { parseLlmJsonObject } from "@/lib/ai-chat/llm-json";
+import { logFitting } from "@/lib/onboarding/fitting-trace";
 import {
   PHOTO_ERROR,
   publicPhotoError,
   publicPhotoErrorFromHttp,
   retryWaitMs,
 } from "./errors";
-
-let gptLock: Promise<void> = Promise.resolve();
-
-export function withPhotoGptLock<T>(fn: () => Promise<T>): Promise<T> {
-  const run = gptLock.then(fn, fn);
-  gptLock = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
 
 export function photoGptOutputText(data: unknown): string {
   if (!data || typeof data !== "object") return "";
@@ -172,6 +162,25 @@ export async function callPhotoJsonSchema(
     throw new Error("OPENAI_API_KEY is not set");
   }
 
+  const started = Date.now();
+  const userText = opts.userContent
+    .filter(
+      (part): part is { type: "input_text"; text: string } =>
+        part.type === "input_text",
+    )
+    .map((part) => part.text);
+  logFitting("prompt.call", {
+    provider: "openai",
+    format: opts.format.name,
+    model: opts.model,
+    reasoning: opts.reasoning.effort,
+    timeoutMs: opts.timeoutMs,
+    maxOutputTokens: opts.maxOutputTokens,
+    hasImage: opts.userContent.some((part) => part.type === "input_image"),
+    instructions: opts.instructions,
+    userText,
+  });
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
   const body = JSON.stringify({
@@ -211,6 +220,13 @@ export async function callPhotoJsonSchema(
     res = out.res;
     payload = out.payload;
   } catch (error) {
+    logFitting("prompt.error", {
+      provider: "openai",
+      format: opts.format.name,
+      model: opts.model,
+      ms: Date.now() - started,
+      error: error instanceof Error ? error.message : "openai failed",
+    });
     if (controller.signal.aborted) {
       throw new Error(PHOTO_ERROR.timeout);
     }
@@ -221,23 +237,67 @@ export async function callPhotoJsonSchema(
   }
 
   if (!res.ok) {
-    throw new Error(publicPhotoErrorFromHttp(res.status, payload));
+    const message = publicPhotoErrorFromHttp(res.status, payload);
+    logFitting("prompt.error", {
+      provider: "openai",
+      format: opts.format.name,
+      model: opts.model,
+      ms: Date.now() - started,
+      http: res.status,
+      error: message,
+    });
+    throw new Error(message);
   }
   if (
     payload &&
     typeof payload === "object" &&
     (payload as { status?: string }).status === "incomplete"
   ) {
+    logFitting("prompt.error", {
+      provider: "openai",
+      format: opts.format.name,
+      model: opts.model,
+      ms: Date.now() - started,
+      error: opts.incompleteError ?? PHOTO_ERROR.incomplete,
+      status: (payload as { status?: string }).status,
+      incomplete_details:
+        (payload as { incomplete_details?: unknown }).incomplete_details ?? null,
+      usage: photoUsageTokens(payload),
+      text: photoGptOutputText(payload),
+    });
     throw new Error(opts.incompleteError ?? PHOTO_ERROR.incomplete);
   }
 
   const text = photoGptOutputText(payload);
   if (!text.trim()) {
+    logFitting("prompt.error", {
+      provider: "openai",
+      format: opts.format.name,
+      model: opts.model,
+      ms: Date.now() - started,
+      error: PHOTO_ERROR.empty,
+    });
     throw new Error(PHOTO_ERROR.empty);
   }
   const parsed = parseLlmJsonObject(text);
   if (!parsed) {
+    logFitting("prompt.error", {
+      provider: "openai",
+      format: opts.format.name,
+      model: opts.model,
+      ms: Date.now() - started,
+      error: PHOTO_ERROR.non_json,
+      text,
+    });
     throw new Error(PHOTO_ERROR.non_json);
   }
+  logFitting("prompt.result", {
+    provider: "openai",
+    format: opts.format.name,
+    model: opts.model,
+    ms: Date.now() - started,
+    usage: photoUsageTokens(payload),
+    value: parsed.value,
+  });
   return { value: parsed.value, usage: photoUsageTokens(payload) };
 }

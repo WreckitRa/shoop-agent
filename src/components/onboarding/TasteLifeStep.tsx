@@ -6,11 +6,14 @@ import {
   KIDS_OPTIONS,
   WEEKEND_OPTIONS,
   WEEK_IS_OPTIONS,
+  WHY_HERE_OPTIONS,
   csvHas,
+  joinCsvValues,
   parseCsvValues,
   toggleCsvValue,
 } from "@/lib/onboarding/form-options";
 import {
+  FittingAddIn,
   FittingKick,
   FittingMulti,
   FittingNavRow,
@@ -26,6 +29,7 @@ export type TasteLifeValues = {
   weekendsAre: string;
   kids: string;
   climate: string;
+  dressingFor: string;
 };
 
 type Props = {
@@ -38,44 +42,77 @@ type Props = {
   busy?: boolean;
 };
 
-const OTHER = "other";
+const OTHER_PREFIX = "other:";
 
-function otherTextFromCsv(csv: string): string {
+function otherLabelsFromCsv(csv: string): string[] {
+  const labels: string[] = [];
   for (const part of parseCsvValues(csv)) {
-    if (part.startsWith("other:")) return part.slice(6);
+    if (!part.startsWith(OTHER_PREFIX)) continue;
+    const label = part.slice(OTHER_PREFIX.length).trim();
+    if (label) labels.push(label);
   }
-  return "";
+  return labels;
 }
 
-function setOtherText(csv: string, text: string): string {
-  const cleaned = parseCsvValues(csv).filter(
-    (p) => p !== OTHER && !p.startsWith("other:"),
+function otherToken(label: string): string {
+  return `${OTHER_PREFIX}${label.trim().replace(/,/g, " ")}`;
+}
+
+function addCustomCsv(
+  csv: string,
+  raw: string,
+  options: readonly { value: string; label: string }[],
+): string {
+  const v = raw.trim().replace(/,/g, " ");
+  if (!v) return csv;
+  const known = options.find(
+    (o) =>
+      o.label.toLowerCase() === v.toLowerCase() ||
+      o.value.toLowerCase() === v.toLowerCase(),
   );
-  const trimmed = text.trim().replace(/,/g, " ");
-  if (!trimmed) return [...cleaned, OTHER].join(",");
-  return [...cleaned, `other:${trimmed}`].join(",");
+  const token = known ? known.value : otherToken(v);
+  const parts = parseCsvValues(csv).filter((p) => p !== "other");
+  if (parts.includes(token)) return joinCsvValues(parts);
+  return joinCsvValues([...parts, token]);
 }
 
-function hasOther(csv: string): boolean {
-  return parseCsvValues(csv).some((p) => p === OTHER || p.startsWith("other:"));
-}
-
-function toggleKnown(csv: string, value: string): string {
-  if (value === OTHER) {
-    return hasOther(csv)
-      ? parseCsvValues(csv)
-          .filter((p) => p !== OTHER && !p.startsWith("other:"))
-          .join(",")
-      : toggleCsvValue(csv, OTHER);
+function dressingForCustoms(value: string, extras: string[]): string[] {
+  const fromValue =
+    value.startsWith(OTHER_PREFIX) && value.slice(6).trim()
+      ? [value.slice(6).trim()]
+      : [];
+  const out = [...fromValue];
+  for (const label of extras) {
+    if (!out.some((x) => x.toLowerCase() === label.toLowerCase())) {
+      out.push(label);
+    }
   }
-  return toggleCsvValue(csv, value);
+  return out;
 }
 
 export function TasteLifeStep({ values, onChange, onContinue, busy }: Props) {
-  const [weekOther, setWeekOther] = useState(otherTextFromCsv(values.weekIs));
-  const [weekendOther, setWeekendOther] = useState(
-    otherTextFromCsv(values.weekendsAre),
-  );
+  const [whyExtras, setWhyExtras] = useState<string[]>([]);
+  const whyCustoms = dressingForCustoms(values.dressingFor, whyExtras);
+
+  function addWhy(raw: string) {
+    const v = raw.trim().replace(/,/g, " ");
+    if (!v) return;
+    const known = WHY_HERE_OPTIONS.find(
+      (o) =>
+        o.label.toLowerCase() === v.toLowerCase() ||
+        o.value.toLowerCase() === v.toLowerCase(),
+    );
+    if (known) {
+      onChange("dressingFor", known.value);
+      return;
+    }
+    setWhyExtras((prev) =>
+      prev.some((x) => x.toLowerCase() === v.toLowerCase())
+        ? prev
+        : [...prev, v],
+    );
+    onChange("dressingFor", otherToken(v));
+  }
 
   return (
     <section>
@@ -91,6 +128,37 @@ export function TasteLifeStep({ values, onChange, onContinue, busy }: Props) {
         <b>this is how I stop handing a student a boardroom look.</b>
       </FittingWhisper>
 
+      <FittingQlbl>Why are you here?</FittingQlbl>
+      <div className="mt-3 flex max-w-[620px] flex-wrap gap-2.5">
+        {WHY_HERE_OPTIONS.map((opt) => (
+          <OnboardingChip
+            key={opt.value}
+            selected={values.dressingFor === opt.value}
+            onClick={() => onChange("dressingFor", opt.value)}
+          >
+            {opt.label}
+          </OnboardingChip>
+        ))}
+        {whyCustoms.map((label) => {
+          const token = otherToken(label);
+          return (
+            <OnboardingChip
+              key={token}
+              selected={values.dressingFor === token}
+              onClick={() =>
+                onChange(
+                  "dressingFor",
+                  values.dressingFor === token ? "" : token,
+                )
+              }
+            >
+              {label}
+            </OnboardingChip>
+          );
+        })}
+        <FittingAddIn placeholder="or type it…" onSubmit={addWhy} />
+      </div>
+
       <FittingQlbl>Your week days are:</FittingQlbl>
       <FittingMulti>PICK AS MANY AS ARE TRUE</FittingMulti>
       <div className="mt-3 flex max-w-[620px] flex-wrap gap-2.5">
@@ -98,30 +166,34 @@ export function TasteLifeStep({ values, onChange, onContinue, busy }: Props) {
           <OnboardingChip
             key={opt.value}
             selected={csvHas(values.weekIs, opt.value)}
-            onClick={() => onChange("weekIs", toggleKnown(values.weekIs, opt.value))}
+            onClick={() =>
+              onChange("weekIs", toggleCsvValue(values.weekIs, opt.value))
+            }
           >
             {opt.label}
           </OnboardingChip>
         ))}
-        <OnboardingChip
-          selected={hasOther(values.weekIs)}
-          onClick={() => onChange("weekIs", toggleKnown(values.weekIs, OTHER))}
-        >
-          Other
-        </OnboardingChip>
-      </div>
-      {hasOther(values.weekIs) ? (
-        <input
-          type="text"
-          value={weekOther}
-          onChange={(e) => {
-            setWeekOther(e.target.value);
-            onChange("weekIs", setOtherText(values.weekIs, e.target.value));
-          }}
-          placeholder="What are your weekdays?"
-          className="mt-3 w-full max-w-[420px] rounded-[13px] border-[1.5px] border-[var(--fitting-g3)] bg-white px-3.5 py-2.5 font-display text-[14px] font-bold text-[var(--fitting-ink)] outline-none focus:border-[var(--fitting-ink)]"
+        {otherLabelsFromCsv(values.weekIs).map((label) => {
+          const token = otherToken(label);
+          return (
+            <OnboardingChip
+              key={token}
+              selected={csvHas(values.weekIs, token)}
+              onClick={() =>
+                onChange("weekIs", toggleCsvValue(values.weekIs, token))
+              }
+            >
+              {label}
+            </OnboardingChip>
+          );
+        })}
+        <FittingAddIn
+          placeholder="or type it…"
+          onSubmit={(v) =>
+            onChange("weekIs", addCustomCsv(values.weekIs, v, WEEK_IS_OPTIONS))
+          }
         />
-      ) : null}
+      </div>
 
       <FittingQlbl>Your week ends are:</FittingQlbl>
       <FittingMulti>PICK AS MANY AS ARE TRUE</FittingMulti>
@@ -133,37 +205,40 @@ export function TasteLifeStep({ values, onChange, onContinue, busy }: Props) {
             onClick={() =>
               onChange(
                 "weekendsAre",
-                toggleKnown(values.weekendsAre, opt.value),
+                toggleCsvValue(values.weekendsAre, opt.value),
               )
             }
           >
             {opt.label}
           </OnboardingChip>
         ))}
-        <OnboardingChip
-          selected={hasOther(values.weekendsAre)}
-          onClick={() =>
-            onChange("weekendsAre", toggleKnown(values.weekendsAre, OTHER))
-          }
-        >
-          Other
-        </OnboardingChip>
-      </div>
-      {hasOther(values.weekendsAre) ? (
-        <input
-          type="text"
-          value={weekendOther}
-          onChange={(e) => {
-            setWeekendOther(e.target.value);
+        {otherLabelsFromCsv(values.weekendsAre).map((label) => {
+          const token = otherToken(label);
+          return (
+            <OnboardingChip
+              key={token}
+              selected={csvHas(values.weekendsAre, token)}
+              onClick={() =>
+                onChange(
+                  "weekendsAre",
+                  toggleCsvValue(values.weekendsAre, token),
+                )
+              }
+            >
+              {label}
+            </OnboardingChip>
+          );
+        })}
+        <FittingAddIn
+          placeholder="or type it…"
+          onSubmit={(v) =>
             onChange(
               "weekendsAre",
-              setOtherText(values.weekendsAre, e.target.value),
-            );
-          }}
-          placeholder="What are your weekends?"
-          className="mt-3 w-full max-w-[420px] rounded-[13px] border-[1.5px] border-[var(--fitting-g3)] bg-white px-3.5 py-2.5 font-display text-[14px] font-bold text-[var(--fitting-ink)] outline-none focus:border-[var(--fitting-ink)]"
+              addCustomCsv(values.weekendsAre, v, WEEKEND_OPTIONS),
+            )
+          }
         />
-      ) : null}
+      </div>
 
       <FittingQlbl>Kids?</FittingQlbl>
       <FittingMulti>PICK AS MANY AS ARE TRUE</FittingMulti>

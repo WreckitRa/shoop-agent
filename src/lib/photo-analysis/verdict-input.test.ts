@@ -69,8 +69,10 @@ describe("buildVerdictPayload", () => {
       unknown
     >;
     const body = payload.measurements.body as Record<string, unknown>;
-    assert.equal(identity.style_era, "30s");
+    assert.equal(payload.questionnaireAnswers.goal, "with_someone");
+    assert.equal(payload.questionnaireAnswers.goal_label, "With someone");
     assert.equal(lifestyle.week_is, "working_mixed");
+    assert.equal(lifestyle.week_is_label, "Mix of home and office");
     assert.equal(lifestyle.weekends_are, "friends,nightlife,travel");
     assert.equal(
       lifestyle.weekends_are_label,
@@ -109,5 +111,74 @@ describe("buildVerdictPayload", () => {
     assert.ok(
       (payload.wardrobeInventory.brands_like as string[]).includes("COS"),
     );
+  });
+
+  it("sends only the worn looks they picked, not exploded catalog tags", () => {
+    const payload = buildVerdictPayload({
+      profile: { genderPresentation: "masculine" },
+      sizing: {},
+      brands: [],
+      hardNegatives: [],
+      tasteTags: [
+        { tag: "athleisure", category: "worn" },
+        { tag: "hoodie", category: "worn" },
+        { tag: "knit", category: "worn" },
+        { tag: "easy", category: "worn" },
+        { tag: "sporty", category: "worn" },
+        { tag: "smart casual", category: "worn" },
+        { tag: "blazer", category: "worn" },
+        { tag: "smart", category: "worn" },
+        { tag: "casual", category: "worn" },
+        { tag: "clean", category: "worn" },
+        { tag: "smart_casual", category: "worn" },
+        { tag: "resort and holiday", category: "worn" },
+        { tag: "linen", category: "worn" },
+        { tag: "resort", category: "worn" },
+        { tag: "holiday", category: "worn" },
+        { tag: "coastal", category: "worn" },
+        { tag: "resort_holiday", category: "worn" },
+        { tag: "boho", category: "worn" },
+        { tag: "street", category: "worn" },
+      ],
+    });
+    assert.deepEqual(payload.wardrobeInventory.worn, [
+      "Athleisure",
+      "Smart casual",
+      "Resort and holiday",
+    ]);
+  });
+
+  it("labels multi-select week, climate, and spend CSVs for the model", () => {
+    const payload = buildVerdictPayload({
+      profile: {
+        genderPresentation: "womenswear",
+        weekIs: "working_mixed,studying",
+        kids: "young,older",
+        climate: "hot_humid,four_seasons",
+        valuePhilosophy: "premium,best_value",
+      },
+      sizing: {},
+      brands: [],
+      hardNegatives: [],
+      tasteTags: [],
+    });
+    const lifestyle = payload.questionnaireAnswers.lifestyle as Record<
+      string,
+      unknown
+    >;
+    const budget = payload.questionnaireAnswers.budget as Record<
+      string,
+      unknown
+    >;
+    assert.equal(
+      lifestyle.week_is_label,
+      "Mix of home and office, Studying",
+    );
+    assert.equal(lifestyle.kids_label, "Young kids, Older kids");
+    assert.equal(
+      payload.questionnaireAnswers.climate_label,
+      "Hot and humid, Four seasons",
+    );
+    assert.equal(budget.philosophy_label, "Quality first, Smart value");
   });
 });

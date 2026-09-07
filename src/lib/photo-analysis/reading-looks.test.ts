@@ -5,6 +5,7 @@ import {
   fallbackLookQuery,
   groupReadingLooks,
   pickLookProduct,
+  pickFaceColorProduct,
   productForStep,
   productTitleKey,
   readingLookQueries,
@@ -302,6 +303,100 @@ describe("readingLookQueries", () => {
   it("retries a face colour without the garment", () => {
     assert.equal(fallbackFaceQuery("neon crew neck", "crew neck"), "neon");
     assert.equal(fallbackFaceQuery("crew neck", "crew neck"), null);
+  });
+
+  it("keeps the colour on contract looks", () => {
+    const qs = readingLookQueries({
+      ...verdict(),
+      contract: {
+        palette: {
+          near_face: [{ family: "navy", shade: "ink navy", hex: "#1B2A4A" }],
+          core: [],
+          neutrals: [],
+          accents: [],
+          avoid_near_face: [],
+        },
+        silhouette: {
+          top_fit: "regular",
+          bottom_fit: "straight",
+          rise: "mid",
+          structure: "medium",
+          length_notes: [],
+        },
+        necklines: { yes: [], no: [] },
+        fabrics: { yes: [], no: [] },
+        patterns: { scale: "none", yes: [], no: [] },
+        vetoes: [],
+        looks: [
+          {
+            name: "Video-call days",
+            occasion_from: "working_mixed",
+            pieces: [
+              {
+                slot: "top",
+                garment_type: "tee",
+                color_family: "navy",
+                shade: "ink navy",
+                fallback_family: null,
+                fit: "regular",
+                neckline: "crew",
+                must_have: [],
+                must_not: [],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const look = qs.find((q) => q.kind === "look");
+    assert.equal(look?.query, "ink navy tee");
+    assert.equal(look?.keepColor, true);
+    const swatch = qs.find((q) => q.kind === "swatch");
+    assert.equal(swatch?.query, "navy crew neck");
+  });
+
+  it("picks a face colour only when the title says the colour and is not a print", () => {
+    const stripedNavy = {
+      id: "gid://shopify/Product/1",
+      title: "Long-Sleeve Weightless Cotton Shirt - Abyss Navy",
+      imageUrl: "https://cdn.example/n.jpg",
+      price: null,
+    };
+    const floralWine = {
+      id: "gid://shopify/Product/2",
+      title: "Short-Sleeve Reserve Basque Camp Shirt - Black Floral Road",
+      imageUrl: "https://cdn.example/w.jpg",
+      price: null,
+    };
+    const navyCrew = {
+      id: "gid://shopify/Product/3",
+      title: "Classic Crewneck - Navy",
+      imageUrl: "https://cdn.example/c.jpg",
+      price: null,
+    };
+    const forestCrew = {
+      id: "gid://shopify/Product/4",
+      title: "Embroidery Script Logo Crewneck - Forest Green",
+      imageUrl: "https://cdn.example/g.jpg",
+      price: null,
+    };
+    assert.equal(
+      pickFaceColorProduct([stripedNavy], new Set(), "DEEP INK NAVY"),
+      null,
+    );
+    assert.equal(
+      pickFaceColorProduct([floralWine], new Set(), "DEEP WINE"),
+      null,
+    );
+    assert.equal(
+      pickFaceColorProduct([stripedNavy, navyCrew], new Set(), "DEEP INK NAVY")
+        ?.id,
+      navyCrew.id,
+    );
+    assert.equal(
+      pickFaceColorProduct([forestCrew], new Set(), "FOREST GREEN")?.id,
+      forestCrew.id,
+    );
   });
 
   it("keeps labeled look groups even when a look has no product", () => {

@@ -37,7 +37,6 @@ beforeEach(() => {
 describe("onboarding ui session", () => {
   it("remembers step, scan finale, and dismissed across writes", () => {
     writeOnboardingUiSession({ step: "verdict", finale: "card" });
-    writeOnboardingUiSession({ circleNames: ["Maya"] });
     writeOnboardingUiSession({
       identity: {
         preferredName: "Maya",
@@ -50,7 +49,6 @@ describe("onboarding ui session", () => {
     assert.equal(session?.step, "verdict");
     assert.equal(session?.finale, "card");
     assert.equal(session?.dismissed, true);
-    assert.deepEqual(session?.circleNames, ["Maya", "", ""]);
     assert.equal(session?.identity?.preferredName, "Maya");
     assert.equal(session?.identity?.genderPresentation, "menswear");
     assert.deepEqual(session?.identity?.styleEras, ["30s"]);
@@ -71,15 +69,14 @@ describe("onboarding ui session", () => {
       ONBOARDING_UI_SESSION_KEY,
       JSON.stringify({ step: "circle" }),
     );
-    assert.equal(readOnboardingUiSession()?.step, "circle");
+    assert.equal(readOnboardingUiSession()?.step, "verdict");
+    assert.equal(readOnboardingUiSession()?.finale, "card");
     clearOnboardingUiSession();
     assert.equal(readOnboardingUiSession(), null);
   });
 
   it("treats an open verdict session as the save-and-close point", () => {
     writeOnboardingUiSession({ step: "verdict", finale: "card" });
-    assert.equal(isFinishingFitting(readOnboardingUiSession()), true);
-    writeOnboardingUiSession({ step: "circle" });
     assert.equal(isFinishingFitting(readOnboardingUiSession()), true);
     writeOnboardingUiSession({ step: "verdict" });
     markOnboardingUiDismissed();
@@ -99,14 +96,33 @@ describe("onboarding ui session", () => {
     assert.equal(isFinishingFitting(session), true);
   });
 
-  it("locks scan/verdict/circle as the fullscreen sequence", () => {
+  it("keeps Fitting open when finish is waiting on signup", () => {
+    writeOnboardingUiSession({
+      step: "verdict",
+      finale: "card",
+      completeAfterAuth: true,
+    });
+    assert.equal(isFinishingFitting(readOnboardingUiSession()), true);
+  });
+
+  it("locks scan/verdict as the fullscreen sequence", () => {
     writeOnboardingUiSession({ step: "honesty" });
     assert.equal(sessionIsMagicLocked(readOnboardingUiSession()), false);
     writeOnboardingUiSession({ step: "verdict", finale: "scan", locked: true });
     assert.equal(sessionIsMagicLocked(readOnboardingUiSession()), true);
-    writeOnboardingUiSession({ step: "circle" });
-    assert.equal(sessionIsMagicLocked(readOnboardingUiSession()), true);
     markOnboardingUiDismissed();
     assert.equal(sessionIsMagicLocked(readOnboardingUiSession()), false);
+  });
+
+  it("keeps a fitting trace id across writes", () => {
+    writeOnboardingUiSession({
+      step: "honesty",
+      fittingTraceId: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    });
+    writeOnboardingUiSession({ step: "verdict" });
+    assert.equal(
+      readOnboardingUiSession()?.fittingTraceId,
+      "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    );
   });
 });

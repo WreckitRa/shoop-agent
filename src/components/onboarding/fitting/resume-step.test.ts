@@ -28,6 +28,7 @@ function status(partial: {
       ageRange: null,
       weekIs: null,
       dressingFor: null,
+      weekendsAre: null,
       kids: null,
       climate: null,
       valuePhilosophy: null,
@@ -50,6 +51,18 @@ const you = {
 };
 
 describe("firstIncompleteFittingStep", () => {
+  it("treats weekends-only as a completed life step", () => {
+    assert.equal(
+      firstIncompleteFittingStep(
+        status({
+          profile: { ...you, weekendsAre: "friends,nightlife" },
+          sizing: { heightCm: 170, bodyType: "average" },
+        }),
+      ),
+      "spend",
+    );
+  });
+
   it("starts at consent when Fitting has not started, photo when complete", () => {
     assert.equal(
       firstIncompleteFittingStep(status({ started: false })),
@@ -97,7 +110,7 @@ describe("firstIncompleteFittingStep", () => {
     );
   });
 
-  it("lands on verdict after honesty, not on circle", () => {
+  it("lands on verdict after honesty", () => {
     assert.equal(
       firstIncompleteFittingStep(
         status({
@@ -121,18 +134,18 @@ describe("firstIncompleteFittingStep", () => {
 describe("resolveFittingResumeStep", () => {
   it("restarts at photo when Fitting is complete or explicitly replayed", () => {
     const done = status({ completed: true, profile: you });
-    assert.equal(resolveFittingResumeStep(done, "circle"), "photo");
+    assert.equal(resolveFittingResumeStep(done, "verdict"), "photo");
     assert.equal(
       resolveFittingResumeStep(
         status({ profile: you }),
-        "circle",
+        "verdict",
         { restart: true },
       ),
       "photo",
     );
   });
 
-  it("keeps a mid-flow session on verdict instead of clamping to circle", () => {
+  it("keeps a mid-flow session on verdict", () => {
     const almost = status({
       profile: {
         ...you,
@@ -145,7 +158,6 @@ describe("resolveFittingResumeStep", () => {
       tasteTags: [{ category: "worn" }, { category: "aspirational" }],
     });
     assert.equal(resolveFittingResumeStep(almost, "verdict"), "verdict");
-    assert.equal(resolveFittingResumeStep(almost, "circle"), "circle");
   });
 
   it("does not let a stale early session undo saved progress", () => {

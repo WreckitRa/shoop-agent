@@ -32,6 +32,7 @@ import { writeOnboardingUiSession } from "./ui-session";
 import type { MirrorState } from "./types";
 
 const POLL_MS = 2000;
+const POLL_FAIL_LIMIT = 3;
 /** Phone scan/verdict stage — always show the card for a beat, even if the scan is already done. */
 const PHONE_STAGE_HOLD_MS = 2800;
 
@@ -101,6 +102,7 @@ export function FittingAnalysisPanel({
   const [polled, setPolled] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const completedRef = useRef(false);
   const kickOnceRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
@@ -133,13 +135,23 @@ export function FittingAnalysisPanel({
     if (!enabled) return;
     let cancelled = false;
     let id = 0;
+    let fails = 0;
 
     async function tick() {
       const hash = photoHashRef.current;
       try {
         const qs = hash ? `?hash=${encodeURIComponent(hash)}` : "";
         const res = await guestFetch(`/api/onboarding/photo-analysis${qs}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          fails += 1;
+          if (fails >= POLL_FAIL_LIMIT) {
+            setGenError("Couldn’t reach the scan. Try again.");
+            setGenerating(false);
+            window.clearInterval(id);
+          }
+          return;
+        }
+        fails = 0;
         const json = (await res.json()) as {
           analysis: PhotoAnalysisPublic | null;
         };
@@ -167,11 +179,21 @@ export function FittingAnalysisPanel({
           setGenerating(true);
           void kickVerdictRef.current(row);
         }
-        if (phase === "done" || phase === "error") {
+        if (phase === "error") {
+          setGenerating(false);
+          window.clearInterval(id);
+          return;
+        }
+        if (phase === "done") {
           window.clearInterval(id);
         }
       } catch {
-        /* display-only */
+        fails += 1;
+        if (fails >= POLL_FAIL_LIMIT) {
+          setGenError("Couldn’t reach the scan. Try again.");
+          setGenerating(false);
+          window.clearInterval(id);
+        }
       }
     }
 
@@ -183,7 +205,7 @@ export function FittingAnalysisPanel({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [enabled]);
+  }, [enabled, retryNonce]);
 
   useEffect(() => {
     if (!enabled || !phoneStage) {
@@ -276,13 +298,14 @@ export function FittingAnalysisPanel({
         return;
       }
       try {
+        const form = new FormData();
+        form.append("hash", hash);
+        form.append("declared_body", JSON.stringify(declared));
+        const file = await resolvePhotoFile(photoFile, photoPreview);
+        if (file) form.append("photo", file);
         const res = await guestFetch("/api/onboarding/stylist-verdict", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            hash,
-            declared_body: declared,
-          }),
+          body: form,
         });
         const json = (await res.json().catch(() => null)) as {
           analysis?: PhotoAnalysisPublic;
@@ -312,7 +335,7 @@ export function FittingAnalysisPanel({
         setGenerating(false);
       }
     },
-    [photoHash, body, onPersistBody],
+    [photoHash, body, onPersistBody, photoFile, photoPreview],
   );
 
   useEffect(() => {
@@ -322,13 +345,17 @@ export function FittingAnalysisPanel({
   if (!enabled) return null;
 
   const phase = photoScanPhase(analysis);
-  const running = phase === "reading" && (analysis != null || !polled);
+  const pollFailed = Boolean(genError);
+  const running =
+    phase === "reading" &&
+    (analysis != null || !polled) &&
+    !pollFailed;
   const usable = Boolean(
     analysis?.result?.analysis_status.usable && (photoHash || analysis?.photoHash),
   );
-  const failed = Boolean(genError || analysis?.verdictError);
+  const failed = Boolean(analysis?.verdictError || (pollFailed && phase !== "reading"));
   const faking =
-    phoneStage && minHold && phase === "reading" && !failed;
+    phoneStage && minHold && phase === "reading" && !pollFailed;
 
   if (!faking && (generating || phase === "writing" || failed)) {
     if (phoneStage && !failed) {
@@ -336,7 +363,7 @@ export function FittingAnalysisPanel({
         <FittingWaitProgress
           compact
           steps={VERDICT_WAIT_STEPS}
-          expectedMs={45_000}
+          expectedMs={90_000}
         />
       );
     }
@@ -358,7 +385,7 @@ export function FittingAnalysisPanel({
         {!failed ? (
           <FittingWaitProgress
             steps={VERDICT_WAIT_STEPS}
-            expectedMs={45_000}
+            expectedMs={90_000}
           />
         ) : null}
         {genError ? (
@@ -375,6 +402,7 @@ export function FittingAnalysisPanel({
                   kickOnceRef.current = false;
                   completedRef.current = false;
                   setGenError(null);
+                  setRetryNonce((n) => n + 1);
                   void kickVerdict(analysis);
                 }}
               >
@@ -389,6 +417,7 @@ export function FittingAnalysisPanel({
               onClick={() => {
                 kickOnceRef.current = false;
                 setGenError(null);
+                setRetryNonce((n) => n + 1);
                 if (analysis) void kickVerdict(analysis);
               }}
             >
@@ -428,8 +457,9 @@ export function FittingAnalysisPanel({
     );
   }
 
-  if (!analysis || analysis.error || !usable) {
+  if (!analysis || analysis.error || !usable || pollFailed) {
     const scanError =
+      genError ||
       publicPhotoError(analysis?.error) ||
       analysis?.gate?.user_message ||
       PHOTO_ERROR.empty;
@@ -451,8 +481,12 @@ export function FittingAnalysisPanel({
               void (async () => {
                 const file = await resolvePhotoFile(photoFile, photoPreview);
                 if (!file) return;
+                setGenError(null);
+                setGenerating(false);
+                kickOnceRef.current = false;
                 setAnalysis(null);
                 setPolled(false);
+                setRetryNonce((n) => n + 1);
                 const form = new FormData();
                 fillPhotoAnalysisForm(form, {
                   photo: file,
@@ -467,7 +501,13 @@ export function FittingAnalysisPanel({
           >
             Try again
           </FittingCta>
-          <FittingCta onClick={onSkip}>Continue</FittingCta>
+          <FittingCta
+            onClick={() =>
+              analysis ? void kickVerdict(analysis) : onSkip()
+            }
+          >
+            Continue
+          </FittingCta>
         </div>
       </section>
     );
@@ -483,7 +523,7 @@ export function FittingAnalysisPanel({
         body={body}
         onBodyChange={onBodyChange}
         onSaved={(row) => void kickVerdict(row)}
-        onSkip={onSkip}
+        onSkip={() => void kickVerdict(analysis)}
       />
     </div>
   );

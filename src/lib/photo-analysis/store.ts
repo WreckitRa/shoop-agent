@@ -13,7 +13,9 @@ import {
   PHOTO_ANALYSIS_ENGINE_VERSION,
   type PhotoAnalysisPublic,
 } from "./types";
+export { NOPHOTO_HASH } from "./types";
 import { parseStylistVerdict, VERDICT_STALE_MS, type StylistVerdict } from "./verdict";
+import { ANALYSIS_STALE_MS } from "./analyze";
 import type { PhotoUsageTokens } from "./openai";
 
 /**
@@ -134,6 +136,27 @@ export async function findByHash(userId: string, photoHash: string) {
   return rows[0] ?? null;
 }
 
+/** Insert a PhotoAnalysis row if missing. Never wipes an existing analysis. */
+export async function ensureVerdictAnchor(userId: string, photoHash: string) {
+  const rows = await queryRows(Prisma.sql`
+    INSERT INTO "PhotoAnalysis" (
+      id, "userId", "photoHash", status, "verdictStatus", "engineVersion", "updatedAt"
+    ) VALUES (
+      ${randomUUID()}, ${userId}, ${photoHash}, 'done', 'idle',
+      ${PHOTO_ANALYSIS_ENGINE_VERSION}, NOW()
+    )
+    ON CONFLICT ("userId", "photoHash") DO UPDATE SET
+      "updatedAt" = "PhotoAnalysis"."updatedAt"
+    RETURNING
+      id, "photoHash", status, gate, result, "userReview",
+      verdict, "verdictStatus", "verdictError", "verdictMs", "verdictModel",
+      error, ms, model, "engineVersion", "createdAt", "updatedAt"
+  `);
+  const row = rows[0];
+  if (!row) throw new Error("PhotoAnalysis anchor returned no row.");
+  return row;
+}
+
 export async function upsertRunning(userId: string, photoHash: string) {
   const rows = await queryRows(Prisma.sql`
     INSERT INTO "PhotoAnalysis" (
@@ -167,9 +190,6 @@ export async function upsertRunning(userId: string, photoHash: string) {
   if (!row) throw new Error("PhotoAnalysis upsert returned no row.");
   return row;
 }
-
-/** Preflight + analysis hang-safety (170s) plus a short after() buffer. */
-const ANALYSIS_STALE_MS = 190_000;
 
 /** If after() died mid-analysis, surface a timeout instead of polling forever. */
 export async function expireStaleRunningAnalysis(
@@ -205,17 +225,49 @@ export async function expireStaleRunningVerdict(
   };
 }
 
-export async function saveOutcome(opts: {
+export async function saveGate(opts: {
   id: string;
   gate: StylePhotoPreflight;
-  result: StylePhotoAnalysis | null;
   ms: number;
   model: string;
 }) {
   await prisma.$executeRaw`
     UPDATE "PhotoAnalysis" SET
-      status = 'done',
       gate = ${jsonSql(opts.gate)},
+      status = 'running',
+      error = NULL,
+      ms = ${opts.ms},
+      model = ${opts.model},
+      "updatedAt" = NOW()
+    WHERE id = ${opts.id}
+  `;
+}
+
+export async function saveOutcome(opts: {
+  id: string;
+  gate?: StylePhotoPreflight;
+  result: StylePhotoAnalysis | null;
+  ms: number;
+  model: string;
+  keepGate?: boolean;
+}) {
+  if (opts.keepGate) {
+    await prisma.$executeRaw`
+      UPDATE "PhotoAnalysis" SET
+        status = 'done',
+        result = ${jsonSql(opts.result)},
+        error = NULL,
+        ms = ${opts.ms},
+        model = ${opts.model},
+        "updatedAt" = NOW()
+      WHERE id = ${opts.id}
+    `;
+    return;
+  }
+  await prisma.$executeRaw`
+    UPDATE "PhotoAnalysis" SET
+      status = 'done',
+      gate = ${jsonSql(opts.gate ?? null)},
       result = ${jsonSql(opts.result)},
       error = NULL,
       ms = ${opts.ms},

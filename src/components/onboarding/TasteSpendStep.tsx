@@ -83,7 +83,7 @@ export function TasteSpendStep({
           );
         })}
         <FittingAddIn
-          placeholder="+ your own... type + enter"
+          placeholder="or type it…"
           onSubmit={addCustom}
         />
       </div>

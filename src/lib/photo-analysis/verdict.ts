@@ -2,26 +2,31 @@ import { createHash } from "node:crypto";
 import { PHOTO_ERROR } from "./errors";
 import {
   callPhotoJsonSchema,
-  withPhotoGptLock,
   type PhotoUsageTokens,
 } from "./openai";
+import { buildFittingVerdictBrief } from "./fitting-verdict-brief";
 import {
-  STYLIST_READING_INSTRUCTIONS,
-  STYLIST_READING_SCHEMA,
-  STYLIST_VERDICT_INSTRUCTIONS,
-  STYLIST_VERDICT_SCHEMA_DESCRIPTION,
-  STYLIST_VERDICT_SCHEMA_NAME,
-} from "./verdict-prompt";
+  FITTING_VERDICT_INSTRUCTIONS,
+  FITTING_VERDICT_REPAIR_INSTRUCTIONS,
+  FITTING_VERDICT_SCHEMA,
+  FITTING_VERDICT_SCHEMA_DESCRIPTION,
+  FITTING_VERDICT_SCHEMA_NAME,
+} from "./fitting-verdict-prompt";
+import { parseStyleUserReview } from "./review";
+import { logFitting } from "@/lib/onboarding/fitting-trace";
+import {
+  parseFittingVerdict,
+  validateStyleContract,
+  type FittingVerdict,
+} from "./style-contract";
 
 export const DEFAULT_STYLIST_VERDICT_MODEL = "gpt-5.6-sol";
-/**
- * Hang-safety for the reading-card call. Not a quality budget.
- * If the P4 judge bar (≥4) fails after two copy iterations, raise this
- * before switching reasoning effort off `low`.
- */
-export const VERDICT_TIMEOUT_MS = 90_000;
-export const VERDICT_STALE_MS = VERDICT_TIMEOUT_MS + 20_000;
-const VERDICT_MAX_OUTPUT_TOKENS = 16_000;
+/** Hang-safety only for the LLM call itself. */
+export const VERDICT_TIMEOUT_MS = 600_000;
+/** If after() died and heartbeats stop, GET flags the row instead of spinning. */
+export const VERDICT_STALE_MS = 45_000;
+/** Last good Sol parse was ~4.5k output tokens. 64k lets it ramble for minutes. */
+const VERDICT_MAX_OUTPUT_TOKENS = 8_000;
 
 export function stylistVerdictModel(): string {
   const override = process.env.OPENAI_STYLIST_VERDICT_MODEL?.trim();
@@ -80,10 +85,107 @@ export type StylistVerdict = {
   verdict_status: VerdictStatus;
   executive_verdict: ExecutiveVerdict;
   user_facing_verdict: UserFacingVerdict;
+  reading?: FittingVerdict["reading"];
+  contract?: FittingVerdict["contract"];
   [key: string]: unknown;
 };
 
+function emptyExec(headline: string, summary: string): ExecutiveVerdict {
+  return {
+    headline,
+    profile_summary: summary,
+    signature_style_statement: "",
+    desired_impression: [],
+    impressions_to_avoid: [],
+    strongest_assets: [],
+    biggest_opportunities: [],
+    non_negotiables: [],
+    top_priorities: [],
+  };
+}
+
+/** Bridge the fitting shape onto the stored 9-root so old readers still parse. */
+export function attachFittingVerdict(fitting: FittingVerdict): StylistVerdict {
+  const { reading, contract } = fitting;
+  const opening = [reading.who_you_are, reading.the_shift]
+    .filter(Boolean)
+    .join(" ");
+  return {
+    reading,
+    contract,
+    verdict_status: {
+      readiness: "final",
+      overall_confidence: 1,
+      data_completeness: 1,
+      sources_used: ["fitting"],
+      remaining_unknowns: [],
+      assumptions: [],
+      verdict_scope: "fitting card",
+    },
+    executive_verdict: emptyExec(reading.headline, reading.who_you_are),
+    user_facing_verdict: {
+      title: reading.headline,
+      opening,
+      golden_rules: reading.rules.map((r) => r.rule),
+      mistakes_to_avoid: contract.palette.avoid_near_face.map(
+        (s) => s.why || s.shade,
+      ),
+      first_five_actions: contract.looks.slice(0, 5).map((l) => l.name),
+      confidence_note: "",
+      review_trigger: "",
+    },
+    color_system: {
+      near_face_colors: contract.palette.near_face.map((s) => ({
+        name: s.shade,
+        representative_hex: s.hex,
+        priority: "essential",
+        best_uses: ["near face"],
+        notes: s.family,
+      })),
+      core_colors: contract.palette.core.map((s) => ({
+        name: s.shade,
+        representative_hex: s.hex,
+        priority: "strong",
+        best_uses: [],
+        notes: s.family,
+      })),
+      best_neutrals: contract.palette.neutrals.map((s) => ({
+        name: s.shade,
+        representative_hex: s.hex,
+        priority: "essential",
+        best_uses: [],
+        notes: s.family,
+      })),
+      accent_colors: contract.palette.accents.map((s) => ({
+        name: s.shade,
+        representative_hex: s.hex,
+        priority: "accent",
+        best_uses: [],
+        notes: s.family,
+      })),
+      use_carefully: contract.palette.avoid_near_face.map((s) => ({
+        color_or_family: s.shade,
+        issue: s.why,
+        how_to_wear: s.fix,
+        representative_hex: s.hex,
+      })),
+    },
+    outfit_formulas: contract.looks.map((look) => ({
+      occasion: look.name,
+      formula: look.pieces
+        .filter((p) => p.slot !== "shoes")
+        .map((p) => `${p.shade} ${p.garment_type}`),
+      footwear: look.pieces
+        .filter((p) => p.slot === "shoes")
+        .map((p) => `${p.shade} ${p.garment_type}`),
+      color_options: [],
+    })),
+  };
+}
+
 export function parseStylistVerdict(raw: unknown): StylistVerdict | null {
+  const fitting = parseFittingVerdict(raw);
+  if (fitting) return attachFittingVerdict(fitting);
   const hydrated = hydrateStylistVerdict(raw);
   if (!hydrated || typeof hydrated !== "object") return null;
   const o = hydrated as Record<string, unknown>;
@@ -120,63 +222,6 @@ export function hydrateStylistVerdict(raw: unknown): unknown {
   return out;
 }
 
-function isFilledRecord(v: unknown): v is Record<string, unknown> {
-  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
-}
-
-function listPresentDomains(input: {
-  questionnaireAnswers: Record<string, unknown>;
-  measurements: Record<string, unknown>;
-  wardrobeInventory: Record<string, unknown>;
-  userReview: Record<string, unknown>;
-  photoAnalysis: Record<string, unknown>;
-}): string[] {
-  const domains: string[] = [];
-  const q = input.questionnaireAnswers;
-  const identity = isFilledRecord(q.identity) ? q.identity : q;
-  if (identity.gender_presentation || identity.age_years || identity.style_era) {
-    domains.push("identity");
-  }
-  const lifestyle = isFilledRecord(q.lifestyle) ? q.lifestyle : null;
-  if (lifestyle?.week_is || q.goal) domains.push("lifestyle");
-  if (q.climate || q.climate_label) domains.push("climate");
-  const budget = isFilledRecord(q.budget) ? q.budget : null;
-  if (budget?.philosophy) domains.push("budget");
-  const taste = isFilledRecord(q.taste) ? q.taste : null;
-  if (taste?.style_mix || taste?.honesty || taste?.honest_corner || Array.isArray(taste?.compliments)) {
-    domains.push("taste");
-  }
-  const body = isFilledRecord(input.measurements.body)
-    ? input.measurements.body
-    : input.measurements;
-  if (body.height_cm || body.weight_kg || body.body_type) domains.push("body");
-  const w = input.wardrobeInventory;
-  if (
-    (Array.isArray(w.worn) && w.worn.length) ||
-    (Array.isArray(w.wanted) && w.wanted.length) ||
-    isFilledRecord(w.honest_corner)
-  ) {
-    domains.push("wardrobe");
-  }
-  if (Array.isArray(w.comfort) && w.comfort.length) domains.push("comfort");
-  if (
-    (Array.isArray(w.brands_avoid) && w.brands_avoid.length) ||
-    (Array.isArray(w.style_vetoes) && w.style_vetoes.length)
-  ) {
-    domains.push("vetoes");
-  }
-  const review = input.userReview;
-  if (
-    Array.isArray(review.confirmed_paths) ||
-    Array.isArray(review.corrections)
-  ) {
-    domains.push("face_scan");
-  } else if (input.photoAnalysis.analysis_status) {
-    domains.push("face_scan");
-  }
-  return domains;
-}
-
 export type GenerateStylistVerdictInput = {
   photoAnalysis: Record<string, unknown>;
   userReview: Record<string, unknown>;
@@ -185,7 +230,12 @@ export type GenerateStylistVerdictInput = {
   wardrobeInventory?: Record<string, unknown>;
   applicationContext?: Record<string, unknown>;
   safetyIdentifier?: string;
+  hasPhoto?: boolean;
 };
+
+function userContentForVerdict(brief: string) {
+  return [{ type: "input_text" as const, text: brief }];
+}
 
 export async function generateStylistVerdict({
   photoAnalysis,
@@ -195,60 +245,112 @@ export async function generateStylistVerdict({
   wardrobeInventory = {},
   applicationContext = {},
   safetyIdentifier,
+  hasPhoto = false,
 }: GenerateStylistVerdictInput): Promise<{
   verdict: StylistVerdict;
   tokens: PhotoUsageTokens | null;
 }> {
-  const present_domains = listPresentDomains({
+  const review = parseStyleUserReview(userReview);
+  const brief = buildFittingVerdictBrief({
     questionnaireAnswers,
     measurements,
     wardrobeInventory,
-    userReview,
+    applicationContext,
     photoAnalysis,
+    userReview: review,
+    hasPhoto,
   });
 
-  const profilePayload = {
-    task: "Generate the canonical personal-stylist verdict from this reviewed profile.",
-    data_manifest: {
-      present_domains,
-      instruction:
-        "Every domain in present_domains must change the verdict. Cite each in based_on.",
-    },
-    photo_analysis: photoAnalysis,
-    user_review: userReview,
-    questionnaire_answers: questionnaireAnswers,
-    measurements,
-    wardrobe_inventory: wardrobeInventory,
-    application_context: applicationContext,
-  };
-
+  logFitting("verdict.brief", {
+    hasPhoto,
+    brief,
+    measurements: measurements ?? null,
+  });
   const started = Date.now();
-  return withPhotoGptLock(async () => {
-    const remaining = VERDICT_TIMEOUT_MS - (Date.now() - started);
-    if (remaining < 8_000) throw new Error(PHOTO_ERROR.timeout);
-    const { value: raw, usage } = await callPhotoJsonSchema({
-      model: stylistVerdictModel(),
-      // low: medium + the full catalog schema burned the 16k cap and sat
-      // on the Fitting screen past five minutes. Reading-card schema only.
-      reasoning: { effort: "low" },
-      instructions: `${STYLIST_VERDICT_INSTRUCTIONS}\n${STYLIST_READING_INSTRUCTIONS}`,
-      userContent: [
-        { type: "input_text", text: JSON.stringify(profilePayload) },
-      ],
-      format: {
-        name: STYLIST_VERDICT_SCHEMA_NAME,
-        description: STYLIST_VERDICT_SCHEMA_DESCRIPTION,
-        schema: STYLIST_READING_SCHEMA,
-      },
-      maxOutputTokens: VERDICT_MAX_OUTPUT_TOKENS,
-      timeoutMs: remaining,
-      safetyIdentifier,
-      incompleteError: PHOTO_ERROR.verdict_incomplete,
-    });
-    const verdict = parseStylistVerdict(raw);
-    if (!verdict) throw new Error(PHOTO_ERROR.non_json);
-    return { verdict, tokens: usage };
+  const { value: raw, usage } = await callPhotoJsonSchema({
+    model: stylistVerdictModel(),
+    reasoning: { effort: "low" },
+    instructions: FITTING_VERDICT_INSTRUCTIONS,
+    userContent: userContentForVerdict(brief),
+    format: {
+      name: FITTING_VERDICT_SCHEMA_NAME,
+      description: FITTING_VERDICT_SCHEMA_DESCRIPTION,
+      schema: FITTING_VERDICT_SCHEMA,
+    },
+    maxOutputTokens: VERDICT_MAX_OUTPUT_TOKENS,
+    timeoutMs: VERDICT_TIMEOUT_MS,
+    safetyIdentifier,
+    incompleteError: PHOTO_ERROR.verdict_incomplete,
   });
+  let fitting = parseFittingVerdict(raw);
+  if (!fitting) throw new Error(PHOTO_ERROR.non_json);
+  const violations = validateStyleContract(fitting.contract, {
+    hasPhoto,
+    reading: fitting.reading,
+  });
+  logFitting("verdict.contract", {
+    violations,
+    contract: fitting.contract,
+    reading: fitting.reading,
+  });
+  let tokens = usage;
+  if (violations.length) {
+    const repairLeft = VERDICT_TIMEOUT_MS - (Date.now() - started);
+    logFitting("verdict.repair", {
+      violations,
+      remainingMs: repairLeft,
+    });
+    if (repairLeft >= 8_000) {
+      try {
+        const repaired = await callPhotoJsonSchema({
+          model: stylistVerdictModel(),
+          reasoning: { effort: "low" },
+          instructions: FITTING_VERDICT_REPAIR_INSTRUCTIONS,
+          userContent: [
+            {
+              type: "input_text",
+              text: JSON.stringify({
+                violations,
+                output: raw,
+              }),
+            },
+          ],
+          format: {
+            name: FITTING_VERDICT_SCHEMA_NAME,
+            description: FITTING_VERDICT_SCHEMA_DESCRIPTION,
+            schema: FITTING_VERDICT_SCHEMA,
+          },
+          maxOutputTokens: VERDICT_MAX_OUTPUT_TOKENS,
+          timeoutMs: repairLeft,
+          safetyIdentifier,
+          incompleteError: PHOTO_ERROR.verdict_incomplete,
+        });
+        const next = parseFittingVerdict(repaired.value);
+        if (next) fitting = next;
+        if (repaired.usage && tokens) {
+          tokens = {
+            input_tokens:
+              (tokens.input_tokens ?? 0) + (repaired.usage.input_tokens ?? 0),
+            output_tokens:
+              (tokens.output_tokens ?? 0) + (repaired.usage.output_tokens ?? 0),
+            total_tokens:
+              (tokens.total_tokens ?? 0) + (repaired.usage.total_tokens ?? 0),
+            reasoning_tokens:
+              (tokens.reasoning_tokens ?? 0) +
+              (repaired.usage.reasoning_tokens ?? 0),
+          };
+        } else if (repaired.usage) {
+          tokens = repaired.usage;
+        }
+      } catch (error) {
+        logFitting("verdict.repair_failed", {
+          error: error instanceof Error ? error.message : "repair failed",
+          keptFirst: true,
+        });
+      }
+    }
+  }
+  return { verdict: attachFittingVerdict(fitting), tokens };
 }
 
 export function hashedSafetyIdentifier(userId: string): string {

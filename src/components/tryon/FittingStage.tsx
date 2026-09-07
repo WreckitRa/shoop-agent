@@ -776,7 +776,6 @@ export function FittingStage({
               "shoop-twin",
               dropGlow && "shoop-twin--glow",
               scanScanning && "shoop-twin--scanning",
-              scanScanning && "shoop-twin--baking",
               showResult && lookPainted && "shoop-twin--studied",
               Boolean(dressFlash) && "shoop-twin--dressing",
             )}

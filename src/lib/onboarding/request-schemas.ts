@@ -43,7 +43,7 @@ export const tastePostSchema = z
       .nullable(),
     styleFriction: z.string().max(2000).optional().nullable(),
     styleBecome: z.string().max(2000).optional().nullable(),
-    valuePhilosophy: z.string().max(120).optional().nullable(),
+    valuePhilosophy: z.string().max(240).optional().nullable(),
     complete: z.boolean().optional(),
   })
   .strict();
@@ -53,12 +53,6 @@ export const reviewPostSchema = z
     patch: onboardingPatchSchema,
     extraNotes: z.string().max(24_000).optional(),
     requestKey: z.string().min(8).max(128),
-  })
-  .strict();
-
-export const circlePostSchema = z
-  .object({
-    names: z.array(z.string().max(40)).max(6),
   })
   .strict();
 
@@ -80,7 +74,6 @@ const fittingTellSteps = [
   "wanted",
   "nolist",
   "honesty",
-  "circle",
   "verdict",
 ] as const;
 
@@ -97,14 +90,14 @@ export const fittingTellPostSchema = z
         brandAvoids: z.array(z.string().max(60)).max(20).optional(),
         hardAvoids: z.array(z.string().max(80)).max(20).optional(),
         comfort: z.array(z.string().max(80)).max(16).optional(),
-        weekIs: z.string().max(40).optional(),
-        dressingFor: z.string().max(40).optional(),
-        kids: z.string().max(20).optional(),
-        climate: z.string().max(40).optional(),
+        weekIs: z.string().max(240).optional(),
+        dressingFor: z.string().max(240).optional(),
+        weekendsAre: z.string().max(240).optional(),
+        kids: z.string().max(80).optional(),
+        climate: z.string().max(240).optional(),
         honestyPreference: z.string().max(40).optional(),
         styleFriction: z.string().max(2000).optional(),
         styleBecome: z.string().max(2000).optional(),
-        circleNames: z.array(z.string().max(40)).max(3).optional(),
         heightCm: z.number().int().min(50).max(280).nullable().optional(),
         weightKg: z.number().int().min(20).max(400).nullable().optional(),
         build: z.string().max(40).nullable().optional(),

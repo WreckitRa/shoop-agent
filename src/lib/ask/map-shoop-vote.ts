@@ -99,8 +99,14 @@ export function askVoteLabel(choice: AskVoteChoice): string {
     case "love":
       return "♥ Love";
     case "a":
-      return "This look";
+      return "Look 1";
     case "b":
-      return "The other";
+      return "Look 2";
+    case "c":
+      return "Look 3";
+    case "d":
+      return "Look 4";
+    case "e":
+      return "Look 5";
   }
 }

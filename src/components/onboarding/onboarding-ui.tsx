@@ -415,6 +415,7 @@ export function FittingAddIn({
       placeholder={placeholder}
       onKeyDown={(e) => {
         if (e.key !== "Enter") return;
+        e.preventDefault();
         const el = e.currentTarget;
         const v = el.value.trim();
         if (!v) return;

@@ -1,6 +1,9 @@
 "use client";
 
-import { HONESTY_OPTIONS } from "@/lib/onboarding/form-options";
+import {
+  HONESTY_OPTIONS,
+  normalizeHonestyPreference,
+} from "@/lib/onboarding/form-options";
 import {
   FittingKick,
   FittingNavRow,
@@ -15,19 +18,15 @@ type Props = {
   busy?: boolean;
 };
 
-const SCALE = HONESTY_OPTIONS.map((o) => o.value);
-
 export function TasteHonestyStep({
   value,
   onChange,
   onContinue,
   busy,
 }: Props) {
-  const current = SCALE.includes(value as (typeof SCALE)[number])
-    ? value
-    : "3";
-  const idx = Math.max(0, SCALE.indexOf(current as (typeof SCALE)[number]));
-  const opt = HONESTY_OPTIONS[idx]!;
+  const current = normalizeHonestyPreference(value) || "3";
+  const opt = HONESTY_OPTIONS.find((o) => o.value === current)!;
+  const fillPct = ((Number(current) - 1) / 4) * 100;
 
   return (
     <section>
@@ -44,39 +43,43 @@ export function TasteHonestyStep({
         <b>yes that gets you the same look.</b>
       </FittingWhisper>
 
-      <div className="mt-6 max-w-[520px]">
-        <input
-          type="range"
-          min={1}
-          max={5}
-          step={1}
-          value={Number(current)}
-          onChange={(e) => onChange(e.target.value)}
-          aria-valuemin={1}
-          aria-valuemax={5}
-          aria-valuenow={Number(current)}
-          aria-label={opt.label}
-          className="w-full accent-[var(--fitting-red)]"
-        />
-        <div className="mt-2 flex justify-between gap-1 text-[10px] font-semibold text-[var(--fitting-quiet)]">
-          {HONESTY_OPTIONS.map((o) => (
-            <span
-              key={o.value}
-              className={
-                o.value === current
-                  ? "font-extrabold text-[var(--fitting-ink)]"
-                  : undefined
-              }
-            >
-              {o.value} · {o.label}
-            </span>
-          ))}
-        </div>
-        <p className="mt-4 text-[14px] leading-[1.55] text-[var(--fitting-quiet)]">
-          <b className="font-semibold text-[var(--fitting-ink)]">{opt.label}.</b>{" "}
-          “{opt.quote}”
-        </p>
+      <input
+        type="range"
+        min={1}
+        max={5}
+        step={1}
+        value={Number(current)}
+        aria-valuemin={1}
+        aria-valuemax={5}
+        aria-valuenow={Number(current)}
+        aria-valuetext={opt.label}
+        aria-label="How honest do you want me"
+        onChange={(e) => onChange(e.target.value)}
+        className="fitting-honesty-slider mt-6 w-full max-w-[520px]"
+        style={{
+          background: `linear-gradient(to right, var(--fitting-ink) ${fillPct}%, var(--fitting-g3) ${fillPct}%)`,
+        }}
+      />
+      <div className="mt-2 flex max-w-[520px] justify-between font-display text-[10px] font-extrabold tracking-[0.06em] text-[var(--fitting-quiet)]">
+        {HONESTY_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={
+              o.value === current
+                ? "text-[var(--fitting-ink)]"
+                : "text-[var(--fitting-quiet)]"
+            }
+          >
+            {o.value}
+          </button>
+        ))}
       </div>
+      <p className="mt-4 max-w-[520px] text-[14px] leading-[1.55] text-[var(--fitting-quiet)]">
+        <b className="font-semibold text-[var(--fitting-ink)]">{opt.label}.</b>{" "}
+        “{opt.quote}”
+      </p>
 
       {onContinue ? (
         <FittingNavRow

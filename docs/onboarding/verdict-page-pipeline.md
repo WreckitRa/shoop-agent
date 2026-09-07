@@ -468,8 +468,7 @@ Mapper: `buildReadingView` (`src/lib/photo-analysis/verdict-reading.ts`). Pure. 
 | `Your N hard vetoes stay locked` | `hardAvoids.length + brandAvoids.length + comfort.length` | quiz `nolist` |
 | Whisper `{n}% developed` | `developPctFromFlags` (quiz flags + twin + dress) | code |
 | Footer `That's you. Now the clothes.` | literal | — |
-| Circle chips / Ask my circle | `circleNames` (may be empty; circle step is **after** this card) | quiz `circle` only on resume |
-| CTA | `Who do you actually ask?` → advance to `circle` | — |
+| CTA | Save looks / finish The Fitting | — |
 | Share clipboard | `user_facing_verdict.title + opening` else worn/become/veto prose | J4 or quiz |
 
 Fallback opening when no verdict: `"{Build copy}. {Form tip}."` from `BUILD_TXT[build]` + form `f`/`m`/else.

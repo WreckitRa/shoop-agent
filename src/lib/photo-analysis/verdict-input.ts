@@ -2,14 +2,15 @@ import { prisma } from "@/lib/ai-chat/db";
 import {
   BUDGET_OPTIONS,
   CLIMATE_OPTIONS,
-  DRESSING_FOR_OPTIONS,
   HONESTY_OPTIONS,
   KIDS_OPTIONS,
   WEEK_IS_OPTIONS,
   WEEKEND_OPTIONS,
   ageYearsFromBirthDate,
   styleEraLabel,
+  whyHereLabel,
 } from "@/lib/onboarding/form-options";
+import { selectedOutfitLookLabels } from "@/lib/onboarding/outfit-style-catalog";
 import { parseStylePhotoAnalysis } from "./result";
 import {
   parseStyleUserReview,
@@ -26,18 +27,6 @@ export function verdictReadiness(opts: {
   genderPresentation: string | null | undefined;
 }): VerdictMissing[] {
   const missing: VerdictMissing[] = [];
-  if (!opts.analysisUsable) {
-    missing.push({
-      field: "photo_analysis",
-      reason: "Need a usable photo analysis first.",
-    });
-  }
-  if (!opts.reviewSubmitted) {
-    missing.push({
-      field: "user_review",
-      reason: "Confirm or correct what I saw in the photo.",
-    });
-  }
   if (!opts.genderPresentation?.trim()) {
     missing.push({
       field: "gender_presentation",
@@ -195,6 +184,8 @@ export function buildVerdictPayload(input: {
     else if (category === "compliment") complimentTags.push(tag);
     else if (category === "comfort") comfortTags.push(tag);
   }
+  const wornLooks = selectedOutfitLookLabels(worn);
+  const wantedLooks = selectedOutfitLookLabels(wanted);
 
   const styleMix =
     isRecord(profile) && (profile.styleMix != null || profile.styleMix != null)
@@ -203,6 +194,7 @@ export function buildVerdictPayload(input: {
 
   const questionnaireAnswers = compact({
     identity: compact({
+      preferred_name: pickStr(profile, "preferredName", "preferredName"),
       gender_presentation: pickStr(profile, "genderPresentation", "genderPresentation"),
       age_years: ageYears(profile),
       age_range: pickStr(profile, "ageRange", "ageRange"),
@@ -210,20 +202,20 @@ export function buildVerdictPayload(input: {
       style_era_label: styleEra ? styleEraLabel(styleEra) : null,
     }),
     goal: dressingFor,
-    goal_label: labelOf(DRESSING_FOR_OPTIONS, dressingFor),
+    goal_label: whyHereLabel(dressingFor),
     lifestyle: compact({
       week_is: weekIs,
-      week_is_label: labelOf(WEEK_IS_OPTIONS, weekIs),
+      week_is_label: csvLabels(WEEK_IS_OPTIONS, weekIs),
       weekends_are: weekendsAre,
       weekends_are_label: csvLabels(WEEKEND_OPTIONS, weekendsAre),
       kids: pickStr(profile, "kids"),
-      kids_label: labelOf(KIDS_OPTIONS, pickStr(profile, "kids")),
+      kids_label: csvLabels(KIDS_OPTIONS, pickStr(profile, "kids")),
       occupation: pickStr(profile, "occupation", "occupation"),
       work_environment: pickStr(profile, "workEnvironment", "workEnvironment"),
       lifestyle_tags: pickStrs(profile, "lifestyleTags", "lifestyleTags"),
     }),
     climate,
-    climate_label: labelOf(CLIMATE_OPTIONS, climate),
+    climate_label: csvLabels(CLIMATE_OPTIONS, climate),
     location: compact({
       city: pickStr(profile, "city"),
       country: pickStr(profile, "shippingCountry", "country"),
@@ -231,7 +223,7 @@ export function buildVerdictPayload(input: {
     budget: compact({
       currency: pickStr(profile, "currency"),
       philosophy: budget,
-      philosophy_label: labelOf(BUDGET_OPTIONS, budget),
+      philosophy_label: csvLabels(BUDGET_OPTIONS, budget),
     }),
     taste: compact({
       style_era: styleEra,
@@ -279,8 +271,8 @@ export function buildVerdictPayload(input: {
   });
 
   const wardrobeInventory = compact({
-    worn,
-    wanted,
+    worn: wornLooks,
+    wanted: wantedLooks,
     honest_corner: compact({
       friction: styleFriction,
       become: styleBecome,

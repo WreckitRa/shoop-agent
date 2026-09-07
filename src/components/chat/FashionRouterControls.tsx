@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import { ClarificationOptionCard } from "@/components/chat/ClarificationOptionCard";
 import { OptionPreviewCarousel } from "@/components/chat/OptionPreviewCarousel";
 import { useChatStore } from "@/components/chat/chat-store";
@@ -13,6 +13,11 @@ import {
   ensureRideAlongDefaults,
   formatClarificationAnswerDisplay,
 } from "@/lib/fashion-memory/router/clarification-defaults";
+import {
+  answerFromTypeIn,
+  applyTypedOption,
+  customOptionId,
+} from "@/lib/fashion-memory/router/type-in-option";
 import {
   ensureYouDecideOption,
   isConsultQuestion,
@@ -39,15 +44,56 @@ import type {
   MessageFashionRouterMetaV1,
 } from "@/lib/fashion-memory/router/types";
 
+function questionAllowsMultiple(question: FashionClarificationQuestion): boolean {
+  const display = resolveQuestionDisplay(question);
+  return (
+    display === "checklist" ||
+    Boolean(question.allow_multiple) ||
+    (question.gap === "occasion" && question.allow_multiple !== false)
+  );
+}
+
 function resolveQuestionAnswer(
   selectedIds: string[],
-  freeText: string,
 ): FashionClarificationAnswer | null {
-  const custom = freeText.trim();
-  const chipIds = selectedIds.filter((id) => id !== CLARIFICATION_OTHER_OPTION_ID);
-  if (custom) return { selected: chipIds, customText: custom };
-  if (!chipIds.length) return null;
-  return { selected: chipIds };
+  return answerFromTypeIn(selectedIds);
+}
+
+function TypeItField({
+  value,
+  disabled,
+  placeholder,
+  inputMode,
+  onChange,
+  onCommit,
+}: {
+  value: string;
+  disabled: boolean;
+  placeholder: string;
+  inputMode?: "text" | "numeric";
+  onChange: (text: string) => void;
+  onCommit: (text: string) => void;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      disabled={disabled}
+      placeholder={placeholder}
+      inputMode={inputMode}
+      aria-label={placeholder}
+      className="shoop-quiz-type-input"
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        e.stopPropagation();
+        const next = e.currentTarget.value;
+        if (!next.trim()) return;
+        onCommit(next);
+      }}
+    />
+  );
 }
 
 function FashionQuizAnsweredBanner({
@@ -93,12 +139,14 @@ function ChipRow({
   disabled,
   variant,
   onToggle,
+  trailing,
 }: {
   options: FashionClarificationOption[];
   selectedIds: string[];
   disabled: boolean;
   variant: "chips" | "segment" | "size" | "garment";
   onToggle: (id: string) => void;
+  trailing?: ReactNode;
 }) {
   const className =
     variant === "segment"
@@ -108,9 +156,12 @@ function ChipRow({
         : variant === "garment"
           ? "shoop-pullsheet__garment"
           : "shoop-quiz-chips flex flex-wrap gap-2";
+  const chips = options.filter(
+    (option) => option.id !== CLARIFICATION_OTHER_OPTION_ID,
+  );
   return (
     <div className={className}>
-      {options.map((option) => (
+      {chips.map((option) => (
         <ClarificationOptionCard
           key={option.id}
           optionId={option.id}
@@ -120,6 +171,7 @@ function ChipRow({
           onToggle={() => onToggle(option.id)}
         />
       ))}
+      {variant === "segment" ? null : trailing}
     </div>
   );
 }
@@ -128,16 +180,20 @@ function QuestionTreatment({
   question,
   selectedIds,
   freeText,
+  customLabels,
   disabled,
   onToggle,
   onFreeText,
+  onCommitCustom,
 }: {
   question: FashionClarificationQuestion;
   selectedIds: string[];
   freeText: string;
+  customLabels: string[];
   disabled: boolean;
   onToggle: (optionId: string) => void;
   onFreeText: (text: string) => void;
+  onCommitCustom: (text: string) => void;
 }) {
   const options = asNormalizedOptions(
     question.quick_options ?? [
@@ -145,17 +201,28 @@ function QuestionTreatment({
     ],
   );
   const youDecide = options.filter(isYouDecideOption);
-  const other = options.filter((o) => o.id === CLARIFICATION_OTHER_OPTION_ID);
+  const allowTypeIt = options.some((o) => o.id === CLARIFICATION_OTHER_OPTION_ID);
   const main = options.filter(
     (o) => o.id !== CLARIFICATION_OTHER_OPTION_ID && !isYouDecideOption(o),
   );
+  const customOptions = customLabels.map((label) => ({
+    id: customOptionId(label),
+    label,
+  }));
   const display = resolveQuestionDisplay(question);
   const preferPalette = clarificationLooksLikeColorQuiz(question);
-  const showOtherInput =
-    question.gap === "person_name" ||
-    selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID) ||
-    Boolean(freeText.trim()) ||
-    display === "text";
+  const typeItPlaceholder =
+    question.gap === "slots" ? "Add a piece…" : "or type it…";
+  const typeIt = allowTypeIt ? (
+    <TypeItField
+      value={freeText}
+      disabled={disabled}
+      placeholder={typeItPlaceholder}
+      inputMode={display === "range" ? "numeric" : "text"}
+      onChange={onFreeText}
+      onCommit={onCommitCustom}
+    />
+  ) : null;
 
   const youDecideChip =
     youDecide.length && isConsultQuestion(question) ? (
@@ -169,10 +236,11 @@ function QuestionTreatment({
     ) : null;
 
   if (display === "checklist") {
+    const rows = [...main, ...customOptions];
     return (
       <div className="space-y-2">
         <div className="shoop-pullsheet__check">
-          {main.map((option) => {
+          {rows.map((option) => {
             const on = selectedIds.includes(option.id);
             return (
               <label
@@ -189,37 +257,8 @@ function QuestionTreatment({
               </label>
             );
           })}
-          {other.map((option) => {
-            const on = selectedIds.includes(option.id);
-            return (
-              <label
-                key={option.id}
-                className={`shoop-pullsheet__check-row${on ? " shoop-pullsheet__check-row--on" : ""}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={on}
-                  disabled={disabled}
-                  onChange={() => onToggle(option.id)}
-                />
-                <span>{option.label}</span>
-              </label>
-            );
-          })}
+          {typeIt}
         </div>
-        {showOtherInput ||
-        selectedIds.includes(CLARIFICATION_OTHER_OPTION_ID) ? (
-          <input
-            type="text"
-            className="shoop-pullsheet__other"
-            placeholder={
-              question.gap === "slots" ? "Add a piece…" : "Other…"
-            }
-            value={freeText}
-            disabled={disabled}
-            onChange={(e) => onFreeText(e.target.value)}
-          />
-        ) : null}
         {youDecideChip}
       </div>
     );
@@ -269,7 +308,7 @@ function QuestionTreatment({
           className="shoop-quiz-other-input"
         />
         <ChipRow
-          options={main.length ? main : other}
+          options={main}
           selectedIds={selectedIds}
           disabled={disabled}
           variant="chips"
@@ -283,7 +322,7 @@ function QuestionTreatment({
     const visual = main.filter(
       (o) => preferPalette || o.previewQuery?.trim() || /surprise/i.test(o.label),
     );
-    const leftover = main.filter((o) => !visual.includes(o));
+    const leftover = [...main.filter((o) => !visual.includes(o)), ...customOptions];
     return (
       <div className="space-y-2">
         {visual.length ? (
@@ -321,35 +360,17 @@ function QuestionTreatment({
             ))}
           </OptionPreviewCarousel>
         )}
-        {leftover.length ? (
+        {leftover.length || typeIt ? (
           <ChipRow
             options={leftover}
             selectedIds={selectedIds}
             disabled={disabled}
             variant="chips"
             onToggle={onToggle}
+            trailing={typeIt}
           />
         ) : null}
         {youDecideChip}
-        {other.length ? (
-          <ChipRow
-            options={other}
-            selectedIds={selectedIds}
-            disabled={disabled}
-            variant="chips"
-            onToggle={onToggle}
-          />
-        ) : null}
-        {showOtherInput ? (
-          <input
-            type="text"
-            value={freeText}
-            disabled={disabled}
-            onChange={(e) => onFreeText(e.target.value)}
-            placeholder="or type it…"
-            className="shoop-quiz-other-input"
-          />
-        ) : null}
       </div>
     );
   }
@@ -363,6 +384,7 @@ function QuestionTreatment({
           ? "garment"
           : "chips";
   const rangeClass = display === "range" ? " shoop-pullsheet__range" : "";
+  const withCustoms = [...main, ...customOptions];
 
   return (
     <div className={`space-y-2${rangeClass}`}>
@@ -372,35 +394,24 @@ function QuestionTreatment({
         </p>
       ) : null}
       <ChipRow
-        options={main}
+        options={variant === "segment" ? main : withCustoms}
         selectedIds={selectedIds}
         disabled={disabled}
         variant={variant}
         onToggle={onToggle}
+        trailing={variant === "segment" ? null : typeIt}
       />
-      {youDecideChip}
-      {other.length ? (
+      {variant === "segment" && (customOptions.length || typeIt) ? (
         <ChipRow
-          options={other}
+          options={customOptions}
           selectedIds={selectedIds}
           disabled={disabled}
           variant="chips"
           onToggle={onToggle}
+          trailing={typeIt}
         />
       ) : null}
-      {showOtherInput ? (
-        <input
-          type="text"
-          value={freeText}
-          disabled={disabled}
-          onChange={(e) => onFreeText(e.target.value)}
-          placeholder={
-            display === "range" ? "$" : "or type it…"
-          }
-          inputMode={display === "range" ? "numeric" : "text"}
-          className="shoop-quiz-other-input"
-        />
-      ) : null}
+      {youDecideChip}
     </div>
   );
 }
@@ -468,6 +479,9 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     }
     return out;
   });
+  const [customByQuestion, setCustomByQuestion] = useState<
+    Record<string, string[]>
+  >({});
   const [submitted, setSubmitted] = useState(false);
 
   const isClarification =
@@ -486,7 +500,8 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     for (const q of allQuestions) {
       const selected = selections[q.text] ?? [];
       const free = freeTexts[q.text] ?? "";
-      if (resolveQuestionDisplay(q) === "stepper") {
+      const display = resolveQuestionDisplay(q);
+      if (display === "stepper") {
         if (selected.includes(YOU_DECIDE_OPTION_ID)) {
           out[q.text] = { selected: [YOU_DECIDE_OPTION_ID] };
         } else if (free.trim()) {
@@ -494,11 +509,35 @@ export const FashionRouterControls = memo(function FashionRouterControls({
         }
         continue;
       }
-      const answer = resolveQuestionAnswer(selected, free);
+      if (display === "text") {
+        const custom = free.trim();
+        if (custom) out[q.text] = { selected, customText: custom };
+        else {
+          const answer = resolveQuestionAnswer(selected);
+          if (answer) out[q.text] = answer;
+        }
+        continue;
+      }
+      const draft = free.trim();
+      if (draft) {
+        const applied = applyTypedOption(
+          {
+            selected,
+            customLabels: customByQuestion[q.text] ?? [],
+          },
+          draft,
+          asNormalizedOptions(q.quick_options),
+          questionAllowsMultiple(q),
+        );
+        const answer = resolveQuestionAnswer(applied.selected);
+        if (answer) out[q.text] = answer;
+        continue;
+      }
+      const answer = resolveQuestionAnswer(selected);
       if (answer) out[q.text] = answer;
     }
     return out;
-  }, [allQuestions, selections, freeTexts]);
+  }, [allQuestions, selections, freeTexts, customByQuestion]);
 
   const blocking = questions.filter((q) => !isConsultQuestion(q));
   const consult = questions.filter((q) => isConsultQuestion(q));
@@ -511,22 +550,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
     optionId: string,
   ) => {
     const display = resolveQuestionDisplay(question);
-    const allowMultiple =
-      Boolean(question.allow_multiple) ||
-      display === "checklist" ||
-      (display !== "stepper" &&
-        display !== "text" &&
-        question.gap !== "department" &&
-        question.gap !== "person_name" &&
-        question.gap !== "size" &&
-        question.gap !== "garment" &&
-        question.gap !== "preference_anchor" &&
-        question.allow_multiple === true);
-    const multi =
-      display === "checklist" ||
-      Boolean(question.allow_multiple) ||
-      (question.gap === "occasion" && question.allow_multiple !== false);
-    void allowMultiple;
+    const multi = questionAllowsMultiple(question);
     setSelections((prev) => {
       const current = prev[question.text] ?? [];
       if (optionId === YOU_DECIDE_OPTION_ID && display === "stepper") {
@@ -554,6 +578,78 @@ export const FashionRouterControls = memo(function FashionRouterControls({
       }
       return { ...prev, [question.text]: [optionId] };
     });
+  };
+
+  const commitTyped = (
+    question: FashionClarificationQuestion,
+    text: string,
+  ) => {
+    if (resolveQuestionDisplay(question) === "stepper") return;
+    if (resolveQuestionDisplay(question) === "text") return;
+    const applied = applyTypedOption(
+      {
+        selected: selections[question.text] ?? [],
+        customLabels: customByQuestion[question.text] ?? [],
+      },
+      text,
+      asNormalizedOptions(question.quick_options),
+      questionAllowsMultiple(question),
+    );
+    setSelections((prev) => ({ ...prev, [question.text]: applied.selected }));
+    setCustomByQuestion((prev) => ({
+      ...prev,
+      [question.text]: applied.customLabels,
+    }));
+    setFreeTexts((prev) => ({ ...prev, [question.text]: "" }));
+  };
+
+  const flushedAnswers = () => {
+    let sel = selections;
+    let customs = customByQuestion;
+    const free = { ...freeTexts };
+    for (const q of allQuestions) {
+      const display = resolveQuestionDisplay(q);
+      if (display === "stepper" || display === "text") continue;
+      const draft = (free[q.text] ?? "").trim();
+      if (!draft) continue;
+      const applied = applyTypedOption(
+        {
+          selected: sel[q.text] ?? [],
+          customLabels: customs[q.text] ?? [],
+        },
+        draft,
+        asNormalizedOptions(q.quick_options),
+        questionAllowsMultiple(q),
+      );
+      sel = { ...sel, [q.text]: applied.selected };
+      customs = { ...customs, [q.text]: applied.customLabels };
+      delete free[q.text];
+    }
+    const out: Record<string, FashionClarificationAnswer> = {};
+    for (const q of allQuestions) {
+      const selected = sel[q.text] ?? [];
+      const stepperFree = freeTexts[q.text] ?? "";
+      if (resolveQuestionDisplay(q) === "stepper") {
+        if (selected.includes(YOU_DECIDE_OPTION_ID)) {
+          out[q.text] = { selected: [YOU_DECIDE_OPTION_ID] };
+        } else if (stepperFree.trim()) {
+          out[q.text] = { selected: [], customText: stepperFree.trim() };
+        }
+        continue;
+      }
+      if (resolveQuestionDisplay(q) === "text") {
+        const custom = (freeTexts[q.text] ?? "").trim();
+        if (custom) out[q.text] = { selected, customText: custom };
+        else {
+          const answer = resolveQuestionAnswer(selected);
+          if (answer) out[q.text] = answer;
+        }
+        continue;
+      }
+      const answer = resolveQuestionAnswer(selected);
+      if (answer) out[q.text] = answer;
+    }
+    return out;
   };
 
   const submit = (answers: Record<string, FashionClarificationAnswer>) => {
@@ -585,8 +681,10 @@ export const FashionRouterControls = memo(function FashionRouterControls({
         question={q}
         selectedIds={selections[q.text] ?? []}
         freeText={freeTexts[q.text] ?? ""}
+        customLabels={customByQuestion[q.text] ?? []}
         disabled={disabled}
         onToggle={(id) => toggleOption(q, id)}
+        onCommitCustom={(text) => commitTyped(q, text)}
         onFreeText={(text) => {
           if (resolveQuestionDisplay(q) === "stepper") {
             setSelections((prev) => ({
@@ -599,18 +697,6 @@ export const FashionRouterControls = memo(function FashionRouterControls({
             }));
             return;
           }
-          // Keep Other selected so the free-text field stays mounted while typing.
-          setSelections((prev) => {
-            const current = prev[q.text] ?? [];
-            if (q.allow_multiple) {
-              if (current.includes(CLARIFICATION_OTHER_OPTION_ID)) return prev;
-              return {
-                ...prev,
-                [q.text]: [...current, CLARIFICATION_OTHER_OPTION_ID],
-              };
-            }
-            return { ...prev, [q.text]: [CLARIFICATION_OTHER_OPTION_ID] };
-          });
           setFreeTexts((prev) => ({ ...prev, [q.text]: text }));
         }}
       />
@@ -650,7 +736,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
         disabled={!canDone || disabled}
         onClick={() => {
           if (!canDone) return;
-          submit(buildDoneAnswers(allQuestions, derivedAnswers));
+          submit(buildDoneAnswers(allQuestions, flushedAnswers()));
         }}
         className="shoop-quiz-apply shoop-pullsheet__done mt-4"
       >
@@ -662,7 +748,7 @@ export const FashionRouterControls = memo(function FashionRouterControls({
           type="button"
           disabled={!canEscape || disabled}
           onClick={() => {
-            const answers = buildEscapeAnswers(questions, derivedAnswers);
+            const answers = buildEscapeAnswers(questions, flushedAnswers());
             if (!answers) return;
             submit(answers);
           }}

@@ -226,6 +226,7 @@ export async function seedOnboardingIntoFashionMemory(
       profile.styleFriction?.trim() ||
       profile.styleBecome?.trim() ||
       profile.weekIs?.trim() ||
+      profile.weekendsAre?.trim() ||
       profile.dressingFor?.trim() ||
       profile.kids?.trim() ||
       profile.climate?.trim()
@@ -261,6 +262,9 @@ export async function seedOnboardingIntoFashionMemory(
             ? { lifestyle_tags: profile.lifestyleTags }
             : {}),
           ...(profile.weekIs?.trim() ? { week_is: profile.weekIs.trim() } : {}),
+          ...(profile.weekendsAre?.trim()
+            ? { weekends_are: profile.weekendsAre.trim() }
+            : {}),
           ...(profile.dressingFor?.trim()
             ? { dressing_for: profile.dressingFor.trim() }
             : {}),

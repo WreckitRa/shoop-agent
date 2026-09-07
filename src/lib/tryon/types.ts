@@ -36,6 +36,8 @@ export type AvatarAttributes = {
   bust_fullness?: BustFullnessBand;
 };
 
+export type TwinCoverage = "full" | "upper";
+
 export type StoredAvatar = {
   url: string;
   storage_path: string;
@@ -44,6 +46,8 @@ export type StoredAvatar = {
   attributes: AvatarAttributes;
   created_at: string;
   version: string;
+  /** Face/torso/knees/feet visible — looks skip bottoms when `upper`. */
+  twin_coverage?: TwinCoverage;
 };
 
 export type GarmentType =

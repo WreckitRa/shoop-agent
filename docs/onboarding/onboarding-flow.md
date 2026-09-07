@@ -28,21 +28,22 @@ Everything else is skippable.
 
 ## 2. Flow overview
 
-**Live UI** (`OnboardingGate` + fitting steps): consent → photo → name → fit → life → spend → worn → corner → nolist → honesty → **verdict** → circle.
+**Live UI** (`OnboardingGate` + fitting steps): consent → photo → name → fit → life → spend → worn → corner → nolist → honesty → **verdict**.
+
+Question script (quiz only, no verdict / face analysis): [`questions-for-agents.md`](./questions-for-agents.md) — includes a worked Prisma example.
 
 | Step | Screen |
 |------|--------|
-| `photo` | `FittingPhotoStep` (scan) |
-| `name` | `YouIdentityStep` — clothing type Menswear / Womenswear / Both |
-| `fit` | `FittingPhotoStep` (body) |
-| `life` | `TasteLifeStep` — week days + week ends (not dating) |
+| `photo` | `FittingPhotoStep` (upload; skippable) |
+| `name` | `YouIdentityStep` — Menswear / Womenswear / Both |
+| `fit` | `FittingPhotoStep` (body numbers) |
+| `life` | `TasteLifeStep` — weekdays + weekends + kids + climate (CSV) |
 | `spend` | `TasteSpendStep` |
 | `worn` | `TasteOutfitGridStep` |
-| `corner` | `TasteHonestCornerStep` — friction + become free text |
+| `corner` | `TasteHonestCornerStep` |
 | `nolist` | `TasteLovesVetoesStep` |
 | `honesty` | `TasteHonestyStep` (1–5) |
-| `verdict` | `FittingVerdictStep` |
-| `circle` | `TasteCircleStep` (up to 3 first names → `FashionPerson` friends) |
+| `verdict` | `FittingVerdictStep` (out of quiz-inventory scope) |
 
 Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v2`.
 
@@ -58,11 +59,12 @@ Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v2`.
 2. `genderPresentation`  
 3. `ageRange`
 
-### Client gate before leaving **You → Taste**
+### Client gate before leaving **name**
 
-`saveYouAndContinue` also requires:
+`saveIdentity` also requires:
 
-- Style era selected (maps to `ageRange` if no DOB), **or** DOB that yields age ≥ 13
+- Style era selected (maps to `ageRange` if no DOB)
+- Birthday, if set, must yield age ≥ 13
 
 ### Skip anytime (optional)
 
@@ -72,7 +74,6 @@ Resume: server floor + `sessionStorage` key `shoop.onboarding.ui.v2`.
 | Lifestyle / world chips | Optional multi-select |
 | Country / city / currency / sizes | Skip allowed; sizes can wait until checkout |
 | Taste / grids / loves | Advance without picks |
-| Trusted circle | Skip — “I’d rather decide later” |
 | Photo | Skip → complete without avatar |
 
 ---
@@ -91,12 +92,13 @@ Collected in `YouIdentityStep` — see table below. Ship-to / sizes may also be 
 
 | Field | UI label / copy | Values | Required? | Prisma |
 |-------|-----------------|--------|-----------|--------|
-| `preferredName` | First name / nickname | string ≤120 | **Server + Client You** | `UserProfile.preferredName` |
-| `genderPresentation` | “How do you shop for clothing?” | `masculine`, `feminine`, `androgynous`, `nonbinary`, `prefer not to say` | **Server + Client You** | `UserProfile.genderPresentation` |
+| `preferredName` | First name / nickname | string ≤120 | **Server + Client name** | `UserProfile.preferredName` |
+| `genderPresentation` | “Which type of clothings do you shop for?” | `menswear`, `womenswear`, `both` | **Server + Client name** | `UserProfile.genderPresentation` |
 | `birthDate` | “When's your birthday?” | `YYYY-MM-DD`; skip = prefer not to say | Optional; if set must be ≥13 | `UserProfile.birthDate` |
-| `styleEra` | “Which era is your style living in?” | CSV of era chips (see enums below) | **Client You** (feeds ageRange) | `UserProfile.styleEra` |
+| `styleEra` | “Which era is your style living in?” | CSV of era chips | **Client name** (feeds ageRange) | `UserProfile.styleEra` |
 | `ageRange` | Derived | `13-17`, `18-24`, `25-34`, `35-44`, `45-54`, `55-64`, `65+` | **Server** | `UserProfile.ageRange` |
-| `lifestyleTags` | “What's your world these days?” | `campus_life`, `deep_in_career`, `first_job`, `running_the_show`, `kids_in_the_mix`, `time_is_mine` | Optional | `UserProfile.lifestyleTags` `String[]` |
+| `weekIs` / `weekendsAre` / `kids` / `climate` | Life step CSVs | see questions-for-agents | Optional | `UserProfile` |
+| `lifestyleTags` | Derived from week + kids | `campus_life`, `deep_in_career`, … | Optional (not asked) | `UserProfile.lifestyleTags` |
 
 **Style era → ageRange map** (`form-options.ts`):
 
@@ -153,13 +155,7 @@ Taste save: `POST /api/onboarding/taste` via `buildPatchFromTastePicks` (`taste-
 | `deal_hunter` | Deal hunter | Sales and value drive me |
 | `design_first` | Design-led | Aesthetics over price |
 
-**Honesty tiles:**
-
-| Value | Label | Quote (abbrev.) |
-|-------|-------|-----------------|
-| `gentle` | Gentle | Nudge kindly; wrap truth softly |
-| `straight` | Straight with me | Like a good friend — say what doesn't work |
-| `no_mercy` | No mercy | Full stylist mode |
+**Honesty slider (1–5):** `1` Hit me easy · `2` Kind but honest · `3` Give it to me straight · `4` Don't sugarcoat it · `5` No mercy. Empty slider saves `3`. Legacy `gentle`/`straight`/`no_mercy` still read.
 
 ### 4.5 Card forge (avatar — separate store)
 
@@ -261,7 +257,7 @@ Also re-seeded lazily on first fashion chat turn if projection lagging (`assembl
 | `preferredName` | Person display name |
 | `genderPresentation` | Fact `gender_presentation` → `mens` / `womens` / `mixed` (androgynous & prefer-not-to-say → mixed) |
 | Top / bottom / shoe sizes | Facts `size` buckets `tops` / `bottoms` / `shoes` |
-| ageRange, valuePhilosophy, styleEra, honesty, compliments, lifestyleTags, styleMix | Fact `body_note`, garment_type `onboarding-meta` |
+| ageRange, valuePhilosophy, styleEra, honesty, compliments, lifestyleTags, styleMix, weekIs, weekendsAre, kids, climate | Fact `body_note`, garment_type `onboarding-meta` |
 | Hard negatives | Facts `no_go` (classifier: material / color / garment / style) |
 | Brand likes / avoids | Signals `brand` polarity +1 / −1 |
 | Taste tags (worn, aspirational, compliment, fashion, …) | Signals `style` / `color` / `material` / `silhouette` (fashion categories only) |
@@ -317,7 +313,7 @@ User answers (wizard / AI paste)
 |------|------|
 | `src/components/onboarding/OnboardingGate.tsx` | Wizard orchestrator, validation, saves |
 | `src/components/onboarding/YouIdentityStep.tsx` | Name / gender / DOB / era / world |
-| `src/components/onboarding/Taste*.tsx` | Spend, grids, loves, honesty, trusted circle |
+| `src/components/onboarding/Taste*.tsx` | Spend, grids, loves, honesty |
 | `src/components/onboarding/fitting/*` | Photo + verdict |
 | `src/lib/onboarding/status.ts` | Required fields, patch, complete |
 | `src/lib/onboarding/form-options.ts` | Enums / size lists / labels |

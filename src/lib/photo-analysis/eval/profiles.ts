@@ -54,7 +54,7 @@ function base(over: Partial<StylistVerdict> = {}): StylistVerdict {
       best_neutrals: [
         {
           name: "Camel",
-          representative_hex: "#B8894F",
+          representative_hex: "#C4A574",
           priority: "essential",
           best_uses: ["Knit near the face"],
           notes: "",

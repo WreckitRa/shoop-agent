@@ -523,7 +523,8 @@ export function selectInhouseDeck(
   );
   const paging = excludeIds.size > 0;
 
-  const seed = `${ctx.shuffleSeed?.trim() || "default"}:${ctx.mode}`;
+  const page = Math.floor(excludeIds.size / OUTFIT_DECK_PAGE_SIZE);
+  const seed = `${ctx.shuffleSeed?.trim() || "default"}:${ctx.mode}:${page}`;
   // Shuffle first so equal-score variants (same family, different photo) differ per user.
   const pool = seededShuffle(looks, seed);
   const bucket = genderBucketFromPresentation(ctx.genderPresentation);

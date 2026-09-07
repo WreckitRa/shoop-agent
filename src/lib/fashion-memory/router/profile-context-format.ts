@@ -10,7 +10,9 @@ import {
   KIDS_OPTIONS,
   STYLE_ERAS,
   WEEK_IS_OPTIONS,
+  WEEKEND_OPTIONS,
   WORLD_OPTIONS,
+  labelsForCsvValues,
   normalizeHonestyPreference,
 } from "@/lib/onboarding/form-options";
 import type {
@@ -181,6 +183,7 @@ export type OnboardingMetaFromBodyNote = {
   style_become?: string;
   compliment_preferences?: string[];
   week_is?: string;
+  weekends_are?: string;
   dressing_for?: string;
   kids?: string;
   climate?: string;
@@ -224,6 +227,8 @@ export function parseOnboardingMetaFromFacts(
       ? (value.compliment_preferences as string[])
       : undefined,
     week_is: typeof value.week_is === "string" ? value.week_is : undefined,
+    weekends_are:
+      typeof value.weekends_are === "string" ? value.weekends_are : undefined,
     dressing_for:
       typeof value.dressing_for === "string" ? value.dressing_for : undefined,
     kids: typeof value.kids === "string" ? value.kids : undefined,
@@ -256,14 +261,24 @@ export function composeContextLine(meta: OnboardingMetaFromBodyNote): string | n
     parts.push(lifestyleLabel(tag));
   }
 
-  const week = optionLabel(WEEK_IS_OPTIONS, meta.week_is);
-  if (week && !parts.some((p) => p.includes(week))) parts.push(week);
-  const dating = optionLabel(DRESSING_FOR_OPTIONS, meta.dressing_for);
-  if (dating) parts.push(dating);
-  const kids = optionLabel(KIDS_OPTIONS, meta.kids);
-  if (kids && kids !== "no kids") parts.push(kids);
-  const climate = optionLabel(CLIMATE_OPTIONS, meta.climate);
-  if (climate) parts.push(climate);
+  for (const week of labelsForCsvValues(WEEK_IS_OPTIONS, meta.week_is)) {
+    if (!parts.some((p) => p.includes(week))) parts.push(week);
+  }
+  for (const weekend of labelsForCsvValues(WEEKEND_OPTIONS, meta.weekends_are)) {
+    if (!parts.some((p) => p.includes(weekend))) parts.push(weekend);
+  }
+  if (!meta.weekends_are?.trim()) {
+    const dating = optionLabel(DRESSING_FOR_OPTIONS, meta.dressing_for);
+    if (dating) parts.push(dating);
+  }
+  for (const kid of labelsForCsvValues(KIDS_OPTIONS, meta.kids)) {
+    if (kid !== "no kids" && !parts.some((p) => p.includes(kid))) {
+      parts.push(kid);
+    }
+  }
+  for (const climate of labelsForCsvValues(CLIMATE_OPTIONS, meta.climate)) {
+    if (!parts.some((p) => p.includes(climate))) parts.push(climate);
+  }
 
   if (meta.value_philosophy) {
     const vp = valuePhilosophyLabel(meta.value_philosophy);

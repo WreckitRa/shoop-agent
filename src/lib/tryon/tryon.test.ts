@@ -223,7 +223,7 @@ describe("fashn avatar prompt", () => {
     assert.match(prompt ?? "", /Do not infer body type from the face/);
     assert.doesNotMatch(prompt ?? "", /skin|hair/i);
     assert.match(prompt ?? "", /neutral standing pose/);
-    assert.match(prompt ?? "", /plain fitted white crewneck/i);
+    assert.match(prompt ?? "", /plain fitted mid-grey crewneck/i);
     assert.doesNotMatch(prompt ?? "", /no jacket, no coat, no scarf/);
   });
 });
@@ -304,7 +304,7 @@ describe("dress prompt", () => {
     assert.match(prompt, /Merino/);
     assert.match(prompt, /Preserve exact color/);
     assert.match(prompt, /REPLACE the existing upper-body/i);
-    assert.match(prompt, /plain white tee \+ dark trousers/i);
+    assert.match(prompt, /plain mid-grey tee \+ dark grey trousers/i);
     assert.match(prompt, /do not leave it visible under the product/i);
     assert.doesNotMatch(prompt, /face|pose|background/i);
   });

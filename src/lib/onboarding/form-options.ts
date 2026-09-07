@@ -51,11 +51,20 @@ export const WEEK_IS_OPTIONS = [
   { value: "retired", label: "Retired" },
 ] as const;
 
-/** Relationship context — picks the night occasion. */
+/** Legacy dating chips — no longer on the quiz. Kept so old rows still label. */
 export const DRESSING_FOR_OPTIONS = [
   { value: "dating", label: "Dating" },
   { value: "with_someone", label: "With someone" },
   { value: "not_right_now", label: "Not right now" },
+] as const;
+
+/** Why they're in the Fitting — stored on `dressingFor`. Not dating. */
+export const WHY_HERE_OPTIONS = [
+  { value: "work_polish", label: "Look put together at work" },
+  { value: "feel_like_me", label: "Feel like myself again" },
+  { value: "nights_out", label: "Have something for nights out" },
+  { value: "stop_wasting", label: "Stop buying things I never wear" },
+  { value: "find_style", label: "Figure out my style" },
 ] as const;
 
 export const KIDS_OPTIONS = [
@@ -289,6 +298,22 @@ export function normalizeHonestyPreference(
   return "";
 }
 
+/** Quiz chips — three voices the rest of the product already maps. */
+export const HONESTY_TONE_CHIPS = [
+  { value: "1" as const, label: "Gentle", quote: HONESTY_OPTIONS[0].quote },
+  { value: "3" as const, label: "Straight", quote: HONESTY_OPTIONS[2].quote },
+  { value: "5" as const, label: "Blunt", quote: HONESTY_OPTIONS[4].quote },
+] as const;
+
+export function honestyToneChip(
+  value: string | null | undefined,
+): "1" | "3" | "5" {
+  const n = normalizeHonestyPreference(value);
+  if (n === "1" || n === "2") return "1";
+  if (n === "4" || n === "5") return "5";
+  return "3";
+}
+
 export const CURRENCY_OPTIONS = [
   { value: "USD", label: "USD — US Dollar" },
   { value: "EUR", label: "EUR — Euro" },
@@ -419,6 +444,25 @@ export function parseCsvValues(raw: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+/** Display labels for a quiz CSV. `other:<text>` keeps the custom text. */
+export function labelsForCsvValues(
+  options: readonly { value: string; label: string }[],
+  csv: string | null | undefined,
+): string[] {
+  const labels: string[] = [];
+  for (const part of parseCsvValues(csv)) {
+    if (part === "other") continue;
+    if (part.startsWith("other:")) {
+      const custom = part.slice(6).trim();
+      if (custom) labels.push(custom.toLowerCase());
+      continue;
+    }
+    const hit = options.find((o) => o.value === part);
+    if (hit) labels.push(hit.label.toLowerCase());
+  }
+  return labels;
+}
+
 export function joinCsvValues(values: readonly string[]): string {
   return values.map((v) => v.trim()).filter(Boolean).join(",");
 }
@@ -517,6 +561,17 @@ export function styleEraLabel(value: string): string {
   return parts
     .map((p) => STYLE_ERAS.find((e) => e.value === p)?.label ?? p)
     .join(", ");
+}
+
+export function whyHereLabel(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  const raw = value.trim();
+  const why = WHY_HERE_OPTIONS.find((o) => o.value === raw);
+  if (why) return why.label;
+  const dating = DRESSING_FOR_OPTIONS.find((o) => o.value === raw);
+  if (dating) return dating.label;
+  if (raw.startsWith("other:")) return raw.slice(6).trim() || null;
+  return raw;
 }
 
 export const DEFAULT_SHIPPING_COUNTRY = "United States";

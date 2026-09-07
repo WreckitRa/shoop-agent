@@ -1,3 +1,4 @@
+import type { InputJsonValue } from "@/lib/ai-chat/prisma-types";
 import { prisma } from "@/lib/ai-chat/db";
 import { trackProductEvent } from "@/lib/analytics/track";
 import { getOnboardingStatus } from "@/lib/onboarding/status";
@@ -19,6 +20,7 @@ import { isShareLive, shareExpiresAt } from "@/lib/legal/share-lifetime";
 import {
   isAskCompareChoice,
   isAskRateChoice,
+  type AskExtraLookStored,
   type AskVoteChoice,
 } from "./types";
 
@@ -32,13 +34,25 @@ export type CreateLookAskInput = {
   killCount?: number | null;
   /** Owner's strip vote to seed on the shared card. */
   ownerVote?: AskVoteChoice | null;
-  /** Challenger look — when set, poll is comparative (A vs B) by default. */
-  altImageUrl?: string | null;
-  altGenerationId?: string | null;
+  /** Extra looks after this one — comparative when any are set. */
+  extraLooks?: Array<{
+    imageUrl: string;
+    generationId?: string | null;
+    title?: string | null;
+  }> | null;
+  lookTitle?: string | null;
 };
 
 export async function createLookAskShare(input: CreateLookAskInput) {
-  const hasAlt = Boolean(input.altImageUrl?.trim());
+  const extrasIn = (input.extraLooks ?? [])
+    .map((row) => ({
+      imageUrl: row.imageUrl.trim(),
+      generationId: row.generationId?.trim() || null,
+      title: row.title?.trim() || "",
+    }))
+    .filter((row) => row.imageUrl)
+    .slice(0, 4);
+  const hasAlt = extrasIn.length > 0;
   const pollMode = hasAlt ? "compare" : "rate";
   const shoopVote =
     pollMode === "compare"
@@ -68,14 +82,19 @@ export async function createLookAskShare(input: CreateLookAskInput) {
     generationId: input.generationId,
     fallbackImageUrl: input.imageUrl,
   });
-  const altStorageRef =
-    hasAlt && input.altImageUrl
-      ? await durableAskImageStorageRef({
-          userId: input.userId,
-          generationId: input.altGenerationId,
-          fallbackImageUrl: input.altImageUrl,
-        })
-      : null;
+  const extraStored: AskExtraLookStored[] = [];
+  for (const extra of extrasIn) {
+    extraStored.push({
+      generationId: extra.generationId,
+      title: extra.title,
+      imageUrl: await durableAskImageStorageRef({
+        userId: input.userId,
+        generationId: extra.generationId,
+        fallbackImageUrl: extra.imageUrl,
+      }),
+    });
+  }
+  const firstExtra = extraStored[0] ?? null;
 
   let messageId: string | null = null;
   const conversationId = input.conversationId?.trim() || null;
@@ -133,8 +152,10 @@ export async function createLookAskShare(input: CreateLookAskInput) {
       conversationId,
       messageId,
       imageUrl: storageRef,
-      altImageUrl: altStorageRef,
-      altGenerationId: input.altGenerationId?.trim() || null,
+      altImageUrl: firstExtra?.imageUrl ?? null,
+      altGenerationId: firstExtra?.generationId ?? null,
+      extraLooks: extraStored as unknown as InputJsonValue,
+      lookTitle: input.lookTitle?.trim() || null,
       pollMode,
       pieces: input.pieces,
       shoopVerdict: input.verdict,

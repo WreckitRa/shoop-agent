@@ -35,6 +35,26 @@ const bodySchema = z
       .optional()
       .nullable(),
     altGenerationId: z.string().max(80).optional().nullable(),
+    extraLooks: z
+      .array(
+        z
+          .object({
+            imageUrl: z
+              .string()
+              .min(1)
+              .max(2000)
+              .refine(
+                (u) => /^https?:\/\//i.test(u) || u.startsWith("/"),
+                "imageUrl must be http(s) or absolute path",
+              ),
+            generationId: z.string().max(80).optional().nullable(),
+            title: z.string().max(200).optional().nullable(),
+          })
+          .strict(),
+      )
+      .max(4)
+      .optional(),
+    lookTitle: z.string().max(200).optional().nullable(),
     pieces: z
       .array(
         z
@@ -95,6 +115,19 @@ export async function POST(req: Request) {
   if (altImageUrl?.startsWith("/")) {
     altImageUrl = `${publicOrigin}${altImageUrl}`;
   }
+  const extraLooks = (parsed.data.extraLooks ?? []).map((row) => ({
+    ...row,
+    imageUrl: row.imageUrl.startsWith("/")
+      ? `${publicOrigin}${row.imageUrl}`
+      : row.imageUrl,
+  }));
+  if (extraLooks.length === 0 && altImageUrl) {
+    extraLooks.push({
+      imageUrl: altImageUrl,
+      generationId: parsed.data.altGenerationId,
+      title: null,
+    });
+  }
 
   try {
     const share = await createLookAskShare({
@@ -120,8 +153,8 @@ export async function POST(req: Request) {
       conversationId: parsed.data.conversationId,
       killCount: parsed.data.killCount,
       ownerVote: parsed.data.ownerVote,
-      altImageUrl,
-      altGenerationId: parsed.data.altGenerationId,
+      extraLooks,
+      lookTitle: parsed.data.lookTitle,
     });
 
     const askPath = `/ask/${share.token}`;

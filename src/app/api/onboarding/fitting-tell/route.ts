@@ -14,11 +14,13 @@ import {
   getOnboardingStatus,
 } from "@/lib/onboarding/status";
 import { after } from "next/server";
+import { enterFittingTraceFromRequest } from "@/lib/onboarding/fitting-trace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  enterFittingTraceFromRequest(req);
   try {
     const parsed = fittingTellPostSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {

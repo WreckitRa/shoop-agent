@@ -192,7 +192,6 @@ export function FittingMirror({
   }> = [
     { id: "era", label: "Era", value: mirror.eraLabel || "—" },
     { id: "spend", label: "Spend", value: mirror.spendLabel || "—" },
-    { id: "lean", label: "Leaning", value: mirror.leanLabel || "—" },
     { id: "brands", label: "Brands", value: mirror.brandsLabel || "—" },
     {
       id: "no",
@@ -200,7 +199,6 @@ export function FittingMirror({
       value: mirror.noListLabel || "—",
       red: true,
     },
-    { id: "circle", label: "Circle", value: mirror.circleLabel || "—" },
   ];
 
   const twinReady =

@@ -81,6 +81,9 @@ type Props = {
   deferProcessing?: boolean;
   /** Twin sits under the copy until a photo is on it. */
   twinSlot?: ReactNode;
+  gateStatus?: "idle" | "checking" | "accepted" | "rejected";
+  gateMessage?: string | null;
+  noPhotoWarning?: string | null;
 };
 
 /** Smart default when user skips definition — still satisfies FASHN required attrs. */
@@ -288,6 +291,9 @@ export function FittingPhotoStep({
   mode = "scan",
   deferProcessing = false,
   twinSlot,
+  gateStatus = "idle",
+  gateMessage = null,
+  noPhotoWarning = null,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -398,6 +404,22 @@ export function FittingPhotoStep({
             </b>
             ... delete anytime.
           </OnboardingWhy>
+
+          {gateStatus === "checking" ? (
+            <p className="mt-4 text-[13px] font-semibold text-[var(--fitting-quiet)]">
+              Checking this is a clear photo of your face…
+            </p>
+          ) : null}
+          {gateStatus === "rejected" && gateMessage ? (
+            <p className="mt-4 text-[13px] font-semibold text-[var(--fitting-red)]">
+              {gateMessage} Try another photo.
+            </p>
+          ) : null}
+          {noPhotoWarning ? (
+            <p className="mt-4 text-[13px] font-semibold text-[var(--fitting-red)]">
+              {noPhotoWarning}
+            </p>
+          ) : null}
 
           {!values.photoPreview ? (
             <button
@@ -602,10 +624,17 @@ export function FittingPhotoStep({
       )}
 
       {showContinue ? (
-        scan && values.photoPreview ? (
+        scan && values.photoPreview && gateStatus !== "rejected" ? (
           <div className="fitting-nav max-lg:fixed max-lg:inset-x-[22px] max-lg:bottom-[calc(20px+env(safe-area-inset-bottom,0px))] max-lg:z-[8] max-lg:mt-0 max-lg:bg-transparent sticky bottom-0 z-[4] mt-8 bg-white pt-5 lg:relative lg:bg-gradient-to-t lg:from-white lg:via-white/95 lg:to-transparent lg:pt-6">
-            <FittingCta onClick={onContinue} disabled={busy}>
-              {busy ? "Saving…" : "Keep going... it's developing"}
+            <FittingCta
+              onClick={onContinue}
+              disabled={busy || gateStatus === "checking"}
+            >
+              {gateStatus === "checking"
+                ? "Checking your photo…"
+                : busy
+                  ? "Saving…"
+                  : "Keep going... it's developing"}
             </FittingCta>
           </div>
         ) : scan ? null : (

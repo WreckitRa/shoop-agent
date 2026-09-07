@@ -12,7 +12,8 @@ import {
   PhotoSpendCapError,
   assertPhotoModelSpend,
 } from "@/lib/ops/spend-guard";
-import { runPhotoAnalysis } from "@/lib/photo-analysis/run";
+import { runPhotoAnalysis, runPhotoDetail, runPhotoPreflight } from "@/lib/photo-analysis/run";
+import { bindFittingTraceFromRequest, enterFittingTraceFromRequest, logFitting } from "@/lib/onboarding/fitting-trace";
 import { assertPhotoProcessingAllowed } from "@/lib/legal/photo-gate";
 import { detectRequestArea } from "@/lib/server/request-area";
 import {
@@ -26,15 +27,11 @@ import {
 } from "@/lib/photo-analysis/store";
 import { DEFAULT_TARGET_PERSON } from "@/lib/photo-analysis/types";
 import { parseStyleUserReview } from "@/lib/photo-analysis/review";
-import {
-  parsePhotoCoverage,
-  parseStylePhotoAnalysis,
-  parseStylePhotoPreflight,
-} from "@/lib/photo-analysis/result";
+import { parsePhotoCoverage, parseStylePhotoAnalysis, parseStylePhotoPreflight, facePhotoAccepted } from "@/lib/photo-analysis/result";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 180;
+export const maxDuration = 800;
 
 function wantsForce(req: Request, form: FormData): boolean {
   const url = new URL(req.url);
@@ -62,6 +59,7 @@ function parseDeclaredContext(raw: string): Record<string, unknown> {
 }
 
 export async function GET(req: Request) {
+  enterFittingTraceFromRequest(req);
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
   const hash = new URL(req.url).searchParams.get("hash")?.trim() ?? "";
@@ -72,10 +70,18 @@ export async function GET(req: Request) {
   const next = await expireStaleRunningVerdict(
     await expireStaleRunningAnalysis(row),
   );
+  logFitting("photo_analysis.poll", {
+    hash: hash || null,
+    status: next.status,
+    verdictStatus: next.verdictStatus,
+    error: next.error ?? null,
+    verdictError: next.verdictError ?? null,
+  });
   return Response.json({ analysis: toPublic(next) });
 }
 
 export async function POST(req: Request) {
+  enterFittingTraceFromRequest(req);
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
   const gate = await assertPhotoProcessingAllowed({
@@ -126,7 +132,12 @@ export async function POST(req: Request) {
       parseStylePhotoPreflight(existing?.gate)?.requested_coverage ??
       parseStylePhotoAnalysis(existing?.result)?.analysis_status
         .requested_coverage;
-    if (existing && prevCoverage === requestedCoverage && !existing.error) {
+    if (
+      existing &&
+      prevCoverage === requestedCoverage &&
+      !existing.error &&
+      (existing.result || facePhotoAccepted(parseStylePhotoPreflight(existing.gate)))
+    ) {
       return Response.json({ analysis: toPublic(existing) });
     }
   }
@@ -143,6 +154,13 @@ export async function POST(req: Request) {
   }
 
   const row = await upsertRunning(auth.userId, photoHash);
+  logFitting("photo_analysis.upload", {
+    hash: photoHash,
+    bytes: bytes.length,
+    force,
+    targetPerson,
+    requestedCoverage: requestedCoverage ?? null,
+  });
   trackProductEvent({
     name: "photo_uploaded",
     userId: auth.userId,
@@ -153,23 +171,27 @@ export async function POST(req: Request) {
       force,
     },
   });
-  const run = () =>
-    runPhotoAnalysis(row.id, bytes, {
-      targetPerson,
-      declaredContext,
-      requestedCoverage,
-    });
+  const opts = {
+    targetPerson,
+    declaredContext,
+    requestedCoverage,
+  };
   if (force) {
-    await run();
+    await runPhotoAnalysis(row.id, bytes, opts);
     const done = await findByHash(auth.userId, photoHash);
     return Response.json({ analysis: toPublic(done ?? row) });
   }
 
-  after(run);
-  return Response.json({ analysis: toPublic(row) });
+  const { accepted } = await runPhotoPreflight(row.id, bytes, opts);
+  if (accepted) {
+    after(bindFittingTraceFromRequest(req, () => runPhotoDetail(row.id, bytes, opts)));
+  }
+  const next = await findByHash(auth.userId, photoHash);
+  return Response.json({ analysis: toPublic(next ?? row) });
 }
 
 export async function PATCH(req: Request) {
+  enterFittingTraceFromRequest(req);
   const auth = await getAuthContext();
   if (!auth.ok) return auth.response;
 

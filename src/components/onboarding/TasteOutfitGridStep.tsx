@@ -9,6 +9,7 @@ import {
   FittingTitle,
   FittingWhisper,
 } from "@/components/onboarding/onboarding-ui";
+import { OUTFIT_DECK_PAGE_SIZE } from "@/lib/onboarding/outfit-grid";
 import { styleTileAspect } from "@/lib/onboarding/outfit-shuffle";
 
 export type OutfitGridCard = {
@@ -47,6 +48,14 @@ const FALLBACK_GRADIENTS = [
 ];
 
 const SKELETON_ASPECTS = ["3/4", "1/1", "4/5", "2/3", "5/6", "3/4"] as const;
+
+function pagesOf<T>(items: T[], size: number): T[][] {
+  const pages: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    pages.push(items.slice(i, i + size));
+  }
+  return pages;
+}
 
 export function TasteOutfitGridStep({
   mode,
@@ -133,59 +142,65 @@ export function TasteOutfitGridStep({
           ))}
         </div>
       ) : (
-        <div className="fitting-brand-grid max-w-[680px]">
-          {cards.map((card, index) => {
-            const selected = selectedIds.includes(card.id);
-            const bg =
-              FALLBACK_GRADIENTS[index % FALLBACK_GRADIENTS.length]!;
-            const aspect = styleTileAspect(card.id);
-            return (
-              <button
-                key={card.id}
-                type="button"
-                onClick={() => handleToggle(card)}
-                className={cn(
-                  "fitting-brand-card mb-3 block w-full overflow-hidden rounded-2xl border-2 border-transparent text-left transition duration-200 hover:-translate-y-[3px]",
-                  selected &&
-                    "shadow-[inset_0_0_0_3px_var(--fitting-ink)] [filter:saturate(1.08)]",
-                  !selected &&
-                    selectedIds.length >= maxPicks &&
-                    "opacity-50",
-                )}
-              >
-                <span
-                  className="relative block w-full overflow-hidden"
-                  style={{
-                    aspectRatio: aspect,
-                    background: card.imageUrl ? undefined : bg,
-                  }}
+        pagesOf(cards, OUTFIT_DECK_PAGE_SIZE).map((page, pageIndex) => (
+          <div
+            key={page[0]?.id ?? pageIndex}
+            className="fitting-brand-grid max-w-[680px]"
+          >
+            {page.map((card, index) => {
+              const selected = selectedIds.includes(card.id);
+              const globalIndex = pageIndex * OUTFIT_DECK_PAGE_SIZE + index;
+              const bg =
+                FALLBACK_GRADIENTS[globalIndex % FALLBACK_GRADIENTS.length]!;
+              const aspect = styleTileAspect(card.id);
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => handleToggle(card)}
+                  className={cn(
+                    "fitting-brand-card mb-3 block w-full overflow-hidden rounded-2xl border-2 border-transparent text-left transition duration-200 hover:-translate-y-[3px]",
+                    selected &&
+                      "shadow-[inset_0_0_0_3px_var(--fitting-ink)] [filter:saturate(1.08)]",
+                    !selected &&
+                      selectedIds.length >= maxPicks &&
+                      "opacity-50",
+                  )}
                 >
-                  {card.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={card.imageUrl}
-                      alt=""
-                      className="fitting-brand-im absolute inset-0 size-full object-cover object-[center_18%]"
-                      draggable={false}
-                    />
-                  ) : null}
-                  <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-2/5 bg-[linear-gradient(0deg,rgba(0,0,0,.55),transparent)]" />
                   <span
-                    className={cn(
-                      "absolute right-2.5 top-2.5 z-[5] grid size-[26px] place-items-center rounded-[9px] bg-[var(--fitting-ink)] text-[12px] font-extrabold text-white transition-opacity",
-                      selected ? "opacity-100" : "opacity-0",
-                    )}
+                    className="relative block w-full overflow-hidden"
+                    style={{
+                      aspectRatio: aspect,
+                      background: card.imageUrl ? undefined : bg,
+                    }}
                   >
-                    ✓
+                    {card.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={card.imageUrl}
+                        alt=""
+                        className="fitting-brand-im absolute inset-0 size-full object-cover object-[center_18%]"
+                        draggable={false}
+                      />
+                    ) : null}
+                    <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-2/5 bg-[linear-gradient(0deg,rgba(0,0,0,.55),transparent)]" />
+                    <span
+                      className={cn(
+                        "absolute right-2.5 top-2.5 z-[5] grid size-[26px] place-items-center rounded-[9px] bg-[var(--fitting-ink)] text-[12px] font-extrabold text-white transition-opacity",
+                        selected ? "opacity-100" : "opacity-0",
+                      )}
+                    >
+                      ✓
+                    </span>
+                    <span className="absolute inset-x-0 bottom-0 z-[3] px-3 pb-2.5 font-display text-[12.5px] font-extrabold uppercase leading-[1.25] tracking-[0.14em] text-white [text-shadow:0_1px_10px_rgba(0,0,0,.45)]">
+                      {card.label}
+                    </span>
                   </span>
-                  <span className="absolute inset-x-0 bottom-0 z-[3] px-3 pb-2.5 font-display text-[12.5px] font-extrabold uppercase leading-[1.25] tracking-[0.14em] text-white [text-shadow:0_1px_10px_rgba(0,0,0,.45)]">
-                    {card.label}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                </button>
+              );
+            })}
+          </div>
+        ))
       )}
 
       {hasMore && onSeeMore && !loading ? (

@@ -34,6 +34,10 @@ export async function POST(req: Request) {
     },
     select: { id: true },
   });
+  const looks = await prisma.verdictLook.findMany({
+    where: { id: { in: unique }, userId: auth.userId },
+    select: { id: true },
+  });
 
   for (const row of owned) {
     await saveTryonFeedback({
@@ -43,5 +47,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return Response.json({ ok: true, saved: owned.length });
+  return Response.json({ ok: true, saved: owned.length + looks.length });
 }

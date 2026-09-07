@@ -126,17 +126,18 @@ describe("style photo review", () => {
 });
 
 describe("stylist verdict readiness", () => {
-  it("blocks until analysis, review, and identity exist", () => {
+  it("only requires how they dress — photo and scan-check can be skipped", () => {
     const missing = verdictReadiness({
       analysisUsable: false,
       reviewSubmitted: false,
       genderPresentation: "",
     });
-    assert.equal(missing.length, 3);
+    assert.equal(missing.length, 1);
+    assert.equal(missing[0]?.field, "gender_presentation");
     assert.equal(
       verdictReadiness({
-        analysisUsable: true,
-        reviewSubmitted: true,
+        analysisUsable: false,
+        reviewSubmitted: false,
         genderPresentation: "menswear",
       }).length,
       0,
@@ -205,5 +206,106 @@ describe("stylist verdict readiness", () => {
     const hydrated = hydrateStylistVerdict(reading) as Record<string, unknown>;
     assert.ok("shopping_engine_profile" in hydrated);
     assert.ok("wardrobe_plan" in hydrated);
+  });
+
+  it("parses a fitting { reading, contract } payload", () => {
+    const parsed = parseStylistVerdict({
+      reading: {
+        headline: "Warm, clean, and grown-up",
+        who_you_are: "Warm skin, dark hair, brown eyes.",
+        the_shift: "What's costing you is scale.",
+        rules: [
+          { rule: "Cream near the face.", why: "Warmth does the work." },
+          { rule: "Straight below.", why: "Taper reads campus." },
+          { rule: "One structured piece.", why: "Ease needs an edge." },
+        ],
+        this_week: "Office, study, drinks.",
+        full_profile: "Regular top, straight bottom, high rise.",
+      },
+      contract: {
+        palette: {
+          near_face: [
+            { family: "white", shade: "cream", hex: "#F5F0E6" },
+            { family: "olive", shade: "olive", hex: "#556B2F" },
+            { family: "orange", shade: "rust", hex: "#B7410E" },
+          ],
+          core: [{ family: "brown", shade: "camel", hex: "#C19A6B" }],
+          neutrals: [{ family: "brown", shade: "dark brown", hex: "#3B2F2F" }],
+          accents: [{ family: "green", shade: "emerald", hex: "#046307" }],
+          avoid_near_face: [
+            {
+              family: "black",
+              shade: "black",
+              hex: "#111111",
+              why: "flattens",
+              fix: "below the waist",
+            },
+            {
+              family: "blue",
+              shade: "icy blue",
+              hex: "#A7C7E7",
+              why: "washes out",
+              fix: "warm white",
+            },
+          ],
+        },
+        silhouette: {
+          top_fit: "regular",
+          bottom_fit: "straight",
+          rise: "high",
+          structure: "medium",
+          length_notes: [],
+        },
+        necklines: { yes: ["collar", "v"], no: ["mock"] },
+        fabrics: { yes: ["linen"], no: [] },
+        patterns: { scale: "none", yes: [], no: [] },
+        vetoes: ["crop", "heels"],
+        looks: [
+          {
+            name: "Office days",
+            occasion_from: "working_mixed",
+            pieces: [
+              {
+                slot: "top",
+                garment_type: "shirt",
+                color_family: "white",
+                shade: "cream",
+                fallback_family: "beige",
+                fit: "relaxed",
+                neckline: "collar",
+                must_have: ["poplin"],
+                must_not: ["crop", "heels", "logo"],
+              },
+              {
+                slot: "bottom",
+                garment_type: "trousers",
+                color_family: "white",
+                shade: "ecru",
+                fallback_family: null,
+                fit: "straight",
+                neckline: null,
+                must_have: [],
+                must_not: ["crop", "heels"],
+              },
+              {
+                slot: "shoes",
+                garment_type: "loafers",
+                color_family: "brown",
+                shade: "tan",
+                fallback_family: null,
+                fit: null,
+                neckline: null,
+                must_have: [],
+                must_not: ["crop", "heels"],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    assert.ok(parsed?.reading);
+    assert.equal(parsed?.reading?.headline, "Warm, clean, and grown-up");
+    assert.equal(parsed?.user_facing_verdict.title, "Warm, clean, and grown-up");
+    assert.equal(parsed?.contract?.looks[0]?.pieces[0]?.color_family, "white");
   });
 });

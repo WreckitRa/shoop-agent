@@ -30,7 +30,11 @@ function AskShareCard({
   onRevoke: (token: string) => Promise<void>;
 }) {
   const serial = String(share.serial).padStart(6, "0");
-  const isCompare = share.pollMode === "compare" && Boolean(share.altImageUrl);
+  const looks =
+    share.looks.length > 0
+      ? share.looks
+      : [{ imageUrl: share.imageUrl, title: "Look 1", choice: "a" as const }];
+  const isCompare = looks.length >= 2;
   const friends = friendVoteCount(share);
   const noteCount = share.notes.length;
   const askPath = `/ask/${share.token}`;
@@ -56,20 +60,22 @@ function AskShareCard({
           href={askPath}
           className="relative block aspect-[3/4] overflow-hidden bg-[#F1F1F4] sm:aspect-auto sm:min-h-[180px]"
         >
-          {isCompare && share.altImageUrl ? (
-            <div className="grid grid-cols-2 gap-px bg-hairline">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={share.imageUrl}
-                alt={`Look A № ${serial}`}
-                className="aspect-[3/4] size-full object-contain object-bottom bg-[#F1F1F4]"
-              />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={share.altImageUrl}
-                alt={`Look B № ${serial}`}
-                className="aspect-[3/4] size-full object-contain object-bottom bg-[#F1F1F4]"
-              />
+          {isCompare && looks.length > 1 ? (
+            <div
+              className="grid h-full gap-px bg-hairline"
+              style={{
+                gridTemplateColumns: `repeat(${looks.length}, minmax(0, 1fr))`,
+              }}
+            >
+              {looks.map((look) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={look.choice}
+                  src={look.imageUrl}
+                  alt={`${look.title} № ${serial}`}
+                  className="aspect-[3/4] size-full object-contain object-bottom bg-[#F1F1F4]"
+                />
+              ))}
             </div>
           ) : (
             <>
@@ -91,7 +97,7 @@ function AskShareCard({
               </p>
               <h2 className="mt-1 font-display text-[15px] font-extrabold tracking-tight text-ink">
                 Should I get it?
-                {share.pollMode === "compare" ? " — A or B" : ""}
+                {isCompare ? ` — ${looks.length} looks` : ""}
               </h2>
               <p className="mt-1 text-[12px] text-ink-muted">
                 Shared{" "}
@@ -149,7 +155,7 @@ function AskShareCard({
           ) : null}
 
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {choicesForPollMode(share.pollMode).map((c) => {
+            {choicesForPollMode(share.pollMode, looks.length).map((c) => {
               const n = share.tallies[c];
               if (!n) return null;
               return (
@@ -160,16 +166,12 @@ function AskShareCard({
                     share.ownerVote === c && "border-ink bg-ink text-white",
                   )}
                 >
-                  {share.pollMode === "compare"
-                    ? c === "a"
-                      ? "Look A"
-                      : "Look B"
-                    : ASK_VOTE_LABELS[c]}{" "}
+                  {ASK_VOTE_LABELS[c]}{" "}
                   · {n}
                 </span>
               );
             })}
-            {!choicesForPollMode(share.pollMode).some(
+            {!choicesForPollMode(share.pollMode, looks.length).some(
               (c) => share.tallies[c] > 0,
             ) ? (
               <span className="text-[12px] text-ink-muted">No votes yet</span>

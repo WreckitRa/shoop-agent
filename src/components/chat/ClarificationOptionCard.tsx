@@ -156,23 +156,7 @@ export const ClarificationOptionCard = memo(function ClarificationOptionCard({
     }
   };
 
-  if (isOther) {
-    return (
-      <button
-        type="button"
-        disabled={disabled}
-        aria-pressed={selected}
-        onClick={onToggle}
-        className={
-          selected
-            ? "shoop-quiz-type-chip shoop-quiz-type-chip--active"
-            : "shoop-quiz-type-chip"
-        }
-      >
-        or type it…
-      </button>
-    );
-  }
+  if (isOther) return null;
 
   if (isSurprise || (!showVisualCard && looksPaletteLabel) || preferPalette) {
     const surprise = isSurprise;

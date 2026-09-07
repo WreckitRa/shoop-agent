@@ -8,6 +8,7 @@ const EVENTS = new Set([
   "looks-fetch",
   "looks-fetch-ok",
   "looks-fetch-cancelled",
+  "looks-poll",
   "dress-wait",
   "dress-skip",
   "dress-pending",

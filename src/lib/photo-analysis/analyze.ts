@@ -1,6 +1,6 @@
 import { jpegDataUrlLow, jpegDataUrlOriginal } from "./decode";
 import { PHOTO_ERROR } from "./errors";
-import { callPhotoJsonSchema, withPhotoGptLock } from "./openai";
+import { callPhotoJsonSchema } from "./openai";
 import {
   STYLE_PHOTO_ANALYSIS_INSTRUCTIONS,
   STYLE_PHOTO_ANALYSIS_SCHEMA,
@@ -24,10 +24,13 @@ import {
 
 export const DEFAULT_STYLE_PHOTO_MODEL = "gpt-5.6-terra";
 export const DEFAULT_STYLE_PHOTO_PREFLIGHT_MODEL = "gpt-5.6-luna";
-const ANALYSIS_TIMEOUT_MS = 170_000;
-const PREFLIGHT_TIMEOUT_MS = 25_000;
-const ANALYSIS_MAX_OUTPUT_TOKENS = 10_000;
-const PREFLIGHT_MAX_OUTPUT_TOKENS = 350;
+/** Hang-safety only for the LLM call itself. */
+export const ANALYSIS_TIMEOUT_MS = 600_000;
+/** If after() died and heartbeats stop, GET flags the row instead of spinning. */
+export const ANALYSIS_STALE_MS = 45_000;
+const PREFLIGHT_TIMEOUT_MS = 120_000;
+const ANALYSIS_MAX_OUTPUT_TOKENS = 64_000;
+const PREFLIGHT_MAX_OUTPUT_TOKENS = 4_000;
 
 export function photoAnalysisModel(): string {
   const override = process.env.OPENAI_PHOTO_ANALYSIS_MODEL?.trim();
@@ -66,38 +69,36 @@ export async function preflightStylePhotos({
     };
   }
 
-  return withPhotoGptLock(async () => {
-    const { value: raw } = await callPhotoJsonSchema({
-      model: photoPreflightModel(),
-      reasoning: { effort: "none" },
-      instructions: STYLE_PHOTO_PREFLIGHT_INSTRUCTIONS,
-      userContent: [
-        {
-          type: "input_text",
-          text: JSON.stringify({
-            target_person: targetPerson,
-            requested_coverage: requestedCoverage,
-            allow_partial_analysis: allowPartialAnalysis,
-          }),
-        },
-        ...imageUrls.map((image_url) => ({
-          type: "input_image" as const,
-          image_url,
-          detail: "low" as const,
-        })),
-      ],
-      format: {
-        name: STYLE_PHOTO_PREFLIGHT_SCHEMA_NAME,
-        description: STYLE_PHOTO_PREFLIGHT_SCHEMA_DESCRIPTION,
-        schema: STYLE_PHOTO_PREFLIGHT_SCHEMA,
+  const { value: raw } = await callPhotoJsonSchema({
+    model: photoPreflightModel(),
+    reasoning: { effort: "none" },
+    instructions: STYLE_PHOTO_PREFLIGHT_INSTRUCTIONS,
+    userContent: [
+      {
+        type: "input_text",
+        text: JSON.stringify({
+          target_person: targetPerson,
+          requested_coverage: requestedCoverage,
+          allow_partial_analysis: allowPartialAnalysis,
+        }),
       },
-      maxOutputTokens: PREFLIGHT_MAX_OUTPUT_TOKENS,
-      timeoutMs: PREFLIGHT_TIMEOUT_MS,
-    });
-    const gate = parseStylePhotoPreflight(raw);
-    if (!gate) throw new Error(PHOTO_ERROR.non_json);
-    return rescueClearFaceGate(gate);
+      ...imageUrls.map((image_url) => ({
+        type: "input_image" as const,
+        image_url,
+        detail: "low" as const,
+      })),
+    ],
+    format: {
+      name: STYLE_PHOTO_PREFLIGHT_SCHEMA_NAME,
+      description: STYLE_PHOTO_PREFLIGHT_SCHEMA_DESCRIPTION,
+      schema: STYLE_PHOTO_PREFLIGHT_SCHEMA,
+    },
+    maxOutputTokens: PREFLIGHT_MAX_OUTPUT_TOKENS,
+    timeoutMs: PREFLIGHT_TIMEOUT_MS,
   });
+  const gate = parseStylePhotoPreflight(raw);
+  if (!gate) throw new Error(PHOTO_ERROR.non_json);
+  return rescueClearFaceGate(gate);
 }
 
 export async function analyzeStylePhotos({
@@ -119,31 +120,29 @@ export async function analyzeStylePhotos({
       "Use declared_context as user-supplied facts. Do not claim those facts were visually verified. Analyze every supplied image together and return the strict schema.",
   };
 
-  return withPhotoGptLock(async () => {
-    const { value: raw } = await callPhotoJsonSchema({
-      model: photoAnalysisModel(),
-      reasoning: { effort: "medium" },
-      instructions: STYLE_PHOTO_ANALYSIS_INSTRUCTIONS,
-      userContent: [
-        { type: "input_text", text: JSON.stringify(userPayload) },
-        ...imageUrls.map((image_url) => ({
-          type: "input_image" as const,
-          image_url,
-          detail: "original" as const,
-        })),
-      ],
-      format: {
-        name: STYLE_PHOTO_ANALYSIS_SCHEMA_NAME,
-        description: STYLE_PHOTO_ANALYSIS_SCHEMA_DESCRIPTION,
-        schema: STYLE_PHOTO_ANALYSIS_SCHEMA,
-      },
-      maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-      timeoutMs: ANALYSIS_TIMEOUT_MS,
-    });
-    const result = parseStylePhotoAnalysis(raw);
-    if (!result) throw new Error(PHOTO_ERROR.non_json);
-    return result;
+  const { value: raw } = await callPhotoJsonSchema({
+    model: photoAnalysisModel(),
+    reasoning: { effort: "medium" },
+    instructions: STYLE_PHOTO_ANALYSIS_INSTRUCTIONS,
+    userContent: [
+      { type: "input_text", text: JSON.stringify(userPayload) },
+      ...imageUrls.map((image_url) => ({
+        type: "input_image" as const,
+        image_url,
+        detail: "original" as const,
+      })),
+    ],
+    format: {
+      name: STYLE_PHOTO_ANALYSIS_SCHEMA_NAME,
+      description: STYLE_PHOTO_ANALYSIS_SCHEMA_DESCRIPTION,
+      schema: STYLE_PHOTO_ANALYSIS_SCHEMA,
+    },
+    maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+    timeoutMs: ANALYSIS_TIMEOUT_MS,
   });
+  const result = parseStylePhotoAnalysis(raw);
+  if (!result) throw new Error(PHOTO_ERROR.non_json);
+  return result;
 }
 
 /**

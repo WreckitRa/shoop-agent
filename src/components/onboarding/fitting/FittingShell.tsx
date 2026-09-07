@@ -5,6 +5,9 @@ import { ShoopLogo } from "@/components/brand/ShoopBrand";
 import { cn } from "@/lib/ai-chat/cn";
 import { FittingMirror } from "./FittingMirror";
 import { FittingTracker } from "./FittingTracker";
+import { FittingTraceBadge } from "./FittingTraceBadge";
+import { postFittingTraceEvent } from "./fitting-trace-log";
+import { ensureFittingTraceId } from "./fitting-trace-id";
 import { type FittingStep, type MirrorState } from "./types";
 
 type Props = {
@@ -96,7 +99,7 @@ export function FittingShell({
       <FittingMirror
         layout={mirrorLayout}
         mirror={mirror}
-        onTell={step === "verdict" || step === "circle" ? undefined : onTell}
+        onTell={step === "verdict" ? undefined : onTell}
         tellFeedback={tellFeedback}
         tellBusy={tellBusy}
         onPickPhoto={onPickPhoto}
@@ -110,6 +113,11 @@ export function FittingShell({
     if (!el) return;
     el.scrollTop = 0;
   }, [step]);
+
+  useEffect(() => {
+    ensureFittingTraceId();
+    postFittingTraceEvent("step", { step, layout, stageLabel });
+  }, [step, layout, stageLabel]);
 
   return (
     <div
@@ -266,6 +274,7 @@ export function FittingShell({
           {overlay}
         </div>
       )}
+      <FittingTraceBadge />
     </div>
   );
 }

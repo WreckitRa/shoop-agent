@@ -45,10 +45,7 @@ function factsForKnot(
     }
     case "worn": {
       const labels = wornTrackerLabels(mirror.wornLabels);
-      if (labels.length) return labels.map((text) => ({ text }));
-      return mirror.leanLabel && mirror.leanLabel !== "—"
-        ? [{ text: mirror.leanLabel }]
-        : [];
+      return labels.map((text) => ({ text }));
     }
     case "corner":
       return mirror.cornerLabel && mirror.cornerLabel !== "—"
@@ -57,10 +54,6 @@ function factsForKnot(
     case "nolist":
       return mirror.noListLabel && mirror.noListLabel !== "—"
         ? [{ text: mirror.noListLabel, no: true }]
-        : [];
-    case "circle":
-      return mirror.circleLabel && mirror.circleLabel !== "—"
-        ? [{ text: mirror.circleLabel }]
         : [];
     case "mint":
       return mirror.developPct >= 100 ? [{ text: "Reading ready" }] : [];

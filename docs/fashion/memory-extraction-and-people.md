@@ -68,7 +68,7 @@ Written by the wizard and by `projectExtractionToTypedTables`. **Not** read by t
 | `CategoryPreference` | Per-category likes from extra-notes LLM |
 | `PhotoAnalysis` | Face-scan gate + vision JSON + user review + **stylist verdict**. Isolated (`run.ts`: do not import from fashion-memory). Display + verdict LLM only |
 
-**Critical gap:** `Recipient` (Store B) is **not** projected into `people` (Store A). Fashion chat people come from `people` only: self seed, trusted circle, mention-ensure, extraction `new_person`, intake `stated_facts`.
+**Critical gap:** `Recipient` (Store B) is **not** projected into `people` (Store A). Fashion chat people come from `people` only: self seed, mention-ensure, extraction `new_person`, intake `stated_facts`.
 
 **Second gap:** height / weight / build **are** written to `SizingProfile`, but seed **does not** copy them into `fashion_facts`. Chat scoring must not treat them as size facts. They drive the **twin** and the **stylist-verdict LLM**, not the catalog gate.
 
@@ -138,8 +138,6 @@ Taste categories **dropped** at seed: home / tech / lifestyle noise. Kept: `fash
 
 **Worn vs steal grids:** max 3 worn, max 2 steal. Tags from card label + tasteTags + title tokens → `TasteTag` then seed as above. This is the closest thing to “looks I actually wear / would steal.” It is **not** a wardrobe inventory.
 
-**Trusted circle:** `POST /api/onboarding/circle` → `saveTrustedCirclePeople`. Up to 3 first names, relation **`friend`**, `notes = "trusted_circle"`. Idempotent on existing non-self name. **No facts/signals** until chat or later intake. Skip is allowed (empty circle).
-
 **Fitting Tell-me box:** LLM prefills wizard fields (`fitting-tell.ts`). Does not write fashion-memory directly; those fields hit Store B then seed.
 
 **Photo / fit / scan / stylist verdict:** full field map in **§11**. Headline: face-scan JSON and the stylist verdict stay on `PhotoAnalysis`. Height/build **do** persist on `SizingProfile` + avatar attributes; they are **not** seeded as fashion `measurement` / `size` facts. Clothing sizes are **not asked** on the live wizard (schema columns exist; chat still asks at intake).
@@ -154,7 +152,7 @@ This is the **only live caller** of `extractOnboardingProfile`. It is **not** th
 
 It can write `OwnedProduct`, `Recipient`, `ShoppingIntent`, category/brand/taste, sizing, hard negatives. Identity fields (name, age, gender, pronouns, birth date) are stripped — those are onboarding/settings only.
 
-`Recipient` rows from this path **do not** become `people`. Gift shopping still needs Store A roster (mentions / extraction / circle).
+`Recipient` rows from this path **do not** become `people`. Gift shopping still needs Store A roster (mentions / extraction).
 
 ### 3.3 Chat extraction (async clerk) — Store A, any person
 
@@ -296,13 +294,12 @@ Do not treat wardrobe language as inventory. Router `request_type: capsule` is a
 - Unique family roles (one slot unless you later add a second with a name): mother, father, wife, husband, girlfriend, boyfriend, grandmother, grandfather. Aliases collapse (`mom`/`mama`/`ماما` → mother, `teta`/`تيتا` → grandmother, …). Full map: `extraction/relation-aliases.ts`.
 - Non-unique (friend, colleague, son, daughter, sister, brother, …): merge only on **same canonical relation + same name**. Cross-bucket “friend Sam vs colleague Sam” → `ambiguous_subject`, do not auto-merge.
 - First unnamed person of a relation can receive a later name (`resolvePerson` singleton attach). A **second** son needs a name.
-- Friend/colleague are **not** auto-created from “my friend” mentions (too vague). Circle step creates named friends. Extractor may `new_person` when the utterance is specific.
+- Friend/colleague are **not** auto-created from “my friend” mentions (too vague). Extractor may `new_person` when the utterance is specific.
 
 ### 4.2 How a person appears
 
 ```
 onboarding complete     → ensureSelfPerson + seed facts/signals
-circle step             → friend rows, names only
 user says "for my mom"  → ensureMentionedPeople BEFORE router
 router stated_facts.new → resolvePerson (create or attach)
 extractor new_person    → createPerson (or remap alias)
@@ -433,7 +430,6 @@ Guests can still accumulate people/facts/signals locally; they are not lost on t
 | `src/lib/fashion-memory/curation/interaction-signals.ts` | Rail → self signals |
 | `src/lib/fashion-memory/direct-writes.ts` | Pick accept/reject API |
 | `src/lib/onboarding/seed-fashion-memory.ts` | Prisma → self facts/signals |
-| `src/lib/onboarding/trusted-circle.ts` | Circle → friend people |
 | `src/lib/onboarding/memory-extract/*` | Extra-notes LLM only |
 | `src/lib/fashion-memory/client/spawn-extraction.ts` | Guest clerk |
 | `src/lib/fashion-memory/local/store.ts` | Guest snapshot |
@@ -448,7 +444,7 @@ Guests can still accumulate people/facts/signals locally; they are not lost on t
 
 Work backwards:
 
-1. Is it on a **non-self** person? Then onboarding/circle/interactions/corroboration are out. Chat extraction, stated_facts, or intake answers only (plus mention-created empty person).
+1. Is it on a **non-self** person? Then onboarding/interactions/corroboration are out. Chat extraction, stated_facts, or intake answers only (plus mention-created empty person).
 2. Is `source_quote` prefixed `onboarding:`? Seed from wizard / extra-notes projection.
 3. Is `source` `rejection` or low-confidence `inferred` with no quote? Rail interaction or pick-signal.
 4. Is it a `candidate` color/style that matches many `request_events`? Corroboration.
@@ -461,7 +457,7 @@ If you cannot point to a row in §3 or §11, **it was not extracted into chat pr
 
 ## 11. Onboarding, face scan, and verdicts — every field
 
-Live wizard order: `consent` → `photo` → `name` → `life` → `spend` → `fit` → `worn` → `wanted` → `nolist` → `honesty` → `circle` → `verdict` (scan-check then card). Script: [`../onboarding/questions-for-agents.md`](../onboarding/questions-for-agents.md).
+Live wizard order: `consent` → `photo` → `name` → `life` → `spend` → `fit` → `worn` → `wanted` → `nolist` → `honesty` → `verdict` (scan-check then card). Script: [`../onboarding/questions-for-agents.md`](../onboarding/questions-for-agents.md).
 
 **“Used in user prefs?”** here means: does fashion **chat** (router / intake / planner / scoring) see it as a self fact or signal after seed? Other consumers are listed separately so you do not confuse “we collected it” with “the shopper uses it.”
 
@@ -583,12 +579,11 @@ Comfort is the closest onboarding analogue to a hard filter. It still goes throu
 
 ---
 
-### 11.8 Honesty + circle
+### 11.8 Honesty
 
 | Field | Prisma / people | Chat prefs? | Also |
 |-------|-----------------|-------------|------|
 | `honestyPreference` (`straight` / `no_mercy`; legacy `gentle`→`straight`) | `UserProfile` | **Indirect** — `body_note.honesty_preference` → router **tone** line and curator voice. Does not change what is eligible | Look-scan voice; verdict LLM |
-| Trusted circle (up to 3 first names) | `people` relation `friend`, `notes=trusted_circle` | **Roster only** — no facts/signals | Ask-your-friends targeting later. Not gift recipients until someone shops for them |
 
 Honesty is **how we talk**, not what we pull.
 
@@ -684,7 +679,6 @@ HEIGHT / WEIGHT / BUILD / SHAPE / BUST / LEGS
 WORN / STEAL GRIDS            → TasteTag → style signals           → YES
 BRANDS / COMFORT / VETOES     → BrandPreference / HardNegative → signals + no_gos → YES
 HONESTY                       → body_note tone                     → voice only
-CIRCLE NAMES                  → people friends                     → roster, no taste
 FACE-SCAN JSON + SCAN-CHECK TRAITS → PhotoAnalysis                 → NOT chat prefs
 STYLIST VERDICT JSON          → PhotoAnalysis.verdict              → NOT chat prefs
 LOOK-SCAN (dressed twin)      → generation JSON                    → reads prefs, writes none

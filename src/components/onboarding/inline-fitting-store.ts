@@ -19,7 +19,7 @@ type InlineFittingState = {
   onboardingActive: boolean;
   /** Lock the chat composer once they hit Lock it in (honesty → verdict). */
   composerLocked: boolean;
-  /** Scan/verdict/circle — hide chat + chrome, Fitting is the page. */
+  /** Scan/verdict — hide chat + chrome, Fitting is the page. */
   stageLocked: boolean;
   /** Photo step, no face yet — twin sits under the questions, not the rail. */
   twinDock: "flow" | "rail";

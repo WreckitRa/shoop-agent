@@ -39,7 +39,6 @@ import {
   FITTING_Q_STEPS,
   STEP_META,
   STEP_PROGRESS_PCT,
-  circleMirrorLabel,
   formFromGender,
   isMagicFittingStep,
   twinDocksInFlow,
@@ -57,7 +56,6 @@ import {
   writeOnboardingUiSession,
   isFinishingFitting,
 } from "@/components/onboarding/fitting/ui-session";
-import { TasteCircleStep } from "@/components/onboarding/TasteCircleStep";
 import { TasteHonestyStep } from "@/components/onboarding/TasteHonestyStep";
 import { TasteHonestCornerStep } from "@/components/onboarding/TasteHonestCornerStep";
 import { TasteLifeStep, type TasteLifeValues } from "@/components/onboarding/TasteLifeStep";
@@ -92,9 +90,14 @@ import {
   isRateLimitedResponse,
   retryAfterMs,
 } from "@/lib/client/guest-fetch";
-import { fillPhotoAnalysisForm, type PhotoAnalysisPublic } from "@/lib/photo-analysis/types";
+import { fillPhotoAnalysisForm, NOPHOTO_HASH, type PhotoAnalysisPublic } from "@/lib/photo-analysis/types";
 import { pinVerdictFinale, verdictUiFinale } from "@/lib/photo-analysis/scan-phase";
-import type { PhotoCoverage } from "@/lib/photo-analysis/result";
+import {
+  facePhotoAccepted,
+  facePhotoGateMessage,
+  type PhotoCoverage,
+} from "@/lib/photo-analysis/result";
+import { publicPhotoError } from "@/lib/photo-analysis/errors";
 import { useUserProfileStore } from "@/lib/client/user-profile-store";
 import {
   BUDGET_OPTIONS,
@@ -103,7 +106,6 @@ import {
   DEFAULT_SHIPPING_COUNTRY,
   STYLE_ERAS,
   ageYearsFromBirthDate,
-  currencyHintForCountry,
   isAtLeastAge,
   joinCsvValues,
   lifestyleTagsFromLife,
@@ -273,7 +275,6 @@ type OnboardingPrefill = {
   honestyPreference?: string;
   styleFriction?: string;
   styleBecome?: string;
-  circleNames?: string;
   heightCm?: number;
   weightKg?: number;
   build?: string;
@@ -314,8 +315,6 @@ function mergePrefillLatch(
       next.honestyPreference?.trim() || prev.honestyPreference,
     styleFriction: next.styleFriction?.trim() || prev.styleFriction,
     styleBecome: next.styleBecome?.trim() || prev.styleBecome,
-    circleNames:
-      mergeCsvLabels(prev.circleNames, next.circleNames) ?? prev.circleNames,
     heightCm: next.heightCm ?? prev.heightCm,
     weightKg: next.weightKg ?? prev.weightKg,
     build: next.build ?? prev.build,
@@ -515,7 +514,6 @@ function developPctFromFlags(flags: {
   wantedSaved: boolean;
   nolistSaved: boolean;
   tasteFinal: boolean;
-  circleSaved: boolean;
   /** Final Fitting step. */
   verdict: boolean;
   /** FASHN try-on of a worn style onto the twin. */
@@ -533,7 +531,6 @@ function developPctFromFlags(flags: {
   if (flags.wantedSaved) pct = Math.max(pct, 68);
   if (flags.nolistSaved) pct = Math.max(pct, 78);
   if (flags.tasteFinal) pct = Math.max(pct, 84);
-  if (flags.circleSaved) pct = Math.max(pct, 90);
   // Verdict step landed — almost there until dress finishes.
   if (flags.verdict) pct = Math.max(pct, 94);
   // FASHN dressed twin from a worn style pick = true complete.
@@ -560,9 +557,10 @@ export function OnboardingGate() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<FittingStep>("consent");
+  const stepRef = useRef(step);
+  stepRef.current = step;
   const [selfPersonId, setSelfPersonId] = useState<string | null>(null);
   const [holdOpen, setHoldOpen] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
   const { questions: inlineSlot, card: cardSlot } = useInlineFittingSlots();
   const replayFitting = useInlineFittingStore((s) => s.replayFitting);
   const accessMode = useAppSessionStore((s) => s.mode);
@@ -608,8 +606,14 @@ export function OnboardingGate() {
   /** Server accepted photo draft (not just local preview). */
   const photoReadyRef = useRef(false);
   const pendingPhotoFileRef = useRef<File | null>(null);
+  const faceCheckGenRef = useRef(0);
   canProcessPhotoRef.current = biometricAccepted === true;
   const [analysisPhotoFile, setAnalysisPhotoFile] = useState<File | null>(null);
+  const [faceGate, setFaceGate] = useState<
+    "idle" | "checking" | "accepted" | "rejected"
+  >("idle");
+  const [faceGateMessage, setFaceGateMessage] = useState<string | null>(null);
+  const [noPhotoWarning, setNoPhotoWarning] = useState<string | null>(null);
   const [finale, setFinale] = useState<"scan" | "card">("scan");
   const finaleRef = useRef(finale);
   finaleRef.current = finale;
@@ -678,13 +682,11 @@ export function OnboardingGate() {
   const [weekendsAre, setWeekendsAre] = useState("");
   const [kids, setKids] = useState("");
   const [climate, setClimate] = useState("");
-  const detectedArea = useUserProfileStore((s) => s.detectedArea);
+  const [dressingFor, setDressingFor] = useState("");
   const profileCompleted = useUserProfileStore((s) => s.onboardingCompleted);
   const [city, setCity] = useState(DEFAULT_CITY);
-  const [shippingCountry, setShippingCountry] = useState(
-    DEFAULT_SHIPPING_COUNTRY,
-  );
-  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
+  const shippingCountry = DEFAULT_SHIPPING_COUNTRY;
+  const currency = DEFAULT_CURRENCY;
 
   const [budgetPhilosophies, setBudgetPhilosophies] = useState<string[]>([]);
   const [customSpendLabels, setCustomSpendLabels] = useState<string[]>([]);
@@ -712,8 +714,6 @@ export function OnboardingGate() {
   const [honestyPreference, setHonestyPreference] = useState("");
   const [styleFriction, setStyleFriction] = useState("");
   const [styleBecome, setStyleBecome] = useState("");
-  /** Trusted Circle first-name slots (sparse; up to 3). */
-  const [circleNames, setCircleNames] = useState<string[]>(["", "", ""]);
   const [styleMix, setStyleMix] = useState<StyleMix | null>(null);
 
   const [photoValues, setPhotoValues] = useState<FittingPhotoValues>({
@@ -757,7 +757,7 @@ export function OnboardingGate() {
     if (prev !== "developing" || twinStatus !== "ready" || !twinAvatarUrl) {
       return;
     }
-    if (step === "verdict" || step === "circle") return;
+    if (step === "verdict") return;
     setTwinReadyToast(true);
     const id = window.setTimeout(() => setTwinReadyToast(false), 2800);
     return () => window.clearTimeout(id);
@@ -786,7 +786,6 @@ export function OnboardingGate() {
     wantedSaved: false,
     nolistSaved: false,
     tasteFinal: false,
-    circleSaved: false,
   });
 
   useEffect(() => {
@@ -967,6 +966,7 @@ export function OnboardingGate() {
     if (prefill.climate) {
       setClimate(normalizeClimate(prefill.climate) || prefill.climate);
     }
+    if (prefill.dressingFor) setDressingFor(prefill.dressingFor);
     if (prefill.honestyPreference) {
       setHonestyPreference(
         normalizeHonestyPreference(prefill.honestyPreference) ||
@@ -975,20 +975,6 @@ export function OnboardingGate() {
     }
     if (prefill.styleFriction) setStyleFriction(prefill.styleFriction);
     if (prefill.styleBecome) setStyleBecome(prefill.styleBecome);
-    if (prefill.circleNames) {
-      const parsed = prefill.circleNames
-        .split(",")
-        .map((v) => v.trim())
-        .filter(Boolean)
-        .slice(0, 3);
-      if (parsed.length) {
-        setCircleNames([
-          parsed[0] ?? "",
-          parsed[1] ?? "",
-          parsed[2] ?? "",
-        ]);
-      }
-    }
     if (
       prefill.heightCm ||
       prefill.weightKg ||
@@ -1061,8 +1047,6 @@ export function OnboardingGate() {
             prefill.comfort?.trim(),
         ),
       tasteFinal: f.tasteFinal || Boolean(prefill.honestyPreference?.trim()),
-      circleSaved:
-        f.circleSaved || Boolean(prefill.circleNames?.trim()),
     }));
   }, []);
 
@@ -1090,16 +1074,6 @@ export function OnboardingGate() {
         setStyleEras((prev) => mergeLabelLists(prev, nextEras));
       }
       if (next.profile?.city?.trim()) setCity(next.profile.city.trim());
-      if (next.profile?.shippingCountry?.trim() || next.profile?.country?.trim()) {
-        setShippingCountry(
-          next.profile.shippingCountry?.trim() ||
-            next.profile.country?.trim() ||
-            DEFAULT_SHIPPING_COUNTRY,
-        );
-      }
-      if (next.profile?.currency?.trim()) {
-        setCurrency(next.profile.currency.trim());
-      }
       if (next.profile?.valuePhilosophy) {
         setBudgetPhilosophies((prev) =>
           mergeLabelLists(prev, parseCsvValues(next.profile!.valuePhilosophy)),
@@ -1145,6 +1119,9 @@ export function OnboardingGate() {
         setClimate(
           normalizeClimate(next.profile.climate) || next.profile.climate.trim(),
         );
+      }
+      if (next.profile?.dressingFor?.trim()) {
+        setDressingFor(next.profile.dressingFor.trim());
       }
       if (next.profile?.lifestyleTags?.length) {
         setStoredLifestyleTags((prev) =>
@@ -1225,9 +1202,6 @@ export function OnboardingGate() {
     if (session.finale === "scan" || session.finale === "card") {
       setFinale(session.finale);
     }
-    if (session.circleNames?.some((n) => n.trim())) {
-      setCircleNames(session.circleNames);
-    }
     if (session.identity?.preferredName) {
       setPreferredName(session.identity.preferredName);
     }
@@ -1247,16 +1221,6 @@ export function OnboardingGate() {
         if (ctrl.signal.aborted) return;
         if (next === "unauthorized") return;
         hydrateFromStatus(next);
-
-        // Prefer profile, else real IP-detected area for ship-to.
-        if (!next.profile?.shippingCountry?.trim() && detectedArea?.countryLabel) {
-          setShippingCountry(detectedArea.countryLabel);
-          const hint = currencyHintForCountry(detectedArea.countryLabel);
-          if (hint) setCurrency(hint);
-        }
-        if (!next.profile?.city?.trim() && detectedArea?.cityLabel) {
-          setCity(detectedArea.cityLabel);
-        }
 
         const restart =
           useInlineFittingStore.getState().replayFitting &&
@@ -1284,7 +1248,7 @@ export function OnboardingGate() {
             finale: resume === "verdict" ? session?.finale : undefined,
           });
           useInlineFittingStore.getState().resumeColumn();
-          if (next.onboarding.completed || resume === "verdict" || resume === "circle") {
+          if (next.onboarding.completed || resume === "verdict") {
             setHoldOpen(true);
           }
           if (isMagicFittingStep(resume)) {
@@ -1292,9 +1256,6 @@ export function OnboardingGate() {
           }
         } else if (next.onboarding.completed && !restart) {
           useInlineFittingStore.getState().dismissColumn();
-        }
-        if (session?.circleNames?.some((n) => n.trim())) {
-          setCircleNames(session.circleNames);
         }
         const self = await fetchSelfPerson(ctrl.signal);
         if (self) {
@@ -1318,7 +1279,7 @@ export function OnboardingGate() {
       }
     })();
     return () => ctrl.abort();
-  }, [hydrateFromStatus, detectedArea, identityScope]);
+  }, [hydrateFromStatus, identityScope]);
 
   useEffect(() => {
     if (loading || !status) return;
@@ -1327,7 +1288,6 @@ export function OnboardingGate() {
     if (!columnOpen && !stageLocked && !holdOpen && !session) return;
     writeOnboardingUiSession({
       step,
-      circleNames,
       finale,
       locked: isMagicFittingStep(step),
       identity: {
@@ -1340,7 +1300,6 @@ export function OnboardingGate() {
     loading,
     status,
     step,
-    circleNames,
     finale,
     preferredName,
     genderPresentation,
@@ -1376,7 +1335,7 @@ export function OnboardingGate() {
 
   const savingLooksRef = useRef(false);
 
-  async function saveReadingLooksAndGoToCircle(jobIds: string[]) {
+  async function saveReadingLooksAndFinish(jobIds: string[]) {
     if (savingLooksRef.current) return;
     savingLooksRef.current = true;
     setBusy(true);
@@ -1389,13 +1348,14 @@ export function OnboardingGate() {
         });
       }
       writeOnboardingUiSession({
-        step: "circle",
+        step: "verdict",
         finale: "card",
         locked: true,
         saveLooks: false,
         lookJobIds: [],
+        completeAfterAuth: false,
       });
-      setStep("circle");
+      await completeOnboarding();
     } finally {
       savingLooksRef.current = false;
       setBusy(false);
@@ -1409,45 +1369,47 @@ export function OnboardingGate() {
       locked: true,
       saveLooks: true,
       lookJobIds: jobIds,
+      completeAfterAuth: false,
     });
     if (accountReady) {
-      void saveReadingLooksAndGoToCircle(jobIds);
+      void saveReadingLooksAndFinish(jobIds);
       return;
     }
     openAuthModal("signup");
   }
 
-  function goToCircle() {
+  function finishFitting() {
     writeOnboardingUiSession({
-      step: "circle",
+      step: "verdict",
       finale: "card",
       locked: true,
       saveLooks: false,
       lookJobIds: [],
+      completeAfterAuth: true,
     });
     if (!accountReady) {
       openAuthModal("signup");
       return;
     }
-    setStep("circle");
+    void completeOnboarding();
   }
 
   useEffect(() => {
     if (accountReady) {
       const session = readOnboardingUiSession();
       if (session?.saveLooks) {
-        void saveReadingLooksAndGoToCircle(session.lookJobIds ?? []);
-      } else if (session?.step === "circle") {
-        setStep("circle");
+        void saveReadingLooksAndFinish(session.lookJobIds ?? []);
+      } else if (session?.completeAfterAuth) {
+        void completeOnboarding();
       }
     }
     const onAuth = () => {
       const session = readOnboardingUiSession();
       if (session?.saveLooks) {
-        void saveReadingLooksAndGoToCircle(session.lookJobIds ?? []);
+        void saveReadingLooksAndFinish(session.lookJobIds ?? []);
         return;
       }
-      if (session?.step === "circle") setStep("circle");
+      if (session?.completeAfterAuth) void completeOnboarding();
     };
     window.addEventListener("shoop-auth-changed", onAuth);
     return () => window.removeEventListener("shoop-auth-changed", onAuth);
@@ -1506,8 +1468,8 @@ export function OnboardingGate() {
   );
 
   const lifeValues = useMemo<TasteLifeValues>(
-    () => ({ weekIs, weekendsAre, kids, climate }),
-    [weekIs, weekendsAre, kids, climate],
+    () => ({ weekIs, weekendsAre, kids, climate, dressingFor }),
+    [weekIs, weekendsAre, kids, climate, dressingFor],
   );
 
   const lifeOnChange = useCallback(
@@ -1524,6 +1486,9 @@ export function OnboardingGate() {
           break;
         case "climate":
           setClimate(value);
+          break;
+        case "dressingFor":
+          setDressingFor(value);
           break;
       }
     },
@@ -1632,7 +1597,9 @@ export function OnboardingGate() {
         if (more) {
           const seen = new Set(currentDeck.map((c) => c.id));
           const added = next.filter((c) => c.id && !seen.has(c.id));
-          setDeck((prev) => uniqueOutfitCards([...prev, ...added]));
+          const merged = uniqueOutfitCards([...currentDeck, ...added]);
+          deckRef.current = merged;
+          setDeck(merged);
           // Prefer server flag; never keep "See more" if this page added nothing.
           const serverHasMore = json.hasMore;
           setHasMore(
@@ -1643,7 +1610,9 @@ export function OnboardingGate() {
                 : added.length >= 9,
           );
         } else {
-          setDeck(uniqueOutfitCards(next));
+          const unique = uniqueOutfitCards(next);
+          deckRef.current = unique;
+          setDeck(unique);
           const serverHasMore = json.hasMore;
           setHasMore(
             typeof serverHasMore === "boolean"
@@ -1653,8 +1622,11 @@ export function OnboardingGate() {
         }
       } catch {
         if (!more && mode === "aspirational") setAspirationalPicks([]);
-        if (!more) setDeck([]);
-        if (!more) setHasMore(false);
+        if (!more) {
+          deckRef.current = [];
+          setDeck([]);
+          setHasMore(false);
+        }
       } finally {
         inFlight.current = false;
         setLoadingState(false);
@@ -1693,7 +1665,7 @@ export function OnboardingGate() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
-      if (step === "verdict" || step === "honesty" || step === "circle" || step === "consent") return;
+      if (step === "verdict" || step === "honesty" || step === "consent") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
       const btn = document.querySelector<HTMLButtonElement>(
@@ -1791,9 +1763,9 @@ export function OnboardingGate() {
               styleEra: styleEraWire,
               lifestyleTags,
               city: city.trim() || null,
-              shippingCountry: shippingCountry.trim() || null,
-              country: shippingCountry.trim() || null,
-              currency: currency.trim() || null,
+              shippingCountry: DEFAULT_SHIPPING_COUNTRY,
+              country: DEFAULT_SHIPPING_COUNTRY,
+              currency: DEFAULT_CURRENCY,
               birthDate:
                 !birthDateSkipped &&
                 birthDate &&
@@ -1838,7 +1810,7 @@ export function OnboardingGate() {
   }
 
   async function saveLife(): Promise<boolean> {
-    if (!weekIs && !weekendsAre && !kids && !climate) {
+    if (!weekIs && !weekendsAre && !kids && !climate && !dressingFor) {
       return true;
     }
     if (submissionLockRef.current) return false;
@@ -1857,6 +1829,7 @@ export function OnboardingGate() {
               weekendsAre: weekendsAre || null,
               kids: kids || null,
               climate: climate || null,
+              dressingFor: dressingFor.trim() || null,
               lifestyleTags: derivedTags,
             },
           },
@@ -2281,6 +2254,13 @@ export function OnboardingGate() {
     file: File,
     opts?: { force?: boolean; coverage?: PhotoCoverage },
   ) {
+    void postFacePhoto(file, opts).catch(() => undefined);
+  }
+
+  async function postFacePhoto(
+    file: File,
+    opts?: { force?: boolean; coverage?: PhotoCoverage },
+  ): Promise<PhotoAnalysisPublic | null> {
     const coverage = opts?.coverage ?? photoValues.photoCoverage;
     const form = new FormData();
     fillPhotoAnalysisForm(form, {
@@ -2294,12 +2274,38 @@ export function OnboardingGate() {
     const path = opts?.force
       ? "/api/onboarding/photo-analysis?force=1"
       : "/api/onboarding/photo-analysis";
-    void guestFetch(path, {
+    const res = await guestFetch(path, {
       method: "POST",
       body: form,
-    }).catch(() => {
-      /* panel polls GET; analysis never blocks onboarding */
     });
+    const json = (await res.json().catch(() => null)) as {
+      analysis?: PhotoAnalysisPublic | null;
+      error?: string;
+    } | null;
+    if (!res.ok) {
+      throw new Error(json?.error ?? "Couldn’t check that photo.");
+    }
+    return json?.analysis ?? null;
+  }
+
+  function applyFaceGate(analysis: PhotoAnalysisPublic | null) {
+    if (analysis?.error) {
+      setFaceGate("rejected");
+      setFaceGateMessage(
+        publicPhotoError(analysis.error) ||
+          facePhotoGateMessage(analysis.gate),
+      );
+      return false;
+    }
+    if (facePhotoAccepted(analysis?.gate)) {
+      setFaceGate("accepted");
+      setFaceGateMessage(null);
+      setNoPhotoWarning(null);
+      return true;
+    }
+    setFaceGate("rejected");
+    setFaceGateMessage(facePhotoGateMessage(analysis?.gate));
+    return false;
   }
 
   async function attachAvatarPhoto(personId: string, file: File): Promise<boolean> {
@@ -2373,10 +2379,14 @@ export function OnboardingGate() {
   }
 
   function clearPhotoDraft() {
+    faceCheckGenRef.current += 1;
     photoReadyRef.current = false;
     pendingPhotoFileRef.current = null;
     clearPendingFittingPhoto();
     setAnalysisPhotoFile(null);
+    setFaceGate("idle");
+    setFaceGateMessage(null);
+    setNoPhotoWarning(null);
     setPhotoValues((p) => {
       revokePhotoPreview(p.photoPreview);
       return { ...p, photoPreview: null };
@@ -2408,8 +2418,24 @@ export function OnboardingGate() {
     pendingPhotoFileRef.current = file;
     setPendingFittingPhoto(file);
     setAnalysisPhotoFile(file);
-    if (canProcessPhotoRef.current) {
-      kickPhotoAnalysis(file);
+    setNoPhotoWarning(null);
+    if (!canProcessPhotoRef.current) return;
+    const gen = ++faceCheckGenRef.current;
+    setFaceGate("checking");
+    setFaceGateMessage(null);
+    setError(null);
+    try {
+      const analysis = await postFacePhoto(file);
+      if (gen !== faceCheckGenRef.current) return;
+      if (applyFaceGate(analysis) && stepRef.current === "photo") {
+        setStep("name");
+      }
+    } catch (e) {
+      if (gen !== faceCheckGenRef.current) return;
+      setFaceGate("rejected");
+      setFaceGateMessage(
+        e instanceof Error ? e.message : "Couldn’t check that photo.",
+      );
     }
   }
 
@@ -2417,8 +2443,24 @@ export function OnboardingGate() {
     if (!canProcessPhotoRef.current) return;
     const file = pendingPhotoFileRef.current ?? getPendingFittingPhoto();
     if (!file || photoReadyRef.current) return;
-    kickPhotoAnalysis(file);
-  }, [accountReady, biometricAccepted]);
+    if (faceGate === "accepted" || faceGate === "checking") return;
+    const gen = ++faceCheckGenRef.current;
+    setFaceGate("checking");
+    void postFacePhoto(file)
+      .then((analysis) => {
+        if (gen !== faceCheckGenRef.current) return;
+        if (applyFaceGate(analysis) && stepRef.current === "photo") {
+          setStep("name");
+        }
+      })
+      .catch((e: unknown) => {
+        if (gen !== faceCheckGenRef.current) return;
+        setFaceGate("rejected");
+        setFaceGateMessage(
+          e instanceof Error ? e.message : "Couldn’t check that photo.",
+        );
+      });
+  }, [accountReady, biometricAccepted, analysisPhotoFile]);
 
   async function saveSpend(): Promise<boolean> {
     if (!valuePhilosophyWire) {
@@ -2684,49 +2726,6 @@ export function OnboardingGate() {
     }
   }
 
-  async function saveCircle(): Promise<boolean> {
-    if (submissionLockRef.current) return false;
-    submissionLockRef.current = true;
-    setBusy(true);
-    setError(null);
-    try {
-      const names = circleNames.map((n) => n.trim()).filter(Boolean);
-      if (!accountReady) {
-        openAuthModal("signup");
-        return false;
-      }
-      const res = await guestFetch("/api/onboarding/circle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ names }),
-      });
-      const json = (await res.json()) as {
-        error?: string;
-        names?: string[];
-      };
-      if (!res.ok) {
-        throw new Error(json.error ?? "Could not save your trusted circle.");
-      }
-      if (json.names?.length) {
-        setCircleNames([
-          json.names[0] ?? "",
-          json.names[1] ?? "",
-          json.names[2] ?? "",
-        ]);
-      }
-      setPersistedFlags((f) => ({ ...f, circleSaved: true }));
-      return true;
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not save your trusted circle.",
-      );
-      return false;
-    } finally {
-      submissionLockRef.current = false;
-      setBusy(false);
-    }
-  }
-
   async function waitForMintIfRunning(maxMs = 12_000) {
     if (!mintInFlightRef.current) return;
     const start = Date.now();
@@ -2752,9 +2751,9 @@ export function OnboardingGate() {
       await waitForMintIfRunning(15_000);
       submissionLockRef.current = true;
 
-      // Circle is post-signup. Copy quiz answers onto the account if
-      // guest→user migrate missed them. Don't fail the circle step on a
-      // name re-save when identity is already persisted.
+      // Verdict close is post-signup. Copy quiz answers onto the account if
+      // guest→user migrate missed them. Don't fail finish on a name re-save
+      // when identity is already persisted.
       submissionLockRef.current = false;
       const identityOk = await saveIdentity();
       if (!identityOk) {
@@ -2813,13 +2812,21 @@ export function OnboardingGate() {
       return;
     }
     if (current === "photo") {
+      if (faceGate === "checking") return;
+      if (faceGate !== "accepted") {
+        setNoPhotoWarning(
+          faceGateMessage ||
+            "Need a clear photo of your face — just you, facing the light.",
+        );
+        return;
+      }
       setStep("name");
       return;
     }
     if (current === "name") {
       const finishing = isFinishingFitting(readOnboardingUiSession());
       await runWithLoading({
-        nextStep: finishing ? "circle" : "fit",
+        nextStep: finishing ? "verdict" : "fit",
         work: () => saveIdentity(),
       });
       return;
@@ -2848,7 +2855,9 @@ export function OnboardingGate() {
         work: async () => {
           const ok = await saveSpend();
           if (!ok) return false;
-          void loadOutfitDeck("worn");
+          if (wornDeckRef.current.length === 0) {
+            void loadOutfitDeck("worn");
+          }
           return true;
         },
       });
@@ -2904,12 +2913,6 @@ export function OnboardingGate() {
       return;
     }
     if (current === "verdict") {
-      setStep("circle");
-      return;
-    }
-    if (current === "circle") {
-      const ok = await saveCircle();
-      if (!ok) return;
       await completeOnboarding();
     }
   }
@@ -2960,13 +2963,13 @@ export function OnboardingGate() {
             hardAvoids: hardAvoids.length ? hardAvoids : undefined,
             comfort: comfort.length ? comfort : undefined,
             weekIs: weekIs || undefined,
+            dressingFor: dressingFor || undefined,
             weekendsAre: weekendsAre || undefined,
             kids: kids || undefined,
             climate: climate || undefined,
             honestyPreference: honestyPreference || undefined,
             styleFriction: styleFriction.trim() || undefined,
             styleBecome: styleBecome.trim() || undefined,
-            circleNames: circleNames.map((n) => n.trim()).filter(Boolean),
             heightCm: heightCmFromPhoto(photoValues),
             weightKg:
               photoValues.weightValue != null && photoValues.weightUnit === "kg"
@@ -2996,13 +2999,13 @@ export function OnboardingGate() {
           hardAvoids?: string[];
           comfort?: string[];
           weekIs?: string;
+          dressingFor?: string;
           weekendsAre?: string;
           kids?: string;
           climate?: string;
           honestyPreference?: string;
           styleFriction?: string;
           styleBecome?: string;
-          circleNames?: string[];
           muscularity?: string;
           bodyShape?: string;
           bustFullness?: string;
@@ -3048,6 +3051,8 @@ export function OnboardingGate() {
         comfort:
           json.extraction?.comfort?.join(", ") ?? json.prefill?.comfort,
         weekIs: json.extraction?.weekIs ?? json.prefill?.weekIs,
+        dressingFor:
+          json.extraction?.dressingFor ?? json.prefill?.dressingFor,
         weekendsAre:
           json.extraction?.weekendsAre ?? json.prefill?.weekendsAre,
         kids: json.extraction?.kids ?? json.prefill?.kids,
@@ -3064,9 +3069,6 @@ export function OnboardingGate() {
           json.extraction?.styleFriction ?? json.prefill?.styleFriction,
         styleBecome:
           json.extraction?.styleBecome ?? json.prefill?.styleBecome,
-        circleNames:
-          json.extraction?.circleNames?.join(", ") ??
-          json.prefill?.circleNames,
       };
       tellLatchRef.current = mergePrefillLatch(
         tellLatchRef.current,
@@ -3103,7 +3105,6 @@ export function OnboardingGate() {
     wantedSaved: persistedFlags.wantedSaved,
     nolistSaved: persistedFlags.nolistSaved,
     tasteFinal: persistedFlags.tasteFinal,
-    circleSaved: persistedFlags.circleSaved,
     verdict: step === "verdict",
     dressed: false,
   });
@@ -3148,6 +3149,71 @@ export function OnboardingGate() {
     };
   }, [step, hasPhoto]);
 
+  useEffect(() => {
+    if (step !== "verdict") return;
+    if (hasPhoto) return;
+    if (stylistVerdict) return;
+    let cancelled = false;
+    let timer = 0;
+
+    async function tick(): Promise<"done" | "retry" | "fail"> {
+      try {
+        const res = await guestFetch("/api/onboarding/photo-analysis?hash=" + NOPHOTO_HASH, {
+          cache: "no-store",
+        });
+        if (cancelled) return "done";
+        if (!res.ok) return "fail";
+        const json = (await res.json()) as { analysis: PhotoAnalysisPublic | null };
+        if (json.analysis?.verdict) {
+          setStylistVerdict(json.analysis.verdict);
+          return "done";
+        }
+        if (
+          json.analysis?.verdictError ||
+          json.analysis?.verdictStatus === "done"
+        ) {
+          return "done";
+        }
+        return "retry";
+      } catch {
+        return cancelled ? "done" : "fail";
+      }
+    }
+
+    void (async () => {
+      const form = new FormData();
+      form.append("hash", NOPHOTO_HASH);
+      await guestFetch("/api/onboarding/stylist-verdict", {
+        method: "POST",
+        body: form,
+      }).catch(() => undefined);
+      if (cancelled) return;
+      let fails = 0;
+      const first = await tick();
+      if (first === "done" || cancelled) return;
+      if (first === "fail") fails = 1;
+      timer = window.setInterval(() => {
+        void tick().then((state) => {
+          if (state === "done") {
+            window.clearInterval(timer);
+            return;
+          }
+          if (state === "fail") {
+            fails += 1;
+            if (fails >= 3) window.clearInterval(timer);
+          } else {
+            fails = 0;
+          }
+        });
+      }, 2000);
+    })();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [step, hasPhoto, stylistVerdict]);
+
 
   const mirror = useMemo<MirrorState>(() => {
     const eraShorts = styleEras.map((e) => {
@@ -3187,7 +3253,6 @@ export function OnboardingGate() {
         styleBecome.trim() || styleFriction.trim()
           ? (styleBecome.trim() || styleFriction.trim()).slice(0, 28)
           : "",
-      circleLabel: circleMirrorLabel(circleNames),
       photoUrl: localFacePreview,
       twinAvatarUrl: displayTwinUrl,
       heightCm: heightCmFromPhoto(photoValues),
@@ -3227,7 +3292,6 @@ export function OnboardingGate() {
     brandLikes,
     styleFriction,
     styleBecome,
-    circleNames,
     localFacePreview,
     twinAvatarUrl,
     photoValues,
@@ -3278,7 +3342,7 @@ export function OnboardingGate() {
   ]);
 
   const progressPct =
-    step === "verdict" || step === "circle"
+    step === "verdict"
       ? 100
       : STEP_PROGRESS_PCT[
           Math.max(
@@ -3385,10 +3449,10 @@ export function OnboardingGate() {
         step={step}
         progressPct={progressPct}
         stageLabel={
-          step === "verdict" || step === "circle" ? "THE FITTING" : stepMeta.stage
+          step === "verdict" ? "THE FITTING" : stepMeta.stage
         }
         stepCountLabel={
-          step === "verdict" || step === "circle"
+          step === "verdict"
             ? "DONE"
             : `${stepMeta.n} of ${FITTING_Q_STEPS.length}`
         }
@@ -3402,9 +3466,7 @@ export function OnboardingGate() {
           twinStatus === "error" ? retryTwinMint : undefined
         }
         onDismiss={fullscreen ? requestDismiss : undefined}
-        hideMirror={
-          step === "circle" || (step === "verdict" && finale === "card")
-        }
+        hideMirror={step === "verdict" && finale === "card"}
         phoneStage={
           mobileFitting &&
           step === "verdict" &&
@@ -3418,14 +3480,13 @@ export function OnboardingGate() {
           ) : null
         }
       >
-        {step === "circle" ||
-        (step === "verdict" && finale === "card") ||
+        {(step === "verdict" && finale === "card") ||
         (step !== "consent" &&
           step !== "photo" &&
           !isMagicFittingStep(step)) ? (
           <FittingBackLink onClick={goBack} />
         ) : null}
-        {step !== "verdict" && step !== "circle" ? (
+        {step !== "verdict" ? (
           <FittingCount n={stepMeta.n} total={FITTING_Q_STEPS.length} />
         ) : null}
 
@@ -3478,11 +3539,14 @@ export function OnboardingGate() {
             }}
             onSkipPhoto={() => {
               clearPhotoDraft();
-              void advanceFrom("photo");
+              setStep("name");
             }}
             onContinue={() => void advanceFrom("photo")}
             busy={busy}
             showContinue
+            gateStatus={faceGate}
+            gateMessage={faceGateMessage}
+            noPhotoWarning={noPhotoWarning}
             twinSlot={
               twinInFlow ? (
                 mobileFitting ? (
@@ -3512,7 +3576,7 @@ export function OnboardingGate() {
             skipLabel="skip... continue without a photo"
             onSkip={() => {
               clearPhotoDraft();
-              if (step === "photo") void advanceFrom("photo");
+              if (step === "photo") setStep("name");
             }}
             onAccept={async () => {
               setBiometricBusy(true);
@@ -3657,28 +3721,6 @@ export function OnboardingGate() {
           />
         ) : null}
 
-        {step === "circle" ? (
-          <TasteCircleStep
-            names={circleNames}
-            onChange={setCircleNames}
-            onContinue={() => void advanceFrom("circle")}
-            onSkip={() => {
-              void (async () => {
-                setCircleNames(["", "", ""]);
-                const ok = await saveCircle();
-                if (!ok) return;
-                await completeOnboarding();
-              })();
-            }}
-            onSaveAccount={
-              accountReady
-                ? undefined
-                : () => openAuthModal("signup")
-            }
-            busy={busy}
-          />
-        ) : null}
-
         {step === "verdict" &&
         finale === "scan" &&
         biometricAccepted === true ? (
@@ -3714,27 +3756,11 @@ export function OnboardingGate() {
             verdict={stylistVerdict}
             styleMix={styleMix}
             developPct={mirror.developPct}
-            circleNames={circleNames.map((n) => n.trim()).filter(Boolean)}
             twinReady={twinStatus === "ready" && Boolean(twinAvatarUrl)}
             busy={busy}
             accountReady={accountReady}
             onSaveLooks={handleSaveLooks}
-            onAskCircle={goToCircle}
-            onMeetTwin={goToCircle}
-            shareCopied={shareCopied}
-            onShare={(selectedCircle) => {
-              const circleBit = selectedCircle.length
-                ? ` Asking ${selectedCircle.join(", ")}.`
-                : "";
-              const face = stylistVerdict?.user_facing_verdict;
-              const text = face?.opening
-                ? `${face.title ? `${face.title}. ` : ""}${face.opening} www.shoop.world`
-                : `My Shoop verdict: I love ${wornPicks.map((p) => p.label).join(", ") || "comfort"}, heading toward ${styleBecome.trim() || aspirationalPicks.map((p) => p.label).join(", ") || "more"}. ${hardAvoids.length + brandAvoids.length} hard vetoes.${circleBit} www.shoop.world`;
-              void navigator.clipboard?.writeText(text).then(() => {
-                setShareCopied(true);
-                setTimeout(() => setShareCopied(false), 2000);
-              });
-            }}
+            onFinish={finishFitting}
           />
         ) : null}
 

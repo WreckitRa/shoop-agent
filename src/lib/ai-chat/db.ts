@@ -26,7 +26,7 @@ const POOL_TIMEOUT_S = Number(process.env.PRISMA_POOL_TIMEOUT ?? "15");
 const POOL_EXHAUSTION_DELAYS_MS = [250, 500, 1000, 2000, 3000];
 
 /** Bump when PhotoAnalysis columns change so a hot reload drops the stale client. */
-const PRISMA_RUNTIME_EPOCH = "onboarding-brand-v1";
+const PRISMA_RUNTIME_EPOCH = "verdict-looks-v1";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;

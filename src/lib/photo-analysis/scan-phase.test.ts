@@ -73,6 +73,13 @@ describe("photoScanPhase", () => {
     assert.equal(photoScanPhase(row({ status: "running" })), "reading");
   });
 
+  it("flags a failed job even if status is still running", () => {
+    assert.equal(
+      photoScanPhase(row({ status: "running", error: "Photo analysis failed" })),
+      "error",
+    );
+  });
+
   it("surfaces a verdict failure as error, not writing", () => {
     assert.equal(
       photoScanPhase(

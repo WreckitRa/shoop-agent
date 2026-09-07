@@ -1187,8 +1187,12 @@ model LookAskShare {
   /// Second look for comparative polls (friends pick A vs B).
   altImageUrl      String?
   altGenerationId  String?
+  /// Extra looks after look 2: [{ generationId, imageUrl, title }]
+  extraLooks       Json     @default("[]")
   /// "compare" | "rate" — compare is default when alt look is present.
   pollMode         String   @default("rate")
+  /// Title of the first shared look (garment names), for labels.
+  lookTitle        String?
   pieces         Json     @default("[]")
   shoopVerdict   Json
   /// Mapped poll choice: no|meh|almost|love (rate) or a|b (compare)
@@ -1241,6 +1245,87 @@ model LookAskNote {
 
   @@index([shareId, createdAt])
   @@map("look_ask_notes")
+  @@schema("public")
+}
+
+enum LookStatus {
+  queued
+  products_ready
+  rendering
+  ready
+  degraded
+  failed
+
+  @@schema("public")
+}
+
+/// Onboarding verdict rail — one contract look, persisted across refresh.
+model VerdictLook {
+  id          String     @id @default(cuid())
+  userId      String
+  photoHash   String
+  lookIndex   Int
+  name        String
+  status      LookStatus @default(queued)
+  renderUrl   String?
+  renderPath  String?
+  renderNote  String?
+  creditsUsed Int        @default(0)
+  timings     Json?
+  pieces      VerdictLookPiece[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([userId, photoHash, lookIndex])
+  @@index([userId, photoHash])
+  @@map("verdict_looks")
+  @@schema("public")
+}
+
+model VerdictLookPiece {
+  id               String      @id @default(cuid())
+  lookId           String
+  look             VerdictLook @relation(fields: [lookId], references: [id], onDelete: Cascade)
+  slot             String
+  spec             Json
+  productId        String?
+  variantId        String?
+  productSnapshot  Json?
+  garmentImageUrl  String?
+  garmentPhotoType String?
+  observedFamily   String?
+  alternates       Json?
+  status           String      @default("pending")
+  dropReason       String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([lookId])
+  @@map("verdict_look_pieces")
+  @@schema("public")
+}
+
+model ColorSwatchRender {
+  id           String   @id @default(cuid())
+  userId       String
+  photoHash    String
+  family       String
+  shade        String   @default("")
+  hex          String
+  kind         String
+  templateUrl  String?
+  renderUrl    String?
+  renderPath   String?
+  status       String   @default("queued")
+  dropReason   String?
+  shopProducts Json?
+  creditsUsed  Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, photoHash, family, kind, hex])
+  @@index([userId, photoHash])
+  @@map("color_swatch_renders")
   @@schema("public")
 }
 

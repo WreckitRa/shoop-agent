@@ -22,9 +22,9 @@ import { buildFashionExtractionPrompt } from "@/lib/fashion-memory/extraction/pr
 import { buildPersonShortIdMap } from "@/lib/fashion-memory/extraction/context-format";
 import type { FashionFactRow, PersonRow } from "@/lib/fashion-memory/types";
 
-describe("avatar prompt v5 — body-first FTM, reshape on edit", () => {
+describe("avatar prompt v6 — body-first FTM, reshape on edit", () => {
   it("bumps prompt version", () => {
-    assert.equal(TRYON_AVATAR_PROMPT_VERSION, "v5");
+    assert.equal(TRYON_AVATAR_PROMPT_VERSION, "v6");
   });
 
   it("Tailored: triangle + full bust maps to visual phrases", () => {
@@ -77,6 +77,7 @@ describe("avatar prompt v5 — body-first FTM, reshape on edit", () => {
     assert.match(edit, /Do not keep the body inferred from the source photo/);
     assert.doesNotMatch(edit, /Keep the same .* body shape/);
     assert.match(edit, /no scarf/i);
+    assert.match(edit, /mid-grey fitted crewneck/i);
   });
 });
 

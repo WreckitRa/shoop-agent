@@ -322,7 +322,7 @@ These set `createPageMetadata` but are **not** meant to be shared. All `noindex,
 | Path | Title | Description |
 |------|--------|-------------|
 | `/c/{id}` | `Conversation \| Shoop` | Your private shopping conversation with Shoop. Canonical currently falls back to `/` (no `path` passed). |
-| `/moodboard` | `Moodboard \| Shoop` | My moodboard, The Hold, and My cart — looks you loved and what you're buying. |
+| `/moodboard` | `Moodboard \| Shoop` | My moodboard and cart — looks you loved and what you're buying. |
 | `/asks` | `Shared cards \| Shoop` | Looks you asked friends about — votes, notes, and Shoop’s take. |
 | `/profile` | `Your profile \| Shoop` | Manage your Shoop shopping profile — sizes, tastes, budgets, and saved preferences. |
 

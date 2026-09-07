@@ -7,7 +7,7 @@ import { createPageMetadata } from "@/lib/seo/site";
 export const metadata: Metadata = createPageMetadata({
   title: "Moodboard",
   description:
-    "My moodboard, The Hold, and My cart — looks you loved and what you're buying.",
+    "My moodboard and cart — looks you loved and what you're buying.",
   path: "/moodboard",
   noIndex: true,
 });

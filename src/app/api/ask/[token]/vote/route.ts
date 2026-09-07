@@ -5,6 +5,7 @@ import { loadShareByToken } from "@/lib/ask/create-share";
 import { upsertOwnerAskVote } from "@/lib/ask/owner-vote";
 import { buildLookAskPublic } from "@/lib/ask/public-payload";
 import { prisma } from "@/lib/ai-chat/db";
+import { choicesForPollMode, isAskRateChoice, parseExtraLooks } from "@/lib/ask/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,17 @@ type Ctx = { params: Promise<{ token: string }> };
 
 const bodySchema = z
   .object({
-    choice: z.enum(["no", "meh", "almost", "love", "a", "b"]),
+    choice: z.enum([
+      "no",
+      "meh",
+      "almost",
+      "love",
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+    ]),
     displayName: z.string().trim().min(1).max(40),
     voterKey: z.string().trim().min(3).max(120),
   })
@@ -38,14 +49,16 @@ export async function POST(req: Request, ctx: Ctx) {
     );
   }
 
+  const extraCount = parseExtraLooks(share.extraLooks).length;
+  const lookCount =
+    extraCount > 0
+      ? 1 + extraCount
+      : share.altImageUrl?.trim()
+        ? 2
+        : 1;
   const pollMode =
-    share.pollMode === "compare" && share.altImageUrl?.trim()
-      ? "compare"
-      : "rate";
-  const allowed =
-    pollMode === "compare"
-      ? (["a", "b"] as const)
-      : (["no", "meh", "almost", "love"] as const);
+    share.pollMode === "rate" || lookCount < 2 ? "rate" : "compare";
+  const allowed = choicesForPollMode(pollMode, lookCount);
 
   const auth = await getAuthContext();
   const viewerUserId = auth.ok ? auth.userId : null;
@@ -60,7 +73,16 @@ export async function POST(req: Request, ctx: Ctx) {
   // Rate strip choices map onto a|b when the share is comparative.
   if (isOwner && viewerUserId) {
     let ownerChoice = parsed.data.choice;
-    if (pollMode === "compare" && !["a", "b"].includes(ownerChoice)) {
+    if (
+      pollMode === "compare" &&
+      !(allowed as readonly string[]).includes(ownerChoice)
+    ) {
+      if (!isAskRateChoice(ownerChoice)) {
+        return Response.json(
+          { error: "That choice isn't on this poll." },
+          { status: 400 },
+        );
+      }
       ownerChoice =
         ownerChoice === "love" || ownerChoice === "almost" ? "a" : "b";
     } else if (!(allowed as readonly string[]).includes(ownerChoice)) {

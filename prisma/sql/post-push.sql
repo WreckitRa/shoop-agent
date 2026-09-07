@@ -131,7 +131,9 @@ ALTER TABLE "UserProfile"
 ALTER TABLE "look_ask_shares"
   ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3),
   ADD COLUMN IF NOT EXISTS "revokedAt" TIMESTAMP(3),
-  ADD COLUMN IF NOT EXISTS "revokeReason" TEXT;
+  ADD COLUMN IF NOT EXISTS "revokeReason" TEXT,
+  ADD COLUMN IF NOT EXISTS "extraLooks" JSONB NOT NULL DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS "lookTitle" TEXT;
 
 UPDATE "look_ask_shares"
 SET "expiresAt" = "createdAt" + INTERVAL '7 days'

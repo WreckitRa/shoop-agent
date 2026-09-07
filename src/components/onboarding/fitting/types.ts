@@ -9,8 +9,7 @@ export type FittingStep =
   | "corner"
   | "nolist"
   | "honesty"
-  | "verdict"
-  | "circle";
+  | "verdict";
 
 export const FITTING_STEPS: FittingStep[] = [
   "consent",
@@ -24,12 +23,11 @@ export const FITTING_STEPS: FittingStep[] = [
   "nolist",
   "honesty",
   "verdict",
-  "circle",
 ];
 
-/** Scan → verify → verdict card → friends. Chat and chrome close. */
+/** Scan → verify → verdict card. Chat and chrome close. */
 export function isMagicFittingStep(step: FittingStep): boolean {
-  return step === "verdict" || step === "circle";
+  return step === "verdict";
 }
 
 /** Photo CTA sits under the copy until a face is on the twin. */
@@ -45,9 +43,6 @@ export function fittingBackTarget(args: {
   finale?: FittingBackFinale;
   hasPhoto?: boolean;
 }): { step: FittingStep; finale?: FittingBackFinale } | null {
-  if (args.step === "circle") {
-    return { step: "verdict", finale: "card" };
-  }
   if (args.step === "verdict" && args.finale === "card" && args.hasPhoto) {
     return { step: "verdict", finale: "scan" };
   }
@@ -67,7 +62,6 @@ export const FITTING_Q_STEPS: Exclude<FittingStep, "verdict">[] = [
   "corner",
   "nolist",
   "honesty",
-  "circle",
 ];
 
 export const STITCH_KNOTS = [
@@ -79,8 +73,7 @@ export const STITCH_KNOTS = [
   { id: "worn", label: "Worn", top: "53%" },
   { id: "corner", label: "What you'd change", top: "63%" },
   { id: "nolist", label: "Never again", top: "73%" },
-  { id: "mint", label: "Your reading", top: "85%", emphasis: true },
-  { id: "circle", label: "Your circle", top: "96%" },
+  { id: "mint", label: "Your reading", top: "96%", emphasis: true },
 ] as const;
 
 /** Left-rail groups — same knots, sequential, mock tracker chrome. */
@@ -89,14 +82,13 @@ export const TRACKER_GROUPS = [
   { label: "LIFE", knotIds: ["life"] },
   { label: "EVIDENCE", knotIds: ["spend", "worn", "corner", "nolist"] },
   { label: "DIRECTION", knotIds: ["mint"] },
-  { label: "PERSON", knotIds: ["circle"] },
 ] as const;
 
 /** sewn % per knot index */
-export const SEWN_PCT = [3, 13, 23, 33, 43, 53, 63, 73, 85, 100];
+export const SEWN_PCT = [3, 13, 23, 33, 43, 53, 63, 73, 100];
 
 /** progress bar % per question step */
-export const STEP_PROGRESS_PCT = [3, 11, 20, 28, 36, 44, 52, 61, 70, 81, 93];
+export const STEP_PROGRESS_PCT = [3, 11, 20, 28, 36, 44, 52, 61, 70, 81];
 
 export const STEP_META: Record<
   Exclude<FittingStep, "verdict">,
@@ -115,7 +107,6 @@ export const STEP_META: Record<
   corner: { n: 8, stage: "Getting to know you" },
   nolist: { n: 9, stage: "Getting to know you" },
   honesty: { n: 10, stage: "Getting to know you" },
-  circle: { n: 11, stage: "Getting to know you" },
 };
 
 /** Knot index highlighted / sewn for each step */
@@ -141,8 +132,6 @@ export function knotNowIndex(step: FittingStep): number {
     case "honesty":
     case "verdict":
       return 8;
-    case "circle":
-      return 9;
     default:
       return 0;
   }
@@ -170,8 +159,6 @@ export function sewnThroughIndex(step: FittingStep): number {
     case "honesty":
     case "verdict":
       return 7;
-    case "circle":
-      return 8;
     default:
       return -1;
   }
@@ -188,7 +175,6 @@ export type MirrorState = {
   brandsLabel: string;
   noListLabel: string;
   cornerLabel: string;
-  circleLabel: string;
   /** Face photo — silhouette head only until the twin is ready. */
   photoUrl: string | null;
   /** FASHN twin (or dressed twin) — full-card fill when twinStatus is ready. */
@@ -241,7 +227,6 @@ export const EMPTY_MIRROR: MirrorState = {
   brandsLabel: "",
   noListLabel: "",
   cornerLabel: "",
-  circleLabel: "",
   photoUrl: null,
   twinAvatarUrl: null,
   heightCm: null,
@@ -327,15 +312,6 @@ export function wornTrackerLabels(labels: string[]): string[] {
     out.push(text);
   }
   return out;
-}
-
-/** Format trusted-circle names for the Mirror print line. */
-export function circleMirrorLabel(names: string[]): string {
-  const cleaned = names.map((n) => n.trim()).filter(Boolean);
-  if (!cleaned.length) return "";
-  if (cleaned.length === 1) return cleaned[0]!;
-  if (cleaned.length === 2) return `${cleaned[0]}, ${cleaned[1]}`;
-  return `${cleaned[0]}, ${cleaned[1]} +${cleaned.length - 2}`;
 }
 
 export function printSerialFromId(id: string): string {

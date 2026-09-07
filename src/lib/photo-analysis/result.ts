@@ -202,6 +202,20 @@ export function shouldRunDetailedAnalysis(
   );
 }
 
+export function facePhotoAccepted(
+  gate: Pick<StylePhotoPreflight, "next_action"> | null | undefined,
+): boolean {
+  if (!gate) return false;
+  return shouldRunDetailedAnalysis(gate, false);
+}
+
+export function facePhotoGateMessage(
+  gate: Pick<StylePhotoPreflight, "user_message"> | null | undefined,
+): string {
+  const msg = gate?.user_message?.trim();
+  return msg || "Need a clear photo of your face — just you, facing the light.";
+}
+
 export type Assessment = {
   value: string | null;
   confidence: number;

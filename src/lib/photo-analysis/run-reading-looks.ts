@@ -16,6 +16,7 @@ import {
   fallbackLookQuery,
   fallbackFaceQuery,
   pickLookProduct,
+  pickFaceColorProduct,
   productTitleKey,
   readingLookQueries,
   type ReadingLookItem,
@@ -181,9 +182,11 @@ export async function runReadingLooks(opts: {
       let hits = first.products ?? [];
       let retried = false;
       const retry =
-        q.kind === "swatch" || q.kind === "avoid"
-          ? fallbackFaceQuery(q.query, q.piece)
-          : fallbackLookQuery(q.query, q.piece);
+        q.keepColor
+          ? null
+          : q.kind === "swatch" || q.kind === "avoid"
+            ? fallbackFaceQuery(q.query, q.piece)
+            : fallbackLookQuery(q.query, q.piece);
       if (!hits.length && retry) {
         retried = true;
         const second = await runSearch(retry);
@@ -223,7 +226,14 @@ export async function runReadingLooks(opts: {
           ? usedSwatchIds
           : usedIds;
     const candidates = candidatesFromHits(hits);
-    const product = pickLookProduct(candidates, usedFace, usedTitles);
+    const product =
+      q.kind === "swatch" || q.kind === "avoid"
+        ? pickFaceColorProduct(
+            candidates,
+            usedFace,
+            q.lookLabel || q.query,
+          )
+        : pickLookProduct(candidates, usedFace, usedTitles);
     if (product) {
       usedFace.add(product.id);
       const titleKey = productTitleKey(product.title);
@@ -240,7 +250,9 @@ export async function runReadingLooks(opts: {
       miss: product
         ? undefined
         : hits.length
-          ? "duplicate"
+          ? q.kind === "swatch" || q.kind === "avoid"
+            ? "color"
+            : "duplicate"
           : "no_hits",
     });
     return {

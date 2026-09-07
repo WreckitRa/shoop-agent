@@ -11,7 +11,6 @@ import { NEW_CHAT_PATH } from "@/lib/shared/chatRoutes";
 import { cn } from "@/lib/ai-chat/cn";
 import { requestMirror } from "@/components/tryon/request-mirror";
 import { useCartStore } from "@/components/cart/cart-store";
-import { HOLD_COMING_SOON_TOAST } from "@/lib/client/coming-soon-toasts";
 import { useToastStore } from "@/lib/client/toast-store";
 import type { MoodboardItemEnriched } from "@/lib/tryon/moodboard-context";
 import { formatScanEmphasis } from "@/lib/tryon/look-scan-types";
@@ -86,7 +85,6 @@ function MoodboardCard({
   buying,
   onRemove,
   onTryOn,
-  onHold,
   onBuy,
 }: {
   item: MoodboardItemEnriched;
@@ -95,7 +93,6 @@ function MoodboardCard({
   buying: boolean;
   onRemove: () => void;
   onTryOn: () => void;
-  onHold: () => void;
   onBuy: () => void;
 }) {
   return (
@@ -162,16 +159,6 @@ function MoodboardCard({
           >
             Try it on
           </button>
-          <button
-            type="button"
-            className="shoop-decide__mini shoop-decide__mini--soon"
-            title="Hold is coming soon"
-            aria-label="Hold — coming soon"
-            onClick={onHold}
-          >
-            Hold
-            <span className="shoop-decide__soon-tag">soon</span>
-          </button>
         </div>
       </div>
     </li>
@@ -181,11 +168,9 @@ function MoodboardCard({
 export function MoodboardView({
   embedded = false,
   onCountChange,
-  onAskHold,
 }: {
   embedded?: boolean;
   onCountChange?: (n: number) => void;
-  onAskHold?: () => void;
 } = {}) {
   const router = useRouter();
   const { isGuest } = useGuestMode();
@@ -365,11 +350,6 @@ export function MoodboardView({
     requestMirror();
   };
 
-  const askHold = () => {
-    showToast(HOLD_COMING_SOON_TOAST);
-    onAskHold?.();
-  };
-
   const body = (
     <>
       {!embedded ? (
@@ -474,7 +454,6 @@ export function MoodboardView({
                     buying={buyingId === item.generationId}
                     onRemove={() => void remove(item.generationId)}
                     onTryOn={tryOn}
-                    onHold={askHold}
                     onBuy={() => void buyNow(item)}
                   />
                 ))}
@@ -499,7 +478,6 @@ export function MoodboardView({
                     buying={buyingId === item.generationId}
                     onRemove={() => void remove(item.generationId)}
                     onTryOn={tryOn}
-                    onHold={askHold}
                     onBuy={() => void buyNow(item)}
                   />
                 ))}

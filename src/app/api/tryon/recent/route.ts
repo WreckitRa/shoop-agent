@@ -1,5 +1,6 @@
 import { getAuthContext } from "@/lib/auth/session";
 import { listRecentCompletedTryons } from "@/lib/tryon/generations";
+import { moodboardDisplayTitle } from "@/lib/tryon/moodboard-title";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,14 +27,19 @@ export async function GET(req: Request) {
     });
     return Response.json({
       ok: true,
-      items: rows.map((row) => ({
-        generationId: row.id,
-        imageUrl: `/api/tryon/image/${row.id}`,
-        title:
-          row.lookId?.trim() ||
-          (row.kind === "outfit" ? "Look" : "Try-on"),
-        kind: row.kind === "outfit" ? "look" : "item",
-      })),
+      items: rows.map((row) => {
+        const kind = row.kind === "outfit" ? "look" : "item";
+        return {
+          generationId: row.id,
+          imageUrl: `/api/tryon/image/${row.id}`,
+          title: moodboardDisplayTitle({
+            kind,
+            lookId: row.lookId,
+            inputRefs: row.inputRefs,
+          }),
+          kind,
+        };
+      }),
     });
   } catch {
     return Response.json(

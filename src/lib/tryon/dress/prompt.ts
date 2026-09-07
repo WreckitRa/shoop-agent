@@ -19,7 +19,7 @@ const FIDELITY =
   "Preserve exact color, fabric texture, pattern/print, logos, hardware, and garment structure from the product image. Do not invent details or recolor the garment.";
 
 const AVATAR_BASE_HINT =
-  "Avatar base is a plain white tee + dark trousers — REPLACE that base in this region; do not leave it visible under the product.";
+  "Avatar base is a plain mid-grey tee + dark grey trousers — REPLACE that base in this region; do not leave it visible under the product.";
 
 function firstLines(lines: string[], n: number): string[] {
   return lines.filter(Boolean).slice(0, n);

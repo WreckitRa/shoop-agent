@@ -1,5 +1,6 @@
 import { loadShareByToken } from "@/lib/ask/create-share";
 import { resolveAskShareImageSrc } from "@/lib/ask/ask-image";
+import { parseExtraLooks } from "@/lib/ask/types";
 import { respondWithSignedImageSrc } from "@/lib/tryon/signed-image-response";
 
 export const runtime = "nodejs";
@@ -29,16 +30,29 @@ export async function GET(
   }
 
   const side = new URL(req.url).searchParams.get("side");
-  const wantAlt = side === "alt" || side === "b";
-  if (wantAlt) {
-    const altUrl = share.altImageUrl?.trim();
+  const extras = parseExtraLooks(share.extraLooks);
+  const wantIndex =
+    side === "alt" || side === "b" || side === "1"
+      ? 1
+      : side && /^\d+$/.test(side)
+        ? Number(side)
+        : 0;
+
+  if (wantIndex >= 1) {
+    const extra = extras[wantIndex - 1];
+    const altUrl =
+      extra?.imageUrl?.trim() ||
+      (wantIndex === 1 ? share.altImageUrl?.trim() : null);
+    const generationId =
+      extra?.generationId ||
+      (wantIndex === 1 ? share.altGenerationId : null);
     if (!altUrl) {
       return Response.json({ error: "Image unavailable." }, { status: 404 });
     }
     const src = await resolveAskShareImageSrc({
       token: share.token,
       ownerUserId: share.ownerUserId,
-      generationId: share.altGenerationId,
+      generationId,
       imageUrl: altUrl,
     });
     if (!src) {

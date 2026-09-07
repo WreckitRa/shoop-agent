@@ -24,40 +24,22 @@ export function honestyPreferenceForSave(
   value: string | null | undefined,
 ): "1" | "2" | "3" | "4" | "5" | undefined {
   if (mark !== "final") return undefined;
-  const normalized = normalizeHonestyPreference(value);
-  return normalized || "3";
+  return normalizeHonestyPreference(value) || "3";
 }
 
-function titleTokens(title?: string): string[] {
-  if (!title?.trim()) return [];
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 3 && w.length < 24)
-    .slice(0, 4);
-}
-
-function pushPickTags(
+function pushPickLabels(
   tasteTags: NonNullable<OnboardingPatch["tasteTags"]>,
   seen: Set<string>,
   picks: OutfitPick[],
   category: string,
 ) {
   for (const pick of picks) {
-    const sources = [
-      pick.label,
-      ...(pick.tasteTags ?? []),
-      ...titleTokens(pick.productTitle),
-    ];
-    for (const raw of sources) {
-      const norm = normalizeTasteTag(raw.trim().toLowerCase());
-      if (!norm) continue;
-      const key = `${category}|positive|${norm}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      tasteTags.push({ tag: norm, polarity: "positive", category });
-    }
+    const norm = normalizeTasteTag(pick.label.trim());
+    if (!norm) continue;
+    const key = `${category}|positive|${norm.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tasteTags.push({ tag: norm, polarity: "positive", category });
   }
 }
 
@@ -78,8 +60,8 @@ export function buildPatchFromTastePicks(input: {
   const tasteTags: NonNullable<OnboardingPatch["tasteTags"]> = [];
   const seen = new Set<string>();
 
-  pushPickTags(tasteTags, seen, input.wornPicks ?? [], "worn");
-  pushPickTags(tasteTags, seen, input.aspirationalPicks ?? [], "aspirational");
+  pushPickLabels(tasteTags, seen, input.wornPicks ?? [], "worn");
+  pushPickLabels(tasteTags, seen, input.aspirationalPicks ?? [], "aspirational");
 
   for (const c of input.compliments ?? []) {
     const norm = normalizeTasteTag(c.trim().toLowerCase());
@@ -137,7 +119,10 @@ export function buildPatchFromTastePicks(input: {
       .map((p) => p.archetype)
       .filter((a): a is string => Boolean(a?.trim())),
     compliments: input.compliments ?? [],
-    tasteTags: tasteTags.map((t) => t.tag),
+    tasteTags: [
+      ...(input.wornPicks ?? []).flatMap((p) => p.tasteTags ?? []),
+      ...(input.aspirationalPicks ?? []).flatMap((p) => p.tasteTags ?? []),
+    ],
     styleBecome: input.styleBecome,
     styleFriction: input.styleFriction,
   });
