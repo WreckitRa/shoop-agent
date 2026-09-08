@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveTryonCta } from "@/components/tryon/self-avatar-store";
+import {
+  resolveSelfAvatarFromPeople,
+  resolveTryonCta,
+  selfAvatarWaiting,
+} from "@/components/tryon/self-avatar-store";
 import {
   guestFittingCtaLabel,
   resolveMirrorEntry,
@@ -125,5 +129,66 @@ describe("guestFittingCtaLabel", () => {
       guestFittingCtaLabel("look"),
       "Sign up to see the full look",
     );
+  });
+});
+
+describe("selfAvatarWaiting", () => {
+  it("is loading only when there is no twin on screen yet", () => {
+    assert.equal(selfAvatarWaiting("loading", null), true);
+    assert.equal(selfAvatarWaiting("unknown", null), true);
+    assert.equal(selfAvatarWaiting("loading", "https://cdn.example/twin.jpg"), false);
+    assert.equal(selfAvatarWaiting("ready", "https://cdn.example/twin.jpg"), false);
+    assert.equal(selfAvatarWaiting("missing", null), false);
+  });
+});
+
+describe("resolveSelfAvatarFromPeople", () => {
+  const painted = {
+    status: "ready" as const,
+    personId: "guest-self",
+    avatarUrl: "https://cdn.example/twin.jpg",
+  };
+
+  it("keeps the painted URL when a refetch returns a new signed URL", () => {
+    const next = resolveSelfAvatarFromPeople(painted, [
+      {
+        id: "user-self",
+        relation: "self",
+        has_avatar: true,
+        avatar_url: "https://cdn.example/twin.jpg?token=new",
+      },
+    ]);
+    assert.equal(next.status, "ready");
+    assert.equal(next.personId, "user-self");
+    assert.equal(next.avatarUrl, painted.avatarUrl);
+  });
+
+  it("does not drop a minted twin when migrate has not landed yet", () => {
+    const next = resolveSelfAvatarFromPeople(painted, [
+      {
+        id: "user-self",
+        relation: "self",
+        has_avatar: false,
+        avatar_url: null,
+      },
+    ]);
+    assert.equal(next.status, "ready");
+    assert.equal(next.avatarUrl, painted.avatarUrl);
+  });
+
+  it("stays missing when there was never a twin", () => {
+    const next = resolveSelfAvatarFromPeople(
+      { status: "loading", personId: null, avatarUrl: null },
+      [
+        {
+          id: "user-self",
+          relation: "self",
+          has_avatar: false,
+          avatar_url: null,
+        },
+      ],
+    );
+    assert.equal(next.status, "missing");
+    assert.equal(next.avatarUrl, null);
   });
 });

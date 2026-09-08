@@ -3,6 +3,7 @@
  * Pure / client-safe — search I/O lives in run-reading-looks.ts.
  */
 
+import { FITTING_LOOK_COUNT } from "./style-contract";
 import type { StylistVerdict } from "./verdict";
 import { readingPalette } from "./verdict-reading";
 
@@ -33,9 +34,8 @@ export type ReadingLookItem = ReadingLookQuery & {
   product: ReadingLookProduct | null;
 };
 
-const LOOK_COUNT = 5;
 const PIECES_PER_LOOK = 4;
-const MAX_QUERIES = LOOK_COUNT * PIECES_PER_LOOK;
+const MAX_QUERIES = FITTING_LOOK_COUNT * PIECES_PER_LOOK;
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
@@ -159,7 +159,7 @@ function lookQueries(verdict: StylistVerdict): ReadingLookQuery[] {
   if (contractLooks?.length) {
     const out: ReadingLookQuery[] = [];
     const keys = new Set<string>();
-    contractLooks.slice(0, LOOK_COUNT).forEach((look, i) => {
+    contractLooks.slice(0, FITTING_LOOK_COUNT).forEach((look, i) => {
       let slot = 0;
       for (const piece of look.pieces) {
         if (slot >= PIECES_PER_LOOK) break;
@@ -185,7 +185,7 @@ function lookQueries(verdict: StylistVerdict): ReadingLookQuery[] {
   const formulas = Array.isArray(verdict.outfit_formulas)
     ? verdict.outfit_formulas
     : [];
-  formulas.slice(0, LOOK_COUNT).forEach((raw, i) => {
+  formulas.slice(0, FITTING_LOOK_COUNT).forEach((raw, i) => {
     const o = asRecord(raw);
     if (!o) return;
     const occasion =

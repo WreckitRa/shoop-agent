@@ -2162,7 +2162,6 @@ export function OnboardingGate() {
       setTwinStatus("ready");
       setTwinError(null);
       useSelfAvatarStore.getState().markReady(finalUrl);
-      void useSelfAvatarStore.getState().refresh();
     } catch (e) {
       const rateLimited =
         e instanceof Error &&
@@ -2785,7 +2784,6 @@ export function OnboardingGate() {
       useUserProfileStore.getState().setOnboardingCompleted(true);
       void useUserProfileStore.getState().hydrate({ force: true });
       if (twinAvatarUrl) useSelfAvatarStore.getState().markReady(twinAvatarUrl);
-      void useSelfAvatarStore.getState().refresh();
       clearOnboardingUiSession();
       clearGuestPhotoLive();
       setHoldOpen(false);

@@ -4,12 +4,20 @@ import { displayHexForFamily } from "./family-hex";
 import { FITTING_VERDICT_SCHEMA } from "./fitting-verdict-prompt";
 import {
   coerceColorFamily,
+  FITTING_LOOK_COUNT,
   parseFittingVerdict,
   slotForGarment,
   validateStyleContract,
 } from "./style-contract";
 
 describe("style contract", () => {
+  it("asks Sol for exactly five looks", () => {
+    const looks =
+      FITTING_VERDICT_SCHEMA.properties.contract.properties.looks;
+    assert.equal(looks.minItems, FITTING_LOOK_COUNT);
+    assert.equal(looks.maxItems, FITTING_LOOK_COUNT);
+  });
+
   it("does not ask the model for swatch hex", () => {
     const swatch =
       FITTING_VERDICT_SCHEMA.properties.contract.properties.palette.properties

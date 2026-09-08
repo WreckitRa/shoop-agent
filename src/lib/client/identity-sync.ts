@@ -100,8 +100,8 @@ export function clearIdentityScopedBrowserStorage() {
  * Zero every client store that belongs to a person — chats, twin, looks, cart,
  * onboarding chrome — before hydrating the next identity.
  *
- * `preserveOnboarding`: guest → account during Fitting. Keep the column open
- * and the UI resume key so onboarding continues in place after signup.
+ * `preserveOnboarding`: guest → account during Fitting. Keep the column open,
+ * the painted twin, and the UI resume key so onboarding continues in place.
  */
 export function resetUserScopedClientState(opts?: {
   preserveOnboarding?: boolean;
@@ -114,7 +114,10 @@ export function resetUserScopedClientState(opts?: {
   resetClientUserPresentation();
   resetChatForNewIdentity();
   useCartStore.getState().resetForIdentityChange();
-  useSelfAvatarStore.getState().resetForIdentityChange();
+  // Same person across guest→account during Fitting — keep the painted twin.
+  if (!preserve) {
+    useSelfAvatarStore.getState().resetForIdentityChange();
+  }
   useTryOnDrawerStore.getState().resetForIdentityChange();
   useInlineProductStore.getState().collapse();
 

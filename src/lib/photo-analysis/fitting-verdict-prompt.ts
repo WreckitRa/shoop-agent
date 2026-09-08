@@ -6,6 +6,7 @@
 import {
   BOTTOM_FITS,
   COLOR_FAMILIES,
+  FITTING_LOOK_COUNT,
   GARMENT_TYPES,
   NECKLINES,
   PATTERN_SCALES,
@@ -256,8 +257,8 @@ export const FITTING_VERDICT_SCHEMA = {
         looks: {
           type: "array",
           items: lookSchema,
-          minItems: 4,
-          maxItems: 6,
+          minItems: FITTING_LOOK_COUNT,
+          maxItems: FITTING_LOOK_COUNT,
         },
       },
     },
@@ -289,7 +290,7 @@ COLOUR
 - Put the real shade in shade. Do not emit hex — code fills the swatch from family and shade.
 
 LOOKS
-- 4 to 6 looks, for the week they described; name the source answer for each. Climate from the brief — no wool coat in a hot-humid week.
+- Exactly ${FITTING_LOOK_COUNT} looks, for the week they described; name the source answer for each. Climate from the brief — no wool coat in a hot-humid week.
 - Each look: 2–4 pieces. One top OR one one_piece, one bottom unless one_piece, shoes, optional outerwear. Never two tops. No accessories.
 - Each piece: garment_type from the vocabulary, colour family from THEIR palette, fit from your silhouette rules, neckline from necklines.yes when it's a top, must_not carrying every veto term (crop, heels, skinny, logo, neon — whatever they locked).
 - Across the looks: at least three different near-face colours on top; never the same top type + colour twice.

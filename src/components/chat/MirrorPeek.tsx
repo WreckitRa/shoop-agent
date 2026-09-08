@@ -38,7 +38,6 @@ type Props = {
  */
 export function MirrorPeek({ className, onOpenSidebar }: Props) {
   const avatarUrl = useSelfAvatarStore((s) => s.avatarUrl);
-  const status = useSelfAvatarStore((s) => s.status);
   const drawerOpen = useTryOnDrawerStore((s) => s.open);
   const resultUrl = useTryOnDrawerStore((s) => s.resultUrl);
   const dressing = useTryOnDrawerStore(
@@ -54,7 +53,7 @@ export function MirrorPeek({ className, onOpenSidebar }: Props) {
   const form = formFromGender(body?.genderPresentation ?? "");
   const build = asBuild(body?.bodyType);
 
-  const ready = status === "ready" && Boolean(avatarUrl);
+  const ready = Boolean(avatarUrl);
   const thumb = activeCount > 0 && resultUrl ? resultUrl : avatarUrl;
 
   const statusLine =

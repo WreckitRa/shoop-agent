@@ -17,6 +17,9 @@ export const COLOR_FAMILIES = COLOR_BUCKETS.filter(
   (b): b is ColorFamily => b !== "unknown",
 );
 
+/** Verdict page always generates and shows this many looks. */
+export const FITTING_LOOK_COUNT = 5;
+
 export const SLOTS = [
   "top",
   "bottom",
@@ -477,8 +480,8 @@ export function validateStyleContract(
   const hasPhoto = opts?.hasPhoto !== false;
   const looks = contract.looks;
 
-  if (looks.length < 4) {
-    violations.push(`looks:${looks.length} (need at least 4)`);
+  if (looks.length !== FITTING_LOOK_COUNT) {
+    violations.push(`looks:${looks.length} (need ${FITTING_LOOK_COUNT})`);
   }
   if (hasPhoto && contract.palette.near_face.length < 1) {
     violations.push("near_face:empty");

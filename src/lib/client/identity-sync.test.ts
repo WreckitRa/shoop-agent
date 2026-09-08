@@ -120,6 +120,26 @@ describe("identity reset", () => {
     assert.equal(useTryOnDrawerStore.getState().resultUrl, null);
   });
 
+  it("keeps the painted twin across guest→user signup during Fitting", () => {
+    useSelfAvatarStore.setState({
+      status: "ready",
+      personId: "person_guest",
+      avatarUrl: "https://cdn.example/twin.jpg",
+    });
+    useInlineFittingStore.setState({
+      columnOpen: true,
+      onboardingActive: true,
+    });
+
+    resetUserScopedClientState({ preserveOnboarding: true });
+
+    assert.equal(
+      useSelfAvatarStore.getState().avatarUrl,
+      "https://cdn.example/twin.jpg",
+    );
+    assert.equal(useSelfAvatarStore.getState().status, "ready");
+  });
+
   it("clears onboarding resume and guest bag on sign-out", async () => {
     const { localStorage, sessionStorage } = installBrowserStorage();
     sessionStorage.setItem(

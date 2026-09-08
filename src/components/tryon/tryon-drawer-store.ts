@@ -169,9 +169,7 @@ async function fetchSelfAvatarUrl(): Promise<string | null> {
 }
 
 function readWarmAvatarUrl(): string | null {
-  const self = useSelfAvatarStore.getState();
-  if (self.status === "ready" && self.avatarUrl) return self.avatarUrl;
-  return null;
+  return useSelfAvatarStore.getState().avatarUrl;
 }
 
 function ensureAvatarLoaded(generation: number) {
@@ -536,8 +534,7 @@ function denyGuestDrawer(): boolean {
 
 function hasTwinForDress(): boolean {
   if (useTryOnDrawerStore.getState().avatarUrl) return true;
-  const self = useSelfAvatarStore.getState();
-  return self.status === "ready" && Boolean(self.avatarUrl);
+  return Boolean(useSelfAvatarStore.getState().avatarUrl);
 }
 
 /** Open The Fitting instead of hitting try-on APIs that 404/500 without a twin. */

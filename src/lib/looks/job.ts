@@ -7,6 +7,7 @@ import { fashionOwnerUserId } from "@/lib/fashion-memory/auth";
 import { ensureSelfPerson } from "@/lib/fashion-memory/people";
 import {
   parseFittingVerdict,
+  FITTING_LOOK_COUNT,
   type StyleContract,
 } from "@/lib/photo-analysis/style-contract";
 import { hexForSwatch } from "@/lib/photo-analysis/family-hex";
@@ -597,7 +598,7 @@ async function runLooksJob(params: {
   started: number;
 }): Promise<void> {
   const { userId, photoHash, fitting, started } = params;
-  const looks = fitting.contract.looks.slice(0, 6);
+  const looks = fitting.contract.looks.slice(0, FITTING_LOOK_COUNT);
   await seedLookRows({
     userId,
     photoHash,

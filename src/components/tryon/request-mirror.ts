@@ -18,7 +18,7 @@ export function requestMirror() {
   const accessMode = useAppSessionStore.getState().mode;
   const self = useSelfAvatarStore.getState();
   const tryon = useTryOnDrawerStore.getState();
-  const avatarReady = self.status === "ready" && Boolean(self.avatarUrl);
+  const avatarReady = Boolean(self.avatarUrl);
 
   if (accessMode === "anonymous") {
     openAuthModal("signup");

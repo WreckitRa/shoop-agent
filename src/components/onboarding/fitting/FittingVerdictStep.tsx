@@ -9,6 +9,7 @@ import type {
   LookCardPublic,
   ReadingLooksPayload,
 } from "@/lib/looks/public-types";
+import { FITTING_LOOK_COUNT } from "@/lib/photo-analysis/style-contract";
 import { buildReadingView } from "@/lib/photo-analysis/verdict-reading";
 import type { StylistVerdict } from "@/lib/photo-analysis/verdict";
 import type { BuildKey, SilhouetteForm } from "./types";
@@ -41,8 +42,6 @@ const BUILD_TXT: Record<BuildKey, string> = {
   broad: "strong shoulders love clean lines and hate cling",
   plus: "drape, structure and the right rise do the work... cling never will",
 };
-
-const LOOKS_ON_YOU = 5;
 
 function traceVerdict(event: string, payload: Record<string, unknown> = {}) {
   void guestFetch("/api/onboarding/verdict-log", {
@@ -148,14 +147,16 @@ function ColorSwatch({
 function LooksOnYouRail({
   looks,
   pending,
+  thisWeek,
   onRetry,
 }: {
   looks: LookCardPublic[];
   pending: boolean;
+  thisWeek?: string;
   onRetry: (lookIndex: number) => void;
 }) {
   const stillWorking = pending || looks.some((l) => l.status === "queued" || l.status === "products_ready" || l.status === "rendering");
-  const visible = looks.slice(0, LOOKS_ON_YOU);
+  const visible = looks.slice(0, FITTING_LOOK_COUNT);
 
   return (
     <div>
@@ -267,6 +268,11 @@ function LooksOnYouRail({
           );
         })}
       </div>
+      {thisWeek ? (
+        <p className="mt-2 text-[14px] leading-[1.55] text-[var(--fitting-ink)]">
+          {thisWeek}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -326,7 +332,7 @@ export function FittingVerdictStep({
   );
 
   const skeletonLooks = useMemo((): LookCardPublic[] => {
-    const contractLooks = verdict?.contract?.looks?.slice(0, LOOKS_ON_YOU) ?? [];
+    const contractLooks = verdict?.contract?.looks?.slice(0, FITTING_LOOK_COUNT) ?? [];
     return contractLooks.map((look, i) => ({
       id: `skeleton-${i}`,
       lookIndex: i,
@@ -347,7 +353,7 @@ export function FittingVerdictStep({
   }, [verdict]);
 
   const displayLooks =
-    rail.looks.length > 0 ? rail.looks.slice(0, LOOKS_ON_YOU) : skeletonLooks;
+    rail.looks.length > 0 ? rail.looks.slice(0, FITTING_LOOK_COUNT) : skeletonLooks;
 
   useEffect(() => {
     if (!verdict) return;
@@ -426,6 +432,15 @@ export function FittingVerdictStep({
           {reading.theShift}
         </p>
       ) : null}
+
+      <div className="mt-8">
+        <LooksOnYouRail
+          looks={displayLooks}
+          pending={rail.pending}
+          thisWeek={reading.thisWeek}
+          onRetry={retryLook}
+        />
+      </div>
 
       {reading.rules.length ? (
         <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
@@ -524,26 +539,6 @@ export function FittingVerdictStep({
           </p>
         </div>
       ) : null}
-
-      <div className="mt-8 border-t border-[var(--fitting-line)] pt-7">
-        {reading.thisWeek ? (
-          <>
-            <FittingKick>THIS WEEK</FittingKick>
-            <p className="mt-2 text-[14px] leading-[1.55] text-[var(--fitting-ink)]">
-              {reading.thisWeek}
-            </p>
-          </>
-        ) : (
-          <FittingKick>LOOKS ON YOU</FittingKick>
-        )}
-        <div className="mt-4">
-          <LooksOnYouRail
-            looks={displayLooks}
-            pending={rail.pending}
-            onRetry={retryLook}
-          />
-        </div>
-      </div>
 
       {reading.fullProfile ||
       reading.silhouetteChips.length ||

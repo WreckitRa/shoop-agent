@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { requestMirror } from "@/components/tryon/request-mirror";
-import { useSelfAvatarStore } from "@/components/tryon/self-avatar-store";
+import {
+  selfAvatarWaiting,
+  useSelfAvatarStore,
+} from "@/components/tryon/self-avatar-store";
 import { useTryOnDrawerStore } from "@/components/tryon/tryon-drawer-store";
 import { BodyTwinSilhouette } from "@/components/onboarding/fitting/BodyTwinSilhouette";
 import { SILHOUETTE_VIEWBOX } from "@/components/onboarding/fitting/bodySilhouetteGeometry";
@@ -43,7 +46,6 @@ function asBuild(v: string | null | undefined): BuildKey | null {
 export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const avatarUrl = useSelfAvatarStore((s) => s.avatarUrl);
   const status = useSelfAvatarStore((s) => s.status);
-  const refresh = useSelfAvatarStore((s) => s.refresh);
   const openFittingRoom = useTryOnDrawerStore((s) => s.openFittingRoom);
   const rackCount = useTryOnDrawerStore((s) => s.rackIds.length);
   const activeCount = useTryOnDrawerStore((s) => s.activeIds.length);
@@ -51,10 +53,6 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
   const identityScope = useClientIdentityScopeKey();
   const body = useUserProfileStore((s) => s.body);
   const [moodCount, setMoodCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    void refresh();
-  }, [identityScope, refresh]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,8 +75,8 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
     extractFirstName(preferredName) ??
     (firstName && firstName !== "Account" ? firstName : null);
   const nameLabel = displayName ? displayName.toUpperCase() : "YOU";
-  const ready = status === "ready" && Boolean(avatarUrl);
-  const loading = status === "loading";
+  const ready = Boolean(avatarUrl);
+  const loading = selfAvatarWaiting(status, avatarUrl);
   const form = formFromGender(body?.genderPresentation ?? "");
   const build = asBuild(body?.bodyType);
   const hasBody = Boolean(
@@ -129,7 +127,9 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
         aria-label={
           ready
             ? "Open the Mirror"
-            : "Start onboarding — create your avatar"
+            : loading
+              ? "Loading your twin"
+              : "Start onboarding — create your avatar"
         }
         className={cn(
           "relative flex-1 overflow-hidden rounded-lg border border-hairline bg-white text-left transition hover:border-ink/20",
@@ -137,12 +137,7 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
         )}
       >
         {ready ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl!}
-            alt=""
-            className="absolute inset-0 size-full object-cover object-top transition-opacity duration-300"
-          />
+          <TwinFrame src={avatarUrl!} />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-[#FAFAFB] to-[#EFEFF2]">
             <div className="absolute inset-x-0 bottom-11 top-1 flex items-end justify-center">
@@ -243,5 +238,31 @@ export function HomeMirrorCard({ className, previewUrl, compact }: Props) {
         </button>
       ) : null}
     </aside>
+  );
+}
+
+/** Keep the last decoded frame until the next src loads — signed URLs must not blank the rail. */
+function TwinFrame({ src }: { src: string }) {
+  const [held, setHeld] = useState(src);
+  const incoming = src !== held;
+
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={held}
+        alt=""
+        className="absolute inset-0 size-full object-cover object-top"
+      />
+      {incoming ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          className="absolute inset-0 size-full object-cover object-top"
+          onLoad={() => setHeld(src)}
+        />
+      ) : null}
+    </>
   );
 }
